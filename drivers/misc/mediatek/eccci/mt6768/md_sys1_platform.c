@@ -62,7 +62,7 @@ static struct ccci_clk_node clk_table[] = {
 static struct pinctrl *mdcldma_pinctrl;
 #endif
 
-unsigned int devapc_check_flag = 1;
+unsigned int devapc_check_flag;
 
 static void __iomem *md_sram_pd_psmcusys_base;
 static void __iomem *md_cldma_misc_base;
@@ -335,7 +335,6 @@ int md_cd_io_remap_md_side_register(struct ccci_modem *md)
 		md->hw_info->md_boot_slave_En, 0x4);
 	md_info->md_rgu_base = ioremap_nocache(
 		md->hw_info->md_rgu_base, 0x300);
-	md_info->l1_rgu_base = ioremap_nocache(md->hw_info->l1_rgu_base, 0x40);
 	md_info->md_global_con0 = ioremap_nocache(MD_GLOBAL_CON0, 0x4);
 
 

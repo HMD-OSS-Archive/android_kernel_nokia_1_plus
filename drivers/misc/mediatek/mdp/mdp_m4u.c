@@ -12,7 +12,16 @@
  */
 
 #include "mdp_m4u.h"
+#ifdef CONFIG_MTK_CMDQ_MBOX_EXT
+#include "mdp_cmdq_helper_ext.h"
+#else
+#include "cmdq_record.h"
+#ifndef MDP_META_IN_LEGACY_V2
 #include "cmdq_helper_ext.h"
+#else
+#include "cmdq_core.h"
+#endif
+#endif
 #include <ion_drv.h>
 #ifdef CONFIG_MTK_IOMMU_V2
 #include "mach/mt_iommu.h"
@@ -82,7 +91,7 @@ struct ion_handle *mdp_ion_import_handle(int fd)
 		return NULL;
 	}
 
-	CMDQ_LOG("import ion handle fd=%d,hnd=0x%p\n", fd, handle);
+	CMDQ_MSG("import ion handle fd=%d,hnd=0x%p\n", fd, handle);
 #endif
 	return handle;
 }
@@ -99,7 +108,7 @@ void mdp_ion_free_handle(struct ion_handle *handle)
 
 	ion_free(g_mdp_ion_client, handle);
 
-	CMDQ_LOG("free ion handle 0x%p\n", handle);
+	CMDQ_MSG("free ion handle 0x%p\n", handle);
 #endif
 }
 

@@ -1,21 +1,19 @@
+# SPDX-License-Identifier: GPL-2.0
 #
-# Copyright (C) 2015 MediaTek Inc.
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License version 2 as
-# published by the Free Software Foundation.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
+# Copyright (c) 2019 MediaTek Inc.
 #
 
-THERMAL_CHIP_DRIVER_DIR := $(srctree)/drivers/misc/mediatek/thermal/$(MTK_PLATFORM)
+ifeq ($(CONFIG_MACH_MT6833),y)
+	PDIR = mt6833
+else
+	PDIR = $(MTK_PLATFORM)
+endif
+
+THERMAL_CHIP_DRIVER_DIR := $(srctree)/drivers/misc/mediatek/thermal/$(PDIR)
 ccflags-y  += -I$(THERMAL_CHIP_DRIVER_DIR)/inc
-ccflags-y  += -I$(srctree)/drivers/misc/mediatek/base/power/$(MTK_PLATFORM)
-ccflags-y  += -I$(srctree)/drivers/misc/mediatek/power/$(MTK_PLATFORM)
-ccflags-y  += -I$(srctree)/drivers/misc/mediatek/dramc/$(MTK_PLATFORM)
+ccflags-y  += -I$(srctree)/drivers/misc/mediatek/base/power/$(PDIR)
+ccflags-y  += -I$(srctree)/drivers/misc/mediatek/power/$(PDIR)
+ccflags-y  += -I$(srctree)/drivers/misc/mediatek/dramc/$(PDIR)
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/gpu/hal/
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/thermal/fakeHeader/
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/base/power/include/
@@ -24,6 +22,12 @@ ccflags-y  += -I$(srctree)/drivers/misc/mediatek/thermal/common/inc/
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/base/power/eem_v1/inc/
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/imgsensor/inc/
+ifeq ($(CONFIG_MTK_TINYSYS_SSPM_SUPPORT),y)
+ccflags-y  += -I$(srctree)/drivers/misc/mediatek/sspm
+ccflags-y  += -I$(srctree)/drivers/misc/mediatek/sspm/v1
+ccflags-y  += -I$(srctree)/drivers/misc/mediatek/sspm/$(PDIR)
+ccflags-y  += -I$(srctree)/drivers/misc/mediatek/mcupm/$(PDIR)
+endif
 
 ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6735"))
 ifeq ($(CONFIG_ARCH_MT6735),y)
@@ -405,18 +409,19 @@ obj-$(CONFIG_THERMAL) += mtk_tsAll.o
 obj-$(CONFIG_THERMAL) += mtk_ts_imgsensor.o
 endif
 
-ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6885"))
+ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6885" "mt6893"))
 
-#obj-$(CONFIG_THERMAL) += mtk_ts_battery.o
+obj-$(CONFIG_THERMAL) += mtk_ts_battery.o
 
 obj-$(CONFIG_THERMAL) += mtk_ts_bts.o
 obj-$(CONFIG_THERMAL) += mtk_ts_btsmdpa.o
+obj-$(CONFIG_THERMAL) += mtk_ts_btsnrpa.o
 
 obj-$(CONFIG_THERMAL) += mtk_ts_cpu_noBank.o
 obj-$(CONFIG_THERMAL) += mtk_ts_pa.o
 obj-$(CONFIG_THERMAL) += mtk_ts_pa_thput.o
 obj-$(CONFIG_THERMAL) += mtk_ts_pmic.o
-#obj-$(CONFIG_THERMAL) += mtk_ts_charger.o
+obj-$(CONFIG_THERMAL) += mtk_ts_charger.o
 #obj-$(CONFIG_THERMAL) += mtk_ts_charger2.o
 
 
@@ -426,4 +431,66 @@ endif
 
 obj-$(CONFIG_THERMAL) += mtk_tsAll.o
 obj-$(CONFIG_THERMAL) += mtk_ts_imgsensor.o
+endif
+
+ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6873"))
+
+obj-$(CONFIG_THERMAL) += mtk_ts_battery.o
+
+obj-$(CONFIG_THERMAL) += mtk_ts_bts.o
+obj-$(CONFIG_THERMAL) += mtk_ts_btsmdpa.o
+obj-$(CONFIG_THERMAL) += mtk_ts_btsnrpa.o
+
+obj-$(CONFIG_THERMAL) += mtk_ts_cpu_noBank.o
+obj-$(CONFIG_THERMAL) += mtk_ts_pa.o
+obj-$(CONFIG_THERMAL) += mtk_ts_pa_thput.o
+obj-$(CONFIG_THERMAL) += mtk_ts_pmic.o
+obj-$(CONFIG_THERMAL) += mtk_ts_charger.o
+#obj-$(CONFIG_THERMAL) += mtk_ts_charger2.o
+
+ifneq ($(CONFIG_MTK_COMBO_WIFI),)
+    obj-$(CONFIG_THERMAL) += mtk_ts_wmt.o
+endif
+
+obj-$(CONFIG_THERMAL) += mtk_tsAll.o
+obj-$(CONFIG_THERMAL) += mtk_ts_imgsensor.o
+endif
+ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6853"))
+
+obj-$(CONFIG_THERMAL) += mtk_ts_battery.o
+
+obj-$(CONFIG_THERMAL) += mtk_ts_bts.o
+obj-$(CONFIG_THERMAL) += mtk_ts_btsmdpa.o
+obj-$(CONFIG_THERMAL) += mtk_ts_btsnrpa.o
+
+obj-$(CONFIG_THERMAL) += mtk_ts_cpu_noBank.o
+obj-$(CONFIG_THERMAL) += mtk_ts_pa.o
+obj-$(CONFIG_THERMAL) += mtk_ts_pa_thput.o
+obj-$(CONFIG_THERMAL) += mtk_ts_pmic.o
+obj-$(CONFIG_THERMAL) += mtk_ts_charger.o
+#obj-$(CONFIG_THERMAL) += mtk_ts_charger2.o
+
+
+ifneq ($(CONFIG_MTK_COMBO_WIFI),)
+    obj-$(CONFIG_THERMAL) += mtk_ts_wmt.o
+endif
+
+obj-$(CONFIG_THERMAL) += mtk_tsAll.o
+obj-$(CONFIG_THERMAL) += mtk_ts_imgsensor.o
+endif
+
+ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt8168"))
+obj-$(CONFIG_THERMAL) += mtk_ts_cpu_noBank.o
+obj-$(CONFIG_THERMAL) += mtk_ts_pmic.o
+obj-$(CONFIG_THERMAL) += mtk_tsAll.o
+obj-$(CONFIG_THERMAL) += mtk_ts_charger.o
+obj-$(CONFIG_THERMAL) += mtk_ts_battery.o
+
+ifneq ($(CONFIG_MTK_COMBO_WIFI),)
+ifneq ($(filter "MT76%", $(CONFIG_MTK_COMBO_CHIP)),)
+    obj-$(CONFIG_THERMAL) += mtk_ts_wmt_766x.o
+else
+    obj-$(CONFIG_THERMAL) += mtk_ts_wmt.o
+endif
+endif
 endif

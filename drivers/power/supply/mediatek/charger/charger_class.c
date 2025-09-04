@@ -374,6 +374,16 @@ int charger_dev_enable_safety_timer(struct charger_device *chg_dev, bool en)
 }
 EXPORT_SYMBOL(charger_dev_enable_safety_timer);
 
+int charger_dev_enable_hz(struct charger_device *chg_dev, bool en)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+	    chg_dev->ops->enable_hz)
+		return chg_dev->ops->enable_hz(chg_dev, en);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_enable_hz);
+
 int charger_dev_get_adc(struct charger_device *charger_dev,
 	enum adc_channel chan, int *min, int *max)
 {
@@ -384,6 +394,18 @@ int charger_dev_get_adc(struct charger_device *charger_dev,
 	return -ENOTSUPP;
 }
 EXPORT_SYMBOL(charger_dev_get_adc);
+
+int charger_dev_get_adc_accuracy(struct charger_device *charger_dev,
+	enum adc_channel chan, int *min, int *max)
+{
+	if (charger_dev != NULL && charger_dev->ops != NULL &&
+	    charger_dev->ops->get_adc_accuracy)
+		return charger_dev->ops->get_adc_accuracy(charger_dev, chan,
+							  min, max);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_get_adc_accuracy);
 
 int charger_dev_is_safety_timer_enabled(struct charger_device *chg_dev,
 					bool *en)
@@ -492,6 +514,100 @@ int charger_dev_set_direct_charging_vbusov(struct charger_device *chg_dev,
 	return -ENOTSUPP;
 }
 EXPORT_SYMBOL(charger_dev_set_direct_charging_vbusov);
+
+int charger_dev_set_direct_charging_ibatoc(struct charger_device *chg_dev,
+					   u32 uA)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+	    chg_dev->ops->set_direct_charging_ibatoc)
+		return chg_dev->ops->set_direct_charging_ibatoc(chg_dev,
+								uA);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_set_direct_charging_ibatoc);
+
+int charger_dev_set_direct_charging_vbatov(struct charger_device *chg_dev,
+					   u32 uV)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+	    chg_dev->ops->set_direct_charging_vbatov)
+		return chg_dev->ops->set_direct_charging_vbatov(chg_dev,
+								uV);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_set_direct_charging_vbatov);
+
+int charger_dev_set_direct_charging_vbatov_alarm(struct charger_device *chg_dev,
+						 u32 uV)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+	    chg_dev->ops->set_direct_charging_vbatov_alarm)
+		return chg_dev->ops->set_direct_charging_vbatov_alarm(chg_dev,
+								      uV);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_set_direct_charging_vbatov_alarm);
+
+int charger_dev_reset_direct_charging_vbatov_alarm(
+	struct charger_device *chg_dev)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+	    chg_dev->ops->reset_direct_charging_vbatov_alarm)
+		return chg_dev->ops->reset_direct_charging_vbatov_alarm(
+			chg_dev);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_reset_direct_charging_vbatov_alarm);
+
+int charger_dev_set_direct_charging_vbusov_alarm(struct charger_device *chg_dev,
+						 u32 uV)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+	    chg_dev->ops->set_direct_charging_vbusov_alarm)
+		return chg_dev->ops->set_direct_charging_vbusov_alarm(chg_dev,
+								      uV);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_set_direct_charging_vbusov_alarm);
+
+int charger_dev_reset_direct_charging_vbusov_alarm(
+	struct charger_device *chg_dev)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+	    chg_dev->ops->reset_direct_charging_vbusov_alarm)
+		return chg_dev->ops->reset_direct_charging_vbusov_alarm(
+			chg_dev);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_reset_direct_charging_vbusov_alarm);
+
+int charger_dev_is_direct_charging_vbuslowerr(
+	struct charger_device *chg_dev, bool *err)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+	    chg_dev->ops->is_direct_charging_vbuslowerr)
+		return chg_dev->ops->is_direct_charging_vbuslowerr(
+			chg_dev, err);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_is_direct_charging_vbuslowerr);
+
+int charger_dev_init_direct_charging_chip(struct charger_device *chg_dev)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+	    chg_dev->ops->init_direct_charging_chip)
+		return chg_dev->ops->init_direct_charging_chip(chg_dev);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_init_direct_charging_chip);
 
 int charger_dev_enable_chg_type_det(struct charger_device *chg_dev, bool en)
 {
@@ -652,6 +768,18 @@ int charger_dev_enable_hidden_mode(struct charger_device *charger_dev, bool en)
 }
 EXPORT_SYMBOL(charger_dev_enable_hidden_mode);
 
+int charger_dev_enable_bleed_discharge(struct charger_device *charger_dev,
+				       bool en)
+{
+	if (charger_dev != NULL && charger_dev->ops != NULL &&
+				       charger_dev->ops->enable_bleed_discharge)
+		return charger_dev->ops->enable_bleed_discharge(charger_dev,
+								en);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_enable_bleed_discharge);
+
 static DEVICE_ATTR(name, 0444, charger_show_name, NULL);
 
 static struct attribute *charger_class_attrs[] = {
@@ -702,26 +830,29 @@ struct charger_device *charger_device_register(const char *name,
 		const struct charger_ops *ops,
 		const struct charger_properties *props)
 {
-	struct charger_device *chg_dev;
+	struct charger_device *chg_dev = NULL;
 	static struct lock_class_key key;
-	struct srcu_notifier_head *head;
+	struct srcu_notifier_head *head = NULL;
 	int rc;
+	char *charger_name = NULL;
 
 	pr_debug("%s: name=%s\n", __func__, name);
 	chg_dev = kzalloc(sizeof(*chg_dev), GFP_KERNEL);
 	if (!chg_dev)
 		return ERR_PTR(-ENOMEM);
 
-	mutex_init(&chg_dev->ops_lock);
-	chg_dev->dev.class = charger_class;
-	chg_dev->dev.parent = parent;
-	chg_dev->dev.release = charger_device_release;
-	dev_set_name(&chg_dev->dev, name);
-	dev_set_drvdata(&chg_dev->dev, devdata);
 	head = &chg_dev->evt_nh;
 	srcu_init_notifier_head(head);
 	/* Rename srcu's lock to avoid LockProve warning */
 	lockdep_init_map(&(&head->srcu)->dep_map, name, &key, 0);
+	mutex_init(&chg_dev->ops_lock);
+	chg_dev->dev.class = charger_class;
+	chg_dev->dev.parent = parent;
+	chg_dev->dev.release = charger_device_release;
+	charger_name = kasprintf(GFP_KERNEL, "%s", name);
+	dev_set_name(&chg_dev->dev, charger_name);
+	dev_set_drvdata(&chg_dev->dev, devdata);
+	kfree(charger_name);
 
 	/* Copy properties */
 	if (props) {
@@ -769,7 +900,7 @@ static int charger_match_device_by_name(struct device *dev,
 
 struct charger_device *get_charger_by_name(const char *name)
 {
-	struct device *dev;
+	struct device *dev = NULL;
 
 	if (!name)
 		return (struct charger_device *)NULL;

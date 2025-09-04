@@ -21,6 +21,7 @@
 #include <mtk_vcorefs_governor.h>
 #include <mtk_vcorefs_manager.h>
 #include <mach/mtk_ppm_api.h>
+#include <linux/cpumask.h>
 
 int ultra_req;
 int cm_req;
@@ -48,10 +49,11 @@ void fbt_dram_arbitration(void)
 		ret = vcorefs_request_dvfs_opp(KIR_FBT, -1);
 
 	if (ret < 0)
-		fpsgo_systrace_c_fbt_gm(-100, ret, "fbt_dram_arbitration_ret");
+		fpsgo_systrace_c_fbt_gm(-100, 0, ret,
+			"fbt_dram_arbitration_ret");
 
-	fpsgo_systrace_c_fbt_gm(-100, cm_req, "cm_req");
-	fpsgo_systrace_c_fbt_gm(-100, ultra_req, "ultra_req");
+	fpsgo_systrace_c_fbt_gm(-100, 0, cm_req, "cm_req");
+	fpsgo_systrace_c_fbt_gm(-100, 0, ultra_req, "ultra_req");
 }
 
 void fbt_boost_dram(int boost)
@@ -71,11 +73,11 @@ void fbt_set_boost_value(unsigned int base_blc)
 
 	base_blc = clamp(base_blc, 1U, 100U);
 	update_eas_uclamp_min(EAS_UCLAMP_KIR_FPSGO, CGROUP_TA, (int)base_blc);
-	fpsgo_systrace_c_fbt_gm(-100, base_blc, "TA_cap");
+	fpsgo_systrace_c_fbt_gm(-100, 0, base_blc, "TA_cap");
 
 	/* single cluster for mt6739 */
 	cpi = ppm_get_cluster_cpi(0);
-	fpsgo_systrace_c_fbt_gm(-100, cpi, "cpi");
+	fpsgo_systrace_c_fbt_gm(-100, 0, cpi, "cpi");
 	cm_req = base_blc > cpi_uclamp_thres && cpi > cpi_thres;
 
 	fbt_dram_arbitration();
@@ -84,7 +86,7 @@ void fbt_set_boost_value(unsigned int base_blc)
 void fbt_clear_boost_value(void)
 {
 	update_eas_uclamp_min(EAS_UCLAMP_KIR_FPSGO, CGROUP_TA, 0);
-	fpsgo_systrace_c_fbt_gm(-100, 0, "TA_cap");
+	fpsgo_systrace_c_fbt_gm(-100, 0, 0, "TA_cap");
 
 	cm_req = 0;
 	ultra_req = 0;
@@ -107,27 +109,41 @@ void fbt_set_per_task_min_cap(int pid, unsigned int base_blc)
 	ret = set_task_util_min_pct(pid, base_blc);
 #endif
 	if (ret != 0) {
-		fpsgo_systrace_c_fbt(pid, ret, "uclamp fail");
-		fpsgo_systrace_c_fbt(pid, 0, "uclamp fail");
+		fpsgo_systrace_c_fbt(pid, 0, ret, "uclamp fail");
+		fpsgo_systrace_c_fbt(pid, 0, 0, "uclamp fail");
 		return;
 	}
 
-	fpsgo_systrace_c_fbt_gm(pid, base_blc, "min_cap");
+	fpsgo_systrace_c_fbt_gm(pid, 0, base_blc, "min_cap");
 }
 
-int fbt_get_L_cluster_num(void)
+void fbt_set_affinity(pid_t pid, unsigned int prefer_type)
 {
-	return 0;
+
+}
+
+void fbt_set_cpu_prefer(int pid, unsigned int prefer_type)
+{
+
 }
 
 int fbt_get_L_min_ceiling(void)
 {
-	int freq = 0;
-
-	return freq;
+	return 0;
 }
 
 int fbt_get_default_boost_ta(void)
 {
 	return 1;
 }
+
+int fbt_get_default_adj_loading(void)
+{
+	return 0;
+}
+
+int fbt_get_cluster_limit(int *cluster, int *freq)
+{
+	return 0;
+}
+

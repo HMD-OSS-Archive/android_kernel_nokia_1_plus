@@ -2954,6 +2954,26 @@ static int proc_pid_patch_state(struct seq_file *m, struct pid_namespace *ns,
 }
 #endif /* CONFIG_LIVEPATCH */
 
+#ifdef CONFIG_MTK_TASK_TURBO
+static int proc_turbo_task_show(struct seq_file *m, struct pid_namespace *ns,
+		struct pid *pid, struct task_struct *p)
+{
+	unsigned int is_turbo;
+	unsigned int is_inherit_turbo;
+
+	if (!p)
+		return -ESRCH;
+	task_lock(p);
+	is_turbo = p->turbo;
+	is_inherit_turbo = atomic_read(&p->inherit_types);
+	seq_printf(m, "tid=%d turbo = %d,inherit turbo = %d prio=%d bk_prio=%d\n",
+			p->pid, is_turbo, is_inherit_turbo,
+			p->prio, NICE_TO_PRIO(p->nice_backup));
+	task_unlock(p);
+	return 0;
+}
+#endif
+
 /*
  * Thread groups
  */
@@ -3077,6 +3097,15 @@ static const struct file_operations proc_tgid_base_operations = {
 	.iterate_shared	= proc_tgid_base_readdir,
 	.llseek		= generic_file_llseek,
 };
+
+struct pid *tgid_pidfd_to_pid(const struct file *file)
+{
+	if (!d_is_dir(file->f_path.dentry) ||
+	    (file->f_op != &proc_tgid_base_operations))
+		return ERR_PTR(-EBADF);
+
+	return proc_pid(file_inode(file));
+}
 
 static struct dentry *proc_tgid_base_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 {
@@ -3385,12 +3414,12 @@ static const struct pid_entry tid_base_stuff[] = {
 	REG("cmdline",   S_IRUGO, proc_pid_cmdline_ops),
 	ONE("stat",      S_IRUGO, proc_tid_stat),
 	ONE("statm",     S_IRUGO, proc_pid_statm),
-	REG("maps",      S_IRUGO, proc_tid_maps_operations),
+	REG("maps",      S_IRUGO, proc_pid_maps_operations),
 #ifdef CONFIG_PROC_CHILDREN
 	REG("children",  S_IRUGO, proc_tid_children_operations),
 #endif
 #ifdef CONFIG_NUMA
-	REG("numa_maps", S_IRUGO, proc_tid_numa_maps_operations),
+	REG("numa_maps", S_IRUGO, proc_pid_numa_maps_operations),
 #endif
 	REG("mem",       S_IRUSR|S_IWUSR, proc_mem_operations),
 	LNK("cwd",       proc_cwd_link),
@@ -3400,7 +3429,7 @@ static const struct pid_entry tid_base_stuff[] = {
 	REG("mountinfo",  S_IRUGO, proc_mountinfo_operations),
 #ifdef CONFIG_PROC_PAGE_MONITOR
 	REG("clear_refs", S_IWUSR, proc_clear_refs_operations),
-	REG("smaps",     S_IRUGO, proc_tid_smaps_operations),
+	REG("smaps",     S_IRUGO, proc_pid_smaps_operations),
 	REG("smaps_rollup", S_IRUGO, proc_pid_smaps_rollup_operations),
 	REG("pagemap",    S_IRUSR, proc_pagemap_operations),
 #endif
@@ -3456,6 +3485,9 @@ static const struct pid_entry tid_base_stuff[] = {
 #endif
 #ifdef CONFIG_CPU_FREQ_TIMES
 	ONE("time_in_state", 0444, proc_time_in_state_show),
+#endif
+#ifdef CONFIG_MTK_TASK_TURBO
+	ONE("turbo", 0444, proc_turbo_task_show),
 #endif
 };
 

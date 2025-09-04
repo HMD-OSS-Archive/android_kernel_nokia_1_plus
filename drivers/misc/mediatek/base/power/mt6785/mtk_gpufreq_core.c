@@ -3387,11 +3387,10 @@ static void __mt_gpufreq_init_efuse(void)
 	}
 
 	gpufreq_pr_info(
-			"@%s: g_efuse_id = 0x%08X, g_segment_id = %d, flavor = %s\n",
+			"@%s: g_efuse_id = 0x%08X, g_segment_id = %d\n",
 			__func__,
 			g_efuse_id,
-			g_segment_id,
-			CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES);
+			g_segment_id);
 }
 
 static void __mt_gpufreq_init_others(void)

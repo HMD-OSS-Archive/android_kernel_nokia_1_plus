@@ -58,10 +58,8 @@
 #include "helio-dvfsrc-opp.h"
 #endif
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 struct wakeup_source vpu_wake_lock[MTK_VPU_CORE];
-#else
-struct wake_lock vpu_wake_lock[MTK_VPU_CORE];
 #endif
 
 #define ENABLE_VER_CHECK
@@ -1959,7 +1957,9 @@ info18_out:
 #ifdef VPU_MOVE_WAKE_TO_BACK
 	if (normal_check_done == 1) {
 		vpu_trace_dump("VPU%d VPU_REQ_DO_CHECK_STATE OK", core);
-		LOG_INF("normal_check_done UNLOCK\n");
+		if (g_vpu_log_level > VpuLogThre_PERFORMANCE)
+			LOG_INF("normal_check_done UNLOCK\n");
+
 		vpu_service_cores[core].is_cmd_done = true;
 		wake_up_interruptible(&cmd_wait);
 	}
@@ -2232,10 +2232,8 @@ static int vpu_service_routine(void *arg)
 			LOG_DBG("[vpu] flag - 4: hw_enque_request\n");
 			vpu_hw_enque_request(service_core, req);
 			#else
-			#ifdef CONFIG_PM_WAKELOCKS
+			#ifdef CONFIG_PM_SLEEP
 			__pm_stay_awake(&(vpu_wake_lock[service_core]));
-			#else
-			wake_lock(&(vpu_wake_lock[service_core]));
 			#endif
 			exception_isr_check[service_core] = true;
 			if (vpu_hw_processing_request(service_core, req)) {
@@ -2289,10 +2287,8 @@ out:
 		if (vpu_service_cores[service_core].state != VCT_SHUTDOWN)
 			vpu_service_cores[service_core].state = VCT_IDLE;
 		mutex_unlock(&(vpu_service_cores[service_core].state_mutex));
-		#ifdef CONFIG_PM_WAKELOCKS
+		#ifdef CONFIG_PM_SLEEP
 		__pm_relax(&(vpu_wake_lock[service_core]));
-		#else
-		wake_unlock(&(vpu_wake_lock[service_core]));
 		#endif
 		mutex_lock(&vpu_dev->user_mutex);
 		LOG_DBG("[vpu] flag - 5.5 : ....\n");
@@ -2925,7 +2921,7 @@ int vpu_init_hw(int core, struct vpu_device *device)
 				&(ftrace_dump_work[i].my_work),
 				vpu_dump_ftrace_workqueue);
 #endif
-			#ifdef CONFIG_PM_WAKELOCKS
+			#ifdef CONFIG_PM_SLEEP
 			if (i == 0)
 				wakeup_source_init(
 					&(vpu_wake_lock[i]), "vpu_wakelock_0");
@@ -4134,10 +4130,11 @@ int vpu_hw_processing_request(int core, struct vpu_request *request)
 	struct vpu_algo *algo = NULL;
 	bool need_reload = false;
 
-	LOG_INF("%s, lock sdsp(%d) in + ", __func__, core);
+	if (g_vpu_log_level > VpuLogThre_PERFORMANCE)
+		LOG_INF("%s, lock sdsp(%d) in + ", __func__, core);
 
 	mutex_lock(&vpu_dev->sdsp_control_mutex[core]);
-
+	/*if (g_vpu_log_level > VpuLogThre_PERFORMANCE)*/
 	LOG_INF("%s, lock sdsp(%d) in - ", __func__, core);
 	if (g_vpu_log_level > Log_ALGO_OPP_INFO)
 		LOG_INF("[vpu_%d/%d] pr + ", core, request->algo_id[core]);
@@ -4422,7 +4419,8 @@ out2:
 	}
 	LOG_DBG("[vpu] %s - (%d)", __func_, request->status);
 	mutex_unlock(&vpu_dev->sdsp_control_mutex[core]);
-	LOG_INF("%s, unlock sdsp(%d) in - ", __func__, core);
+	if (g_vpu_log_level > VpuLogThre_PERFORMANCE)
+		LOG_INF("%s, unlock sdsp(%d) in - ", __func__, core);
 	return ret;
 
 }

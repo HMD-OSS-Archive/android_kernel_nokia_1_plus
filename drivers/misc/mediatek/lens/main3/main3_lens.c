@@ -87,6 +87,12 @@ static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
 	{1, AFDRV_AK7371AF, AK7371AF_SetI2Cclient, AK7371AF_Ioctl,
 	 AK7371AF_Release, AK7371AF_GetFileName, NULL},
 #endif
+	{1, AFDRV_BU24253AF, BU24253AF_SetI2Cclient, BU24253AF_Ioctl,
+	 BU24253AF_Release, BU24253AF_GetFileName, NULL},
+	{1, AFDRV_GT9772AF, GT9772AF_SetI2Cclient, GT9772AF_Ioctl,
+	 GT9772AF_Release, GT9772AF_GetFileName, NULL},
+
+
 };
 
 static struct stAF_DrvList *g_pstAF_CurDrv;
@@ -125,6 +131,8 @@ static long AF_SetMotorName(__user struct stAF_MotorName *pstMotorName)
 	if (copy_from_user(&stMotorName, pstMotorName,
 			   sizeof(struct stAF_MotorName)))
 		LOG_INF("copy to user failed when getting motor information\n");
+
+	stMotorName.uMotorName[sizeof(stMotorName.uMotorName) - 1] = '\0';
 
 	for (i = 0; i < MAX_NUM_OF_LENS; i++) {
 		if (g_stAF_DrvList[i].uEnable != 1)
@@ -216,6 +224,8 @@ static long AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
 	if (copy_from_user(&stMotorName, pstMotorName,
 			   sizeof(struct stAF_MotorName)))
 		LOG_INF("copy to user failed when getting motor information\n");
+
+	stMotorName.uMotorName[sizeof(stMotorName.uMotorName) - 1] = '\0';
 
 	/* LOG_INF("set driver name(%s)\n", stMotorName.uMotorName); */
 
@@ -342,6 +352,7 @@ static int AF_Open(struct inode *a_pstInode, struct file *a_pstFile)
 	spin_unlock(&g_AF_SpinLock);
 
 #if !defined(CONFIG_MTK_LEGACY)
+	AFRegulatorCtrl(0);
 	AFRegulatorCtrl(1);
 #endif
 
@@ -537,10 +548,6 @@ static int AF_i2c_probe(struct i2c_client *client,
 	}
 
 	spin_lock_init(&g_AF_SpinLock);
-
-#if !defined(CONFIG_MTK_LEGACY)
-	AFRegulatorCtrl(0);
-#endif
 
 	LOG_INF("Attached!!\n");
 

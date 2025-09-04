@@ -14,10 +14,23 @@
 #ifndef __ION_DRV_H__
 #define __ION_DRV_H__
 #include <linux/version.h>
+#include <linux/seq_file.h>
 
 #include <ion.h>
 
 #define BACKTRACE_SIZE 10
+
+#define ION_RECORD_TOTAL_SIZE_SUPPORT
+#if defined(CONFIG_MTK_IOMMU_PGTABLE_EXT) && \
+	(CONFIG_MTK_IOMMU_PGTABLE_EXT > 32)
+#define ION_NOT_SUPPORT_RETRY
+#endif
+
+#define CLIENT_THRESHOLD_SIZE		(1024 * 1024 * 1024)
+#define CLIENT_THRESHOLD_SIZE_INC	(200 * 1024 * 1024)
+#define CLIENT_DEC_NUM			(3)
+#define CLIENT_THRESHOLD_SIZE_DEC	\
+	(CLIENT_DEC_NUM * CLIENT_THRESHOLD_SIZE_INC)
 
 /* Structure definitions */
 
@@ -62,7 +75,15 @@ enum ION_CACHE_SYNC_TYPE {
 };
 
 enum ION_ERRORE {
-	ION_ERROR_CONFIG_LOCKED = 0x10000
+	ION_ERROR_CONFIG_LOCKED = 0x10000,
+	ION_ERROR_CONFIG_CONFLICT = 0x10001
+};
+
+enum ION_HEAP_NUM {
+	NORMAL_HEAP,
+	SECURE_HEAP,
+	SYSTEM_HEAP,
+	HEAP_NUM
 };
 
 /* mm or mm_sec heap flag which is do not conflist */
@@ -80,6 +101,7 @@ struct ion_sys_cache_sync_param {
 	void *va;
 	unsigned int size;
 	enum ION_CACHE_SYNC_TYPE sync_type;
+	unsigned long long iova;
 };
 
 enum ION_DMA_TYPE {
@@ -260,6 +282,13 @@ typedef int (ion_mm_buf_destroy_callback_t)(struct ion_buffer *buffer,
 					    unsigned int phy_addr);
 int ion_mm_heap_register_buf_destroy_cb(struct ion_buffer *buffer,
 					ion_mm_buf_destroy_callback_t *fn);
+
+int ion_cache_sync_flush_all(int fd);
+int ion_dma_map_area(int fd, int handle, int dir);
+int ion_dma_unmap_area(int fd, int handle, int dir);
+void ion_dma_map_area_va(void *start, size_t size, enum ION_DMA_DIR dir);
+void ion_dma_unmap_area_va(void *start, size_t size, enum ION_DMA_DIR dir);
+
 struct ion_heap *ion_mm_heap_create(struct ion_platform_heap *unused);
 void ion_mm_heap_destroy(struct ion_heap *heap);
 
@@ -271,7 +300,8 @@ int ion_device_destroy_heaps(struct ion_device *dev);
 struct ion_heap *ion_sec_heap_create(struct ion_platform_heap *unused);
 void ion_sec_heap_destroy(struct ion_heap *heap);
 void ion_sec_heap_dump_info(void);
-int __ion_is_user_va(unsigned long va, size_t size);
+void ion_dmabuf_init(void);
+void ion_dmabuf_dbg_show(struct seq_file *s);
 #endif
 
 #endif

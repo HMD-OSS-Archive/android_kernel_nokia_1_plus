@@ -901,10 +901,6 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 	&otm1906a_fhd_dsi_cmd_auto_lcm_drv,
 #endif
 
-#if defined(NT35532_FHD_DSI_VDO_SHARP)
-	&nt35532_fhd_dsi_vdo_sharp_lcm_drv,
-#endif
-
 #if defined(CLAP070WP03XG_LVDS)
 	&clap070wp03xg_lvds_lcm_drv,
 #endif
@@ -1148,6 +1144,10 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 	&ili9881c_hdp_dsi_vdo_ilitek_rt5081_lcm_drv,
 #endif
 
+#if defined(ILI9881C_HD720_TD_TCHD5031_6B_DSI_VDO)
+	&ili9881c_hd720_td_tchd5031_6b_dsi_vdo_lcm_drv,
+#endif
+
 #if defined(NT51021_WUXGA_DSI_VDO_MT8173)
 	&nt51021_wuxga_dsi_vdo_mt8173_lcm_drv,
 #endif
@@ -1264,24 +1264,16 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 	&nt36672c_fhdp_dsi_vdo_auo_cphy_90hz_jdi_lcm_drv,
 #endif
 
-#if defined(NT36672C_FHDP_DSI_VDO_AUO_CPHY_90HZ_JDI_HFP)
-	&nt36672c_fhdp_dsi_vdo_auo_cphy_90hz_jdi_hfp_lcm_drv,
-#endif
-
 #if defined(NT36672C_FHDP_DSI_VDO_AUO_CPHY_90HZ_TIANMA)
 	&nt36672c_fhdp_dsi_vdo_auo_cphy_90hz_tianma_lcm_drv,
 #endif
 
-#if defined(NT36672C_FHDP_DSI_VDO_AUO_CPHY_90HZ_TIANMA_HFP)
-	&nt36672c_fhdp_dsi_vdo_auo_cphy_90hz_tianma_hfp_lcm_drv,
+#if defined(NT36672C_FHDP_DSI_VDO_AUO_CPHY_90HZ)
+	&nt36672c_fhdp_dsi_vdo_auo_cphy_90hz_lcm_drv,
 #endif
 
 #if defined(OTM1287_WXGA_DSI_VDO_AUO_GUOXIAN)
 	&otm1287_wxga_dsi_vdo_auo_guoxian_lcm_drv,
-#endif
-
-#if defined(NT35532_FHD_DSI_VDO_SHARP)
-	&nt35532_fhd_dsi_vdo_sharp_lcm_drv,
 #endif
 
 #if defined(OTM1901A_FHD_DSI_VDO_TPV)
@@ -1292,12 +1284,32 @@ struct LCM_DRIVER *lcm_driver_list[] = {
 	&r63350a_fhd_dsi_vdo_truly_lcm_drv,
 #endif
 
+#if defined(NT35532_FHD_DSI_VDO_SHARP)
+	&nt35532_fhd_dsi_vdo_sharp_lcm_drv,
+#endif
+
 #if defined(TD4320_FHDP_DSI_VDO_AUO_RT5081)
 	&td4320_fhdp_dsi_vdo_auo_rt5081_lcm_drv,
 #endif
 
+#if defined(TD4330_FHDP_DSI_CMD_AUO_RT5081)
+	&td4330_fhdp_dsi_cmd_auo_rt5081_lcm_drv,
+#endif
+
+#if defined(TD4330_FHDP_DSI_VDO_AUO_RT5081)
+	&td4330_fhdp_dsi_vdo_auo_rt5081_lcm_drv,
+#endif
+
 #if defined(NT51021H_WUXGA_VDO_ONCELL_BOE)
 	&nt51021h_wuxga_vdo_oncell_boe_lcm_drv,
+#endif
+
+#if defined(FT8201_WUXGA_DSI_VDO_BOE)
+	&ft8201_wuxga_dsi_vdo_boe_lcm_drv,
+#endif
+
+#if defined(FT8756_FHDP_DSI_VDO_AUO_RT4801)
+	&ft8756_fhdp_dsi_vdo_auo_rt4801_lcm_drv,
 #endif
 };
 

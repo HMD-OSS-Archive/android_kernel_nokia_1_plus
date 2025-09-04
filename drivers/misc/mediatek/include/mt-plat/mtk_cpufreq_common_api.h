@@ -50,8 +50,20 @@
 #include "mt6885/include/mach/mtk_cpufreq_api.h"
 #endif
 
+#if defined(CONFIG_MACH_MT6893)
+#include "mt6893/include/mach/mtk_cpufreq_api.h"
+#endif
+
 #if defined(CONFIG_MACH_MT6768)
 #include "mt6768/include/mach/mtk_cpufreq_api.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6873)
+#include "mt6873/include/mach/mtk_cpufreq_api.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6853)
+#include "mt6853/include/mach/mtk_cpufreq_api.h"
 #endif
 
 #endif	/* __MTK_CPUFREQ_COMMON_API_H__ */

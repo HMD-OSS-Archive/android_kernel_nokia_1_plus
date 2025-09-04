@@ -12,12 +12,17 @@
 #
 
 # MTK Platform Support
+ifeq ($(CONFIG_MACH_MT6893),y)
+MTK_PLATFORM := mt6885
+else
 MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
+endif
 
 # adsp include path
 ifeq ($(CONFIG_SND_SOC_MTK_AUDIO_DSP),y)
 subdir-ccflags-y += -I$(srctree)/sound/soc/mediatek/audio_dsp/$(MTK_PLATFORM)
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/audio_ipi/common/framework
+subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/audio_ipi/common/tasks/audplayback/
 subdir-ccflags-y += -I$(srctree)/sound/soc/mediatek/common
 subdir-ccflags-y += -I$(srctree)/sound/soc/mediatek/$(MTK_PLATFORM)/
 endif
@@ -45,4 +50,3 @@ endif
 # common code
 obj-$(CONFIG_SND_SOC_MTK_AUDIO_DSP) += audio_buf.o
 obj-$(CONFIG_SND_SOC_MTK_AUDIO_DSP) += mtk-dsp-dai.o mtk-dsp-pcm.o mtk-dsp-common.o mtk-dsp-platform-driver.o mtk-dsp-mem-control.o
-obj-$(CONFIG_MTK_AUDIODSP_SUPPORT) += mtk-dsp-core.o

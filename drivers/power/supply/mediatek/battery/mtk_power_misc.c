@@ -20,6 +20,7 @@
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/alarmtimer.h>
+#include <linux/suspend.h>
 
 #include <mt-plat/charger_type.h>
 #include <mt-plat/mtk_battery.h>
@@ -62,6 +63,7 @@ static int g_vbat_lt;
 static int g_vbat_lt_lv1;
 static int shutdown_cond_flag;
 static int fix_coverity;
+static bool b_power_misc_init;
 
 static void wake_up_power_misc(struct shutdown_controller *sdd)
 {
@@ -188,7 +190,9 @@ int set_shutdown_cond(int shutdown_cond)
 		sdc.shutdown_status.is_overheat = true;
 		mutex_unlock(&sdc.lock);
 		bm_err("[%s]OVERHEAT shutdown!\n", __func__);
+		mutex_lock(&pm_mutex);
 		kernel_power_off();
+		mutex_unlock(&pm_mutex);
 		break;
 	case SOC_ZERO_PERCENT:
 		if (sdc.shutdown_status.is_soc_zero_percent != true) {
@@ -246,11 +250,9 @@ int set_shutdown_cond(int shutdown_cond)
 #endif
 	case DLPT_SHUTDOWN:
 		if (sdc.shutdown_status.is_dlpt_shutdown != true) {
-			mutex_lock(&sdc.lock);
 			sdc.shutdown_status.is_dlpt_shutdown = true;
 			get_monotonic_boottime(&sdc.pre_time[DLPT_SHUTDOWN]);
 			notify_fg_dlpt_sd();
-			mutex_unlock(&sdc.lock);
 		}
 		break;
 
@@ -258,7 +260,10 @@ int set_shutdown_cond(int shutdown_cond)
 		break;
 	}
 
-	wake_up_power_misc(&sdc);
+	if (b_power_misc_init == true)
+		wake_up_power_misc(&sdc);
+	else
+		bm_err("[%s]init:%d\n", __func__, b_power_misc_init);
 
 	return 0;
 }
@@ -305,7 +310,9 @@ static int shutdown_event_handler(struct shutdown_controller *sdd)
 			polling++;
 			if (duraction.tv_sec >= SHUTDOWN_TIME) {
 				bm_err("soc zero shutdown\n");
+				mutex_lock(&pm_mutex);
 				kernel_power_off();
+				mutex_unlock(&pm_mutex);
 				return next_waketime(polling);
 
 			}
@@ -327,7 +334,9 @@ static int shutdown_event_handler(struct shutdown_controller *sdd)
 			polling++;
 			if (duraction.tv_sec >= SHUTDOWN_TIME) {
 				bm_err("uisoc one percent shutdown\n");
+				mutex_lock(&pm_mutex);
 				kernel_power_off();
+				mutex_unlock(&pm_mutex);
 				return next_waketime(polling);
 			}
 		} else if (now_current > 0 && current_soc > 0) {
@@ -347,7 +356,9 @@ static int shutdown_event_handler(struct shutdown_controller *sdd)
 		polling++;
 		if (duraction.tv_sec >= SHUTDOWN_TIME) {
 			bm_err("dlpt shutdown\n");
+			mutex_lock(&pm_mutex);
 			kernel_power_off();
+			mutex_unlock(&pm_mutex);
 			return next_waketime(polling);
 		}
 	}
@@ -414,7 +425,9 @@ static int shutdown_event_handler(struct shutdown_controller *sdd)
 				if (duraction.tv_sec >= SHUTDOWN_TIME) {
 					bm_err("low bat shutdown, over %d second\n",
 						SHUTDOWN_TIME);
+					mutex_lock(&pm_mutex);
 					kernel_power_off();
+					mutex_unlock(&pm_mutex);
 					return next_waketime(polling);
 				}
 			}
@@ -500,7 +513,9 @@ static int power_misc_routine_thread(void *arg)
 			sdd->overheat = false;
 			bm_err("%s battery overheat~ power off\n",
 				__func__);
+			mutex_lock(&pm_mutex);
 			kernel_power_off();
+			mutex_unlock(&pm_mutex);
 			fix_coverity = 1;
 			return 1;
 		}
@@ -548,5 +563,7 @@ void mtk_power_misc_init(struct platform_device *pdev)
 
 	sdc.psy_nb.notifier_call = mtk_power_misc_psy_event;
 	power_supply_reg_notifier(&sdc.psy_nb);
+	b_power_misc_init = true;
+	bm_err("%s INIT done, init:%d\n", __func__, b_power_misc_init);
 }
 

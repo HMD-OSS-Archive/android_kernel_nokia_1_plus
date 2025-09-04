@@ -15,10 +15,8 @@
 #define __SENINF_CLK_H__
 
 #include <linux/device.h>
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 #include <linux/pm_wakeup.h>
-#else
-#include <linux/wakelock.h>
 #endif
 
 #include <linux/atomic.h>
@@ -119,10 +117,8 @@ struct SENINF_CLK {
 	atomic_t enable_cnt[SENINF_CLK_IDX_MAX_NUM];
 	atomic_t wakelock_cnt;
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 	struct wakeup_source seninf_wake_lock;
-#else
-	struct wake_lock seninf_wake_lock;
 #endif
 };
 
@@ -135,6 +131,8 @@ unsigned int seninf_clk_get_meter(struct SENINF_CLK *pclk, unsigned int clk);
 
 extern unsigned int mt_get_ckgen_freq(int ID);
 extern unsigned long clk_get_rate(struct clk *clk);
+extern bool __clk_is_enabled(struct clk *clk);
+extern unsigned int __clk_get_enable_count(struct clk *clk);
 
 #endif
 

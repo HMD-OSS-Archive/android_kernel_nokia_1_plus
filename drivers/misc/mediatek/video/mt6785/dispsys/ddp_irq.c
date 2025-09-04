@@ -215,9 +215,16 @@ irqreturn_t disp_irq_handler(int irq, void *dev_id)
 			module = DISP_MODULE_DSI1;
 		}
 
-		if (module == DISP_MODULE_DSI0)
+		if (module == DISP_MODULE_DSI0) {
 			reg_val = (DISP_REG_GET(DISPSYS_DSI0_BASE + 0xC) &
 				   0xffff);
+			if (reg_val & (1 << 2) &&
+				lcm_fps_ctx.dsi_mode == 0) {
+				unsigned long long ext_te_time = sched_clock();
+
+				lcm_fps_ctx_update(&lcm_fps_ctx, ext_te_time);
+			}
+		}
 		else
 			reg_val = (DISP_REG_GET(DISPSYS_DSI1_BASE + 0xC) &
 				   0xffff);
@@ -373,8 +380,13 @@ irqreturn_t disp_irq_handler(int irq, void *dev_id)
 			DDPIRQ("IRQ: RDMA%d frame done!\n", index);
 			rdma_done_irq_cnt[index]++;
 
-			if (index == 0)
+			if (index == 0) {
 				MMPathTracePrimaryOvl2Dsi();
+				if (lcm_fps_ctx.dsi_mode == 1) {
+					lcm_fps_ctx_update(&lcm_fps_ctx,
+						rdma_end_time[index]);
+				}
+			}
 		}
 		if (reg_val & (1 << 1)) {
 			mmprofile_log_ex(
@@ -385,6 +397,7 @@ irqreturn_t disp_irq_handler(int irq, void *dev_id)
 			rdma_start_time[index] = sched_clock();
 			DDPIRQ("IRQ: RDMA%d frame start!\n", index);
 			rdma_start_irq_cnt[index]++;
+			primary_display_wakeup_pf_thread();
 		}
 		if (reg_val & (1 << 3)) {
 			mmprofile_log_ex(
@@ -455,6 +468,9 @@ irqreturn_t disp_irq_handler(int irq, void *dev_id)
 				mmprofile_log_ex(
 					ddp_mmp_get_events()->MUTEX_IRQ[m_id],
 					MMPROFILE_FLAG_PULSE, reg_val, 0);
+				if (ddp_is_moudule_in_mutex(m_id,
+					DISP_MODULE_AAL0))
+					disp_aal_on_start_of_frame(DISP_AAL0);
 			}
 			if (reg_val & (0x1 << (m_id + DISP_MUTEX_TOTAL))) {
 				DDPIRQ("IRQ: mutex%d eof!\n", m_id);

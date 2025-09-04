@@ -60,7 +60,7 @@ static struct ccci_clk_node clk_table[] = {
 	{ NULL, "infra-ccif4-md"},
 };
 
-unsigned int devapc_check_flag = 1;
+unsigned int devapc_check_flag;
 #define TAG "mcd"
 
 #define ROr2W(a, b, c)  ccci_write32(a, b, (ccci_read32(a, b)|c))
@@ -270,7 +270,7 @@ void ccci_set_clk_by_id(int idx, unsigned int on)
 {
 	int ret = 0;
 
-	if (idx >= ARRAY_SIZE(clk_table))
+	if (idx >= ARRAY_SIZE(clk_table) || idx < 0)
 		return;
 	else if (clk_table[idx].clk_ref == NULL)
 		return;
@@ -293,8 +293,6 @@ int md_cd_io_remap_md_side_register(struct ccci_modem *md)
 	 ioremap_nocache(md->hw_info->md_boot_slave_En, 0x4);
 	md_info->md_rgu_base =
 	 ioremap_nocache(md->hw_info->md_rgu_base, 0x300);
-	md_info->l1_rgu_base =
-	 ioremap_nocache(md->hw_info->l1_rgu_base, 0x40);
 
 	md_reg = kzalloc(sizeof(struct md_pll_reg), GFP_KERNEL);
 	if (md_reg == NULL) {

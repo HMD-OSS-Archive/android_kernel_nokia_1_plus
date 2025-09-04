@@ -2548,6 +2548,10 @@ static int do_page_mkwrite(struct vm_fault *vmf)
 
 	vmf->flags = FAULT_FLAG_WRITE|FAULT_FLAG_MKWRITE;
 
+	if (vmf->vma->vm_file &&
+	    IS_SWAPFILE(vmf->vma->vm_file->f_mapping->host))
+		return VM_FAULT_SIGBUS;
+
 	ret = vmf->vma->vm_ops->page_mkwrite(vmf);
 	/* Restore original flags so that caller is not surprised */
 	vmf->flags = old_flags;
@@ -4392,12 +4396,20 @@ static inline bool spf_p4d_flunked(p4d_t *p4d)
 }
 #endif
 
+#ifndef spf_access_check
+static inline bool spf_access_error(unsigned long access_vm,
+				  unsigned long vma_flags)
+{
+	return vma_flags & access_vm ? false : true;
+}
+#endif
+
 /*
  * Tries to handle the page fault in a speculative way, without grabbing the
  * mmap_sem.
  */
 int __handle_speculative_fault(struct mm_struct *mm, unsigned long address,
-			       unsigned int flags)
+			       unsigned int flags, unsigned long access_vm)
 {
 	struct vm_fault vmf = {
 		.address = address,
@@ -4426,6 +4438,10 @@ int __handle_speculative_fault(struct mm_struct *mm, unsigned long address,
 
 	vmf.vma_flags = READ_ONCE(vma->vm_flags);
 	vmf.vma_page_prot = READ_ONCE(vma->vm_page_prot);
+
+	/* check whether it is an access_error */
+	if (spf_access_error(access_vm, vmf.vma_flags))
+		goto out_put;
 
 	if (vma_is_anonymous(vma)) {
 		/*
@@ -4478,6 +4494,9 @@ int __handle_speculative_fault(struct mm_struct *mm, unsigned long address,
 	if (address < READ_ONCE(vma->vm_start)
 	    || READ_ONCE(vma->vm_end) <= address)
 		goto out_put;
+
+	/* do counter updates before entering really critical section. */
+	check_sync_rss_stat(current);
 
 	if (!arch_vma_access_permitted(vma, flags & FAULT_FLAG_WRITE,
 				       flags & FAULT_FLAG_INSTRUCTION,

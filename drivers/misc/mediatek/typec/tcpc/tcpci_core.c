@@ -33,7 +33,7 @@
 #endif /* CONFIG_RECV_BAT_ABSENT_NOTIFY */
 #endif /* CONFIG_USB_POWER_DELIVERY */
 
-#define TCPC_CORE_VERSION		"2.0.10_MTK"
+#define TCPC_CORE_VERSION		"2.0.12_MTK"
 
 static ssize_t tcpc_show_property(struct device *dev,
 				  struct device_attribute *attr, char *buf);
@@ -96,7 +96,7 @@ static ssize_t tcpc_show_property(struct device *dev,
 {
 	struct tcpc_device *tcpc = to_tcpc_device(dev);
 	const ptrdiff_t offset = attr - tcpc_device_attributes;
-	int i = 0;
+	int i = 0, ret;
 #ifdef CONFIG_USB_POWER_DELIVERY
 	struct pe_data *pe_data;
 	struct pd_port *pd_port;
@@ -108,87 +108,131 @@ static ssize_t tcpc_show_property(struct device *dev,
 	case TCPC_DESC_CAP_INFO:
 		pd_port = &tcpc->pd_port;
 		pe_data = &pd_port->pe_data;
-		snprintf(buf+strlen(buf), 256, "%s = %d\n%s = %d\n",
-			"local_selected_cap",
-			pe_data->local_selected_cap,
-			"remote_selected_cap",
-			pe_data->remote_selected_cap);
-
-		snprintf(buf+strlen(buf), 256, "%s\n",
+		ret = snprintf(buf+strlen(buf), 256, "%s = %d\n%s = %d\n",
+				"local_selected_cap",
+				pe_data->local_selected_cap,
+				"remote_selected_cap",
+				pe_data->remote_selected_cap);
+		if (ret < 0)
+			break;
+		ret = snprintf(buf+strlen(buf), 256, "%s\n",
 				"local_src_cap(type, vmin, vmax, oper)");
+		if (ret < 0)
+			break;
 		for (i = 0; i < pd_port->local_src_cap.nr; i++) {
 			tcpm_extract_power_cap_val(
 				pd_port->local_src_cap.pdos[i],
 				&cap);
-			snprintf(buf+strlen(buf), 256, "%d %d %d %d\n",
-				cap.type, cap.min_mv, cap.max_mv, cap.ma);
+			ret = snprintf(buf+strlen(buf), 256, "%d %d %d %d\n",
+				      cap.type, cap.min_mv, cap.max_mv, cap.ma);
+			if (ret < 0)
+				break;
 		}
-		snprintf(buf+strlen(buf), 256, "%s\n",
+		ret = snprintf(buf+strlen(buf), 256, "%s\n",
 				"local_snk_cap(type, vmin, vmax, ioper)");
+		if (ret < 0)
+			break;
 		for (i = 0; i < pd_port->local_snk_cap.nr; i++) {
 			tcpm_extract_power_cap_val(
 				pd_port->local_snk_cap.pdos[i],
 				&cap);
-			snprintf(buf+strlen(buf), 256, "%d %d %d %d\n",
-				cap.type, cap.min_mv, cap.max_mv, cap.ma);
+			ret = snprintf(buf+strlen(buf), 256, "%d %d %d %d\n",
+				      cap.type, cap.min_mv, cap.max_mv, cap.ma);
+			if (ret < 0)
+				break;
 		}
-		snprintf(buf+strlen(buf), 256, "%s\n",
+		ret = snprintf(buf+strlen(buf), 256, "%s\n",
 				"remote_src_cap(type, vmin, vmax, ioper)");
+		if (ret < 0)
+			break;
 		for (i = 0; i < pe_data->remote_src_cap.nr; i++) {
 			tcpm_extract_power_cap_val(
 				pe_data->remote_src_cap.pdos[i],
 				&cap);
-			snprintf(buf+strlen(buf), 256, "%d %d %d %d\n",
-				cap.type, cap.min_mv, cap.max_mv, cap.ma);
+			ret = snprintf(buf+strlen(buf), 256, "%d %d %d %d\n",
+				      cap.type, cap.min_mv, cap.max_mv, cap.ma);
+			if (ret < 0)
+				break;
 		}
-		snprintf(buf+strlen(buf), 256, "%s\n",
+		ret = snprintf(buf+strlen(buf), 256, "%s\n",
 				"remote_snk_cap(type, vmin, vmax, ioper)");
+		if (ret < 0)
+			break;
 		for (i = 0; i < pe_data->remote_snk_cap.nr; i++) {
 			tcpm_extract_power_cap_val(
 				pe_data->remote_snk_cap.pdos[i],
 				&cap);
-			snprintf(buf+strlen(buf), 256, "%d %d %d %d\n",
-				cap.type, cap.min_mv, cap.max_mv, cap.ma);
+			ret = snprintf(buf+strlen(buf), 256, "%d %d %d %d\n",
+				      cap.type, cap.min_mv, cap.max_mv, cap.ma);
+			if (ret < 0)
+				break;
 		}
 		break;
 #endif	/* CONFIG_USB_POWER_DELIVERY */
 	case TCPC_DESC_ROLE_DEF:
-		snprintf(buf, 256, "%s\n", role_text[tcpc->desc.role_def]);
+		ret = snprintf(buf, 256, "%s\n", role_text[tcpc->desc.role_def]);
+		if (ret < 0)
+			break;
 		break;
 	case TCPC_DESC_RP_LEVEL:
-		if (tcpc->typec_local_rp_level == TYPEC_CC_RP_DFT)
-			snprintf(buf, 256, "%s\n", "Default");
-		else if (tcpc->typec_local_rp_level == TYPEC_CC_RP_1_5)
-			snprintf(buf, 256, "%s\n", "1.5");
-		else if (tcpc->typec_local_rp_level == TYPEC_CC_RP_3_0)
-			snprintf(buf, 256, "%s\n", "3.0");
+		if (tcpc->typec_local_rp_level == TYPEC_CC_RP_DFT) {
+			ret = snprintf(buf, 256, "%s\n", "Default");
+			if (ret < 0)
+				break;
+		} else if (tcpc->typec_local_rp_level == TYPEC_CC_RP_1_5) {
+			ret = snprintf(buf, 256, "%s\n", "1.5");
+			if (ret < 0)
+				break;
+		} else if (tcpc->typec_local_rp_level == TYPEC_CC_RP_3_0) {
+			ret = snprintf(buf, 256, "%s\n", "3.0");
+			if (ret < 0)
+				break;
+		}
 		break;
 	case TCPC_DESC_PD_TEST:
-		snprintf(buf, 256, "%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n",
-			"1: pr_swap", "2: dr_swap", "3: vconn_swap",
-			"4: soft reset", "5: hard reset",
-			"6: get_src_cap", "7: get_sink_cap",
-			"8: discover_id", "9: discover_cable");
+		ret = snprintf(buf, 256, "%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n",
+				"1: pr_swap", "2: dr_swap", "3: vconn_swap",
+				"4: soft reset", "5: hard reset",
+				"6: get_src_cap", "7: get_sink_cap",
+				"8: discover_id", "9: discover_cable");
+		if (ret < 0)
+			break;
 		break;
 	case TCPC_DESC_INFO:
 		i += snprintf(buf + i,
 			256, "|^|==( %s info )==|^|\n", tcpc->desc.name);
+		if (i < 0)
+			break;
 		i += snprintf(buf + i,
 			256, "role = %s\n", role_text[tcpc->desc.role_def]);
-		if (tcpc->typec_local_rp_level == TYPEC_CC_RP_DFT)
+		if (i < 0)
+			break;
+		if (tcpc->typec_local_rp_level == TYPEC_CC_RP_DFT) {
 			i += snprintf(buf + i, 256, "rplvl = %s\n", "Default");
-		else if (tcpc->typec_local_rp_level == TYPEC_CC_RP_1_5)
+			if (i < 0)
+				break;
+		} else if (tcpc->typec_local_rp_level == TYPEC_CC_RP_1_5) {
 			i += snprintf(buf + i, 256, "rplvl = %s\n", "1.5");
-		else if (tcpc->typec_local_rp_level == TYPEC_CC_RP_3_0)
+			if (i < 0)
+				break;
+		} else if (tcpc->typec_local_rp_level == TYPEC_CC_RP_3_0) {
 			i += snprintf(buf + i, 256, "rplvl = %s\n", "3.0");
+			if (i < 0)
+				break;
+		}
 		break;
 #ifdef CONFIG_USB_POWER_DELIVERY
 	case TCPC_DESC_PE_READY:
 		pd_port = &tcpc->pd_port;
-		if (pd_port->pe_data.pe_ready)
-			snprintf(buf, 256, "%s\n", "yes");
-		else
-			snprintf(buf, 256, "%s\n", "no");
+		if (pd_port->pe_data.pe_ready) {
+			ret = snprintf(buf, 256, "%s\n", "yes");
+			if (ret < 0)
+				break;
+		} else {
+			ret = snprintf(buf, 256, "%s\n", "no");
+			if (ret < 0)
+				break;
+		}
 		break;
 #endif
 	default:
@@ -369,6 +413,7 @@ struct tcpc_device *tcpc_device_register(struct device *parent,
 		return NULL;
 	}
 
+	tcpc->evt_wq = alloc_ordered_workqueue("%s", 0, tcpc_desc->name);
 	for (i = 0; i < TCP_NOTIFY_IDX_NR; i++)
 		srcu_init_notifier_head(&tcpc->evt_nh[i]);
 
@@ -385,7 +430,7 @@ struct tcpc_device *tcpc_device_register(struct device *parent,
 	tcpc->dev.release = tcpc_device_release;
 	dev_set_drvdata(&tcpc->dev, tcpc);
 	tcpc->drv_data = drv_data;
-	dev_set_name(&tcpc->dev, tcpc_desc->name);
+	dev_set_name(&tcpc->dev, "%s", tcpc_desc->name);
 	tcpc->desc = *tcpc_desc;
 	tcpc->ops = ops;
 	tcpc->typec_local_rp_level = tcpc_desc->rp_lvl;
@@ -393,6 +438,8 @@ struct tcpc_device *tcpc_device_register(struct device *parent,
 #ifdef CONFIG_TCPC_VCONN_SUPPLY_MODE
 	tcpc->tcpc_vconn_supply = tcpc_desc->vconn_supply;
 #endif	/* CONFIG_TCPC_VCONN_SUPPLY_MODE */
+
+	device_set_of_node_from_dev(&tcpc->dev, parent);
 
 	ret = device_register(&tcpc->dev);
 	if (ret) {
@@ -431,26 +478,25 @@ static int tcpc_device_irq_enable(struct tcpc_device *tcpc)
 	int ret;
 
 	if (!tcpc->ops->init) {
-		pr_err("%s Please implment tcpc ops init function\n",
-		__func__);
+		pr_notice("%s Please implment tcpc ops init function\n",
+			  __func__);
 		return -EINVAL;
 	}
 
+	tcpci_lock_typec(tcpc);
 	ret = tcpci_init(tcpc, false);
 	if (ret < 0) {
+		tcpci_unlock_typec(tcpc);
 		pr_err("%s tcpc init fail\n", __func__);
 		return ret;
 	}
 
-	tcpci_lock_typec(tcpc);
 	ret = tcpc_typec_init(tcpc, tcpc->desc.role_def + 1);
 	tcpci_unlock_typec(tcpc);
 	if (ret < 0) {
 		pr_err("%s : tcpc typec init fail\n", __func__);
 		return ret;
 	}
-	if (tcpc->ops->init_alert_mask)
-		tcpci_init_alert_mask(tcpc);
 
 	schedule_delayed_work(
 		&tcpc->event_init_work, msecs_to_jiffies(10*1000));
@@ -493,8 +539,8 @@ static void bat_update_work_func(struct work_struct *work)
 	if (ret < 0)
 		TCPC_ERR("%s get battery charger now fail\n", __func__);
 
-	tcpm_update_bat_status_soc(
-		tcpc, tcpc->charging_status, tcpc->bat_soc * 10);
+	tcpm_update_bat_status_soc(tcpc,
+		PD_BAT_REF_FIXED0, tcpc->charging_status, tcpc->bat_soc * 10);
 }
 
 static int bat_nb_call_func(
@@ -527,7 +573,7 @@ static void tcpc_event_init_work(struct work_struct *work)
 	tcpci_lock_typec(tcpc);
 	tcpci_event_init(tcpc);
 	tcpc->pd_inited_flag = 1; /* MTK Only */
-	pr_info("%s typec attache new = %d\n",
+	pr_info("%s typec attach new = %d\n",
 			__func__, tcpc->typec_attach_new);
 	if (tcpc->typec_attach_new)
 		pd_put_cc_attached_event(tcpc, tcpc->typec_attach_new);
@@ -782,9 +828,9 @@ void tcpc_device_unregister(struct device *dev, struct tcpc_device *tcpc)
 
 	tcpc_typec_deinit(tcpc);
 
-#ifdef CONFIG_USB_POWER_DELIVERY
+#ifdef CONFIG_USB_PD_REV30
 	wakeup_source_trash(&tcpc->pd_port.pps_request_wake_lock);
-#endif /* CONFIG_USB_POWER_DELIVERY */
+#endif /* CONFIG_USB_PD_REV30 */
 	wakeup_source_trash(&tcpc->dettach_temp_wake_lock);
 	wakeup_source_trash(&tcpc->attach_wake_lock);
 
@@ -900,7 +946,9 @@ static int __tcpc_class_complete_work(struct device *dev, void *data)
 #ifdef CONFIG_USB_POWER_DELIVERY
 #ifdef CONFIG_RECV_BAT_ABSENT_NOTIFY
 		fg_bat_nb->notifier_call = fg_bat_notifier_call;
+#if CONFIG_MTK_GAUGE_VERSION == 30
 		ret = register_battery_notifier(fg_bat_nb);
+#endif
 		if (ret < 0) {
 			pr_notice("%s: register bat notifier fail\n", __func__);
 			return -EINVAL;
@@ -928,6 +976,18 @@ MODULE_VERSION(TCPC_CORE_VERSION);
 MODULE_LICENSE("GPL");
 
 /* Release Version
+ * 2.0.12_MTK
+ * (1) Fix voltage/current steps of RDO for APDO
+ * (2) Non-blocking TCPC notification by default
+ * (3) Fix synchronization/locking problems
+ * (4) Fix NoRp.SRC support
+ *
+ * 2.0.11_MTK
+ * (1) Fix PD compliance failures of Ellisys and MQP
+ * (2) Wait the result of BC1.2 before starting PD policy engine
+ * (3) Fix compile warnings
+ * (4) Fix NoRp.SRC support
+ *
  * 2.0.10_MTK
  * (1) fix battery noitifier plug out cause recursive locking detected in
  *     nh->srcu.

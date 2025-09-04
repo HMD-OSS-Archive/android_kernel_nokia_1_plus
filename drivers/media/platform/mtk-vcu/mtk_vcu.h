@@ -22,16 +22,16 @@
 #ifdef CONFIG_MTK_AEE_FEATURE
 #define vcu_aee_print(string, args...) do {\
 	char vcu_name[100];\
-	snprintf(vcu_name, 100, "[VCU] "string, ##args); \
-	aee_kernel_warning_api(__FILE__, __LINE__, \
-		DB_OPT_MMPROFILE_BUFFER | DB_OPT_NE_JBT_TRACES, \
-		vcu_name, "[VCU] error:"string, ##args); \
+	int ret;\
+	ret = snprintf(vcu_name, 100, "[VCU] "string, ##args); \
+	if (ret > 0)\
+		aee_kernel_warning_api(__FILE__, __LINE__, \
+			DB_OPT_MMPROFILE_BUFFER | DB_OPT_NE_JBT_TRACES, \
+			vcu_name, "[VCU] error:"string, ##args); \
 	pr_info("[VCU] error:"string, ##args);  \
 	} while (0)
 #else
 #define vcu_aee_print(string, args...) do {\
-		char vcu_name[100];\
-		snprintf(vcu_name, 100, "[VCU] "string, ##args); \
 		pr_info("[VCU] error:"string, ##args);  \
 	} while (0)
 
@@ -78,10 +78,6 @@ typedef int (*ipi_handler_t)(void *data,
  *                      the input format is.
  * @IPI_VDEC_MPEG4:     The interrupt from vcu is to notify kernel to
  *                      handle MPEG4 video decoder job, and vice versa.
- *                      Decode output format is always MT21 no matter what
- *                      the input format is.
- * @IPI_VDEC_DIVX3:     The interrupt from vcu is to notify kernel to
- *                      handle DIVX3 video decoder job, and vice versa.
  *                      Decode output format is always MT21 no matter what
  *                      the input format is.
  * @IPI_VDEC_MPEG12:    The interrupt from vcu is to notify kernel to
@@ -135,9 +131,6 @@ enum ipi_id {
 	IPI_VDEC_H263,
 	IPI_VDEC_S263,
 	IPI_VDEC_XVID,
-	IPI_VDEC_DIVX3,
-	IPI_VDEC_DIVX4,
-	IPI_VDEC_DIVX5,
 	IPI_VDEC_MPEG12,
 	IPI_VDEC_WMV,
 	IPI_VDEC_RV30,
@@ -155,7 +148,7 @@ enum ipi_id {
 	IPI_MDP_1,
 	IPI_MDP_2,
 	IPI_MDP_3,
-	IPI_CAMERA = 20,
+	IPI_CAMERA,
 	IPI_MAX = 50,
 };
 
@@ -282,14 +275,24 @@ void vcu_get_task(struct task_struct **task, struct files_struct **f,
 		int reset);
 void vcu_get_file_lock(void);
 void vcu_put_file_lock(void);
+int vcu_get_sig_lock(unsigned long *flags);
+void vcu_put_sig_lock(unsigned long flags);
+int vcu_check_vpud_alive(void);
 extern void smp_inner_dcache_flush_all(void);
+int vcu_get_ctx_ipi_binding_lock(struct platform_device *pdev,
+	struct mutex **mutex, unsigned long type);
 int vcu_set_codec_ctx(struct platform_device *pdev,
-		 void *codec_ctx, unsigned long type);
+		 void *codec_ctx, struct vb2_buffer *src_vb,
+		 struct vb2_buffer *dst_vb, unsigned long type);
 int vcu_clear_codec_ctx(struct platform_device *pdev,
 		 void *codec_ctx, unsigned long type);
 extern void venc_encode_prepare(void *ctx_prepare,
-		int core_id, unsigned long *flags);
+		unsigned int core_id, unsigned long *flags);
 extern void venc_encode_unprepare(void *ctx_prepare,
-		int core_id, unsigned long *flags);
-
+		unsigned int core_id, unsigned long *flags);
+extern void venc_encode_pmqos_gce_begin(void *ctx_begin,
+		unsigned int core_id, int job_cnt);
+extern void venc_encode_pmqos_gce_end(void *ctx_end,
+		unsigned int core_id, int job_cnt);
+extern void mtk_vcodec_gce_timeout_dump(void *ctx);
 #endif /* _MTK_VCU_H */

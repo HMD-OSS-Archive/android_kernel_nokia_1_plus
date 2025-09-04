@@ -152,6 +152,7 @@ static const struct snd_kcontrol_new mtk_adda_dl_ch1_mix[] = {
 	SOC_DAPM_SINGLE_AUTODISABLE("DL4_CH1", AFE_CONN3_1, I_DL4_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL5_CH1", AFE_CONN3_1, I_DL5_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL6_CH1", AFE_CONN3_1, I_DL6_CH1, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL8_CH1", AFE_CONN3_1, I_DL8_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("ADDA_UL_CH2", AFE_CONN3,
 				    I_ADDA_UL_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("ADDA_UL_CH1", AFE_CONN3,
@@ -179,6 +180,7 @@ static const struct snd_kcontrol_new mtk_adda_dl_ch2_mix[] = {
 	SOC_DAPM_SINGLE_AUTODISABLE("DL4_CH2", AFE_CONN4_1, I_DL4_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL5_CH2", AFE_CONN4_1, I_DL5_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL6_CH2", AFE_CONN4_1, I_DL6_CH2, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL8_CH2", AFE_CONN4_1, I_DL8_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("ADDA_UL_CH2", AFE_CONN4,
 				    I_ADDA_UL_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("ADDA_UL_CH1", AFE_CONN4,
@@ -261,6 +263,7 @@ enum {
 	SUPPLY_SEQ_ADDA_DL_ON,
 	SUPPLY_SEQ_ADDA_AUD_PAD_TOP,
 	SUPPLY_SEQ_ADDA_MTKAIF_CFG,
+	SUPPLY_SEQ_ADDA6_MTKAIF_CFG,
 	SUPPLY_SEQ_ADDA_FIFO,
 	SUPPLY_SEQ_ADDA_AP_DMIC,
 	SUPPLY_SEQ_ADDA_UL_ON,
@@ -437,13 +440,22 @@ static int mtk_adda_mtkaif_cfg_event(struct snd_soc_dapm_widget *w,
 			regmap_write(afe->regmap, AFE_ADDA6_MTKAIF_CFG0,
 				     0x00010000);
 
-			if (!afe_priv->mtkaif_calibration_ok) {
-				AUDIO_AEE("check mtkaif_calibration_ok fail");
-				dev_warn(afe->dev, "%s(), calibration fail %d, mtkaif_chosen_phase[0/1/2]:%d/%d/%d\n",
+			if (strcmp(w->name, "ADDA_MTKAIF_CFG") == 0 &&
+			    (afe_priv->mtkaif_chosen_phase[0] < 0 ||
+			     afe_priv->mtkaif_chosen_phase[1] < 0)) {
+				AUDIO_AEE("adda mtkaif calib fail");
+				dev_warn(afe->dev,
+					 "%s(), mtkaif_chosen_phase[0/1]:%d/%d\n",
 					 __func__,
-					 afe_priv->mtkaif_calibration_ok,
 					 afe_priv->mtkaif_chosen_phase[0],
-					 afe_priv->mtkaif_chosen_phase[1],
+					 afe_priv->mtkaif_chosen_phase[1]);
+				break;
+			} else if (strcmp(w->name, "ADDA6_MTKAIF_CFG") == 0 &&
+				   afe_priv->mtkaif_chosen_phase[2] < 0) {
+				AUDIO_AEE("adda6 mtkaif calib fail");
+				dev_warn(afe->dev,
+					 "%s(), mtkaif_chosen_phase[2]:%d\n",
+					 __func__,
 					 afe_priv->mtkaif_chosen_phase[2]);
 				break;
 			}
@@ -946,6 +958,10 @@ static const struct snd_soc_dapm_widget mtk_dai_adda_widgets[] = {
 			      SND_SOC_NOPM, 0, 0,
 			      mtk_adda_mtkaif_cfg_event,
 			      SND_SOC_DAPM_PRE_PMU),
+	SND_SOC_DAPM_SUPPLY_S("ADDA6_MTKAIF_CFG", SUPPLY_SEQ_ADDA6_MTKAIF_CFG,
+			      SND_SOC_NOPM, 0, 0,
+			      mtk_adda_mtkaif_cfg_event,
+			      SND_SOC_DAPM_PRE_PMU),
 
 	SND_SOC_DAPM_SUPPLY_S("AP_DMIC_EN", SUPPLY_SEQ_ADDA_AP_DMIC,
 			      AFE_ADDA_UL_SRC_CON0,
@@ -1058,6 +1074,9 @@ static const struct snd_soc_dapm_route mtk_dai_adda_routes[] = {
 	{"ADDA_DL_CH1", "DL6_CH1", "DL6"},
 	{"ADDA_DL_CH2", "DL6_CH2", "DL6"},
 
+	{"ADDA_DL_CH1", "DL8_CH1", "DL8"},
+	{"ADDA_DL_CH2", "DL8_CH2", "DL8"},
+
 	{"ADDA_DL_CH1", "DL2_CH1", "DL2"},
 	{"ADDA_DL_CH2", "DL2_CH1", "DL2"},
 	{"ADDA_DL_CH2", "DL2_CH2", "DL2"},
@@ -1128,7 +1147,7 @@ static const struct snd_soc_dapm_route mtk_dai_adda_routes[] = {
 	{"ADDA CH34 Capture", NULL, "ADDA Enable"},
 	{"ADDA CH34 Capture", NULL, "ADDA CH34 Capture Enable"},
 	{"ADDA CH34 Capture", NULL, "AUD_PAD_TOP"},
-	{"ADDA CH34 Capture", NULL, "ADDA_MTKAIF_CFG"},
+	{"ADDA CH34 Capture", NULL, "ADDA6_MTKAIF_CFG"},
 
 	{"AP DMIC CH34 Capture", NULL, "ADDA Enable"},
 	{"AP DMIC CH34 Capture", NULL, "ADDA CH34 Capture Enable"},

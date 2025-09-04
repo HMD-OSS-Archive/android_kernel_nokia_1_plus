@@ -274,6 +274,14 @@ static const char *const pe_state_name[] = {
 #endif	/* CONFIG_USB_PD_ERROR_RECOVERY_ONCE */
 	"PE_BIST_TEST_DATA",
 	"PE_BIST_CARRIER_MODE_2",
+
+#ifdef CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG
+	"PE_UNEXPECTED_TX_WAIT",
+	"PE_SEND_SOFT_RESET_TX_WAIT",
+	"PE_RECV_SOFT_RESET_TX_WAIT",
+	"PE_SEND_SOFT_RESET_STANDBY",
+#endif	/* CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG */
+
 /* Wait tx finished */
 	"PE_IDLE1",
 	"PE_IDLE2",
@@ -533,6 +541,14 @@ static const char *const pe_state_name[] = {
 #endif	/* CONFIG_USB_PD_ERROR_RECOVERY_ONCE */
 	"BIST_TD",
 	"BIST_C2",
+
+#ifdef CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG
+	"UNEXPECTED_TX",
+	"SEND_SRESET_TX",
+	"RECV_SRESET_TX",
+	"SEND_SRESET_STANDBY",
+#endif	/* CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG */
+
 /* Wait tx finished */
 	"IDLE1",
 	"IDLE2",
@@ -800,6 +816,14 @@ static const struct pe_state_actions pe_state_actions[] = {
 #endif	/* CONFIG_USB_PD_ERROR_RECOVERY_ONCE */
 	PE_STATE_ACTIONS(pe_bist_test_data),
 	PE_STATE_ACTIONS(pe_bist_carrier_mode_2),
+
+#ifdef CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG
+	PE_STATE_ACTIONS(pe_unexpected_tx_wait),
+	PE_STATE_ACTIONS(pe_send_soft_reset_tx_wait),
+	PE_STATE_ACTIONS(pe_recv_soft_reset_tx_wait),
+	PE_STATE_ACTIONS(pe_send_soft_reset_standby),
+#endif	/* CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG */
+
 /* Wait tx finished */
 	PE_STATE_ACTIONS(pe_idle1),
 	PE_STATE_ACTIONS(pe_idle2),
@@ -828,8 +852,8 @@ void (*pe_get_exit_action(uint8_t pe_state))
 #endif	/* CONFIG_USB_PD_REV30_STATUS_REMOTE */
 #endif	/* CONFIG_USB_PD_REV30 */
 #endif	/* CONFIG_USB_PD_PE_SOURCE */
+
 /******************* Sink *******************/
-		/* fall-through */
 #ifdef CONFIG_USB_PD_PE_SINK
 	case PE_SNK_SELECT_CAPABILITY:
 		retval = pe_snk_select_capability_exit;
@@ -858,7 +882,6 @@ void (*pe_get_exit_action(uint8_t pe_state))
 #endif	/* CONFIG_USB_PD_PE_SINK */
 
 /******************* PR_SWAP *******************/
-		/* fall-through */
 #ifdef CONFIG_USB_PD_PR_SWAP
 	case PE_DR_SRC_GET_SOURCE_CAP:
 		retval = pe_dr_src_get_source_cap_exit;
@@ -879,7 +902,6 @@ void (*pe_get_exit_action(uint8_t pe_state))
 #endif	/* CONFIG_USB_PD_PR_SWAP */
 
 /******************* PD30 Common *******************/
-		/* fall-through */
 #ifdef CONFIG_USB_PD_REV30
 #ifdef CONFIG_USB_PD_REV30_BAT_CAP_REMOTE
 	case PE_GET_BATTERY_CAP:
@@ -1087,7 +1109,7 @@ static inline bool pd_try_get_vdm_event(
 		break;
 #endif	/* CONFIG_PD_SRC_RESET_CABLE */
 #endif	/* CONFIG_USB_PD_PE_SOURCE */
-		/* fall-through */
+
 #ifdef CONFIG_USB_PD_CUSTOM_DBGACC
 	case PE_DBG_READY:
 		ret = pd_get_vdm_event(tcpc_dev, pd_event);
@@ -1248,6 +1270,17 @@ static inline uint8_t pd_try_get_active_event(
 	if (!pd_check_tx_ready(pd_port))
 		return PE_NEW_EVT_NULL;
 
+#ifdef CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG
+	if (pd_port->pe_data.pd_unexpected_event_pending) {
+		pd_port->pe_data.pd_unexpected_event_pending = false;
+		*pd_event = pd_port->pe_data.pd_unexpected_event;
+		pd_port->pe_data.pd_unexpected_event.pd_msg = NULL;
+		PE_INFO("##$$120\r\n");
+		DPM_INFO("Re-Run Unexpected Msg");
+		return PE_NEW_EVT_PD;
+	}
+#endif	/* CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG */
+
 	ret = pd_dpm_get_ready_reaction(pd_port);
 
 	if (ret == 0) {
@@ -1272,6 +1305,10 @@ static inline uint8_t pd_try_get_active_event(
 
 	if (ret >= TCP_DPM_EVT_VDM_COMMAND)
 		return PE_NEW_EVT_VDM;
+
+#ifdef CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG
+	pd_port->pe_data.pd_sent_ams_init_cmd = false;
+#endif	/* CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG */
 
 	return PE_NEW_EVT_PD;
 }

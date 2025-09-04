@@ -483,7 +483,7 @@ static void clk_core_unprepare(struct clk_core *core)
 	if (--core->prepare_count > 0)
 		return;
 
-	WARN_ON(core->enable_count > 0);
+	//WARN_ON(core->enable_count > 0);
 
 	trace_clk_unprepare(core);
 
@@ -732,7 +732,8 @@ static void clk_core_disable_unprepare(struct clk_core *core)
 }
 
 #if (!defined(CONFIG_MACH_MT6771) && !defined(CONFIG_MACH_MT6739) &&	\
-	!defined(CONFIG_MACH_MT6785) && !defined(CONFIG_MACH_MT6768))
+	!defined(CONFIG_MACH_MT6785) && !defined(CONFIG_MACH_MT6768) &&	\
+	!defined(CONFIG_MACH_MT6873))
 static void clk_unprepare_unused_subtree(struct clk_core *core)
 {
 	struct clk_core *child;
@@ -811,7 +812,8 @@ __setup("clk_ignore_unused", clk_ignore_unused_setup);
 static int clk_disable_unused(void)
 {
 #if (!defined(CONFIG_MACH_MT6771) && !defined(CONFIG_MACH_MT6739) &&	\
-	!defined(CONFIG_MACH_MT6785) && !defined(CONFIG_MACH_MT6768))
+	!defined(CONFIG_MACH_MT6785) && !defined(CONFIG_MACH_MT6768) &&	\
+	!defined(CONFIG_MACH_MT6873))
 	struct clk_core *core;
 #endif
 
@@ -821,7 +823,8 @@ static int clk_disable_unused(void)
 	}
 
 #if (!defined(CONFIG_MACH_MT6771) && !defined(CONFIG_MACH_MT6739) &&	\
-	!defined(CONFIG_MACH_MT6785) && !defined(CONFIG_MACH_MT6768))
+	!defined(CONFIG_MACH_MT6785) && !defined(CONFIG_MACH_MT6768) &&	\
+	!defined(CONFIG_MACH_MT6873))
 	clk_prepare_lock();
 
 	hlist_for_each_entry(core, &clk_root_list, child_node)
@@ -2180,18 +2183,16 @@ static int clk_debug_create_one(struct clk_core *core, struct dentry *pdentry)
 
 	core->dentry = d;
 
-	d = debugfs_create_u32("clk_rate", S_IRUGO, core->dentry,
-			(u32 *)&core->rate);
+	d = debugfs_create_ulong("clk_rate", 0444, core->dentry, &core->rate);
 	if (!d)
 		goto err_out;
 
-	d = debugfs_create_u32("clk_accuracy", S_IRUGO, core->dentry,
-			(u32 *)&core->accuracy);
+	d = debugfs_create_ulong("clk_accuracy", 0444, core->dentry,
+				 &core->accuracy);
 	if (!d)
 		goto err_out;
 
-	d = debugfs_create_u32("clk_phase", S_IRUGO, core->dentry,
-			(u32 *)&core->phase);
+	d = debugfs_create_u32("clk_phase", 0444, core->dentry, &core->phase);
 	if (!d)
 		goto err_out;
 
@@ -2200,23 +2201,23 @@ static int clk_debug_create_one(struct clk_core *core, struct dentry *pdentry)
 	if (!d)
 		goto err_out;
 
-	d = debugfs_create_u32("clk_prepare_count", S_IRUGO, core->dentry,
-			(u32 *)&core->prepare_count);
+	d = debugfs_create_u32("clk_prepare_count", 0444, core->dentry,
+			       &core->prepare_count);
 	if (!d)
 		goto err_out;
 
-	d = debugfs_create_u32("clk_enable_count", S_IRUGO, core->dentry,
-			(u32 *)&core->enable_count);
+	d = debugfs_create_u32("clk_enable_count", 0444, core->dentry,
+			       &core->enable_count);
 	if (!d)
 		goto err_out;
 
-	d = debugfs_create_u32("clk_notifier_count", S_IRUGO, core->dentry,
-			(u32 *)&core->notifier_count);
+	d = debugfs_create_u32("clk_notifier_count", 0444, core->dentry,
+			       &core->notifier_count);
 	if (!d)
 		goto err_out;
 
 	if (core->num_parents > 1) {
-		d = debugfs_create_file("clk_possible_parents", S_IRUGO,
+		d = debugfs_create_file("clk_possible_parents", 0444,
 				core->dentry, core, &possible_parents_fops);
 		if (!d)
 			goto err_out;
@@ -2312,22 +2313,22 @@ static int __init clk_debug_init(void)
 	if (!rootdir)
 		return -ENOMEM;
 
-	d = debugfs_create_file("clk_summary", S_IRUGO, rootdir, &all_lists,
+	d = debugfs_create_file("clk_summary", 0444, rootdir, &all_lists,
 				&clk_summary_fops);
 	if (!d)
 		return -ENOMEM;
 
-	d = debugfs_create_file("clk_dump", S_IRUGO, rootdir, &all_lists,
+	d = debugfs_create_file("clk_dump", 0444, rootdir, &all_lists,
 				&clk_dump_fops);
 	if (!d)
 		return -ENOMEM;
 
-	d = debugfs_create_file("clk_orphan_summary", S_IRUGO, rootdir,
+	d = debugfs_create_file("clk_orphan_summary", 0444, rootdir,
 				&orphan_list, &clk_summary_fops);
 	if (!d)
 		return -ENOMEM;
 
-	d = debugfs_create_file("clk_orphan_dump", S_IRUGO, rootdir,
+	d = debugfs_create_file("clk_orphan_dump", 0444, rootdir,
 				&orphan_list, &clk_dump_fops);
 	if (!d)
 		return -ENOMEM;
@@ -2490,11 +2491,17 @@ static int __clk_core_init(struct clk_core *core)
 	if (core->flags & CLK_IS_CRITICAL) {
 		unsigned long flags;
 
-		clk_core_prepare(core);
+		ret = clk_core_prepare(core);
+		if (ret)
+			goto out;
 
 		flags = clk_enable_lock();
-		clk_core_enable(core);
+		ret = clk_core_enable(core);
 		clk_enable_unlock(flags);
+		if (ret) {
+			clk_core_unprepare(core);
+			goto out;
+		}
 	}
 
 	/*

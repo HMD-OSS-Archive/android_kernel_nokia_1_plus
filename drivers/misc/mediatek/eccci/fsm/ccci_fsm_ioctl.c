@@ -15,9 +15,7 @@
 #ifdef CONFIG_MTK_SIM_LOCK_POWER_ON_WRITE_PROTECT
 #include <mt-plat/env.h>
 #endif
-#ifdef CONFIG_MTK_SIM_LOCK_POWER_ON_WRITE_PROTECT
-#include <mt-plat/env.h>
-#endif
+
 #include "ccci_fsm_internal.h"
 
 signed int __weak battery_get_bat_voltage(void)
@@ -45,7 +43,14 @@ static int fsm_md_data_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		}
 #else
-		snprintf(buffer, sizeof(buffer), "%d", MD_GENERATION);
+		/*fix me :The buffer is not used in and can be deleted*/
+		ret = snprintf(buffer, sizeof(buffer), "%d", MD_GENERATION);
+		if (ret < 0 || ret >= sizeof(buffer)) {
+			CCCI_ERROR_LOG(md_id, FSM,
+				"%s-%d:snprintf fail,ret = %d\n", __func__, __LINE__, ret);
+			ret = -EFAULT;
+		}
+		ret = 0;
 		if (copy_to_user((void __user *)arg, MD_PLATFORM_INFO,
 				sizeof(MD_PLATFORM_INFO))) {
 			CCCI_ERROR_LOG(md_id, FSM,
@@ -92,7 +97,14 @@ static int fsm_md_data_ioctl(int md_id, unsigned int cmd, unsigned long arg)
 		CCCI_NORMAL_LOG(md_id, FSM,
 			"get SIM lock random pattern %x\n", data);
 
-		snprintf(buffer, sizeof(buffer), "%x", data);
+		ret = snprintf(buffer, sizeof(buffer), "%x", data);
+		if (ret < 0 || ret >= sizeof(buffer)) {
+			CCCI_ERROR_LOG(md_id, FSM,
+				"%s-%d:snprintf fail,ret = %d\n", __func__, __LINE__, ret);
+			ret = -EFAULT;
+			break;
+		}
+		ret = 0;
 		set_env("sml_sync", buffer);
 		break;
 #endif

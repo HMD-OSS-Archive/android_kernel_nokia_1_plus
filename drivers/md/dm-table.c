@@ -21,6 +21,8 @@
 #include <linux/blk-mq.h>
 #include <linux/mount.h>
 #include <linux/dax.h>
+#include <linux/bio.h>
+#include <linux/keyslot-manager.h>
 
 #define DM_MSG_PREFIX "table"
 
@@ -1619,6 +1621,54 @@ static void dm_table_verify_integrity(struct dm_table *t)
 	}
 }
 
+#ifdef CONFIG_BLK_INLINE_ENCRYPTION
+static int device_intersect_crypto_modes(struct dm_target *ti,
+					 struct dm_dev *dev, sector_t start,
+					 sector_t len, void *data)
+{
+	struct keyslot_manager *parent = data;
+	struct keyslot_manager *child = bdev_get_queue(dev->bdev)->ksm;
+
+	keyslot_manager_intersect_modes(parent, child);
+	return 0;
+}
+
+/*
+ * Update the inline crypto modes supported by 'q->ksm' to be the intersection
+ * of the modes supported by all targets in the table.
+ *
+ * For any mode to be supported at all, all targets must have explicitly
+ * declared that they can pass through inline crypto support.  For a particular
+ * mode to be supported, all underlying devices must also support it.
+ *
+ * Assume that 'q->ksm' initially declares all modes to be supported.
+ */
+static void dm_calculate_supported_crypto_modes(struct dm_table *t,
+						struct request_queue *q)
+{
+	struct dm_target *ti;
+	unsigned int i;
+
+	for (i = 0; i < dm_table_get_num_targets(t); i++) {
+		ti = dm_table_get_target(t, i);
+
+		if (!ti->may_passthrough_inline_crypto) {
+			keyslot_manager_intersect_modes(q->ksm, NULL);
+			return;
+		}
+		if (!ti->type->iterate_devices)
+			continue;
+		ti->type->iterate_devices(ti, device_intersect_crypto_modes,
+					  q->ksm);
+	}
+}
+#else /* CONFIG_BLK_INLINE_ENCRYPTION */
+static inline void dm_calculate_supported_crypto_modes(struct dm_table *t,
+						       struct request_queue *q)
+{
+}
+#endif /* !CONFIG_BLK_INLINE_ENCRYPTION */
+
 static int device_flush_capable(struct dm_target *ti, struct dm_dev *dev,
 				sector_t start, sector_t len, void *data)
 {
@@ -1709,16 +1759,6 @@ static int queue_supports_sg_merge(struct dm_target *ti, struct dm_dev *dev,
 	struct request_queue *q = bdev_get_queue(dev->bdev);
 
 	return q && !test_bit(QUEUE_FLAG_NO_SG_MERGE, &q->queue_flags);
-}
-
-static int queue_supports_inline_encryption(struct dm_target *ti,
-					    struct dm_dev *dev,
-					    sector_t start, sector_t len,
-					    void *data)
-{
-	struct request_queue *q = bdev_get_queue(dev->bdev);
-
-	return q && blk_queue_inline_crypt(q);
 }
 
 static bool dm_table_all_devices_attribute(struct dm_table *t,
@@ -1847,6 +1887,10 @@ void dm_table_set_restrictions(struct dm_table *t, struct request_queue *q,
 	}
 	blk_queue_write_cache(q, wc, fua);
 
+	/* Inherit inline-crypt capability of underlying devices. */
+	if (dm_table_supports_flush(t, (1UL << QUEUE_FLAG_INLINECRYPT)))
+		queue_flag_set_unlocked(QUEUE_FLAG_INLINECRYPT, q);
+
 	if (dm_table_supports_dax(t))
 		queue_flag_set_unlocked(QUEUE_FLAG_DAX, q);
 	else
@@ -1871,13 +1915,9 @@ void dm_table_set_restrictions(struct dm_table *t, struct request_queue *q,
 	else
 		queue_flag_set_unlocked(QUEUE_FLAG_NO_SG_MERGE, q);
 
-	/* Inherit inline-crypt capability of underlying devices. */
-	if (dm_table_all_devices_attribute(t, queue_supports_inline_encryption))
-		queue_flag_set_unlocked(QUEUE_FLAG_INLINECRYPT, q);
-	else
-		queue_flag_clear_unlocked(QUEUE_FLAG_INLINECRYPT, q);
-
 	dm_table_verify_integrity(t);
+
+	dm_calculate_supported_crypto_modes(t, q);
 
 	/*
 	 * Determine whether or not this queue's I/O timings contribute

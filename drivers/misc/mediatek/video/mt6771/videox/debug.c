@@ -17,7 +17,15 @@
 #include <linux/fb.h>
 #include <linux/vmalloc.h>
 #include <linux/sched.h>
+
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 #include <linux/debugfs.h>
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+#include <linux/proc_fs.h>
+#endif
+
 #include <linux/wait.h>
 #include <linux/time.h>
 #include <linux/delay.h>
@@ -60,7 +68,15 @@
 #include "ddp_clkmgr.h"
 #include "ddp_irq.h"
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 static struct dentry *mtkfb_dbgfs;
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+static struct proc_dir_entry *mtkfb_procfs;
+static struct proc_dir_entry *disp_lowpower_proc;
+#endif
+
 unsigned int g_mobilelog;
 static unsigned int debug_draw_line;
 int bypass_blank;
@@ -281,24 +297,25 @@ int disp_layer_info_statistic(struct disp_ddp_path_config *last_config,
 		char str[200];
 		int offset = 0;
 
-		offset += snprintf(str + offset, sizeof(str) - offset,
-				   "total:%ld.layers:",
-				   layer_stat.total_frame_cnt);
+		offset += scnprintf(str + offset, sizeof(str) - offset,
+				    "total:%ld.layers:",
+				    layer_stat.total_frame_cnt);
 		for (i = 1; i <= 12; i++)
-			offset += snprintf(str + offset, sizeof(str) - offset,
-					   "%ld,", layer_stat.cnt_by_layers[i]);
+			offset += scnprintf(str + offset, sizeof(str) - offset,
+					"%ld,", layer_stat.cnt_by_layers[i]);
 		DISPMSG("layer_cnt %s\n", str);
 
 		offset = 0;
-		offset += snprintf(str + offset, sizeof(str) - offset, ".ext:");
+		offset += scnprintf(str + offset,
+			sizeof(str) - offset, ".ext:");
 		for (i = 1; i <= 6 ; i++)
-			offset += snprintf(str + offset, sizeof(str) - offset,
+			offset += scnprintf(str + offset, sizeof(str) - offset,
 				"%ld,", layer_stat.cnt_by_layers_with_ext[i]);
 
-		offset += snprintf(str + offset, sizeof(str) - offset,
-				   ".arm_ext:");
+		offset += scnprintf(str + offset, sizeof(str) - offset,
+				".arm_ext:");
 		for (i = 1; i <= 6 ; i++)
-			offset += snprintf(str + offset, sizeof(str) - offset,
+			offset += scnprintf(str + offset, sizeof(str) - offset,
 				"%ld,",
 				layer_stat.cnt_by_layers_with_arm_ext[i]);
 		DISPMSG("layer_cnt %s\n", str);
@@ -456,11 +473,9 @@ static int alloc_buffer_from_dma(size_t size, struct test_buf_info *buf_info)
 		goto out;
 	}
 
-	/*
-	 * TODO: legacy ion_handle allocate API phase out,
-	 *	need develop another method allocate MVA
-	 */
-
+	ion_display_handle = disp_ion_alloc(ion_display_client,
+					    ION_HEAP_MULTIMEDIA_PA2MVA_MASK,
+					    buf_info->buf_pa, size_align);
 	if (ret != 0) {
 		DISPWARN("primary capture:Fail to allocate buffer\n");
 		ret = -1;
@@ -1571,7 +1586,8 @@ static ssize_t partial_read(struct file *file, char __user *ubuf,
 				support = 1;
 		}
 	}
-	snprintf(p, 10, "%d\n", support);
+	scnprintf(p, 10, "%d\n", support);
+
 	return simple_read_from_buffer(ubuf, count, ppos, p, strlen(p));
 }
 
@@ -1598,8 +1614,27 @@ static int idletime_get(void *data, u64 *val)
 
 DEFINE_SIMPLE_ATTRIBUTE(idletime_fops, idletime_get, idletime_set, "%llu\n");
 
+static int idlevfp_set(void *data, u64 val)
+{
+
+	if (val > 4095)
+		val = 4095;
+
+	backup_vfp_for_lp_cust((unsigned int)val);
+	return 0;
+}
+
+static int idlevfp_get(void *data, u64 *val)
+{
+	*val = (u64)get_backup_vfp();
+	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(idlevfp_fops, idlevfp_get, idlevfp_set, "%llu\n");
+
 void DBG_Init(void)
 {
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	struct dentry *d_folder;
 	struct dentry *d_file;
 
@@ -1615,9 +1650,75 @@ void DBG_Init(void)
 		d_file = debugfs_create_file("idletime",
 			S_IFREG | 0666, d_folder, NULL, &idletime_fops);
 	}
+#endif
+
+//do samething in procfs
+#if IS_ENABLED(CONFIG_PROC_FS)
+	mtkfb_procfs = proc_create("mtkfb", S_IFREG | 0440,
+				NULL,
+				&debug_fops);
+	if (!mtkfb_procfs) {
+		pr_info("[%s %d]failed to create mtkfb in /proc/disp_ddp\n",
+			__func__, __LINE__);
+		goto out;
+	}
+
+	disp_lowpower_proc = proc_mkdir("displowpower", NULL);
+	if (!disp_lowpower_proc) {
+		pr_info("[%s %d]failed to create dir: /proc/displowpower\n",
+			__func__, __LINE__);
+		goto out;
+	}
+
+	if (!proc_create("kickdump", S_IFREG | 0440,
+		disp_lowpower_proc, &kickidle_fops)) {
+		pr_info("[%s %d]failed to create kickdump in /proc/displowpower\n",
+			__func__, __LINE__);
+		goto out;
+	}
+
+	if (!proc_create("partial", S_IFREG | 0440,
+		disp_lowpower_proc, &partial_fops)) {
+		pr_info("[%s %d]failed to create partial in /proc/displowpower\n",
+			__func__, __LINE__);
+		goto out;
+	}
+
+	if (!proc_create("idletime", S_IFREG | 0440,
+		disp_lowpower_proc, &idletime_fops)) {
+		pr_info("[%s %d]failed to create idletime in /proc/displowpower\n",
+			__func__, __LINE__);
+		goto out;
+	}
+
+	if (!proc_create("idlevfp", S_IFREG | 0440,
+		disp_lowpower_proc, &idlevfp_fops)) {
+		pr_info("[%s %d]failed to create idlevfp in /proc/displowpower\n",
+			__func__, __LINE__);
+		goto out;
+	}
+
+out:
+	return;
+#endif
+
 }
 
 void DBG_Deinit(void)
 {
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	debugfs_remove(mtkfb_dbgfs);
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+	if (mtkfb_procfs) {
+		proc_remove(mtkfb_procfs);
+		mtkfb_procfs = NULL;
+	}
+	if (disp_lowpower_proc) {
+		proc_remove(disp_lowpower_proc);
+		disp_lowpower_proc = NULL;
+	}
+
+#endif
 }

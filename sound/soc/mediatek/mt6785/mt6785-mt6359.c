@@ -16,6 +16,81 @@
 #include "../../codecs/mt6359.h"
 #include "../common/mtk-sp-spk-amp.h"
 
+#ifdef CONFIG_SND_SOC_MT8185_EVB
+#include <linux/of_gpio.h>
+#include <linux/gpio.h>
+
+#define EXT_SPK_HP_AMP_W_NAME "Ext_Headphone_Amp_Switch"
+
+struct pinctrl *pinctrl_ext_hp_amp;
+struct audhpamp_gpio_attr {
+	const char *name;
+	bool gpio_prepare;
+	struct pinctrl_state *gpioctrl;
+};
+
+enum audhpamp_gpio_type {
+	GPIO_EXTHPAMP_OFF = 0,
+	GPIO_EXTHPAMP_ON,
+	GPIO_NUM
+};
+
+static struct audhpamp_gpio_attr audhpamp_gpios[GPIO_NUM] = {
+	[GPIO_EXTHPAMP_OFF] = {"ext_hp_amp_off", false, NULL},
+	[GPIO_EXTHPAMP_ON] = {"ext_hp_amp_on", false, NULL},
+};
+
+static inline int audio_exthpamp_setup_gpio(struct platform_device *device)
+{
+	int index_gpio = 0;
+	int ret;
+
+	pinctrl_ext_hp_amp = devm_pinctrl_get(&device->dev);
+	if (IS_ERR(pinctrl_ext_hp_amp)) {
+		ret = PTR_ERR(pinctrl_ext_hp_amp);
+		pr_info("[audio] Cannot find ext_hp_amp ret = %d !\n", ret);
+		return ret;
+	}
+	for (index_gpio = 0; index_gpio < ARRAY_SIZE(audhpamp_gpios);
+			index_gpio++) {
+		audhpamp_gpios[index_gpio].gpioctrl =
+			pinctrl_lookup_state(pinctrl_ext_hp_amp,
+			audhpamp_gpios[index_gpio].name);
+		if (IS_ERR(audhpamp_gpios[index_gpio].gpioctrl)) {
+			ret = PTR_ERR(audhpamp_gpios[index_gpio].gpioctrl);
+			pr_info("[audio] %s lookup_state %s fail %d\n",
+			__func__, audhpamp_gpios[index_gpio].name, ret);
+		} else {
+			audhpamp_gpios[index_gpio].gpio_prepare = true;
+			pr_debug("[audio] %s lookup_state %s success!\n",
+				 __func__, audhpamp_gpios[index_gpio].name);
+		}
+	}
+	return 0;
+}
+
+static void audio_exthpamp_enable(void)
+{
+	if (audhpamp_gpios[GPIO_EXTHPAMP_ON].gpio_prepare) {
+		pinctrl_select_state(pinctrl_ext_hp_amp,
+			audhpamp_gpios[GPIO_EXTHPAMP_ON].gpioctrl);
+		pr_info("[audio] set audhpamp_gpios[GPIO_EXTHPAMP_ON] pins\n");
+	} else {
+		pr_info("[audio] audhpamp_gpios[GPIO_EXTHPAMP_ON] pins are not prepared!\n");
+	}
+}
+
+static void audio_exthpamp_disable(void)
+{
+	if (audhpamp_gpios[GPIO_EXTHPAMP_OFF].gpio_prepare) {
+		pinctrl_select_state(pinctrl_ext_hp_amp,
+			audhpamp_gpios[GPIO_EXTHPAMP_OFF].gpioctrl);
+		pr_info("[audio] set aud_gpios[GPIO_EXTHPAMP_OFF] pins\n");
+	} else {
+		pr_info("[audio] aud_gpios[GPIO_EXTHPAMP_OFF] pins are not prepared!\n");
+	}
+}
+#endif
 /*
  * if need additional control for the ext spk amp that is connected
  * after Lineout Buffer / HP Buffer on the codec, put the control in
@@ -94,18 +169,61 @@ static int mt6785_mt6359_spk_amp_event(struct snd_soc_dapm_widget *w,
 	return 0;
 };
 
+#ifdef CONFIG_SND_SOC_MT8185_EVB
+static int mt6785_mt6359_headphone_amp_event(struct snd_soc_dapm_widget *w,
+				       struct snd_kcontrol *kcontrol,
+				       int event)
+{
+	struct snd_soc_dapm_context *dapm = w->dapm;
+	struct snd_soc_card *card = dapm->card;
+
+	dev_info(card->dev, "%s(), event %d\n", __func__, event);
+
+	switch (event) {
+	case SND_SOC_DAPM_POST_PMU:
+		/* spk amp on control */
+#ifdef CONFIG_SND_SOC_MT8185_EVB
+		audio_exthpamp_enable();
+#endif
+		break;
+	case SND_SOC_DAPM_PRE_PMD:
+		/* spk amp off control */
+#ifdef CONFIG_SND_SOC_MT8185_EVB
+		audio_exthpamp_disable();
+#endif
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+};
+#endif
+
 static const struct snd_soc_dapm_widget mt6785_mt6359_widgets[] = {
 	SND_SOC_DAPM_SPK(EXT_SPK_AMP_W_NAME, mt6785_mt6359_spk_amp_event),
+#ifdef CONFIG_SND_SOC_MT8185_EVB
+	SND_SOC_DAPM_SPK(EXT_SPK_HP_AMP_W_NAME,
+		     mt6785_mt6359_headphone_amp_event),
+#endif
 };
 
 static const struct snd_soc_dapm_route mt6785_mt6359_routes[] = {
 	{EXT_SPK_AMP_W_NAME, NULL, "LINEOUT L"},
 	{EXT_SPK_AMP_W_NAME, NULL, "Headphone L Ext Spk Amp"},
 	{EXT_SPK_AMP_W_NAME, NULL, "Headphone R Ext Spk Amp"},
+#ifdef CONFIG_SND_SOC_MT8185_EVB
+	{EXT_SPK_HP_AMP_W_NAME, NULL, "LINEOUT L"},
+	{EXT_SPK_HP_AMP_W_NAME, NULL, "Headphone L Ext Spk Amp"},
+	{EXT_SPK_HP_AMP_W_NAME, NULL, "Headphone R Ext Spk Amp"},
+#endif
 };
 
 static const struct snd_kcontrol_new mt6785_mt6359_controls[] = {
 	SOC_DAPM_PIN_SWITCH(EXT_SPK_AMP_W_NAME),
+#ifdef CONFIG_SND_SOC_MT8185_EVB
+	SOC_DAPM_PIN_SWITCH(EXT_SPK_HP_AMP_W_NAME),
+#endif
 	SOC_ENUM_EXT("MTK_SPK_TYPE_GET", mt6785_spk_type_enum[0],
 		     mt6785_spk_type_get, NULL),
 	SOC_ENUM_EXT("MTK_SPK_I2S_OUT_TYPE_GET", mt6785_spk_type_enum[1],
@@ -144,6 +262,7 @@ static int mt6785_mt6359_mtkaif_calibration(struct snd_soc_pcm_runtime *rtd)
 	int cycle_1, cycle_2, cycle_3;
 	int prev_cycle_1, prev_cycle_2, prev_cycle_3;
 	int counter;
+	int mtkaif_calib_ok;
 
 	dev_info(afe->dev, "%s(), start\n", __func__);
 
@@ -162,15 +281,15 @@ static int mt6785_mt6359_mtkaif_calibration(struct snd_soc_pcm_runtime *rtd)
 	/* set test type to synchronizer pulse */
 	set_cksys_reg(CKSYS_AUD_TOP_CFG, 0xffff, 0x4);
 
+	mtkaif_calib_ok = true;
 	afe_priv->mtkaif_calibration_num_phase = 42;	/* mt6359: 0 ~ 42 */
-	afe_priv->mtkaif_calibration_ok = true;
 	afe_priv->mtkaif_chosen_phase[0] = -1;
 	afe_priv->mtkaif_chosen_phase[1] = -1;
 	afe_priv->mtkaif_chosen_phase[2] = -1;
 
 	for (phase = 0;
 	     phase <= afe_priv->mtkaif_calibration_num_phase &&
-	     afe_priv->mtkaif_calibration_ok;
+	     mtkaif_calib_ok;
 	     phase++) {
 		mt6359_set_mtkaif_calibration_phase(&rtd->codec->component,
 						    phase, phase, phase);
@@ -206,7 +325,7 @@ static int mt6785_mt6359_mtkaif_calibration(struct snd_soc_pcm_runtime *rtd)
 				dev_err(afe->dev, "%s(), test fail, cycle_1 %d, cycle_2 %d, cycle_3 %d, monitor 0x%x\n",
 					__func__,
 					cycle_1, cycle_2, cycle_3, monitor);
-				afe_priv->mtkaif_calibration_ok = false;
+				mtkaif_calib_ok = false;
 				break;
 			}
 		}
@@ -239,20 +358,8 @@ static int mt6785_mt6359_mtkaif_calibration(struct snd_soc_pcm_runtime *rtd)
 
 		if (afe_priv->mtkaif_chosen_phase[0] >= 0 &&
 		    afe_priv->mtkaif_chosen_phase[1] >= 0 &&
-		    afe_priv->mtkaif_chosen_phase[2] >= 0) {
-			dev_info(afe->dev, "%s(), get phase %d pass, mtkaif_chosen_phase[0/1/2]:%d/%d/%d\n",
-				 __func__, phase,
-				 afe_priv->mtkaif_chosen_phase[0],
-				 afe_priv->mtkaif_chosen_phase[1],
-				 afe_priv->mtkaif_chosen_phase[2]);
+		    afe_priv->mtkaif_chosen_phase[2] >= 0)
 			break;
-		} else {
-			dev_info(afe->dev, "%s(), get phase %d fail, mtkaif_chosen_phase[0/1/2]:%d/%d/%d\n",
-				 __func__, phase,
-				 afe_priv->mtkaif_chosen_phase[0],
-				 afe_priv->mtkaif_chosen_phase[1],
-				 afe_priv->mtkaif_chosen_phase[2]);
-		}
 	}
 
 	mt6359_set_mtkaif_calibration_phase(&rtd->codec->component,
@@ -262,13 +369,6 @@ static int mt6785_mt6359_mtkaif_calibration(struct snd_soc_pcm_runtime *rtd)
 		0 : afe_priv->mtkaif_chosen_phase[1],
 		(afe_priv->mtkaif_chosen_phase[2] < 0) ?
 		0 : afe_priv->mtkaif_chosen_phase[2]);
-
-	/* Check miso0 and miso1 only */
-	if (afe_priv->mtkaif_chosen_phase[0] < 0 ||
-	    afe_priv->mtkaif_chosen_phase[1] < 0)
-		afe_priv->mtkaif_calibration_ok = false;
-	else
-		afe_priv->mtkaif_calibration_ok = true;
 
 	/* disable rx fifo */
 	regmap_update_bits(afe->regmap, AFE_AUD_PAD_TOP, 0xff, 0x38);
@@ -281,9 +381,8 @@ static int mt6785_mt6359_mtkaif_calibration(struct snd_soc_pcm_runtime *rtd)
 	mt6785_afe_gpio_request(afe, false, MT6785_DAI_ADDA_CH34, 0);
 	pm_runtime_put(afe->dev);
 
-	dev_info(afe->dev, "%s(), end, calibration ok %d, mtkaif_chosen_phase[0/1/2]:%d/%d/%d\n",
+	dev_info(afe->dev, "%s(), mtkaif_chosen_phase[0/1/2]:%d/%d/%d\n",
 		 __func__,
-		 afe_priv->mtkaif_calibration_ok,
 		 afe_priv->mtkaif_chosen_phase[0],
 		 afe_priv->mtkaif_chosen_phase[1],
 		 afe_priv->mtkaif_chosen_phase[2]);
@@ -935,6 +1034,31 @@ static struct snd_soc_dai_link mt6785_mt6359_dai_links[] = {
 		.dpcm_playback = 1,
 		.ignore_suspend = 1,
 	},
+	{
+		.name = "Hostless_HW_Gain_AAudio",
+		.stream_name = "Hostless_HW_Gain_AAudio",
+		.cpu_dai_name = "Hostless HW Gain AAudio DAI",
+		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.trigger = {SND_SOC_DPCM_TRIGGER_PRE,
+			    SND_SOC_DPCM_TRIGGER_PRE},
+		.dynamic = 1,
+		.dpcm_capture = 1,
+		.ignore_suspend = 1,
+	},
+	{
+		.name = "Hostless_SRC_AAudio",
+		.stream_name = "Hostless_SRC_AAudio",
+		.cpu_dai_name = "Hostless SRC AAudio DAI",
+		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "snd-soc-dummy-dai",
+		.trigger = {SND_SOC_DPCM_TRIGGER_PRE,
+			    SND_SOC_DPCM_TRIGGER_PRE},
+		.dynamic = 1,
+		.dpcm_playback = 1,
+		.dpcm_capture = 1,
+		.ignore_suspend = 1,
+	},
 	/* BTCVSD */
 #ifdef CONFIG_SND_SOC_MTK_BTCVSD
 	{
@@ -961,7 +1085,6 @@ static struct snd_soc_dai_link mt6785_mt6359_dai_links[] = {
 		.name = "DSP_Playback_Voip",
 		.stream_name = "DSP_Playback_Voip",
 		.cpu_dai_name = "audio_task_voip_dai",
-		.platform_name = "snd_audio_dsp",
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
 	},
@@ -969,7 +1092,6 @@ static struct snd_soc_dai_link mt6785_mt6359_dai_links[] = {
 		.name = "DSP_Playback_Primary",
 		.stream_name = "DSP_Playback_Primary",
 		.cpu_dai_name = "audio_task_primary_dai",
-		.platform_name = "snd_audio_dsp",
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
 	},
@@ -977,7 +1099,6 @@ static struct snd_soc_dai_link mt6785_mt6359_dai_links[] = {
 		.name = "DSP_Playback_DeepBuf",
 		.stream_name = "DSP_Playback_DeepBuf",
 		.cpu_dai_name = "audio_task_deepbuf_dai",
-		.platform_name = "snd_audio_dsp",
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
 	},
@@ -985,7 +1106,6 @@ static struct snd_soc_dai_link mt6785_mt6359_dai_links[] = {
 		.name = "DSP_Playback_Playback",
 		.stream_name = "DSP_Playback_Playback",
 		.cpu_dai_name = "audio_task_Playback_dai",
-		.platform_name = "snd_audio_dsp",
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
 	},
@@ -993,7 +1113,6 @@ static struct snd_soc_dai_link mt6785_mt6359_dai_links[] = {
 		.name = "DSP_Capture_Ul1",
 		.stream_name = "DSP_Capture_Ul1",
 		.cpu_dai_name = "audio_task_capture_ul1_dai",
-		.platform_name = "snd_audio_dsp",
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
 	},
@@ -1002,7 +1121,6 @@ static struct snd_soc_dai_link mt6785_mt6359_dai_links[] = {
 		.name = "DSP_Playback_A2DP",
 		.stream_name = "DSP_Playback_A2DP",
 		.cpu_dai_name = "audio_task_A2DP_dai",
-		.platform_name = "snd_audio_dsp",
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
 	},
@@ -1010,7 +1128,6 @@ static struct snd_soc_dai_link mt6785_mt6359_dai_links[] = {
 		.name = "DSP_Playback_DataProvider",
 		.stream_name = "DSP_Playback_DataProvider",
 		.cpu_dai_name = "audio_task_dataprovider_dai",
-		.platform_name = "snd_audio_dsp",
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
 	},
@@ -1019,6 +1136,20 @@ static struct snd_soc_dai_link mt6785_mt6359_dai_links[] = {
 		.name = "DSP_Call_Final",
 		.stream_name = "DSP_Call_Final",
 		.cpu_dai_name = "audio_task_call_final_dai",
+		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "snd-soc-dummy-dai",
+	},
+	{
+		.name = "DSP_Playback_Ktv",
+		.stream_name = "DSP_Playback_Ktv",
+		.cpu_dai_name = "audio_task_ktv_dai",
+		.codec_name = "snd-soc-dummy",
+		.codec_dai_name = "snd-soc-dummy-dai",
+	},
+	{
+		.name = "DSP_Capture_Raw",
+		.stream_name = "DSP_Capture_Raw",
+		.cpu_dai_name = "audio_task_capture_raw_dai",
 		.platform_name = "snd_audio_dsp",
 		.codec_name = "snd-soc-dummy",
 		.codec_dai_name = "snd-soc-dummy-dai",
@@ -1063,15 +1194,46 @@ static struct snd_soc_card mt6785_mt6359_soc_card = {
 static int mt6785_mt6359_dev_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = &mt6785_mt6359_soc_card;
-	struct device_node *platform_node, *codec_node;
-	int ret;
-	int i;
+	struct device_node *platform_node, *codec_node, *spk_node, *dsp_node;
+	struct snd_soc_dai_link *spk_out_dai_link, *spk_iv_dai_link;
+	int ret, i;
+	int spk_out_dai_link_idx, spk_iv_dai_link_idx;
+	const char *name;
 
-	ret = mtk_spk_update_dai_link(card, pdev, &mt6785_mt6359_i2s_ops);
+	ret = mtk_spk_update_info(card, pdev,
+				  &spk_out_dai_link_idx, &spk_iv_dai_link_idx,
+				  &mt6785_mt6359_i2s_ops);
 	if (ret) {
-		dev_err(&pdev->dev, "%s(), mtk_spk_update_dai_link error\n",
+		dev_err(&pdev->dev, "%s(), mtk_spk_update_info error\n",
 			__func__);
 		return -EINVAL;
+	}
+
+	spk_out_dai_link = &mt6785_mt6359_dai_links[spk_out_dai_link_idx];
+	spk_iv_dai_link = &mt6785_mt6359_dai_links[spk_iv_dai_link_idx];
+	if (!spk_out_dai_link->codec_dai_name &&
+	    !spk_iv_dai_link->codec_dai_name) {
+		spk_node = of_get_child_by_name(pdev->dev.of_node,
+					"mediatek,speaker-codec");
+		if (!spk_node) {
+			dev_err(&pdev->dev,
+				"spk_codec of_get_child_by_name fail\n");
+			return -EINVAL;
+		}
+		ret = snd_soc_of_get_dai_link_codecs(
+				&pdev->dev, spk_node, spk_out_dai_link);
+		if (ret < 0) {
+			dev_err(&pdev->dev,
+				"i2s out get_dai_link_codecs fail\n");
+			return -EINVAL;
+		}
+		ret = snd_soc_of_get_dai_link_codecs(
+				&pdev->dev, spk_node, spk_iv_dai_link);
+		if (ret < 0) {
+			dev_err(&pdev->dev,
+				"i2s in get_dai_link_codecs fail\n");
+			return -EINVAL;
+		}
 	}
 
 	platform_node = of_parse_phandle(pdev->dev.of_node,
@@ -1080,9 +1242,22 @@ static int mt6785_mt6359_dev_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Property 'platform' missing or invalid\n");
 		return -EINVAL;
 	}
+
+	dsp_node = of_parse_phandle(pdev->dev.of_node,
+				    "mediatek,snd_audio_dsp", 0);
+	if (!dsp_node)
+		dev_info(&pdev->dev, "Property 'snd_audio_dsp' missing or invalid\n");
+
 	for (i = 0; i < card->num_links; i++) {
 		if (mt6785_mt6359_dai_links[i].platform_name)
 			continue;
+		/* no platform assign and with dsp playback node. */
+		name = mt6785_mt6359_dai_links[i].name;
+		if (!strncmp(name, "DSP", strlen("DSP")) &&
+		    mt6785_mt6359_dai_links[i].platform_name == NULL) {
+			mt6785_mt6359_dai_links[i].platform_of_node = dsp_node;
+			continue;
+		}
 		mt6785_mt6359_dai_links[i].platform_of_node = platform_node;
 	}
 
@@ -1094,10 +1269,15 @@ static int mt6785_mt6359_dev_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 	for (i = 0; i < card->num_links; i++) {
-		if (mt6785_mt6359_dai_links[i].codec_name)
+		if (mt6785_mt6359_dai_links[i].codec_name ||
+		    i == spk_out_dai_link_idx ||
+		    i == spk_iv_dai_link_idx)
 			continue;
 		mt6785_mt6359_dai_links[i].codec_of_node = codec_node;
 	}
+#ifdef CONFIG_SND_SOC_MT8185_EVB
+		audio_exthpamp_setup_gpio(pdev);
+#endif
 
 	card->dev = &pdev->dev;
 

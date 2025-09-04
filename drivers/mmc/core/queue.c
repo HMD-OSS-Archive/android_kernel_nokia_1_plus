@@ -28,7 +28,10 @@
 #include "queue.h"
 #include "block.h"
 #include "core.h"
+#include "crypto.h"
 #include "card.h"
+#include "mmc_crypto.h"
+#include "cqhci-crypto.h"
 
 /*
  * Prepare a MMC request. This just filters out odd stuff.
@@ -213,7 +216,9 @@ static int mmc_queue_thread(void *d)
 	down(&mq->thread_sem);
 	mt_bio_queue_alloc(current, q);
 
+#if defined(CONFIG_MTK_IO_BOOST)
 	mtk_iobst_register_tid(current->pid);
+#endif
 
 	do {
 		struct request *req;
@@ -447,9 +452,6 @@ void mmc_cmdq_setup_queue(struct mmc_queue *mq, struct mmc_card *card)
 						host->max_req_size / 512));
 	blk_queue_max_segment_size(mq->queue, host->max_seg_size);
 	blk_queue_max_segments(mq->queue, host->max_segs);
-
-	if (host->caps2 & MMC_CAP2_INLINECRYPT)
-		queue_flag_set_unlocked(QUEUE_FLAG_INLINECRYPT, mq->queue);
 }
 #endif
 
@@ -517,6 +519,8 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card,
 						mmc_hostname(host), ret);
 					ret = PTR_ERR(mq->thread);
 				}
+				/* inline crypto */
+				mmc_crypto_setup_queue(host, mq->queue);
 
 				return ret;
 			}
@@ -579,8 +583,6 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card,
 	blk_queue_prep_rq(mq->queue, mmc_prep_request);
 	queue_flag_set_unlocked(QUEUE_FLAG_NONROT, mq->queue);
 	queue_flag_clear_unlocked(QUEUE_FLAG_ADD_RANDOM, mq->queue);
-	if (host->caps2 & MMC_CAP2_INLINECRYPT)
-		queue_flag_set_unlocked(QUEUE_FLAG_INLINECRYPT, mq->queue);
 	if (mmc_can_erase(card))
 		mmc_queue_setup_discard(mq->queue, card);
 
@@ -606,6 +608,9 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card,
 #endif
 
 	sema_init(&mq->thread_sem, 1);
+
+	/* sw-cqhci inline crypto */
+	mmc_crypto_setup_queue(host, mq->queue);
 
 	mq->thread = kthread_run(mmc_queue_thread, mq, "mmcqd/%d%s",
 		host->index, subname ? subname : "");
@@ -635,6 +640,7 @@ void mmc_cleanup_queue(struct mmc_queue *mq)
 {
 	struct request_queue *q = mq->queue;
 	unsigned long flags;
+
 
 	/* Make sure the queue isn't suspended, as that will deadlock */
 	mmc_queue_resume(mq);

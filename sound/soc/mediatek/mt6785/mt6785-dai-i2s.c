@@ -239,6 +239,7 @@ static const struct snd_kcontrol_new mtk_i2s3_ch1_mix[] = {
 	SOC_DAPM_SINGLE_AUTODISABLE("DL6_CH1", AFE_CONN0_1, I_DL6_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL4_CH1", AFE_CONN0_1, I_DL4_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL5_CH1", AFE_CONN0_1, I_DL5_CH1, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL8_CH1", AFE_CONN0_1, I_DL8_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("GAIN1_OUT_CH1", AFE_CONN0,
 				    I_GAIN1_OUT_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("ADDA_UL_CH1", AFE_CONN0,
@@ -257,6 +258,7 @@ static const struct snd_kcontrol_new mtk_i2s3_ch2_mix[] = {
 	SOC_DAPM_SINGLE_AUTODISABLE("DL6_CH2", AFE_CONN1_1, I_DL6_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL4_CH2", AFE_CONN1_1, I_DL4_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL5_CH2", AFE_CONN1_1, I_DL5_CH2, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL8_CH2", AFE_CONN1_1, I_DL8_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("GAIN1_OUT_CH2", AFE_CONN1,
 				    I_GAIN1_OUT_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("ADDA_UL_CH2", AFE_CONN1,
@@ -279,6 +281,7 @@ static const struct snd_kcontrol_new mtk_i2s1_ch1_mix[] = {
 	SOC_DAPM_SINGLE_AUTODISABLE("DL6_CH1", AFE_CONN28_1, I_DL6_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL4_CH1", AFE_CONN28_1, I_DL4_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL5_CH1", AFE_CONN28_1, I_DL5_CH1, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL8_CH1", AFE_CONN28_1, I_DL8_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("GAIN1_OUT_CH1", AFE_CONN28,
 				    I_GAIN1_OUT_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("ADDA_UL_CH1", AFE_CONN28,
@@ -297,6 +300,7 @@ static const struct snd_kcontrol_new mtk_i2s1_ch2_mix[] = {
 	SOC_DAPM_SINGLE_AUTODISABLE("DL6_CH2", AFE_CONN29_1, I_DL6_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL4_CH2", AFE_CONN29_1, I_DL4_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL5_CH2", AFE_CONN29_1, I_DL5_CH2, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL8_CH2", AFE_CONN29_1, I_DL8_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("GAIN1_OUT_CH2", AFE_CONN29,
 				    I_GAIN1_OUT_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("ADDA_UL_CH2", AFE_CONN29,
@@ -317,9 +321,9 @@ static const struct snd_kcontrol_new mtk_i2s5_ch1_mix[] = {
 	SOC_DAPM_SINGLE_AUTODISABLE("DL3_CH1", AFE_CONN30, I_DL3_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL12_CH1", AFE_CONN30, I_DL12_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL6_CH1", AFE_CONN30_1, I_DL6_CH1, 1, 0),
-
 	SOC_DAPM_SINGLE_AUTODISABLE("DL4_CH1", AFE_CONN30_1, I_DL4_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL5_CH1", AFE_CONN30_1, I_DL5_CH1, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL8_CH1", AFE_CONN30_1, I_DL8_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("GAIN1_OUT_CH1", AFE_CONN30,
 				    I_GAIN1_OUT_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("ADDA_UL_CH1", AFE_CONN30,
@@ -338,6 +342,7 @@ static const struct snd_kcontrol_new mtk_i2s5_ch2_mix[] = {
 	SOC_DAPM_SINGLE_AUTODISABLE("DL6_CH2", AFE_CONN31_1, I_DL6_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL4_CH2", AFE_CONN31_1, I_DL4_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL5_CH2", AFE_CONN31_1, I_DL5_CH2, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL8_CH2", AFE_CONN31_1, I_DL8_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("GAIN1_OUT_CH2", AFE_CONN31,
 				    I_GAIN1_OUT_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("ADDA_UL_CH2", AFE_CONN31,
@@ -756,6 +761,9 @@ static const struct snd_soc_dapm_route mtk_dai_i2s_routes[] = {
 	{"I2S1_CH1", "DL5_CH1", "DL5"},
 	{"I2S1_CH2", "DL5_CH2", "DL5"},
 
+	{"I2S1_CH1", "DL8_CH1", "DL8"},
+	{"I2S1_CH2", "DL8_CH2", "DL8"},
+
 	{"I2S1", NULL, "I2S1_CH1"},
 	{"I2S1", NULL, "I2S1_CH2"},
 
@@ -826,6 +834,9 @@ static const struct snd_soc_dapm_route mtk_dai_i2s_routes[] = {
 	{"I2S3_CH1", "DL5_CH1", "DL5"},
 	{"I2S3_CH2", "DL5_CH2", "DL5"},
 
+	{"I2S3_CH1", "DL8_CH1", "DL8"},
+	{"I2S3_CH2", "DL8_CH2", "DL8"},
+
 	{"I2S3", NULL, "I2S3_CH1"},
 	{"I2S3", NULL, "I2S3_CH2"},
 
@@ -872,6 +883,9 @@ static const struct snd_soc_dapm_route mtk_dai_i2s_routes[] = {
 
 	{"I2S5_CH1", "DL5_CH1", "DL5"},
 	{"I2S5_CH2", "DL5_CH2", "DL5"},
+
+	{"I2S5_CH1", "DL8_CH1", "DL8"},
+	{"I2S5_CH2", "DL8_CH2", "DL8"},
 
 	{"I2S5", NULL, "I2S5_CH1"},
 	{"I2S5", NULL, "I2S5_CH2"},
@@ -954,24 +968,23 @@ static int mtk_dai_connsys_i2s_hw_params(struct snd_pcm_substream *substream,
 
 	if (rate == 44100)
 		regmap_write(afe->regmap, AFE_ASRC_2CH_CON3, 0x001B9000);
+	else if (rate == 32000)
+		regmap_write(afe->regmap, AFE_ASRC_2CH_CON3, 0x140000);
 	else
 		regmap_write(afe->regmap, AFE_ASRC_2CH_CON3, 0x001E0000);
 
+	/* Calibration setting */
 	regmap_write(afe->regmap, AFE_ASRC_2CH_CON4, 0x00140000);
-	regmap_write(afe->regmap, AFE_ASRC_2CH_CON5, 0x00FF5987);
+	regmap_write(afe->regmap, AFE_ASRC_2CH_CON9, 0x00036000);
+	regmap_write(afe->regmap, AFE_ASRC_2CH_CON10, 0x0002FC00);
 	regmap_write(afe->regmap, AFE_ASRC_2CH_CON6, 0x00007EF4);
 	regmap_write(afe->regmap, AFE_ASRC_2CH_CON5, 0x00FF5986);
-	regmap_write(afe->regmap, AFE_ASRC_2CH_CON5, 0x00FF5987);
 
 	/* 0:Stereo 1:Mono */
 	regmap_update_bits(afe->regmap,
 			   AFE_ASRC_2CH_CON2,
 			   CHSET_IS_MONO_MASK_SFT,
-			   0x0);
-
-	/* Calibration setting */
-	regmap_write(afe->regmap, AFE_ASRC_2CH_CON9, 0x00036000);
-	regmap_write(afe->regmap, AFE_ASRC_2CH_CON10, 0x0002FC00);
+			   0x0 << CHSET_IS_MONO_SFT);
 
 	return 0;
 }
@@ -981,7 +994,6 @@ static int mtk_dai_connsys_i2s_trigger(struct snd_pcm_substream *substream,
 {
 	struct mtk_base_afe *afe = snd_soc_dai_get_drvdata(dai);
 	struct mt6785_afe_private *afe_priv = afe->platform_priv;
-	unsigned int need_disable_asm;
 
 	dev_info(afe->dev, "%s(), cmd %d, stream %d\n",
 		 __func__,
@@ -991,44 +1003,52 @@ static int mtk_dai_connsys_i2s_trigger(struct snd_pcm_substream *substream,
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
-		/* asrc enable */
-		regmap_update_bits(afe->regmap,
-				   AFE_ASRC_2CH_CON0,
-				   (1 << 4) | (1 << 0),
-				   (1 << 4) | (1 << 0));
-
 		/* i2s enable */
 		regmap_update_bits(afe->regmap,
 				   AFE_CONNSYS_I2S_CON,
 				   I2S_EN_MASK_SFT,
-				   0x1);
+				   0x1 << I2S_EN_SFT);
+
+		/* calibrator enable */
+		regmap_update_bits(afe->regmap,
+				   AFE_ASRC_2CH_CON5,
+				   CALI_EN_MASK_SFT,
+				   0x1 << CALI_EN_SFT);
+
+		/* asrc enable */
+		regmap_update_bits(afe->regmap,
+				   AFE_ASRC_2CH_CON0,
+				   CON0_CHSET_STR_CLR_MASK_SFT,
+				   0x1 << CON0_CHSET_STR_CLR_SFT);
+		regmap_update_bits(afe->regmap,
+				   AFE_ASRC_2CH_CON0,
+				   CON0_ASM_ON_MASK_SFT,
+				   0x1 << CON0_ASM_ON_SFT);
 
 		afe_priv->dai_on[dai->id] = true;
 		return 0;
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
-		/* disable asrc */
-		regmap_read(afe->regmap,
-			    AFE_ASRC_2CH_CON0, &need_disable_asm);
+		regmap_update_bits(afe->regmap,
+				   AFE_ASRC_2CH_CON0,
+				   CON0_ASM_ON_MASK_SFT,
+				   0 << CON0_ASM_ON_SFT);
+		regmap_update_bits(afe->regmap,
+				   AFE_ASRC_2CH_CON5,
+				   CALI_EN_MASK_SFT,
+				   0 << CALI_EN_SFT);
 
-		need_disable_asm = (need_disable_asm & 0x0030) ? 1 : 0;
-
+		/* i2s disable */
 		regmap_update_bits(afe->regmap,
 				   AFE_CONNSYS_I2S_CON,
-				   (1 << 6 | need_disable_asm),
-				   0x0);
+				   I2S_EN_MASK_SFT,
+				   0x0 << I2S_EN_SFT);
 
 		/* bypass asrc */
 		regmap_update_bits(afe->regmap,
 				   AFE_CONNSYS_I2S_CON,
 				   I2S_BYPSRC_MASK_SFT,
 				   0x1 << I2S_BYPSRC_SFT);
-
-		/* i2s disable */
-		regmap_update_bits(afe->regmap,
-				   AFE_CONNSYS_I2S_CON,
-				   I2S_EN_MASK_SFT,
-				   0x0);
 
 		afe_priv->dai_on[dai->id] = false;
 		return 0;

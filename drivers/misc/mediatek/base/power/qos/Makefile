@@ -16,6 +16,7 @@ MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
 include $(srctree)/drivers/misc/mediatek/base/power/qos/$(MTK_PLATFORM)/Makefile
 endif
 
+ccflags-y += -I$(srctree)/include/memory/mediatek/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/dramc/$(MTK_PLATFORM)/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/$(MTK_PLATFORM)/
@@ -30,4 +31,10 @@ obj-y += mtk_qos_ipi.o
 endif
 
 obj-y += mtk_qos_main.o mtk_qos_bound.o mtk_qos_sram.o mtk_qos_sysfs.o
+obj-$(QOS_PREFETCH_SUPPORT) += mtk_qos_prefetch.o
+ccflags-$(QOS_PREFETCH_SUPPORT) += -DQOS_PREFETCH_SUPPORT
+
+obj-$(QOS_SHARE_SUPPORT) += mtk_qos_share.o
+ccflags-$(QOS_SHARE_SUPPORT) += -DQOS_SHARE_SUPPORT
 # obj-y += $(MTK_PLATFORM)/
+

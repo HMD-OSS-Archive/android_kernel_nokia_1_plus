@@ -24,12 +24,18 @@
 #endif
 
 #include <linux/interrupt.h>
+#include <linux/ratelimit.h>
 
 #define CONNADP_LOG_LOUD    4
 #define CONNADP_LOG_DBG     3
 #define CONNADP_LOG_INFO    2
 #define CONNADP_LOG_WARN    1
 #define CONNADP_LOG_ERR     0
+
+#if defined(CONFIG_MACH_MT6873)
+#include <clk-mt6873-pg.h>
+#define DUMP_CLOCK_FAIL_CALLBACK 1
+#endif
 
 /*******************************************************************************
  * Connsys adaptation layer logging utility
@@ -68,6 +74,18 @@ do { \
  ******************************************************************************/
 static struct wmt_platform_bridge bridge;
 
+#ifdef DUMP_CLOCK_FAIL_CALLBACK
+static void wmt_clock_debug_dump(enum subsys_id sys)
+{
+	if (sys == SYS_CONN)
+		mtk_wcn_cmb_stub_clock_fail_dump();
+}
+
+static struct pg_callbacks wmt_clk_subsys_handle = {
+	.debug_dump = wmt_clock_debug_dump
+};
+#endif
+
 void wmt_export_platform_bridge_register(struct wmt_platform_bridge *cb)
 {
 	if (unlikely(!cb))
@@ -75,6 +93,11 @@ void wmt_export_platform_bridge_register(struct wmt_platform_bridge *cb)
 	bridge.thermal_query_cb = cb->thermal_query_cb;
 	bridge.trigger_assert_cb = cb->trigger_assert_cb;
 	bridge.clock_fail_dump_cb = cb->clock_fail_dump_cb;
+	bridge.conninfra_reg_readable_cb = cb->conninfra_reg_readable_cb;
+	bridge.conninfra_reg_is_bus_hang_cb = cb->conninfra_reg_is_bus_hang_cb;
+#ifdef DUMP_CLOCK_FAIL_CALLBACK
+	register_pg_callback(&wmt_clk_subsys_handle);
+#endif
 	CONNADP_INFO_FUNC("\n");
 }
 EXPORT_SYMBOL(wmt_export_platform_bridge_register);
@@ -116,6 +139,31 @@ void mtk_wcn_cmb_stub_clock_fail_dump(void)
 	else
 		bridge.clock_fail_dump_cb();
 }
+
+int mtk_wcn_conninfra_reg_readable(void)
+{
+	static DEFINE_RATELIMIT_STATE(_rs, 5*HZ, 1);
+
+	if (unlikely(!bridge.conninfra_reg_readable_cb)) {
+		if (__ratelimit(&_rs))
+			CONNADP_WARN_FUNC("reg_readable not registered\n");
+		return -1;
+	} else
+		return bridge.conninfra_reg_readable_cb();
+}
+
+int mtk_wcn_conninfra_is_bus_hang(void)
+{
+	static DEFINE_RATELIMIT_STATE(_rs, 5*HZ, 1);
+
+	if (unlikely(!bridge.conninfra_reg_is_bus_hang_cb)) {
+		if (__ratelimit(&_rs))
+			CONNADP_WARN_FUNC("is_bus_hang not registered\n");
+		return -1;
+	} else
+		return bridge.conninfra_reg_is_bus_hang_cb();
+}
+
 
 /*******************************************************************************
  * SDIO integration with platform MMC driver

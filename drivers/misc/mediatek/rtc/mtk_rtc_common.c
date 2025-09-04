@@ -605,9 +605,20 @@ static void rtc_handler(void)
 		now_time =
 		    mktime(nowtm.tm_year, nowtm.tm_mon, nowtm.tm_mday,
 			   nowtm.tm_hour, nowtm.tm_min, nowtm.tm_sec);
+
+		if (now_time == -1) {
+			spin_unlock_irqrestore(&rtc_lock, flags);
+			return;
+		}
+
 		time =
 		    mktime(tm.tm_year, tm.tm_mon, tm.tm_mday, tm.tm_hour,
 			   tm.tm_min, tm.tm_sec);
+
+		if (time == -1) {
+			spin_unlock_irqrestore(&rtc_lock, flags);
+			return;
+		}
 
 		/* power on */
 		if (now_time >= time - 1 && now_time <= time + 4) {
@@ -627,10 +638,19 @@ static void rtc_handler(void)
 					    mktime(nowtm.tm_year, nowtm.tm_mon,
 						   nowtm.tm_mday, nowtm.tm_hour,
 						   nowtm.tm_min, nowtm.tm_sec);
+					if (now_time == -1) {
+						spin_unlock_irqrestore(&rtc_lock, flags);
+						return;
+					}
+
 					time =
 					    mktime(tm.tm_year, tm.tm_mon,
 						   tm.tm_mday, tm.tm_hour,
 						   tm.tm_min, tm.tm_sec);
+					if (time == -1) {
+						spin_unlock_irqrestore(&rtc_lock, flags);
+						return;
+					}
 				} while (time <= now_time);
 				spin_unlock_irqrestore(&rtc_lock, flags);
 				kernel_restart("kpoc");
@@ -908,6 +928,8 @@ static int __init rtc_device_init(void)
 
 	rtc_xinfo("rtc_init");
 
+	pm_power_off = mt_power_off;
+
 	r = platform_device_register(&rtc_pdev);
 	if (r) {
 		pr_err("register device failed (%d)\n", r);
@@ -950,7 +972,7 @@ static int __init rtc_late_init(void)
 
 static int __init rtc_arch_init(void)
 {
-	pm_power_off = mt_power_off;
+	//pm_power_off = mt_power_off;
 
 	return 0;
 }
@@ -960,7 +982,7 @@ static int __init rtc_arch_init(void)
 
 late_initcall(rtc_late_init);
 device_initcall(rtc_device_init);
-arch_initcall(rtc_arch_init);
+module_init(rtc_arch_init);
 
 module_param(rtc_show_time, int, 0644);
 module_param(rtc_show_alarm, int, 0644);

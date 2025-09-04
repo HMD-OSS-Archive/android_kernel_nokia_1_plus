@@ -1545,7 +1545,7 @@ int dprec_logger_pr(unsigned int type, char *fmt, ...)
 		va_list args;
 
 		rem_nsec = do_div(time, 1000000000);
-		n += snprintf(buf + n, len - n, "[%5lu.%06lu]",
+		n += scnprintf(buf + n, len - n, "[%5lu.%06lu]",
 			      (unsigned long)time, rem_nsec / 1000);
 
 		va_start(args, fmt);
@@ -1569,7 +1569,7 @@ char *get_dprec_status_ptr(int buffer_idx)
 
 static char *_logger_pr_type_spy(enum DPREC_LOGGER_PR_TYPE type)
 {
-	if (type < DPREC_LOGGER_PR_NUM)
+	if ((unsigned int)type < DPREC_LOGGER_PR_NUM)
 		return dprec_logger_buffer[type].name;
 
 	return "unknown";
@@ -1633,6 +1633,11 @@ void dprec_logger_trigger(unsigned int type_logsrc, unsigned int val1,
 
 unsigned long long
 dprec_logger_get_current_hold_period(unsigned int type_logsrc)
+{
+	return 0;
+}
+
+int _primary_monitor_fps_thread(void *data)
 {
 	return 0;
 }
@@ -1704,6 +1709,10 @@ int dprec_logger_get_result_string(enum DPREC_LOGGER_ENUM source,
 int dprec_logger_get_result_string_all(char *stringbuf, int strlen)
 {
 	return 0;
+}
+
+void cal_fps_for_debug(void)
+{
 }
 
 void dprec_stub_irq(unsigned int irq_bit)

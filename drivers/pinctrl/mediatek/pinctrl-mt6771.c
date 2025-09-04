@@ -508,6 +508,7 @@ static const struct mtk_pin_soc mt6771_data = {
 	.nfuncs = 8,
 	.eint_hw = &mt6771_eint_hw,
 	.gpio_m = 0,
+	.race_free_access = true,
 	.bias_set_combo = mtk_pinconf_bias_set_combo,
 	.bias_get_combo = mtk_pinconf_bias_get_combo,
 	.drive_set = mtk_pinconf_drive_set_direct_val,
@@ -528,6 +529,7 @@ static struct platform_driver mt6771_pinctrl_driver = {
 	.driver = {
 		.name = "mt6771-pinctrl",
 		.of_match_table = mt6771_pinctrl_of_match,
+		.pm = &mtk_eint_pm_ops_v2,
 	},
 	.probe = mt6771_pinctrl_probe,
 };

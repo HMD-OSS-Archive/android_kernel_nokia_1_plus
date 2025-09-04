@@ -36,7 +36,7 @@
 vmalloc=400M slub_debug=OFZPU swiotlb=noforce page_owner=on \
 cgroup.memory=nosocket,nokmem \
 androidboot.hardware=mt6771 \
-firmware_class.path=/vendor/firmware";
+firmware_class.path=/vendor/firmware loop.max_part=7";
 		kaslr-seed = <0 0>;
 	};
 
@@ -297,8 +297,8 @@ firmware_class.path=/vendor/firmware";
 
 		zmc-default {
 			compatible = "mediatek,zone_movable_cma";
-			size = <0 0xffc00000>;
-			alignment = <0 0x10000000>;
+			size = <0 0x2d000000>;
+			alignment = <0 0x1000000>;
 			alloc-ranges = <0 0xc0000000 1 0x80000000>;
 		};
 
@@ -318,7 +318,7 @@ firmware_class.path=/vendor/firmware";
 		reserve-memory-scp_share {
 			compatible = "mediatek,reserve-memory-scp_share";
 			no-map;
-			size = <0 0x01400000>; /*20 MB share mem size */
+			size = <0 0x00380000>;
 			alignment = <0 0x1000000>;
 			alloc-ranges = <0 0x40000000 0 0x50000000>; /*0x4000_0000~0x8FFF_FFFF*/
 		};
@@ -329,13 +329,20 @@ firmware_class.path=/vendor/firmware";
 			alignment = <0 0x200000>;
 			alloc-ranges = <0 0x40000000 0 0x80000000>;
 		};
+		ion-carveout-heap {
+			compatible = "mediatek,ion-carveout-heap";
+			no-map;
+			size = <0 0x5000>;
+			alignment = <0 0x1000>;
+			alloc-ranges = <0 0xc0000000 0 0x10000000>;
+		};
 #ifdef CONFIG_MICROTRUST_TEE_SUPPORT
 		soter-shared-mem {
 			compatible = "microtrust,shared_mem";
 			no-map;
 #if defined(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) || \
 	defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
-			size = <0 0x2000000>;
+			size = <0 0x800000>;
 			alignment = <0 0x1000000>;
 #else
 			size = <0 0x200000>;
@@ -1291,6 +1298,12 @@ firmware_class.path=/vendor/firmware";
 			"infra-ccif2-md";
 	};
 
+	md_auxadc:md_auxadc {
+		compatible = "mediatek,md_auxadc";
+		io-channels = <&auxadc 2>;
+		io-channel-names = "md-channel";
+	};
+
 	infra_md_cfg@1021d000 {
 		compatible = "mediatek,infra_md_cfg";
 		reg = <0 0x1021d000 0 0x1000>;
@@ -1566,13 +1579,20 @@ firmware_class.path=/vendor/firmware";
 	};
 
 	gce_mbox: gce_mbox@10238000 {
-		compatible = "mediatek,mailbox-gce";
+		compatible = "mediatek,mt6771-gce";
 		reg = <0 0x10238000 0 0x1000>;
 		interrupts = <GIC_SPI 162 IRQ_TYPE_LEVEL_LOW>,
 			<GIC_SPI 163 IRQ_TYPE_LEVEL_LOW>;
 		#mbox-cells = <3>;
 		#gce-event-cells = <1>;
 		#gce-subsys-cells = <2>;
+		default_tokens = /bits/ 16 <CMDQ_SYNC_TOKEN_GPR_SET_0>,
+			/bits/ 16 <CMDQ_SYNC_TOKEN_GPR_SET_1>,
+			/bits/ 16 <CMDQ_SYNC_TOKEN_GPR_SET_2>,
+			/bits/ 16 <CMDQ_SYNC_TOKEN_GPR_SET_3>,
+			/bits/ 16 <CMDQ_SYNC_TOKEN_GPR_SET_4>,
+			/bits/ 16 <CMDQ_SYNC_RESOURCE_WROT0>,
+			/bits/ 16 <CMDQ_SYNC_RESOURCE_WROT1>;
 		clocks = <&infracfg_ao INFRACFG_AO_GCE_CG>,
 			<&infracfg_ao INFRACFG_AO_GCE_26M_CG>;
 		clock-names = "gce", "gce-timer";
@@ -1932,9 +1952,10 @@ firmware_class.path=/vendor/firmware";
 		    <0 0x18080000 0 0x10000>; /*SRAM_BANK2*/
 		interrupts = <GIC_SPI 288 IRQ_TYPE_LEVEL_LOW>;
 		mediatek,infracfg = <&infracfg_ao>;
-		mediatek,offset =<0xf00 0x800 0xfd0 0xfd4 0xfd8>;
 		/*INFRA MISC, conn_bt_cvsd_mask*/
 		/*cvsd_mcu_read, write, packet_indicator*/
+		mediatek,offset =<0xf00 0x800 0xfd0 0xfd4 0xfd8>;
+		disable_write_silence = <0>;
 	};
 
 	ufshci:ufshci@11270000 {
@@ -2124,9 +2145,9 @@ firmware_class.path=/vendor/firmware";
 
 #if (CONFIG_MTK_GAUGE_VERSION == 30)
 	#if (CONFIG_MTK_ADDITIONAL_BATTERY_TABLE == 1)
-		#include "bat_setting/mt6771_battery_prop_ext.dtsi"
+		#include "mediatek/bat_setting/mt6771_battery_prop_ext.dtsi"
 	#else
-		#include "bat_setting/mt6771_battery_prop.dtsi"
+		#include "mediatek/bat_setting/mt6771_battery_prop.dtsi"
 	#endif
 #endif
 
@@ -3128,9 +3149,11 @@ firmware_class.path=/vendor/firmware";
 		interrupts = <GIC_SPI 264 IRQ_TYPE_LEVEL_LOW>;
 
 		clocks = <&camsys CAMSYS_CCU_CGPDN>,
-			 <&mmsys_config MMSYS_GALS_CCU2MM>;
+			<&mmsys_config MMSYS_GALS_CCU2MM>,
+			<&scpsys SCP_SYS_CAM>;
 		clock-names = "CCU_CLK_CAM_CCU",
-			      "CCU_CLK_MMSYS_CCU";
+			    "CCU_CLK_MMSYS_CCU",
+			    "CAM_PWR";
 	};
 
 	alc@60000000 {
@@ -4086,7 +4109,6 @@ firmware_class.path=/vendor/firmware";
 		enable_type_c;
 		power_path_support;
 		enable_dynamic_mivr;
-		disable_pd_dual;
 
 		/* common */
 		battery_cv = <4350000>;
@@ -4305,13 +4327,13 @@ firmware_class.path=/vendor/firmware";
 
 };
 
-#include "mt6358.dtsi"
-#include "cust_mt6771_msdc.dtsi"
-#include "mt6370.dtsi"
-#include "mt6370_pd.dtsi"
+#include "mediatek/mt6358.dtsi"
+#include "mediatek/cust_mt6771_msdc.dtsi"
+#include "mediatek/mt6370.dtsi"
+#include "mediatek/mt6370_pd.dtsi"
 #ifdef CONFIG_CHARGER_RT9471
-#include "rt9471.dtsi"
+#include "mediatek/rt9471.dtsi"
 #endif
 #ifdef CONFIG_MTK_ENABLE_GENIEZONE
-#include "trusty.dtsi"
+#include "mediatek/trusty.dtsi"
 #endif

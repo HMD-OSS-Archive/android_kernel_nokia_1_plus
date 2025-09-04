@@ -26,7 +26,10 @@
 #if defined(CONFIG_MTK_VOW_BARGE_IN_SUPPORT)
 #include "../scp_vow/mtk-scp-vow-common.h"
 #endif
+
+#if defined(CONFIG_MTK_ION)
 #include "mtk-mmap-ion.h"
+#endif
 
 #if defined(CONFIG_SND_SOC_MTK_SRAM)
 #include "mtk-sram-manager.h"
@@ -36,6 +39,10 @@
 #if defined(CONFIG_SND_SOC_MTK_AUDIO_DSP)
 #include "../audio_dsp/mtk-dsp-common_define.h"
 #include "../audio_dsp/mtk-dsp-common.h"
+#endif
+
+#if defined(CONFIG_MTK_AUDIODSP_SUPPORT)
+#include "adsp_helper.h"
 #endif
 
 #if defined(CONFIG_SND_SOC_MTK_SCP_SMARTPA)
@@ -157,7 +164,8 @@ int mtk_afe_fe_hw_params(struct snd_pcm_substream *substream,
 	unsigned int rate = params_rate(params);
 	snd_pcm_format_t format = params_format(params);
 
-		// mmap don't alloc buffer
+#if defined(CONFIG_MTK_ION)
+	// mmap don't alloc buffer
 	if (memif->use_mmap_share_mem != 0) {
 		unsigned long phy_addr;
 		void *vir_addr;
@@ -190,6 +198,7 @@ int mtk_afe_fe_hw_params(struct snd_pcm_substream *substream,
 		}
 		goto END;
 	}
+#endif
 
 #if defined(CONFIG_SND_SOC_MTK_SRAM)
 	/*
@@ -281,8 +290,10 @@ int mtk_afe_fe_hw_params(struct snd_pcm_substream *substream,
 	memif->using_sram = 0;
 #endif
 
-END:
 
+#if defined(CONFIG_MTK_ION)
+END:
+#endif
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 		memset_io(substream->runtime->dma_area,
 			  0, substream->runtime->dma_bytes);
@@ -362,9 +373,11 @@ int mtk_afe_fe_hw_free(struct snd_pcm_substream *substream,
 		return mtk_audio_sram_free(afe->sram, substream);
 	}
 
+#if defined(CONFIG_MTK_ION)
 	// mmap don't free buffer
 	if (memif->use_mmap_share_mem != 0)
 		return 0;
+#endif
 
 #if defined(CONFIG_SND_SOC_MTK_AUDIO_DSP)
 	if (memif->use_adsp_share_mem == true)
@@ -608,6 +621,107 @@ int mtk_memif_set_disable(struct mtk_base_afe *afe, int id)
 }
 EXPORT_SYMBOL_GPL(mtk_memif_set_disable);
 
+#if defined(CONFIG_MTK_AUDIODSP_SUPPORT)
+int mtk_dsp_memif_set_enable(struct mtk_base_afe *afe, int id)
+{
+	int ret = 0, adsp_sem_ret = 0;
+
+	adsp_sem_ret = get_adsp_semaphore(SEMA_AUDIOREG);
+	/* get sem ok*/
+	if (!adsp_sem_ret) {
+		ret = mtk_memif_set_enable(afe, id);
+		release_adsp_semaphore(SEMA_AUDIOREG);
+	} else {
+		if (adsp_sem_ret == ADSP_SEMAPHORE_BUSY)
+			pr_info("%s adsp_sem_ret[%d]\n",
+				__func__, adsp_sem_ret);
+		ret = mtk_memif_set_enable(afe, id);
+	}
+	return ret;
+}
+EXPORT_SYMBOL_GPL(mtk_dsp_memif_set_enable);
+
+int mtk_dsp_memif_set_disable(struct mtk_base_afe *afe, int id)
+{
+	int ret = 0, adsp_sem_ret = 0;
+
+	adsp_sem_ret = get_adsp_semaphore(SEMA_AUDIOREG);
+	/* get sem ok*/
+	if (!adsp_sem_ret) {
+		ret = mtk_memif_set_disable(afe, id);
+		release_adsp_semaphore(SEMA_AUDIOREG);
+	} else {
+		if (adsp_sem_ret == ADSP_SEMAPHORE_BUSY)
+			pr_info("%s adsp_sem_ret[%d]\n",
+				__func__, adsp_sem_ret);
+		ret = mtk_memif_set_disable(afe, id);
+	}
+	return ret;
+}
+EXPORT_SYMBOL_GPL(mtk_dsp_memif_set_disable);
+
+
+int mtk_dsp_irq_set_enable(struct mtk_base_afe *afe,
+			   const struct mtk_base_irq_data *irq_data)
+{
+	int ret = 0, adsp_sem_ret = 0;
+
+	if (!afe)
+		return -EPERM;
+	if (!irq_data)
+		return -EPERM;
+
+	adsp_sem_ret = get_adsp_semaphore(SEMA_AUDIOREG);
+	/* get sem ok*/
+	if (!adsp_sem_ret) {
+		regmap_update_bits(afe->regmap, irq_data->irq_en_reg,
+				   1 << irq_data->irq_en_shift,
+				   1 << irq_data->irq_en_shift);
+		release_adsp_semaphore(SEMA_AUDIOREG);
+	} else {
+		if (adsp_sem_ret == ADSP_SEMAPHORE_BUSY)
+			pr_info("%s adsp_sem_ret[%d]\n",
+				__func__, adsp_sem_ret);
+		regmap_update_bits(afe->regmap, irq_data->irq_en_reg,
+				   1 << irq_data->irq_en_shift,
+				   1 << irq_data->irq_en_shift);
+	}
+	return ret;
+}
+EXPORT_SYMBOL_GPL(mtk_dsp_irq_set_enable);
+
+int mtk_dsp_irq_set_disable(struct mtk_base_afe *afe,
+			    const struct mtk_base_irq_data *irq_data)
+{
+	int ret = 0, adsp_sem_ret = 0;
+
+	if (!afe)
+		return -EPERM;
+	if (!irq_data)
+		return -EPERM;
+
+	adsp_sem_ret = get_adsp_semaphore(SEMA_AUDIOREG);
+
+	/* get sem ok*/
+	if (!adsp_sem_ret) {
+		regmap_update_bits(afe->regmap, irq_data->irq_en_reg,
+				   1 << irq_data->irq_en_shift,
+				   0 << irq_data->irq_en_shift);
+		release_adsp_semaphore(SEMA_AUDIOREG);
+	} else {
+		if (adsp_sem_ret == ADSP_SEMAPHORE_BUSY)
+			pr_info("%s adsp_sem_ret[%d]\n",
+				__func__, adsp_sem_ret);
+		regmap_update_bits(afe->regmap, irq_data->irq_en_reg,
+				   1 << irq_data->irq_en_shift,
+				   0 << irq_data->irq_en_shift);
+	}
+	return ret;
+}
+EXPORT_SYMBOL_GPL(mtk_dsp_irq_set_disable);
+
+#endif
+
 int mtk_memif_set_addr(struct mtk_base_afe *afe, int id,
 		       unsigned char *dma_area,
 		       dma_addr_t dma_addr,
@@ -743,6 +857,7 @@ int mtk_memif_set_format(struct mtk_base_afe *afe,
 {
 	struct mtk_base_afe_memif *memif = &afe->memif[id];
 	int hd_audio = 0;
+	int memif_32bit_supported = afe->memif_32bit_supported;
 
 	/* set hd mode */
 	switch (format) {
@@ -752,7 +867,10 @@ int mtk_memif_set_format(struct mtk_base_afe *afe,
 		break;
 	case SNDRV_PCM_FORMAT_S32_LE:
 	case SNDRV_PCM_FORMAT_U32_LE:
-		hd_audio = 1;
+		if (memif_32bit_supported)
+			hd_audio = 2;
+		else
+			hd_audio = 1;
 		break;
 	case SNDRV_PCM_FORMAT_S24_LE:
 	case SNDRV_PCM_FORMAT_U24_LE:
@@ -765,7 +883,7 @@ int mtk_memif_set_format(struct mtk_base_afe *afe,
 	}
 
 	return mtk_regmap_update_bits(afe->regmap, memif->data->hd_reg,
-				      1 << memif->data->hd_shift,
+				      0x3 << memif->data->hd_shift,
 				      hd_audio << memif->data->hd_shift);
 }
 EXPORT_SYMBOL_GPL(mtk_memif_set_format);

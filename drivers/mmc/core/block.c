@@ -28,6 +28,7 @@
 #include <linux/hdreg.h>
 #include <linux/kdev_t.h>
 #include <linux/blkdev.h>
+#include <linux/cdev.h>
 #include <linux/mutex.h>
 #include <linux/scatterlist.h>
 #include <linux/string_helpers.h>
@@ -37,13 +38,13 @@
 #include <linux/pm_runtime.h>
 #include <linux/idr.h>
 #include <linux/debugfs.h>
+#include <linux/math64.h>
 
 #include <linux/mmc/ioctl.h>
 #include <linux/mmc/card.h>
 #include <linux/mmc/host.h>
 #include <linux/mmc/mmc.h>
 #include <linux/mmc/sd.h>
-#include <linux/hie.h>
 
 #ifdef CONFIG_MMC_FFU
 #include <linux/mmc/ffu.h>
@@ -62,11 +63,14 @@
 #include "block.h"
 #include "core.h"
 #include "card.h"
+#include "crypto.h"
 #include "host.h"
 #include "bus.h"
 #include "mmc_ops.h"
 #include "quirks.h"
 #include "sd_ops.h"
+#include "mmc_crypto.h"
+
 #ifdef CONFIG_MTK_EMMC_HW_CQ
 #include "dbg.h"
 #endif
@@ -115,6 +119,7 @@ static int max_devices;
 #define MAX_DEVICES 256
 
 static DEFINE_IDA(mmc_blk_ida);
+static DEFINE_IDA(mmc_rpmb_ida);
 
 /*
  * There is one mmc_blk_data per slot.
@@ -125,6 +130,7 @@ struct mmc_blk_data {
 	struct gendisk	*disk;
 	struct mmc_queue queue;
 	struct list_head part;
+	struct list_head rpmbs;
 
 	unsigned int	flags;
 #define MMC_BLK_CMD23	(1 << 0)	/* Can do SET_BLOCK_COUNT for multiblock */
@@ -153,6 +159,32 @@ struct mmc_blk_data {
 	/* debugfs files (only in main mmc_blk_data) */
 	struct dentry *status_dentry;
 	struct dentry *ext_csd_dentry;
+};
+
+/* Device type for RPMB character devices */
+static dev_t mmc_rpmb_devt;
+
+/* Bus type for RPMB character devices */
+static struct bus_type mmc_rpmb_bus_type = {
+	.name = "mmc_rpmb",
+};
+
+/**
+ * struct mmc_rpmb_data - special RPMB device type for these areas
+ * @dev: the device for the RPMB area
+ * @chrdev: character device for the RPMB area
+ * @id: unique device ID number
+ * @part_index: partition index (0 on first)
+ * @md: parent MMC block device
+ * @node: list item, so we can put this device on a list
+ */
+struct mmc_rpmb_data {
+	struct device dev;
+	struct cdev chrdev;
+	int id;
+	unsigned int part_index;
+	struct mmc_blk_data *md;
+	struct list_head node;
 };
 
 static DEFINE_MUTEX(open_lock);
@@ -337,6 +369,7 @@ struct mmc_blk_ioc_data {
 	struct mmc_ioc_cmd ic;
 	unsigned char *buf;
 	u64 buf_bytes;
+	struct mmc_rpmb_data *rpmb;
 };
 
 static struct mmc_blk_ioc_data *mmc_blk_ioctl_copy_from_user(
@@ -475,14 +508,25 @@ static int __mmc_blk_ioctl_cmd(struct mmc_card *card, struct mmc_blk_data *md,
 	struct mmc_request mrq = {};
 	struct scatterlist sg;
 	int err;
-	bool is_rpmb = false;
+	unsigned int target_part;
 	u32 status = 0;
 
 	if (!card || !md || !idata)
 		return -EINVAL;
 
-	if (md->area_type & MMC_BLK_DATA_AREA_RPMB)
-		is_rpmb = true;
+	/*
+	 * The RPMB accesses comes in from the character device, so we
+	 * need to target these explicitly. Else we just target the
+	 * partition type for the block device the ioctl() was issued
+	 * on.
+	 */
+	if (idata->rpmb) {
+		/* Support multiple RPMB partitions */
+		target_part = idata->rpmb->part_index;
+		target_part |= EXT_CSD_PART_CONFIG_ACC_RPMB;
+	} else {
+		target_part = md->part_type;
+	}
 
 	cmd.opcode = idata->ic.opcode;
 	cmd.arg = idata->ic.arg;
@@ -526,7 +570,7 @@ static int __mmc_blk_ioctl_cmd(struct mmc_card *card, struct mmc_blk_data *md,
 
 	mrq.cmd = &cmd;
 
-	err = mmc_blk_part_switch(card, md->part_type);
+	err = mmc_blk_part_switch(card, target_part);
 	if (err)
 		return err;
 
@@ -536,7 +580,7 @@ static int __mmc_blk_ioctl_cmd(struct mmc_card *card, struct mmc_blk_data *md,
 			return err;
 	}
 
-	if (is_rpmb) {
+	if (idata->rpmb) {
 		err = mmc_set_blockcount(card, data.blocks,
 			idata->ic.write_flag & (1 << 31));
 		if (err)
@@ -600,7 +644,7 @@ static int __mmc_blk_ioctl_cmd(struct mmc_card *card, struct mmc_blk_data *md,
 
 	memcpy(&(idata->ic.response), cmd.resp, sizeof(cmd.resp));
 
-	if (is_rpmb) {
+	if (idata->rpmb) {
 		/*
 		 * Ensure RPMB command has completed by polling CMD13
 		 * "Send Status".
@@ -743,7 +787,8 @@ int mmc_ffu_ops_check_bdev(struct block_device *bdev,
 #endif
 
 static int mmc_blk_ioctl_cmd(struct mmc_blk_data *md,
-			     struct mmc_ioc_cmd __user *ic_ptr)
+			     struct mmc_ioc_cmd __user *ic_ptr,
+			     struct mmc_rpmb_data *rpmb)
 {
 	struct mmc_blk_ioc_data *idata;
 	struct mmc_blk_ioc_data *idatas[1];
@@ -755,6 +800,8 @@ static int mmc_blk_ioctl_cmd(struct mmc_blk_data *md,
 	idata = mmc_blk_ioctl_copy_from_user(ic_ptr);
 	if (IS_ERR(idata))
 		return PTR_ERR(idata);
+	/* This will be NULL on non-RPMB ioctl():s */
+	idata->rpmb = rpmb;
 
 	card = md->queue.card;
 	if (IS_ERR(card)) {
@@ -774,7 +821,8 @@ static int mmc_blk_ioctl_cmd(struct mmc_blk_data *md,
 		goto cmd_done;
 	}
 	idatas[0] = idata;
-	req_to_mmc_queue_req(req)->drv_op = MMC_DRV_OP_IOCTL;
+	req_to_mmc_queue_req(req)->drv_op =
+		rpmb ? MMC_DRV_OP_IOCTL_RPMB : MMC_DRV_OP_IOCTL;
 	req_to_mmc_queue_req(req)->drv_op_data = idatas;
 	req_to_mmc_queue_req(req)->ioc_count = 1;
 	blk_execute_rq(mq->queue, NULL, req, 0);
@@ -789,7 +837,8 @@ cmd_done:
 }
 
 static int mmc_blk_ioctl_multi_cmd(struct mmc_blk_data *md,
-				   struct mmc_ioc_multi_cmd __user *user)
+				   struct mmc_ioc_multi_cmd __user *user,
+				   struct mmc_rpmb_data *rpmb)
 {
 	struct mmc_blk_ioc_data **idata = NULL;
 	struct mmc_ioc_cmd __user *cmds = user->cmds;
@@ -820,6 +869,8 @@ static int mmc_blk_ioctl_multi_cmd(struct mmc_blk_data *md,
 			num_of_cmds = i;
 			goto cmd_err;
 		}
+		/* This will be NULL on non-RPMB ioctl():s */
+		idata[i]->rpmb = rpmb;
 	}
 
 	card = md->queue.card;
@@ -840,7 +891,8 @@ static int mmc_blk_ioctl_multi_cmd(struct mmc_blk_data *md,
 		err = PTR_ERR(req);
 		goto cmd_err;
 	}
-	req_to_mmc_queue_req(req)->drv_op = MMC_DRV_OP_IOCTL;
+	req_to_mmc_queue_req(req)->drv_op =
+		rpmb ? MMC_DRV_OP_IOCTL_RPMB : MMC_DRV_OP_IOCTL;
 	req_to_mmc_queue_req(req)->drv_op_data = idata;
 	req_to_mmc_queue_req(req)->ioc_count = num_of_cmds;
 	blk_execute_rq(mq->queue, NULL, req, 0);
@@ -909,7 +961,11 @@ static int mmc_blk_check_disk_range_wp(struct gendisk *disk,
 	}
 
 	card = md->queue.card;
+	/* NMCARD use a eMMC4.5-like protocol but it is extern storage,
+	 * no need check WP status.
+	 */
 	if (!mmc_card_mmc(card) ||
+		(card->host->caps2 & MMC_CAP2_NMCARD) ||
 		md->part_type == EXT_CSD_PART_CONFIG_ACC_RPMB) {
 		err = MMC_BLK_NO_WP;
 		goto out2;
@@ -953,7 +1009,7 @@ static int mmc_blk_check_disk_range_wp(struct gendisk *disk,
 
 	start = part_start;
 	quot = start;
-	remain = do_div(quot, card->wp_grp_size);
+	quot = div_u64_rem(quot, card->wp_grp_size, &remain);
 	if (remain) {
 		pr_notice("Start 0x%llx of disk %s not write group aligned\n",
 			(unsigned long long)part_start, disk->disk_name);
@@ -962,15 +1018,14 @@ static int mmc_blk_check_disk_range_wp(struct gendisk *disk,
 
 	end = part_start + part_nr_sects;
 	quot = end;
-	remain = do_div(quot, card->wp_grp_size);
+	quot = div_u64_rem(quot, card->wp_grp_size, &remain);
 	if (remain) {
 		pr_notice("End 0x%llx of disk %s not write group aligned\n",
 			(unsigned long long)part_start, disk->disk_name);
 		end += card->wp_grp_size - remain;
 	}
 	wp_grp_total = end - start;
-	do_div(wp_grp_total, card->wp_grp_size);
-	wp_grp_rem = wp_grp_total;
+	wp_grp_rem = div_u64(wp_grp_total, card->wp_grp_size);
 	wp_grp_found = 0;
 
 	cmd.opcode = MMC_SEND_WRITE_PROT_TYPE;
@@ -1168,7 +1223,8 @@ static int mmc_blk_ioctl(struct block_device *bdev, fmode_t mode,
 		if (!md)
 			return -EINVAL;
 		ret = mmc_blk_ioctl_cmd(md,
-					(struct mmc_ioc_cmd __user *)arg);
+					(struct mmc_ioc_cmd __user *)arg,
+					NULL);
 		mmc_blk_put(md);
 		return ret;
 	case MMC_IOC_MULTI_CMD:
@@ -1179,7 +1235,8 @@ static int mmc_blk_ioctl(struct block_device *bdev, fmode_t mode,
 		if (!md)
 			return -EINVAL;
 		ret = mmc_blk_ioctl_multi_cmd(md,
-					(struct mmc_ioc_multi_cmd __user *)arg);
+					(struct mmc_ioc_multi_cmd __user *)arg,
+					NULL);
 		mmc_blk_put(md);
 		return ret;
 #ifdef CONFIG_MTK_MMC_PWR_WP
@@ -1654,6 +1711,11 @@ static int mmc_blk_reset(struct mmc_blk_data *md, struct mmc_host *host,
 		/* We failed to reset so we need to abort the request */
 		pr_notice("%s: %s: failed to reset %d\n", mmc_hostname(host),
 					__func__, err);
+		if (host->card && mmc_card_sd(host->card)) {
+			pr_notice("%s: %s removing bad card.\n",
+				mmc_hostname(host), __func__);
+			host->ops->remove_bad_sdcard(host);
+		}
 		return -ENODEV;
 	}
 	/* Ensure we switch back to the correct partition */
@@ -1682,19 +1744,6 @@ static inline void mmc_blk_reset_success(struct mmc_blk_data *md, int type)
 {
 	md->reset_done &= ~type;
 }
-
-int mmc_access_rpmb(struct mmc_queue *mq)
-{
-	struct mmc_blk_data *md = mq->blkdata;
-	/*
-	 * If this is a RPMB partition access, return ture
-	 */
-	if (md && md->part_type == EXT_CSD_PART_CONFIG_ACC_RPMB)
-		return true;
-
-	return false;
-}
-
 #ifdef CONFIG_MTK_EMMC_HW_CQ
 static struct mmc_cmdq_req *mmc_blk_cmdq_prep_discard_req(struct mmc_queue *mq,
 						struct request *req)
@@ -1779,6 +1828,7 @@ static void mmc_blk_issue_drv_op(struct mmc_queue *mq, struct request *req)
 	struct mmc_blk_data *md = mq->blkdata;
 	struct mmc_blk_data *main_md = dev_get_drvdata(&card->dev);
 	struct mmc_blk_ioc_data **idata;
+	bool rpmb_ioctl;
 	u8 **ext_csd;
 	u32 status;
 	int ret;
@@ -1797,11 +1847,11 @@ static void mmc_blk_issue_drv_op(struct mmc_queue *mq, struct request *req)
 	}
 
 #endif
-
 	mq_rq = req_to_mmc_queue_req(req);
-
+	rpmb_ioctl = (mq_rq->drv_op == MMC_DRV_OP_IOCTL_RPMB);
 	switch (mq_rq->drv_op) {
 	case MMC_DRV_OP_IOCTL:
+	case MMC_DRV_OP_IOCTL_RPMB:
 		idata = mq_rq->drv_op_data;
 		for (i = 0, ret = 0; i < mq_rq->ioc_count; i++) {
 			ret = __mmc_blk_ioctl_cmd(card, md, idata[i]);
@@ -1809,8 +1859,8 @@ static void mmc_blk_issue_drv_op(struct mmc_queue *mq, struct request *req)
 				break;
 		}
 		/* Always switch back to main area after RPMB access */
-		if (md->area_type & MMC_BLK_DATA_AREA_RPMB)
-			mmc_blk_part_switch(card, main_md->part_type);
+		if (rpmb_ioctl)
+			mmc_blk_part_switch(card, 0);
 		break;
 	case MMC_DRV_OP_BOOT_WP:
 		ret = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL, EXT_CSD_BOOT_WP,
@@ -1839,7 +1889,6 @@ static void mmc_blk_issue_drv_op(struct mmc_queue *mq, struct request *req)
 		ret = -EINVAL;
 		break;
 	}
-
 #if defined(CONFIG_MTK_EMMC_CQ_SUPPORT) || defined(CONFIG_MTK_EMMC_HW_CQ)
 	if (cmdq_en && main_md->part_curr <= PART_CMDQ_EN) {
 		ret = mmc_cmdq_enable(card);
@@ -2252,6 +2301,8 @@ static void mmc_blk_data_prep(struct mmc_queue *mq, struct mmc_queue_req *mqrq,
 
 	memset(brq, 0, sizeof(struct mmc_blk_request));
 
+	/* mmc_crypto_prepare_req(mqrq); */
+
 	brq->mrq.data = &brq->data;
 
 	brq->stop.opcode = MMC_STOP_TRANSMISSION;
@@ -2454,10 +2505,10 @@ static void mmc_blk_rw_rq_prep(struct mmc_queue_req *mqrq,
 	}
 #endif
 
-#if defined(CONFIG_MTK_HW_FDE) || defined(CONFIG_HIE)
+
 	if (req->bio)
 		brq->mrq.req = req;
-
+#if defined(CONFIG_MTK_HW_FDE)
 	/* request is from mmc layer */
 	brq->mrq.is_mmc_req = true;
 #endif
@@ -2628,7 +2679,14 @@ static struct mmc_cmdq_req *mmc_blk_cmdq_rw_prep(
 	mqrq->cmdq_req.mrq.cmdq_req = &mqrq->cmdq_req;
 	mqrq->cmdq_req.mrq.data = &mqrq->cmdq_req.data;
 	mqrq->req->special = mqrq;
-
+	/*
+	 * Although keep it should work normally, but only
+	 * call it in CQHCI for safe, SWcmdq will do this in
+	 * mmc_blk_swcq_issue_rw_rq().
+	 */
+#ifdef CONFIG_MTK_EMMC_HW_CQ
+	mmc_crypto_prepare_req(mqrq);
+#endif
 #ifdef MMC_CQHCI_DEBUG
 	pr_debug("%s: %s: mrq: 0x%p, req: 0x%p, mqrq: 0x%p, bytes to xf: %d, tag: %d, mmc_cmdq_req: 0x%p, card-addr: 0x%08x, dir(r-1/w-0): %d\n",
 		mmc_hostname(card->host), __func__, &mqrq->cmdq_req.mrq,
@@ -3116,8 +3174,9 @@ void mmc_blk_cmdq_complete_rq(struct request *rq)
 	int err_resp = 0;
 	bool is_dcmd = false;
 	bool err_rwsem = false;
+#ifdef CONFIG_MTK_MMC_DEBUG
 	int cpu = -1;
-
+#endif
 	if (down_read_trylock(&ctx_info->err_rwsem)) {
 		err_rwsem = true;
 	} else {
@@ -3139,6 +3198,7 @@ void mmc_blk_cmdq_complete_rq(struct request *rq)
 		mmc_hostname(host), __func__, mrq->req, err, cmdq_req->tag);
 #endif
 
+#ifdef CONFIG_MTK_MMC_DEBUG
 	/* softirq dump */
 	cpu = smp_processor_id();
 	dbg_add_sirq_log(host, MAGIC_CQHCI_DBG_TYPE_SIRQ,
@@ -3146,7 +3206,7 @@ void mmc_blk_cmdq_complete_rq(struct request *rq)
 			cmdq_req->tag,
 			cpu,
 			ctx_info->data_active_reqs);
-
+#endif
 	if ((err || err_resp) && !cmdq_req->skip_err_handling) {
 		pr_notice("%s: %s: txfr error(%d)/resp_err(%d)\n",
 				mmc_hostname(mrq->host), __func__, err,
@@ -3493,9 +3553,6 @@ int mmc_blk_end_queued_req(struct mmc_host *host,
 		 */
 		mmc_blk_reset_success(md, type);
 
-#ifdef CONFIG_HIE
-		hie_req_end_size(req, brq->data.bytes_xfered);
-#endif
 		ret = blk_end_request(req, 0,
 			brq->data.bytes_xfered);
 
@@ -3942,7 +3999,18 @@ static struct mmc_blk_data *mmc_blk_alloc_req(struct mmc_card *card,
 
 	spin_lock_init(&md->lock);
 	INIT_LIST_HEAD(&md->part);
+	INIT_LIST_HEAD(&md->rpmbs);
 	md->usage = 1;
+
+#ifdef CONFIG_MTK_EMMC_CQ_SUPPORT
+	/* inline crypto */
+	ret = mmc_init_crypto(card->host);
+	if (ret) {
+		dev_err(mmc_dev(card->host),
+			"mmc-crypto init fail!!\n");
+		return ERR_PTR(ret);
+	}
+#endif
 
 	ret = mmc_init_queue(&md->queue, card, &md->lock, subname, area_type);
 	if (ret)
@@ -4055,20 +4123,168 @@ static int mmc_blk_alloc_part(struct mmc_card *card,
 {
 	char cap_str[10];
 	struct mmc_blk_data *part_md;
-
 	part_md = mmc_blk_alloc_req(card, disk_to_dev(md->disk), size, default_ro,
 				    subname, area_type);
 	if (IS_ERR(part_md))
 		return PTR_ERR(part_md);
 	part_md->part_type = part_type;
 	list_add(&part_md->part, &md->part);
-
 	string_get_size((u64)get_capacity(part_md->disk), 512, STRING_UNITS_2,
 			cap_str, sizeof(cap_str));
 	pr_info("%s: %s %s partition %u %s\n",
 	       part_md->disk->disk_name, mmc_card_id(card),
 	       mmc_card_name(card), part_md->part_type, cap_str);
 	return 0;
+}
+
+/**
+ * mmc_rpmb_ioctl() - ioctl handler for the RPMB chardev
+ * @filp: the character device file
+ * @cmd: the ioctl() command
+ * @arg: the argument from userspace
+ *
+ * This will essentially just redirect the ioctl()s coming in over to
+ * the main block device spawning the RPMB character device.
+ */
+static long mmc_rpmb_ioctl(struct file *filp, unsigned int cmd,
+			   unsigned long arg)
+{
+	struct mmc_rpmb_data *rpmb = filp->private_data;
+	int ret;
+
+	switch (cmd) {
+	case MMC_IOC_CMD:
+		ret = mmc_blk_ioctl_cmd(rpmb->md,
+					(struct mmc_ioc_cmd __user *)arg,
+					rpmb);
+		break;
+	case MMC_IOC_MULTI_CMD:
+		ret = mmc_blk_ioctl_multi_cmd(rpmb->md,
+					(struct mmc_ioc_multi_cmd __user *)arg,
+					rpmb);
+		break;
+	default:
+		ret = -EINVAL;
+		break;
+	}
+
+	return ret;
+}
+
+#ifdef CONFIG_COMPAT
+static long mmc_rpmb_ioctl_compat(struct file *filp, unsigned int cmd,
+			      unsigned long arg)
+{
+	return mmc_rpmb_ioctl(filp, cmd, (unsigned long)compat_ptr(arg));
+}
+#endif
+
+static int mmc_rpmb_chrdev_open(struct inode *inode, struct file *filp)
+{
+	struct mmc_rpmb_data *rpmb = container_of(inode->i_cdev,
+						  struct mmc_rpmb_data, chrdev);
+
+	get_device(&rpmb->dev);
+	filp->private_data = rpmb;
+	mmc_blk_get(rpmb->md->disk);
+
+	return nonseekable_open(inode, filp);
+}
+
+static int mmc_rpmb_chrdev_release(struct inode *inode, struct file *filp)
+{
+	struct mmc_rpmb_data *rpmb = container_of(inode->i_cdev,
+						  struct mmc_rpmb_data, chrdev);
+
+	mmc_blk_put(rpmb->md);
+	put_device(&rpmb->dev);
+
+	return 0;
+}
+
+static const struct file_operations mmc_rpmb_fileops = {
+	.release = mmc_rpmb_chrdev_release,
+	.open = mmc_rpmb_chrdev_open,
+	.owner = THIS_MODULE,
+	.llseek = no_llseek,
+	.unlocked_ioctl = mmc_rpmb_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = mmc_rpmb_ioctl_compat,
+#endif
+};
+
+static void mmc_blk_rpmb_device_release(struct device *dev)
+{
+	struct mmc_rpmb_data *rpmb = dev_get_drvdata(dev);
+
+	ida_simple_remove(&mmc_rpmb_ida, rpmb->id);
+	kfree(rpmb);
+}
+
+static int mmc_blk_alloc_rpmb_part(struct mmc_card *card,
+				   struct mmc_blk_data *md,
+				   unsigned int part_index,
+				   sector_t size,
+				   const char *subname)
+{
+	int devidx, ret;
+	char rpmb_name[DISK_NAME_LEN];
+	char cap_str[10];
+	struct mmc_rpmb_data *rpmb;
+	/* This creates the minor number for the RPMB char device */
+	devidx = ida_simple_get(&mmc_rpmb_ida, 0, max_devices, GFP_KERNEL);
+	if (devidx < 0)
+		return devidx;
+
+	rpmb = kzalloc(sizeof(*rpmb), GFP_KERNEL);
+	if (!rpmb) {
+		ida_simple_remove(&mmc_rpmb_ida, devidx);
+		return -ENOMEM;
+	}
+
+	snprintf(rpmb_name, sizeof(rpmb_name),
+		 "mmcblk%u%s", card->host->index, subname ? subname : "");
+
+	rpmb->id = devidx;
+	rpmb->part_index = part_index;
+	rpmb->dev.init_name = rpmb_name;
+	rpmb->dev.bus = &mmc_rpmb_bus_type;
+	rpmb->dev.devt = MKDEV(MAJOR(mmc_rpmb_devt), rpmb->id);
+	rpmb->dev.parent = &card->dev;
+	rpmb->dev.release = mmc_blk_rpmb_device_release;
+	device_initialize(&rpmb->dev);
+	dev_set_drvdata(&rpmb->dev, rpmb);
+	rpmb->md = md;
+
+	cdev_init(&rpmb->chrdev, &mmc_rpmb_fileops);
+	rpmb->chrdev.owner = THIS_MODULE;
+	ret = cdev_device_add(&rpmb->chrdev, &rpmb->dev);
+	if (ret) {
+		pr_err("%s: could not add character device\n", rpmb_name);
+		goto out_put_device;
+	}
+
+	list_add(&rpmb->node, &md->rpmbs);
+	string_get_size((u64)size, 512, STRING_UNITS_2,
+			cap_str, sizeof(cap_str));
+
+	pr_info("%s: %s %s partition %u %s, chardev (%d:%d)\n",
+		rpmb_name, mmc_card_id(card),
+		mmc_card_name(card), EXT_CSD_PART_CONFIG_ACC_RPMB, cap_str,
+		MAJOR(mmc_rpmb_devt), rpmb->id);
+
+	return 0;
+
+out_put_device:
+	put_device(&rpmb->dev);
+	return ret;
+}
+
+static void mmc_blk_remove_rpmb_part(struct mmc_rpmb_data *rpmb)
+
+{
+	cdev_device_del(&rpmb->chrdev, &rpmb->dev);
+	put_device(&rpmb->dev);
 }
 
 /* MMC Physical partitions consist of two boot partitions and
@@ -4079,12 +4295,26 @@ static int mmc_blk_alloc_part(struct mmc_card *card,
 
 static int mmc_blk_alloc_parts(struct mmc_card *card, struct mmc_blk_data *md)
 {
-	int idx, ret = 0;
+	int idx, ret;
 
 	if (!mmc_card_mmc(card))
 		return 0;
 
 	for (idx = 0; idx < card->nr_parts; idx++) {
+		if (card->part[idx].area_type & MMC_BLK_DATA_AREA_RPMB) {
+			/*
+			 * RPMB partitions does not provide block access, they
+			 * are only accessed using ioctl():s. Thus create
+			 * special RPMB block devices that do not have a
+			 * backing block queue for these.
+			 */
+			ret = mmc_blk_alloc_rpmb_part(card, md,
+				card->part[idx].part_cfg,
+				card->part[idx].size >> 9,
+				card->part[idx].name);
+			if (ret)
+				return ret;
+		}
 		if (card->part[idx].size) {
 			ret = mmc_blk_alloc_part(card, md,
 				card->part[idx].part_cfg,
@@ -4095,9 +4325,10 @@ static int mmc_blk_alloc_parts(struct mmc_card *card, struct mmc_blk_data *md)
 			if (ret)
 				return ret;
 		}
+
 	}
 
-	return ret;
+	return 0;
 }
 
 static void mmc_blk_remove_req(struct mmc_blk_data *md)
@@ -4138,7 +4369,15 @@ static void mmc_blk_remove_parts(struct mmc_card *card,
 {
 	struct list_head *pos, *q;
 	struct mmc_blk_data *part_md;
+	struct mmc_rpmb_data *rpmb;
 
+	/* Remove RPMB partitions */
+	list_for_each_safe(pos, q, &md->rpmbs) {
+		rpmb = list_entry(pos, struct mmc_rpmb_data, node);
+		list_del(pos);
+		mmc_blk_remove_rpmb_part(rpmb);
+	}
+	/* Remove block partitions */
 	list_for_each_safe(pos, q, &md->part) {
 		part_md = list_entry(pos, struct mmc_blk_data, part);
 		list_del(pos);
@@ -4499,10 +4738,12 @@ static int mmc_blk_suspend(struct device *dev)
 	 * suspend.
 	 */
 	if (md) {
+		mmc_get_card(card);
 		ret = mmc_blk_part_switch(card, md->part_type);
 		if (ret)
 			pr_info("%s: error %d during suspend\n",
 				md->disk->disk_name, ret);
+		mmc_put_card(card);
 	}
 out:
 		return ret;
@@ -4545,6 +4786,17 @@ static int __init mmc_blk_init(void)
 {
 	int res;
 
+	res  = bus_register(&mmc_rpmb_bus_type);
+	if (res < 0) {
+		pr_err("mmcblk: could not register RPMB bus type\n");
+		return res;
+	}
+	res = alloc_chrdev_region(&mmc_rpmb_devt, 0, MAX_DEVICES, "rpmb");
+	if (res < 0) {
+		pr_err("mmcblk: failed to allocate rpmb chrdev region\n");
+		goto out_bus_unreg;
+	}
+
 	if (perdev_minors != CONFIG_MMC_BLOCK_MINORS)
 		pr_info("mmcblk: using %d minors per device\n", perdev_minors);
 
@@ -4552,18 +4804,22 @@ static int __init mmc_blk_init(void)
 
 	res = register_blkdev(MMC_BLOCK_MAJOR, "mmc");
 	if (res)
-		goto out;
+		goto out_chrdev_unreg;
 
 	res = mmc_register_driver(&mmc_driver);
 	if (res)
-		goto out2;
+		goto out_blkdev_unreg;
 
 	mt_mmc_biolog_init();
 
 	return 0;
- out2:
+
+out_blkdev_unreg:
 	unregister_blkdev(MMC_BLOCK_MAJOR, "mmc");
- out:
+out_chrdev_unreg:
+	unregister_chrdev_region(mmc_rpmb_devt, MAX_DEVICES);
+out_bus_unreg:
+	bus_unregister(&mmc_rpmb_bus_type);
 	return res;
 }
 
@@ -4571,7 +4827,8 @@ static void __exit mmc_blk_exit(void)
 {
 	mmc_unregister_driver(&mmc_driver);
 	unregister_blkdev(MMC_BLOCK_MAJOR, "mmc");
-	mt_mmc_biolog_exit();
+	unregister_chrdev_region(mmc_rpmb_devt, MAX_DEVICES);
+	bus_unregister(&mmc_rpmb_bus_type);
 }
 
 module_init(mmc_blk_init);

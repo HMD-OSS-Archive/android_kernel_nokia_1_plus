@@ -23,6 +23,7 @@
 #include <linux/kdebug.h>
 #include <linux/module.h>
 #include <linux/delay.h>
+#include <linux/of.h>
 #include <linux/sched/clock.h>
 #include <mrdump.h>
 #include <linux/reboot.h>
@@ -32,6 +33,9 @@
 #include "mrdump_private.h"
 #include "mrdump_mini.h"
 #include <mt-plat/mtk_ram_console.h>
+
+static char mrdump_lk[12];
+bool mrdump_ddr_reserve_ready;
 
 void __weak sysrq_sched_debug_show_at_AEE(void)
 {
@@ -117,12 +121,12 @@ void ipanic_recursive_ke(struct pt_regs *regs, struct pt_regs *excp_regs,
 {
 	struct pt_regs saved_regs;
 
-	show_kaslr();
+	bust_spinlocks(1);
+	show_kaslr(false);
 #ifdef CONFIG_MTK_RAM_CONSOLE
 	aee_rr_rec_exp_type(AEE_EXP_TYPE_NESTED_PANIC);
 #endif
 	aee_nested_printf("minidump\n");
-	bust_spinlocks(1);
 	if (excp_regs != NULL) {
 		__mrdump_create_oops_dump(AEE_REBOOT_MODE_NESTED_EXCEPTION,
 				excp_regs, "Kernel NestedPanic");
@@ -143,13 +147,18 @@ void ipanic_recursive_ke(struct pt_regs *regs, struct pt_regs *excp_regs,
 }
 EXPORT_SYMBOL(ipanic_recursive_ke);
 
+__weak void aee_wdt_zap_locks(void)
+{
+	pr_notice("%s:weak function\n", __func__);
+}
+
 int mrdump_common_die(int fiq_step, int reboot_reason, const char *msg,
 		      struct pt_regs *regs)
 {
 	bust_spinlocks(1);
 	aee_disable_api();
 
-	show_kaslr();
+	show_kaslr(true);
 	print_modules();
 #ifdef CONFIG_MTK_RAM_CONSOLE
 	aee_rr_rec_fiq_step(fiq_step);
@@ -186,6 +195,7 @@ int mrdump_common_die(int fiq_step, int reboot_reason, const char *msg,
 
 	mrdump_mini_ke_cpu_regs(regs);
 	dis_D_inner_flush_all();
+	aee_wdt_zap_locks();
 	console_unlock();
 	aee_exception_reboot();
 	return NOTIFY_DONE;
@@ -226,17 +236,86 @@ static struct notifier_block die_blk = {
 	.notifier_call = ipanic_die,
 };
 
+
+static __init int mrdump_parse_chosen(void)
+{
+	struct device_node *node;
+	u32 reg[2];
+	const char *lkver, *ddr_rsv;
+
+	node = of_find_node_by_path("/chosen");
+	if (node) {
+		if (of_property_read_u32_array(node, "mrdump,cblock",
+					       reg, ARRAY_SIZE(reg)) == 0) {
+			mrdump_sram_cb.start_addr = reg[0];
+			mrdump_sram_cb.size = reg[1];
+			pr_notice("%s: mrdump_cbaddr=%llx, mrdump_cbsize=%llx\n",
+				  __func__, mrdump_sram_cb.start_addr,
+				  mrdump_sram_cb.size);
+		}
+
+		if (of_property_read_string(node, "mrdump,lk", &lkver) == 0) {
+			strlcpy(mrdump_lk, lkver, sizeof(mrdump_lk));
+			pr_notice("%s: lk version %s\n", __func__, lkver);
+		}
+
+		if (of_property_read_string(node, "mrdump,ddr_rsv",
+					    &ddr_rsv) == 0) {
+			if (strcmp(ddr_rsv, "yes") == 0)
+				mrdump_ddr_reserve_ready = true;
+			pr_notice("%s: ddr reserve mode %s\n", __func__,
+				  ddr_rsv);
+		}
+
+		return 0;
+	}
+	of_node_put(node);
+	pr_notice("%s: Can't find chosen node\n", __func__);
+	return -1;
+}
+
+#ifdef CONFIG_MODULES
+/* Module notifier call back, update module info list */
+static int mrdump_module_callback(struct notifier_block *nb,
+				  unsigned long val, void *data)
+{
+	if (val == MODULE_STATE_LIVE)
+		mrdump_modules_info(NULL, -1);
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block mrdump_module_nb = {
+	.notifier_call = mrdump_module_callback,
+};
+#endif
+
 static int __init mrdump_panic_init(void)
 {
+	mrdump_parse_chosen();
+
 	mrdump_hw_init();
+
 	mrdump_cblock_init();
+	if (mrdump_cblock == NULL) {
+		memset(mrdump_lk, 0, sizeof(mrdump_lk));
+		pr_notice("%s: MT-RAMDUMP no control block\n", __func__);
+		return -EINVAL;
+	}
+
 	mrdump_mini_init();
 
-	mrdump_full_init();
-	mrdump_wdt_init();
+	if (strcmp(mrdump_lk, MRDUMP_GO_DUMP) == 0) {
+		mrdump_full_init();
+	} else {
+		pr_notice("%s: Full ramdump disabled, version %s not matched.\n",
+			  __func__, mrdump_lk);
+	}
 
 	atomic_notifier_chain_register(&panic_notifier_list, &panic_blk);
 	register_die_notifier(&die_blk);
+#ifdef CONFIG_MODULES
+	register_module_notifier(&mrdump_module_nb);
+#endif
 	pr_debug("ipanic: startup\n");
 	return 0;
 }
@@ -306,6 +385,7 @@ inline void aee_print_bt(struct pt_regs *regs)
 		aee_nested_printf("invalid sp[%lx]\n", (unsigned long)regs);
 		return;
 	}
+	memset(&cur_frame, 0, sizeof(cur_frame));
 	high = ALIGN(bottom, THREAD_SIZE);
 	cur_frame.fp = regs->reg_fp;
 	cur_frame.pc = regs->reg_pc;
@@ -386,11 +466,16 @@ static const char *get_timestamp_string(char *buf, int bufsize)
 {
 	u64 ts;
 	unsigned long rem_nsec;
+	int n;
 
 	ts = local_clock();
 	rem_nsec = do_div(ts, 1000000000);
-	snprintf(buf, bufsize, "[%5lu.%06lu]",
+	n = snprintf(buf, bufsize, "[%5lu.%06lu]",
 		       (unsigned long)ts, rem_nsec / 1000);
+	if (n < 0 || n >= bufsize) {
+		pr_info("print time failed\n");
+		*buf = '\0';
+	}
 	return buf;
 }
 
@@ -462,28 +547,22 @@ asmlinkage void aee_stop_nested_panic(struct pt_regs *regs)
 		aee_nested_printf("Current\n");
 		aee_print_regs(regs);
 
-		/*should not print stack info.
-		 * this may overwhelms ram console used by fiq
-		 */
-		if (in_fiq_handler() != 0) {
-			aee_nested_printf("in fiq handler\n");
-		} else {
-			/*Dump first panic stack */
-			aee_nested_printf("Previous\n");
-			if (excp_regs) {
-				len = aee_nested_save_stack(excp_regs);
-				aee_nested_printf("\nbacktrace:");
-				aee_print_bt(excp_regs);
-			}
-
-			/*Dump second panic stack */
-			aee_nested_printf("Current\n");
-			if (mrdump_virt_addr_valid(regs)) {
-				len = aee_nested_save_stack(regs);
-				aee_nested_printf("\nbacktrace:");
-				aee_print_bt(regs);
-			}
+		/*Dump first panic stack */
+		aee_nested_printf("Previous\n");
+		if (excp_regs) {
+			len = aee_nested_save_stack(excp_regs);
+			aee_nested_printf("\nbacktrace:");
+			aee_print_bt(excp_regs);
 		}
+
+		/*Dump second panic stack */
+		aee_nested_printf("Current\n");
+		if (mrdump_virt_addr_valid(regs)) {
+			len = aee_nested_save_stack(regs);
+			aee_nested_printf("\nbacktrace:");
+			aee_print_bt(regs);
+		}
+
 		aee_rec_step_nested_panic(step_base + 5);
 		ipanic_recursive_ke(regs, excp_regs, cpu);
 

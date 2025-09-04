@@ -402,7 +402,7 @@
 	| ((ptype_dfp) & 0x07) << 23 \
 	 | (is_modal) << 26 | ((vid) & 0xffff))
 
-#define VDO_IDH_PD20(idh)	(idh & (~(0x07 << 23)))
+#define VDO_IDH_PD20(idh)	(idh & (~(0x1f << 21)))
 
 #define PD_IDH_PTYPE(vdo) (((vdo) >> 27) & 0x7)
 #define PD_IDH_PTYPE_DFP(vdo) (((vdo) >> 23) & 0x7)
@@ -830,6 +830,12 @@ struct pe_data {		/* reset after detached */
 #ifdef CONFIG_USB_PD_REV30_STATUS_LOCAL
 	uint8_t pd_status_event;
 #endif	/* CONFIG_USB_PD_REV30_STATUS_LOCAL */
+
+#ifdef CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG
+	bool pd_sent_ams_init_cmd;
+	bool pd_unexpected_event_pending;
+	struct pd_event pd_unexpected_event;
+#endif	/* CONFIG_USB_PD_DISCARD_AND_UNEXPECT_MSG */
 };
 
 #ifdef CONFIG_USB_PD_REV30_BAT_INFO
@@ -1038,10 +1044,12 @@ struct pd_port {
 	uint8_t cap_miss_match; /* For src_cap miss match */
 };
 
+#ifdef CONFIG_USB_PD_ALT_MODE
 static inline struct dp_data *pd_get_dp_data(struct pd_port *pd_port)
 {
 	return &pd_port->pe_data.dp_data;
 }
+#endif	/* CONFIG_USB_PD_ALT_MODE */
 
 extern int pd_core_init(struct tcpc_device *tcpc_dev);
 
@@ -1202,6 +1210,7 @@ enum {
 };
 
 void pd_reset_svid_data(struct pd_port *pd_port);
+void pd_free_unexpected_event(struct pd_port *pd_port);
 int pd_reset_protocol_layer(struct pd_port *pd_port, bool sop_only);
 
 int pd_set_rx_enable(struct pd_port *pd_port, uint8_t enable);
@@ -1269,6 +1278,8 @@ extern void pd_notify_tcp_event_1st_result(struct pd_port *pd_port, int ret);
 extern void pd_notify_tcp_event_2nd_result(struct pd_port *pd_port, int ret);
 extern void pd_notify_tcp_vdm_event_2nd_result(
 		struct pd_port *pd_port, uint8_t ret);
+
+extern bool pd_is_pe_wait_pd_transmit_done(struct pd_port *pd_port);
 
 /* ---- pd_timer ---- */
 
@@ -1366,12 +1377,13 @@ static inline bool pd_put_dpm_event(struct pd_port *pd_port, uint8_t msg)
 	return pd_put_event(pd_port->tcpc_dev, &evt, false);
 }
 
-static inline bool pd_put_tcp_pd_event(struct pd_port *pd_port, uint8_t event)
+static inline bool pd_put_tcp_pd_event(struct pd_port *pd_port, uint8_t event,
+				       uint8_t from)
 {
 	struct pd_event evt = {
 		.event_type = PD_EVT_TCP_MSG,
 		.msg = event,
-		.msg_sec = PD_TCP_FROM_PE,
+		.msg_sec = from,
 		.pd_msg = NULL,
 	};
 

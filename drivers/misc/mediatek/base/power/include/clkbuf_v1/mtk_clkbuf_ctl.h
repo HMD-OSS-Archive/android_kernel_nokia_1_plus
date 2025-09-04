@@ -44,6 +44,12 @@
 #include "mt6785/mtk_clkbuf_hw.h"
 #elif defined(CONFIG_MACH_MT8168)
 #include "mt8168/mtk_clkbuf_hw.h"
+#elif defined(CONFIG_MACH_MT6873)
+#include "mt6873/mtk_clkbuf_hw.h"
+#elif defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6893)
+#include "mt6885/mtk_clkbuf_hw.h"
+#elif defined(CONFIG_MACH_MT6853) || defined(CONFIG_MACH_MT6833)
+#include "mt6853/mtk_clkbuf_hw.h"
 #endif
 
 enum CLK_BUF_SWCTRL_STATUS_T {

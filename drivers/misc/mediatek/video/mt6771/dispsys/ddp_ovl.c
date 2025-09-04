@@ -187,9 +187,10 @@ unsigned int ovl_to_index(enum DISP_MODULE_ENUM module)
 
 static inline enum DISP_MODULE_ENUM ovl_index_to_module(int index)
 {
-	if (index >= OVL_NUM) {
+	if (unlikely((unsigned int)index >= OVL_NUM)) {
 		DDPPR_ERR("invalid ovl index=%d\n", index);
 		ASSERT(0);
+		return -EINVAL;
 	}
 
 	return ovl_index_module[index];
@@ -854,6 +855,7 @@ static int ovl_layer_config(enum DISP_MODULE_ENUM module, unsigned int layer,
 	if (!is_engine_sec) {
 		DISP_REG_SET(handle, DISP_REG_OVL_L0_ADDR + layer_offset_addr,
 			     cfg->addr + offset);
+		DISP_REG_SET(handle, DISP_REG_OVL_SECURE + ovl_base, 0);
 	} else {
 #ifdef MTKFB_M4U_SUPPORT
 		unsigned int size;
@@ -872,7 +874,10 @@ static int ovl_layer_config(enum DISP_MODULE_ENUM module, unsigned int layer,
 					layer_offset_addr),
 				CMDQ_SAM_NMVA_2_MVA, cfg->addr + offset,
 					0, size, m4u_port);
-
+			if (!is_ext_layer)
+				DISP_REG_SET_FIELD(handle,
+					REG_FLD_MSB_LSB(layer, layer),
+					ovl_base + DISP_REG_OVL_SECURE, 0);
 		} else {
 			/*
 			 * for sec layer, addr variable stores sec handle
@@ -885,6 +890,13 @@ static int ovl_layer_config(enum DISP_MODULE_ENUM module, unsigned int layer,
 				layer_offset_addr),
 				CMDQ_SAM_H_2_MVA, cfg->addr, offset,
 				size, m4u_port);
+			if (is_ext_layer)
+				DDPERR("(%d)ext_layer not support sec!\n",
+					layer);
+			else
+				DISP_REG_SET_FIELD(handle,
+					REG_FLD_MSB_LSB(layer, layer),
+					ovl_base + DISP_REG_OVL_SECURE, 1);
 		}
 #endif
 	}
@@ -1124,7 +1136,7 @@ static inline int ovl_switch_to_sec(enum DISP_MODULE_ENUM module, void *handle)
 	 * set engine as sec port, it will to access
 	 * the sec memory EMI_MPU protected
 	 */
-	cmdqRecSecureEnablePortSecurity(handle, (1LL << cmdq_engine));
+	//cmdqRecSecureEnablePortSecurity(handle, (1LL << cmdq_engine));
 	/* enable DAPC to protect the engine register */
 	/* cmdqRecSecureEnableDAPC(handle, (1LL << cmdq_engine)); */
 	if (ovl_is_sec[ovl_idx] == 0) {
@@ -1140,6 +1152,7 @@ static inline int ovl_switch_to_sec(enum DISP_MODULE_ENUM module, void *handle)
 int ovl_switch_to_nonsec(enum DISP_MODULE_ENUM module, void *handle)
 {
 	unsigned int ovl_idx = ovl_to_index(module);
+#if 0
 	enum CMDQ_ENG_ENUM cmdq_engine;
 	enum CMDQ_EVENT_ENUM cmdq_event_nonsec_end;
 
@@ -1202,6 +1215,7 @@ int ovl_switch_to_nonsec(enum DISP_MODULE_ENUM module, void *handle)
 		mmprofile_log_ex(ddp_mmp_get_events()->svp_module[module],
 				 MMPROFILE_FLAG_END, 0, 0);
 	}
+#endif
 	ovl_is_sec[ovl_idx] = 0;
 
 	return 0;

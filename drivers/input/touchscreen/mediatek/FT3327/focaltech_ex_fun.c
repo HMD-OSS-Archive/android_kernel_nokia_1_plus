@@ -51,6 +51,7 @@
 #define PROC_NAME                               "ftxxxx-debug"
 #define PROC_WRITE_BUF_SIZE                     256
 #define PROC_READ_BUF_SIZE                      256
+#define PROC_BUF_SIZE                           256
 
 /*****************************************************************************
 * Private enumerations, structures and unions using typedef
@@ -88,11 +89,11 @@ static struct rwreg_operation_t {
 ***********************************************************************/
 static ssize_t fts_debug_write(struct file *filp, const char __user *buff, size_t count, loff_t *ppos)
 {
-    u8 writebuf[PROC_WRITE_BUF_SIZE] = { 0 };
+    u8 writebuf[PROC_BUF_SIZE] = { 0 };
     int buflen = count;
     int writelen = 0;
     int ret = 0;
-    char tmp[25];
+    char tmp[PROC_BUF_SIZE];
     struct fts_ts_data *ts_data = fts_data;
     struct i2c_client *client = ts_data->client;
 
@@ -144,7 +145,7 @@ static ssize_t fts_debug_write(struct file *filp, const char __user *buff, size_
         break;
 
     case PROC_HW_RESET:
-        snprintf(tmp, PAGE_SIZE, "%s", writebuf + 1);
+        snprintf(tmp, PROC_BUF_SIZE, "%s", writebuf + 1);
         tmp[buflen - 1] = '\0';
         if (strncmp(tmp, "focal_driver", 12) == 0) {
             FTS_INFO("APK execute HW Reset");
@@ -185,7 +186,7 @@ static ssize_t fts_debug_read(struct file *filp, char __user *buff, size_t count
     int ret = 0;
     int num_read_chars = 0;
     int readlen = 0;
-    u8 buf[PROC_READ_BUF_SIZE] = { 0 };
+    u8 buf[PROC_BUF_SIZE] = { 0 };
     struct fts_ts_data *ts_data = fts_data;
     struct i2c_client *client = ts_data->client;
 
@@ -260,7 +261,7 @@ static int fts_debug_write(struct file *filp,
                            const char __user *buff, unsigned long len, void *data)
 {
     int ret = 0;
-    u8 writebuf[PROC_WRITE_BUF_SIZE] = { 0 };
+    u8 writebuf[PROC_BUF_SIZE] = { 0 };
     int buflen = len;
     int writelen = 0;
     char tmp[25];
@@ -316,7 +317,7 @@ static int fts_debug_write(struct file *filp,
         break;
 
     case PROC_HW_RESET:
-        snprintf(tmp, PAGE_SIZE, "%s", writebuf + 1);
+        snprintf(tmp, PROC_BUF_SIZE, "%s", writebuf + 1);
         tmp[buflen - 1] = '\0';
         if (strncmp(tmp, "focal_driver", 12) == 0) {
             FTS_INFO("Begin HW Reset");
@@ -825,7 +826,7 @@ static ssize_t fts_fwupgradebin_store(struct device *dev, struct device_attribut
         return -EINVAL;
     }
     memset(fwname, 0, sizeof(fwname));
-    snprintf(fwname, PAGE_SIZE, "%s", buf);
+    snprintf(fwname, FILE_NAME_LENGTH, "%s", buf);
     fwname[count - 1] = '\0';
 
     FTS_INFO("upgrade with bin file through sysfs node");
@@ -868,7 +869,7 @@ static ssize_t fts_fwforceupg_store(struct device *dev, struct device_attribute 
         return -EINVAL;
     }
     memset(fwname, 0, sizeof(fwname));
-    snprintf(fwname, PAGE_SIZE, "%s", buf);
+    snprintf(fwname, FILE_NAME_LENGTH, "%s", buf);
     fwname[count - 1] = '\0';
 
     FTS_INFO("force upgrade through sysfs node");

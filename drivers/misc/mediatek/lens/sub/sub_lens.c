@@ -114,6 +114,8 @@ static long AF_SetMotorName(__user struct stAF_MotorName *pstMotorName)
 			   sizeof(struct stAF_MotorName)))
 		LOG_INF("copy to user failed when getting motor information\n");
 
+	stMotorName.uMotorName[sizeof(stMotorName.uMotorName) - 1] = '\0';
+
 	for (i = 0; i < MAX_NUM_OF_LENS; i++) {
 		if (g_stAF_DrvList[i].uEnable != 1)
 			break;
@@ -204,6 +206,8 @@ static long AF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
 	if (copy_from_user(&stMotorName, pstMotorName,
 			   sizeof(struct stAF_MotorName)))
 		LOG_INF("copy to user failed when getting motor information\n");
+
+	stMotorName.uMotorName[sizeof(stMotorName.uMotorName) - 1] = '\0';
 
 	/* LOG_INF("set driver name(%s)\n", stMotorName.uMotorName); */
 
@@ -330,6 +334,7 @@ static int AF_Open(struct inode *a_pstInode, struct file *a_pstFile)
 	spin_unlock(&g_AF_SpinLock);
 
 #if !defined(CONFIG_MTK_LEGACY)
+	AFRegulatorCtrl(0);
 	AFRegulatorCtrl(1);
 #endif
 
@@ -525,10 +530,6 @@ static int AF_i2c_probe(struct i2c_client *client,
 	}
 
 	spin_lock_init(&g_AF_SpinLock);
-
-#if !defined(CONFIG_MTK_LEGACY)
-	AFRegulatorCtrl(0);
-#endif
 
 	LOG_INF("Attached!!\n");
 

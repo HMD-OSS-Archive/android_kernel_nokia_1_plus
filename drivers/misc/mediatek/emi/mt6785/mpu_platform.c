@@ -56,7 +56,7 @@ int is_md_master(unsigned int master_id,
 void set_ap_region_permission(unsigned int apc[EMI_MPU_DGROUP_NUM])
 {
 	SET_ACCESS_PERMISSION(apc, LOCK,
-		FORBIDDEN, FORBIDDEN, SEC_RW, SEC_RW,
+		FORBIDDEN, FORBIDDEN, SEC_RW, NO_PROTECTION,
 		NO_PROTECTION, FORBIDDEN, NO_PROTECTION, NO_PROTECTION,
 		FORBIDDEN, SEC_R_NSEC_RW, FORBIDDEN, NO_PROTECTION,
 		FORBIDDEN, FORBIDDEN, FORBIDDEN, NO_PROTECTION);
@@ -133,7 +133,8 @@ int bypass_violation(unsigned int mpus, unsigned int *init_flag)
 		return 1;
 	}
 
-#ifdef CONFIG_MTK_ENABLE_GENIEZONE
+#if defined(CONFIG_MTK_ENABLE_GENIEZONE) \
+	|| defined(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT)
 	if ((wr_vio == 2) && (wr_oo_vio == 0) &&
 	    ((port_id == 0) || (port_id == 1)))
 		return 1;

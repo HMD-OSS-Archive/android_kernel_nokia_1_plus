@@ -21,6 +21,8 @@
 #include <linux/fs.h>
 #include <linux/cdev.h>
 #include <linux/poll.h>
+#include <linux/ratelimit.h>
+#include <uapi/linux/sched/types.h>
 
 /*#include <mach/eint.h>*/
 /*-----------driver own header files----------------*/
@@ -370,7 +372,7 @@ int _btif_restore_noirq(struct _mtk_btif_ *p_btif)
 		return i_ret;
 	}
 /*BTIF DMA restore no irq*/
-	if (p_btif->tx_mode & BTIF_MODE_DMA) {
+	if (p_btif->tx_mode == BTIF_MODE_DMA) {
 		i_ret = hal_dma_pm_ops(p_btif->p_tx_dma->p_dma_info,
 				       BTIF_PM_RESTORE_NOIRQ);
 		if (i_ret == 0) {
@@ -382,7 +384,7 @@ int _btif_restore_noirq(struct _mtk_btif_ *p_btif)
 			return i_ret;
 		}
 	}
-	if (p_btif->rx_mode & BTIF_MODE_DMA) {
+	if (p_btif->rx_mode == BTIF_MODE_DMA) {
 		i_ret = hal_dma_pm_ops(p_btif->p_rx_dma->p_dma_info,
 				       BTIF_PM_RESTORE_NOIRQ);
 		if (i_ret == 0) {
@@ -413,7 +415,7 @@ static int mtk_btif_restore_noirq(struct device *dev)
 	i_ret = _btif_restore_noirq(p_btif);
 	BTIF_STATE_RELEASE(p_btif);
 	BTIF_INFO_FUNC("--\n");
-	return 0;
+	return i_ret;
 }
 
 int _btif_resume(struct _mtk_btif_ *p_btif)
@@ -429,7 +431,7 @@ int _btif_resume(struct _mtk_btif_ *p_btif)
 			i_ret = 0;
 		else if (state == B_S_SUSPEND)
 			i_ret = _btif_enter_dpidle(p_btif);
-		else
+		else if (state >= B_S_OFF && state < B_S_MAX)
 			BTIF_INFO_FUNC
 				("BTIF state: %s before resume, do nothing\n",
 						g_state[state]);
@@ -787,14 +789,14 @@ long btif_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 /*-----------device property----------------*/
 static ssize_t driver_flag_read(struct device_driver *drv, char *buf)
 {
-	return sprintf(buf, "btif driver debug level:%d\n", mtk_btif_dbg_lvl);
+	return snprintf(buf, PAGE_SIZE, "dbg level:%d\n", mtk_btif_dbg_lvl);
 }
 
 static ssize_t driver_flag_set(struct device_driver *drv,
 			       const char *buffer, size_t count)
 {
 	char buf[256];
-	char *p_buf;
+	char *p_buf = NULL;
 	unsigned long len = count;
 	long x = 0;
 	long y = 0;
@@ -2022,11 +2024,16 @@ static int _btif_state_set(struct _mtk_btif_ *p_btif,
 	int i_ret = 0;
 	int ori_state = p_btif->state;
 
-	if (ori_state == state) {
-		BTIF_INFO_FUNC("already in %s state\n", g_state[state]);
-		return i_ret;
+	if (ori_state < 0 || ori_state >= B_S_MAX) {
+		BTIF_INFO_FUNC("ori_state is unexpected: %d\n", ori_state);
+		return E_BTIF_INVAL_STATE;
 	}
 	if ((state >= B_S_OFF) && (state < B_S_MAX)) {
+		if (ori_state == state) {
+			BTIF_INFO_FUNC("already in %s state\n", g_state[state]);
+			return i_ret;
+		}
+
 		BTIF_DBG_FUNC("%s->%s request\n", g_state[ori_state],
 			      g_state[state]);
 		if (state == B_S_ON)
@@ -3036,7 +3043,7 @@ int btif_rx_notify_reg(struct _mtk_btif_ *p_btif, MTK_BTIF_RX_NOTIFY rx_notify)
 	return 0;
 }
 
-int btif_dump_data(char *p_buf, int len)
+int btif_dump_data(const char *p_buf, int len)
 {
 	unsigned int idx = 0;
 	unsigned char str[30];
@@ -3044,7 +3051,11 @@ int btif_dump_data(char *p_buf, int len)
 
 	p_str = &str[0];
 	for (idx = 0; idx < len; idx++, p_buf++) {
-		sprintf(p_str, "%02x ", *p_buf);
+		if (sprintf(p_str, "%02x ", *p_buf) < 0) {
+			BTIF_INFO_FUNC("sprintf error");
+			return -1;
+		}
+
 		p_str += 3;
 		if (7 == (idx % 8)) {
 			*p_str++ = '\n';
@@ -3609,7 +3620,7 @@ void mtk_btif_read_cpu_sw_rst_debug(void)
 static int _btif_rx_thread_lock(struct _mtk_btif_ *p_btif, bool enable)
 {
 	if (enable) {
-		if (mutex_lock_killable(&(p_btif->rx_thread_mtx)))
+		if (!mutex_trylock(&(p_btif->rx_thread_mtx)))
 			return -1;
 	} else
 		mutex_unlock(&(p_btif->rx_thread_mtx));
@@ -3623,7 +3634,11 @@ int btif_rx_data_path_lock(struct _mtk_btif_ *p_btif)
 	 */
 	if (_btif_rx_thread_lock(p_btif, true))
 		return E_BTIF_FAIL;
-	hal_rx_dma_lock(true);
+
+	if (hal_rx_dma_lock(true)) {
+		_btif_rx_thread_lock(p_btif, false);
+		return E_BTIF_FAIL;
+	}
 	return 0;
 }
 

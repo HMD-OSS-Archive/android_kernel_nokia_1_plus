@@ -391,6 +391,8 @@ int primary_display_diagnose_oneshot(const char *func, int line);
 
 int primary_display_get_info(struct disp_session_info *info);
 int primary_display_capture_framebuffer(unsigned long pbuf);
+int primary_display_capture_framebuffer_ovl(unsigned long pbuf,
+					    unsigned int format);
 
 int primary_display_is_video_mode(void);
 int primary_is_sec(void);
@@ -444,7 +446,9 @@ int primary_display_get_lcm_refresh_rate(void);
 int _display_set_lcm_refresh_rate(int fps);
 void primary_display_idlemgr_kick(const char *source, int need_lock);
 void primary_display_idlemgr_enter_idle(int need_lock);
-void primary_display_update_present_fence(unsigned int fence_idx);
+void primary_display_update_present_fence(struct cmdqRecStruct *cmdq_handle,
+	unsigned int fence_idx);
+void primary_display_wakeup_pf_thread(void);
 void primary_display_switch_esd_mode(int mode);
 int primary_display_cmdq_set_reg(unsigned int addr, unsigned int val);
 int primary_display_vsync_switch(int method);

@@ -1610,7 +1610,10 @@ static int mtk_calculate_impedance_formula(int pcm_offset, int aux_diff)
 	/* R = V /I */
 	/* V = auxDiff * (1800mv /auxResolution)  /TrimBufGain */
 	/* I =  pcmOffset * DAC_constant * Gsdm * Gibuf */
-	return DIV_ROUND_CLOSEST(3600000 / pcm_offset * aux_diff, 7832);
+
+	long val = 3600000 / pcm_offset * aux_diff;
+
+	return (int)DIV_ROUND_CLOSEST(val, 7832);
 }
 
 static int mtk_calculate_hp_impedance(int dc_init, int dc_input,
@@ -7670,6 +7673,9 @@ static void mt6358_codec_init_reg(struct snd_soc_codec *codec)
 	/* Enable mtkaif gpio SMT mode */
 	Ana_Set_Reg(SMT_CON1, 0x0ff0, 0x0ff0);
 
+	/* Set HP_EINT trigger level to 2.0v */
+	Ana_Set_Reg(AUDENC_ANA_CON11, 0x1 << 10, 0x1 << 10);
+
 	/* set gpio */
 	set_playback_gpio(false);
 	set_capture_gpio(false);
@@ -7807,6 +7813,7 @@ static int mtk_mt6358_codec_dev_probe(struct platform_device *pdev)
 {
 	if (pdev->dev.of_node) {
 		dev_set_name(&pdev->dev, "%s", MT_SOC_CODEC_NAME);
+		pdev->name = pdev->dev.kobj.name;
 
 		/* check if use hp depop flow */
 		of_property_read_u32(pdev->dev.of_node,

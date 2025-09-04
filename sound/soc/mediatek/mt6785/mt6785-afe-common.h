@@ -58,6 +58,8 @@ enum {
 	MT6785_DAI_TDM,
 	MT6785_DAI_HOSTLESS_LPBK,
 	MT6785_DAI_HOSTLESS_FM,
+	MT6785_DAI_HOSTLESS_HW_GAIN_AAUDIO,
+	MT6785_DAI_HOSTLESS_SRC_AAUDIO,
 	MT6785_DAI_HOSTLESS_SPEECH,
 	MT6785_DAI_HOSTLESS_SPH_ECHO_REF,
 	MT6785_DAI_HOSTLESS_SPK_INIT,
@@ -69,6 +71,7 @@ enum {
 	MT6785_DAI_HOSTLESS_UL3,
 	MT6785_DAI_HOSTLESS_UL6,
 	MT6785_DAI_HOSTLESS_DSP_DL,
+	MT6785_DAI_EXP_HP,
 	MT6785_DAI_NUM,
 };
 
@@ -183,7 +186,6 @@ struct mt6785_afe_private {
 
 	/* adda */
 	int mtkaif_protocol;
-	bool mtkaif_calibration_ok;
 	int mtkaif_chosen_phase[4];
 	int mtkaif_phase_cycle[4];
 	int mtkaif_calibration_num_phase;

@@ -101,8 +101,8 @@ int mtk_wcn_btif_open(char *p_owner, unsigned long *p_id)
 
 /*check if btif is already opened or not, if yes, just return fail*/
 	if (!list_empty(p_user_list)) {
-		struct list_head *pos;
-		struct _mtk_btif_user_ *p_user;
+		struct list_head *pos = NULL;
+		struct _mtk_btif_user_ *p_user = NULL;
 
 		BTIF_ERR_FUNC("BTIF's user list is not empty\n");
 		list_for_each(pos, p_user_list) {
@@ -812,9 +812,12 @@ int mtk_btif_exp_rx_has_pending_data(unsigned long u_id)
 	}
 
 	/* Lock the data path to ensure that the current data path is
-	 * not processing data
+	 * not processing data. If fail to get lock, it means rx data
+	 * path is busy and we assume there has pending data to avoid
+	 * thread is blocked here.
 	 */
-	btif_rx_data_path_lock(p_btif);
+	if (btif_rx_data_path_lock(p_btif))
+		return 1;
 
 	has_pending_data = btif_rx_buf_has_pending_data(p_btif);
 	if (has_pending_data == 0)

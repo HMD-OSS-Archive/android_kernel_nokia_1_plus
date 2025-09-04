@@ -112,9 +112,11 @@ static int lv_list_cmp(void *priv, struct list_head *a, struct list_head *b)
 	return thd_b->thd_volt - thd_a->thd_volt;
 }
 
-static void modify_lbat_list(enum lbat_thd_type type,
+static int modify_lbat_list(enum lbat_thd_type type,
 	struct lbat_thd_t *thd)
 {
+	if (!thd)
+		return -EINVAL;
 	switch (type) {
 	case LBAT_HV:
 		list_add(&thd->list, &lbat_hv_list);
@@ -139,6 +141,7 @@ static void modify_lbat_list(enum lbat_thd_type type,
 		}
 		break;
 	}
+	return 0;
 }
 
 /*
@@ -267,7 +270,7 @@ static int lbat_user_update(struct lbat_user *user)
 static struct lbat_thd_t *lbat_thd_init(unsigned int thd_volt,
 	struct lbat_user *user)
 {
-	struct lbat_thd_t *thd;
+	struct lbat_thd_t *thd = NULL;
 
 	if (thd_volt == 0)
 		return NULL;
@@ -292,7 +295,7 @@ int lbat_user_register(struct lbat_user *user, const char *name,
 		ret = PTR_ERR(user);
 		goto out;
 	}
-	strncpy(user->name, name, strlen(name));
+	strncpy(user->name, name, strlen(user->name));
 	if (hv_thd_volt >= 5400 || lv1_thd_volt <= 2650) {
 		ret = -11;
 		goto out;
@@ -337,7 +340,7 @@ EXPORT_SYMBOL(lbat_user_set_debounce);
 
 static irqreturn_t bat_h_int_handler(int irq, void *data)
 {
-	struct lbat_user *user;
+	struct lbat_user *user = NULL;
 
 	if (cur_hv_ptr == NULL) {
 		lbat_max_en_setting(0);
@@ -377,7 +380,7 @@ out:
 
 static irqreturn_t bat_l_int_handler(int irq, void *data)
 {
-	struct lbat_user *user;
+	struct lbat_user *user = NULL;
 
 	if (cur_lv_ptr == NULL) {
 		lbat_min_en_setting(0);
@@ -428,7 +431,7 @@ void lbat_resume(void)
 int lbat_service_init(struct platform_device *pdev)
 {
 	int ret = 0;
-	struct device_node *np;
+	struct device_node *np = NULL;
 
 	pr_info("[%s]\n", __func__);
 	/* Selects debounce as 8 */
@@ -574,8 +577,8 @@ static void lbat_dbg_dump_reg(struct seq_file *s)
 
 static void lbat_dump_user_table(struct seq_file *s)
 {
-	unsigned int i;
-	struct lbat_user *user;
+	unsigned int i = 0;
+	struct lbat_user *user = NULL;
 
 	mutex_lock(&lbat_mutex);
 	for (i = 0; i < user_count; i++) {
@@ -655,7 +658,7 @@ static const struct file_operations lbat_dbg_fops = {
 
 int lbat_debug_init(struct dentry *debug_dir)
 {
-	struct dentry *lbat_dbg_dir;
+	struct dentry *lbat_dbg_dir = NULL;
 
 	if (IS_ERR(debug_dir) || !debug_dir) {
 		pr_notice("dir mtk_pmic does not exist\n");

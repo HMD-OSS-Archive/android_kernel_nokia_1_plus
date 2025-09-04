@@ -26,8 +26,10 @@
 #include <linux/sched.h>
 #include <linux/sched/task_stack.h>
 #include <linux/vmalloc.h>
-#ifdef CONFIG_MTK_LCM
+#if defined(CONFIG_MTK_LCM)
 #include <disp_assert_layer.h>
+#elif defined(CONFIG_DRM_MEDIATEK)
+#include <mtk_drm_assert_ext.h>
 #endif
 #include <linux/slab.h>
 #include <linux/spinlock.h>
@@ -761,6 +763,8 @@ static void ee_gen_process_msg(void)
 		/* for old aed_md_exception1() */
 		n = snprintf(data, sizeof(eerec->assert_type), "%s",
 				eerec->assert_type);
+		if (n <= 0)
+			pr_debug("%s: snprintf error\n", __func__);
 		if (eerec->exp_filename[0] != 0) {
 			n += snprintf(data + n, (PROCESS_STRLEN - n),
 				", filename=%s,line=%d", eerec->exp_filename,
@@ -772,6 +776,8 @@ static void ee_gen_process_msg(void)
 		}
 	} else {
 		n = snprintf(data, PROCESS_STRLEN, "%s", eerec->exp_filename);
+		if (n <= 0)
+			pr_debug("%s: snprintf error\n", __func__);
 	}
 
 	rep_msg->cmdType = AE_RSP;
@@ -867,6 +873,7 @@ static void ee_gen_coredump_msg(void)
 {
 	struct AE_Msg *rep_msg;
 	char *data;
+	int len;
 
 	rep_msg = msg_create(&aed_dev.eerec->msg, 256);
 	if (rep_msg == NULL)
@@ -876,7 +883,9 @@ static void ee_gen_coredump_msg(void)
 	rep_msg->cmdType = AE_RSP;
 	rep_msg->cmdId = AE_REQ_COREDUMP;
 	rep_msg->arg = 0;
-	snprintf(data, 256, "/proc/aed/%s", CURRENT_EE_COREDUMP);
+	len = snprintf(data, 256, "/proc/aed/%s", CURRENT_EE_COREDUMP);
+	if (len <= 0)
+		pr_debug("%s: snprintf error\n", __func__);
 	rep_msg->len = strlen(data) + 1;
 }
 
@@ -998,15 +1007,11 @@ static int aed_ee_open(struct inode *inode, struct file *filp)
 {
 	if (strncmp(current->comm, "aee_aed", 7))
 		return -1;
-	pr_debug("%s:%d:%d\n", __func__, MAJOR(inode->i_rdev),
-						MINOR(inode->i_rdev));
 	return 0;
 }
 
 static int aed_ee_release(struct inode *inode, struct file *filp)
 {
-	pr_debug("%s:%d:%d\n", __func__, MAJOR(inode->i_rdev),
-						MINOR(inode->i_rdev));
 	return 0;
 }
 
@@ -1339,12 +1344,15 @@ void Maps2Buffer(unsigned char *Userthread_maps, int *Userthread_mapsLength,
 	char buf[256] = {0};
 	int len = 0;
 	va_list ap;
+	int n;
 
 	va_start(ap, fmt);
 	len = strlen(Userthread_maps);
 
 	if ((len + sizeof(buf)) < MaxMapsSize) {
-		vsnprintf(&Userthread_maps[len], sizeof(buf), fmt, ap);
+		n = vsnprintf(&Userthread_maps[len], sizeof(buf), fmt, ap);
+		if (n <= 0)
+			pr_debug("%s: vsnprintf error\n", __func__);
 		*Userthread_mapsLength = len + sizeof(buf);
 	}
 	va_end(ap);
@@ -1382,8 +1390,20 @@ static void print_vma_name(unsigned char *Userthread_maps,
 		len = min(max_len, PAGE_SIZE - page_offset);
 		write_len = strnlen(kaddr + page_offset, len);
 		if (strnstr((kaddr + page_offset), "signal stack", write_len)) {
-			Maps2Buffer(Userthread_maps, Userthread_mapsLength,
-				"%s[anon:%s]\n", str, (kaddr + page_offset));
+			char *name = vmalloc(write_len + 1);
+
+			if (!name) {
+				Maps2Buffer(Userthread_maps,
+					Userthread_mapsLength,
+					"%s[anon:%s]\n", str, "NULL");
+			} else {
+				memcpy(name, kaddr + page_offset, write_len);
+				name[write_len] = '\0';
+				Maps2Buffer(Userthread_maps,
+					Userthread_mapsLength,
+					"%s[anon:%s]\n", str, name);
+				vfree(name);
+			}
 		}
 		kunmap(page);
 		put_page(page);
@@ -1419,6 +1439,7 @@ static void show_map_vma(unsigned char *Userthread_maps,
 	char tpath[512];
 	char *path_p = NULL;
 	char str[512];
+	int len;
 
 	if (file) {
 		struct inode *inode = file_inode(vma->vm_file);
@@ -1466,13 +1487,15 @@ static void show_map_vma(unsigned char *Userthread_maps,
 		}
 
 		if (vma_get_anon_name(vma)) {
-			snprintf(str, sizeof(str),
+			len = snprintf(str, sizeof(str),
 				"%08lx-%08lx %c%c%c%c %08llx %02x:%02x %lu ",
 				start, end, flags & VM_READ ? 'r' : '-',
 				flags & VM_WRITE ? 'w' : '-',
 				flags & VM_EXEC ? 'x' : '-',
 				flags & VM_MAYSHARE ? 's' : 'p',
 				pgoff, MAJOR(dev), MINOR(dev), ino);
+			if (len <= 0)
+				pr_debug("%s: snprintf error\n", __func__);
 			print_vma_name(Userthread_maps, Userthread_mapsLength,
 				vma, str);
 			return;
@@ -1590,7 +1613,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 			/* Try to prevent overrun */
 			dal_show->msg[sizeof(dal_show->msg) - 1] = 0;
-#ifdef CONFIG_MTK_LCM
+#if defined(CONFIG_MTK_LCM) || defined(CONFIG_DRM_MEDIATEK)
 			pr_debug("AEE CALL DAL_Printf now\n");
 			DAL_Printf("%s", dal_show->msg);
 #endif
@@ -1611,7 +1634,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			dal_setcolor.foreground = 0x00ff00;	/*green */
 			dal_setcolor.background = 0xff0000;	/*red */
 
-#ifdef CONFIG_MTK_LCM
+#if defined(CONFIG_MTK_LCM) || defined(CONFIG_DRM_MEDIATEK)
 			pr_debug("AEE CALL DAL_SetColor now\n");
 			DAL_SetColor(dal_setcolor.foreground,
 					dal_setcolor.background);
@@ -1637,7 +1660,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				ret = -EFAULT;
 				goto EXIT;
 			}
-#ifdef CONFIG_MTK_LCM
+#if defined(CONFIG_MTK_LCM) || defined(CONFIG_DRM_MEDIATEK)
 			pr_debug("AEE CALL DAL_SetColor now\n");
 			DAL_SetColor(dal_setcolor.foreground,
 					dal_setcolor.background);
@@ -1650,8 +1673,6 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case AEEIOCTL_GET_THREAD_REG:
 		{
 			struct aee_thread_reg *tmp;
-
-			pr_debug("%s: get thread registers ioctl\n", __func__);
 
 			tmp = kzalloc(sizeof(struct aee_thread_reg),
 					GFP_KERNEL);
@@ -1989,7 +2010,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 					pr_info("%s: get process:%d dumpable:%d\n",
 						__func__, pid, dumpable);
 				task_unlock(task);
-				read_unlock(&tasklist_lock);
+				rcu_read_unlock();
 			} else {
 				pr_info(
 				  "%s: check suid dumpable ioctl pid invalid\n",
@@ -2098,13 +2119,16 @@ void Log2Buffer(struct aee_oops *oops, const char *fmt, ...)
 	char buf[256];
 	int len = 0;
 	va_list ap;
+	int n;
 
 	va_start(ap, fmt);
 	len = strlen(oops->userthread_maps.Userthread_maps);
 
 	if ((len + sizeof(buf)) < MaxMapsSize) {
-		vsnprintf(&oops->userthread_maps.Userthread_maps[len],
+		n = vsnprintf(&oops->userthread_maps.Userthread_maps[len],
 				sizeof(buf), fmt, ap);
+		if (n <= 0)
+			pr_debug("%s: vsnprintf error\n", __func__);
 		oops->userthread_maps.Userthread_mapsLength = len + sizeof(buf);
 	}
 	va_end(ap);
@@ -2122,6 +2146,12 @@ int DumpThreadNativeInfo(struct aee_oops *oops)
 	int flags;
 	struct mm_struct *mm;
 	int ret = 0;
+	char tpath[512];
+	char *path_p = NULL;
+	struct path base_path;
+	unsigned long long pgoff = 0;
+	dev_t dev = 0;
+	unsigned long ino = 0;
 
 	current_task = get_current();
 	user_ret = task_pt_regs(current_task);
@@ -2146,16 +2176,27 @@ int DumpThreadNativeInfo(struct aee_oops *oops)
 	down_read(&current_task->mm->mmap_sem);
 	vma = current_task->mm->mmap;
 	while (vma && (mapcount < current_task->mm->map_count)) {
+		char *format = "%08lx-%08lx %c%c%c%c %08llx %02x:%02x %lu %s\n";
 		file = vma->vm_file;
 		flags = vma->vm_flags;
 		if (file) {
-			Log2Buffer(oops, "%08lx-%08lx %c%c%c%c    %s\n",
-			  vma->vm_start, vma->vm_end,
-			  flags & VM_READ ? 'r' : '-',
-			  flags & VM_WRITE ? 'w' : '-',
-			  flags & VM_EXEC ? 'x' : '-',
-			  flags & VM_MAYSHARE ? 's' : 'p',
-			  (unsigned char *)(file->f_path.dentry->d_iname));
+			struct inode *inode = file_inode(vma->vm_file);
+
+			dev = inode->i_sb->s_dev;
+			ino = inode->i_ino;
+			base_path = file->f_path;
+			path_p = d_path(&base_path, tpath, 512);
+			pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
+			if (flags & VM_EXEC) {
+				Log2Buffer(oops, format,
+					vma->vm_start, vma->vm_end,
+					flags & VM_READ ? 'r' : '-',
+					flags & VM_WRITE ? 'w' : '-',
+					flags & VM_EXEC ? 'x' : '-',
+					flags & VM_MAYSHARE ? 's' : 'p',
+					pgoff, MAJOR(dev),
+					MINOR(dev), ino, path_p);
+			}
 		} else {
 			const char *name = arch_vma_name(vma);
 
@@ -2176,14 +2217,15 @@ int DumpThreadNativeInfo(struct aee_oops *oops)
 				}
 			}
 			/* if (name) */
-			{
-				Log2Buffer(oops, "%08lx-%08lx %c%c%c%c    %s\n",
-						vma->vm_start, vma->vm_end,
-						flags & VM_READ ? 'r' : '-',
-						flags & VM_WRITE ? 'w' : '-',
-						flags & VM_EXEC ? 'x' : '-',
-						flags & VM_MAYSHARE ? 's' : 'p',
-						name);
+			if (flags & VM_EXEC) {
+				Log2Buffer(oops, format,
+					vma->vm_start, vma->vm_end,
+					flags & VM_READ ? 'r' : '-',
+					flags & VM_WRITE ? 'w' : '-',
+					flags & VM_EXEC ? 'x' : '-',
+					flags & VM_MAYSHARE ? 's' : 'p',
+					pgoff, MAJOR(dev),
+					MINOR(dev), ino, name);
 			}
 		}
 		vma = vma->vm_next;
@@ -2192,6 +2234,11 @@ int DumpThreadNativeInfo(struct aee_oops *oops)
 	}
 	up_read(&current_task->mm->mmap_sem);
 	#endif
+	oops->userthread_maps.Userthread_mapsLength =
+		strlen(oops->userthread_maps.Userthread_maps);
+	pr_info("maps addr(0x%08lx), maps len:%d\n",
+		(long)oops->userthread_maps.Userthread_maps,
+		oops->userthread_maps.Userthread_mapsLength);
 
 #ifndef __aarch64__ /* 32bit */
 	userstack_start = (unsigned long)user_ret->ARM_sp;
@@ -2283,6 +2330,7 @@ static void kernel_reportAPI(const enum AE_DEFECT_ATTR attr, const int db_opt,
 	int n = 0;
 	struct rtc_time tm;
 	struct timeval tv = { 0 };
+	int len;
 
 	if ((aee_mode >= AEE_MODE_CUSTOMER_USER || (aee_mode ==
 		AEE_MODE_CUSTOMER_ENG && attr == AE_DEFECT_WARNING))
@@ -2298,8 +2346,10 @@ static void kernel_reportAPI(const enum AE_DEFECT_ATTR attr, const int db_opt,
 			tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
 			tm.tm_hour, tm.tm_min, tm.tm_sec,
 			(unsigned int)tv.tv_usec);
-		snprintf(oops->backtrace + n, AEE_BACKTRACE_LENGTH - n,
+		len = snprintf(oops->backtrace + n, AEE_BACKTRACE_LENGTH - n,
 				"\nBacktrace:\n");
+		if (len <= 0)
+			pr_debug("%s: snprintf error\n", __func__);
 		aed_get_traces(oops->backtrace);
 		oops->detail = (char *)(oops->backtrace);
 		oops->detail_len = strlen(oops->backtrace) + 1;
@@ -2324,6 +2374,7 @@ static void kernel_reportAPI(const enum AE_DEFECT_ATTR attr, const int db_opt,
 				pr_info(
 				  "%s: oops->userthread_maps.Userthread_maps Vmalloc fail"
 				  , __func__);
+				vfree(oops->userthread_stack.Userthread_Stack);
 				kfree(oops);
 				return;
 			}

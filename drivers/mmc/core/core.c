@@ -529,6 +529,7 @@ int mmc_run_queue_thread(void *data)
 				mmc_check_write(host, done_mrq);
 				host->cur_rw_task = CQ_TASK_IDLE;
 				is_done = true;
+				mmc_complete_mqr_crypto(host);
 
 				if (atomic_read(&host->cq_tuning_now) == 1) {
 					mmc_restore_tasks(host);
@@ -554,6 +555,12 @@ int mmc_run_queue_thread(void *data)
 				atomic_set(&host->cq_rw, true);
 				task_id = ((dat_mrq->cmd->arg >> 16) & 0x1f);
 				host->cur_rw_task = task_id;
+				err = mmc_swcq_prepare_mqr_crypto(host,
+					dat_mrq);
+				if (err) {
+					pr_info("eMMC crypto fail %d\n", err);
+					WARN_ON(1);
+				}
 				host->ops->request(host, dat_mrq);
 				mt_biolog_cmdq_dma_start(task_id);
 				atomic_dec(&host->cq_rdy_cnt);
@@ -1217,9 +1224,11 @@ static int mmc_start_request(struct mmc_host *host, struct mmc_request *mrq)
 }
 
 #ifdef CONFIG_MTK_EMMC_HW_CQ
-static void mmc_start_cmdq_request(struct mmc_host *host,
+static int mmc_start_cmdq_request(struct mmc_host *host,
 				   struct mmc_request *mrq)
 {
+	int ret = 0;
+
 	if (mrq->data) {
 		pr_debug("%s: blksz %d blocks %d flags %08x tsac %lu ms nsac %d\n",
 			mmc_hostname(host), mrq->data->blksz,
@@ -1241,10 +1250,18 @@ static void mmc_start_cmdq_request(struct mmc_host *host,
 	}
 
 	if (likely(host->cmdq_ops->request))
-		host->cmdq_ops->request(host, mrq);
-	else
-		pr_notice("%s: %s: issue request failed\n", mmc_hostname(host),
-				__func__);
+		ret = host->cmdq_ops->request(host, mrq);
+	else {
+		ret = -ENOENT;
+		pr_notice("%s: %s: cmdq request host op is not available\n",
+			mmc_hostname(host), __func__);
+	}
+
+	if (ret)
+		pr_notice("%s: %s: issue request failed, err=%d\n",
+			mmc_hostname(host), __func__, ret);
+
+	return ret;
 }
 #endif
 
@@ -1518,8 +1535,8 @@ int mmc_cmdq_start_req(struct mmc_host *host, struct mmc_cmdq_req *cmdq_req)
 		mrq->cmd->error = -ENOMEDIUM;
 		return -ENOMEDIUM;
 	}
-	mmc_start_cmdq_request(host, mrq);
-	return 0;
+
+	return mmc_start_cmdq_request(host, mrq);
 }
 EXPORT_SYMBOL(mmc_cmdq_start_req);
 

@@ -182,9 +182,9 @@ static int def_data_rate;
 static int dsi_currect_mode;
 static int dsi_force_config;
 static int dsi0_te_enable = 1;
-static const struct LCM_UTIL_FUNCS lcm_utils_dsi0;
-static const struct LCM_UTIL_FUNCS lcm_utils_dsi1;
-static const struct LCM_UTIL_FUNCS lcm_utils_dsidual;
+static struct LCM_UTIL_FUNCS lcm_utils_dsi0;
+static struct LCM_UTIL_FUNCS lcm_utils_dsi1;
+static struct LCM_UTIL_FUNCS lcm_utils_dsidual;
 static cmdqBackupSlotHandle _h_intstat;
 unsigned int impendance0[2] = { 0 }; /* MIPITX_DSI_IMPENDANCE0 */
 unsigned int impendance1[2] = { 0 }; /* MIPITX_DSI_IMPENDANCE1 */
@@ -1908,16 +1908,16 @@ void DSI_MIPI_clk_change(enum DISP_MODULE_ENUM module, int clk)
 
 int mipi_clk_change(int msg, int en)
 {
-	DISPMSG("%s,msg=%d,en=%d\n", __func__, msg, en);
+	struct LCM_DSI_PARAMS *dsi_params = &_dsi_context[0].dsi_params;
+	unsigned int data_rate = dsi_params->data_rate != 0 ?
+				dsi_params->data_rate :
+				dsi_params->PLL_CLOCK * 2;
 
+	DISPMSG("%s,msg=%d,en=%d\n", __func__, msg, en);
 	if (en) {
-		def_data_rate = 1030;
-		DSI_MIPI_clk_change(DISP_MODULE_DSI0, 1030);
+		def_data_rate = data_rate;//1030;
+		DSI_MIPI_clk_change(DISP_MODULE_DSI0, data_rate);
 	} else {
-		struct LCM_DSI_PARAMS *dsi_params = &_dsi_context[0].dsi_params;
-		unsigned int data_rate = dsi_params->data_rate != 0 ?
-					dsi_params->data_rate :
-					dsi_params->PLL_CLOCK * 2;
 		def_data_rate = data_rate;
 
 		DSI_MIPI_clk_change(DISP_MODULE_DSI0, data_rate);

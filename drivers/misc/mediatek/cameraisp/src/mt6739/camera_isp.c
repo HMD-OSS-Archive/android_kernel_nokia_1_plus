@@ -58,10 +58,8 @@
 #endif
 
 /*      */
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 #include <linux/pm_wakeup.h>
-#else
-#include <linux/wakelock.h>
 #endif
 
 /* #define ISP_DEBUG */
@@ -219,10 +217,8 @@ struct ISP_CLK_STRUCT isp_clk;
 static unsigned long gISPSYS_Irq[ISP_CAM_IRQ_IDX_NUM];
 static unsigned long gISPSYS_Reg[ISP_CAM_BASEADDR_NUM];
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 struct wakeup_source isp_wake_lock;
-#else
-struct wake_lock isp_wake_lock;
 #endif
 
 static int g_bWaitLock;
@@ -737,11 +733,11 @@ static unsigned int g_log_def_constraint;
 				       ISP_IRQ_CAMSV2_STATUS_TG_SOF1_ST | \
 				       ISP_IRQ_CAMSV2_STATUS_PASS1_DON_ST)
 
-static signed int gEismetaRIdx;
-static signed int gEismetaWIdx;
+static unsigned int gEismetaRIdx;
+static unsigned int gEismetaWIdx;
 static signed int gEismetaInSOF;
-static signed int gEismetaRIdx_D;
-static signed int gEismetaWIdx_D;
+static unsigned int gEismetaRIdx_D;
+static unsigned int gEismetaWIdx_D;
 static signed int gEismetaInSOF_D;
 #define EISMETA_RINGSIZE 4
 
@@ -1063,10 +1059,13 @@ static unsigned int g_DmaErr_p1[nDMA_ERR] = { 0 };
 	}
 #if     1
 /* snprintf: avaLen, 1 for null termination*/
-#define IRQ_LOG_KEEPER(irq,     ppb, logT, fmt, ...) do {\
+#define IRQ_LOG_KEEPER(irq_in, ppb_in, logT_in, fmt, ...) do {\
 		char *ptr;\
 		char *pDes;\
 		signed int avaLen;\
+		unsigned int irq = irq_in;\
+		unsigned int ppb = ppb_in;\
+		unsigned int logT = logT_in;\
 		unsigned int *ptr2 = &gSvLog[irq]._cnt[ppb][logT];\
 		unsigned int str_leng;\
 		if (logT == _LOG_ERR) {\
@@ -1081,7 +1080,9 @@ static unsigned int g_DmaErr_p1[nDMA_ERR] = { 0 };
 		ptr     = pDes = (char *)&(gSvLog[irq]._str[ppb][logT][gSvLog[irq]._cnt[ppb][logT]]);   \
 		avaLen = str_leng - 1 - gSvLog[irq]._cnt[ppb][logT];\
 		if (avaLen > 1) {\
-			snprintf((char *)(pDes), avaLen, fmt, ##__VA_ARGS__);  \
+			if (snprintf((char *)(pDes), avaLen, fmt, ##__VA_ARGS__) < 0) { \
+				LOG_DBG("[Error] snprintf failed");\
+			} \
 			if ('\0' !=     gSvLog[irq]._str[ppb][logT][str_leng - 1]) { \
 				LOG_INF("(%d)(%d)log str over flow", irq, logT);\
 			} \
@@ -1093,10 +1094,13 @@ static unsigned int g_DmaErr_p1[nDMA_ERR] = { 0 };
 		} \
 	} while (0)
 /*for keep IRQ err log*/
-#define IRQ_LOG_KEEPER_PR_ERR(irq,     ppb, logT, fmt, ...) do {\
+#define IRQ_LOG_KEEPER_PR_ERR(irq_in, ppb_in, logT_in, fmt, ...) do {\
 		char *ptr;\
 		char *pDes;\
 		signed int avaLen;\
+		unsigned int irq = irq_in;\
+		unsigned int ppb = ppb_in;\
+		unsigned int logT = logT_in;\
 		unsigned int *ptr2 = &gSvLog[irq]._cnt[ppb][logT];\
 		unsigned int str_leng;\
 		if (logT == _LOG_ERR) {\
@@ -1107,7 +1111,9 @@ static unsigned int g_DmaErr_p1[nDMA_ERR] = { 0 };
 		ptr     = pDes = (char *)&(gSvLog[irq]._str[ppb][logT][gSvLog[irq]._cnt[ppb][logT]]);   \
 		avaLen = str_leng - 1 - gSvLog[irq]._cnt[ppb][logT];\
 		if (avaLen > 1) {\
-			snprintf((char *)(pDes), avaLen, fmt, ##__VA_ARGS__);  \
+			if (snprintf((char *)(pDes), avaLen, fmt, ##__VA_ARGS__) < 0) {\
+				LOG_DBG("[Error] snprintf failed"); \
+			} \
 			if ('\0' !=     gSvLog[irq]._str[ppb][logT][str_leng - 1]) { \
 				LOG_PR_ERR("(%d)(%d)log str over flow", irq, logT);\
 			} \
@@ -1128,8 +1134,8 @@ static unsigned int g_DmaErr_p1[nDMA_ERR] = { 0 };
 		struct SV_LOG_STR *pSrc = &gSvLog[irq];\
 		char *ptr;\
 		unsigned int i;\
-		signed int ppb = 0;\
-		signed int logT     = 0;\
+		unsigned int ppb = 0;\
+		unsigned int logT = 0;\
 		if (ppb_in > 1) {\
 			ppb     = 1;\
 		} else{\
@@ -1187,8 +1193,8 @@ static unsigned int g_DmaErr_p1[nDMA_ERR] = { 0 };
 		struct SV_LOG_STR *pSrc = &gSvLog[irq];\
 		char *ptr;\
 		unsigned int i;\
-		signed int ppb = 0;\
-		signed int logT     = 0;\
+		unsigned int ppb = 0;\
+		unsigned int logT = 0;\
 		if (ppb_in > 1) {\
 			ppb     = 1;\
 		} else{\
@@ -4375,7 +4381,7 @@ static unsigned char dma_en_recorder[_rt_dma_max_][ISP_RT_BUF_SIZE] = { {0} };
 static signed int ISP_RTBC_ENQUE(signed int dma, struct ISP_RT_BUF_INFO_STRUCT *prt_buf_info)
 {
 	signed int Ret = 0;
-	signed int rt_dma = dma;
+	unsigned int rt_dma = dma;
 	unsigned int buffer_exist = 0;
 	unsigned int i = 0;
 	unsigned int index = 0;
@@ -4549,7 +4555,7 @@ static void ISP_FBC_DUMP(unsigned int dma_id, unsigned int VF_1, unsigned int VF
 	unsigned int z;
 	char str[128];
 	signed int strLeng = sizeof(str) - 1;
-	char str2[_rt_dma_max_];
+	char str2[_rt_dma_max_] = {'\0'};
 	unsigned int dma;
 
 	LOG_INF("================================\n");
@@ -4558,7 +4564,10 @@ static void ISP_FBC_DUMP(unsigned int dma_id, unsigned int VF_1, unsigned int VF
 	str[0] = '\0';
 	LOG_INF("current activated dmaport");
 	for (z = 0; z < _rt_dma_max_; z++) {
-		sprintf(str2, "%d_", pstRTBuf->ring_buf[z].active);
+		if (snprintf(str2, sizeof(str2), "%d_",
+			     pstRTBuf->ring_buf[z].active) < 0) {
+			LOG_DBG("[Error] snprintf failed");
+		}
 		strncat(str, str2, strLeng - strlen(str));
 	}
 	LOG_INF("%s", str);
@@ -4569,7 +4578,10 @@ static void ISP_FBC_DUMP(unsigned int dma_id, unsigned int VF_1, unsigned int VF
 		str[0] = '\0';
 		LOG_INF("current fillled buffer(%d):\n", pstRTBuf->ring_buf[dma].total_count);
 		for (z = 0; z < ISP_RT_BUF_SIZE; z++) {
-			sprintf(str2, "%d_", pstRTBuf->ring_buf[dma].data[z].bFilled);
+			if (snprintf(str2, sizeof(str2), "%d_",
+				pstRTBuf->ring_buf[dma].data[z].bFilled) < 0) {
+				LOG_DBG("[Error] snprintf failed");
+			}
 			strncat(str, str2, strLeng - strlen(str));
 		}
 		LOG_INF("%s", str);
@@ -4581,7 +4593,10 @@ static void ISP_FBC_DUMP(unsigned int dma_id, unsigned int VF_1, unsigned int VF
 		LOG_INF("RCNT_RECORD:cur dma_en_recorder\n");
 		str[0] = '\0';
 		for (z = 0; z < ISP_RT_BUF_SIZE; z++) {
-			sprintf(str2, "%d_", dma_en_recorder[dma][z]);
+			if (snprintf(str2, sizeof(str2), "%d_",
+				     dma_en_recorder[dma][z]) < 0) {
+				LOG_DBG("[Error] snprintf failed");
+			}
 			strncat(str, str2, strLeng - strlen(str));
 		}
 		LOG_INF("%s", str);
@@ -4589,7 +4604,10 @@ static void ISP_FBC_DUMP(unsigned int dma_id, unsigned int VF_1, unsigned int VF
 		LOG_INF("RCNT_RECORD:inc record\n");
 		str[0] = '\0';
 		for (z = 0; z < ISP_RT_BUF_SIZE; z++) {
-			sprintf(str2, "%d_", mFwRcnt.INC[_IRQ][z]);
+			if (snprintf(str2, sizeof(str2), "%d_",
+				     mFwRcnt.INC[_IRQ][z]) < 0) {
+				LOG_DBG("[Error] snprintf failed");
+			}
 			strncat(str, str2, strLeng - strlen(str));
 		}
 		LOG_INF("%s", str);
@@ -4603,7 +4621,10 @@ static void ISP_FBC_DUMP(unsigned int dma_id, unsigned int VF_1, unsigned int VF
 		str[0] = '\0';
 		LOG_INF("current fillled buffer(%d):\n", pstRTBuf->ring_buf[dma].total_count);
 		for (z = 0; z < ISP_RT_BUF_SIZE; z++) {
-			sprintf(str2, "%d_", pstRTBuf->ring_buf[dma].data[z].bFilled);
+			if (snprintf(str2, sizeof(str2), "%d_",
+				pstRTBuf->ring_buf[dma].data[z].bFilled) < 0) {
+				LOG_DBG("[Error] snprintf failed");
+			}
 			strncat(str, str2, strLeng - strlen(str));
 		}
 		LOG_INF("%s", str);
@@ -4615,7 +4636,10 @@ static void ISP_FBC_DUMP(unsigned int dma_id, unsigned int VF_1, unsigned int VF
 		LOG_INF("RCNT_RECORD:cur dma_en_recorder\n");
 		str[0] = '\0';
 		for (z = 0; z < ISP_RT_BUF_SIZE; z++) {
-			sprintf(str2, "%d_", dma_en_recorder[dma][z]);
+			if (snprintf(str2, sizeof(str2), "%d_",
+				     dma_en_recorder[dma][z]) < 0) {
+				LOG_DBG("[Error] snprintf failed");
+			}
 			strncat(str, str2, strLeng - strlen(str));
 		}
 		LOG_INF("%s", str);
@@ -4623,7 +4647,10 @@ static void ISP_FBC_DUMP(unsigned int dma_id, unsigned int VF_1, unsigned int VF
 		LOG_INF("RCNT_RECORD:inc record\n");
 		str[0] = '\0';
 		for (z = 0; z < ISP_RT_BUF_SIZE; z++) {
-			sprintf(str2, "%d_", mFwRcnt.INC[_IRQ][z]);
+			if (snprintf(str2, sizeof(str2), "%d_",
+				     mFwRcnt.INC[_IRQ][z]) < 0) {
+				LOG_DBG("[Error] snprintf failed");
+			}
 			strncat(str, str2, strLeng - strlen(str));
 		}
 		LOG_INF("%s", str);
@@ -4640,7 +4667,10 @@ static void ISP_FBC_DUMP(unsigned int dma_id, unsigned int VF_1, unsigned int VF
 		str[0] = '\0';
 		LOG_INF("current fillled buffer(%d):\n", pstRTBuf->ring_buf[dma].total_count);
 		for (z = 0; z < ISP_RT_BUF_SIZE; z++) {
-			sprintf(str2, "%d_", pstRTBuf->ring_buf[dma].data[z].bFilled);
+			if (snprintf(str2, sizeof(str2), "%d_",
+				pstRTBuf->ring_buf[dma].data[z].bFilled) < 0) {
+				LOG_DBG("[Error] snprintf failed");
+			}
 			strncat(str, str2, strLeng - strlen(str));
 		}
 		LOG_INF("%s", str);
@@ -4652,7 +4682,10 @@ static void ISP_FBC_DUMP(unsigned int dma_id, unsigned int VF_1, unsigned int VF
 		LOG_INF("RCNT_RECORD:cur dma_en_recorder\n");
 		str[0] = '\0';
 		for (z = 0; z < ISP_RT_BUF_SIZE; z++) {
-			sprintf(str2, "%d_", dma_en_recorder[dma][z]);
+			if (snprintf(str2, sizeof(str2), "%d_",
+				     dma_en_recorder[dma][z]) < 0) {
+				LOG_DBG("[Error] snprintf failed");
+			}
 			strncat(str, str2, strLeng - strlen(str));
 		}
 		LOG_INF("%s", str);
@@ -4660,7 +4693,10 @@ static void ISP_FBC_DUMP(unsigned int dma_id, unsigned int VF_1, unsigned int VF
 		LOG_INF("RCNT_RECORD:inc record\n");
 		str[0] = '\0';
 		for (z = 0; z < ISP_RT_BUF_SIZE; z++) {
-			sprintf(str2, "%d_", mFwRcnt.INC[_IRQ_D][z]);
+			if (snprintf(str2, sizeof(str2), "%d_",
+				     mFwRcnt.INC[_IRQ_D][z]) < 0) {
+				LOG_DBG("[Error] snprintf failed");
+			}
 			strncat(str, str2, strLeng - strlen(str));
 		}
 		LOG_INF("%s", str);
@@ -4674,7 +4710,10 @@ static void ISP_FBC_DUMP(unsigned int dma_id, unsigned int VF_1, unsigned int VF
 		str[0] = '\0';
 		LOG_INF("current fillled buffer(%d):\n", pstRTBuf->ring_buf[dma].total_count);
 		for (z = 0; z < ISP_RT_BUF_SIZE; z++) {
-			sprintf(str2, "%d_", pstRTBuf->ring_buf[dma].data[z].bFilled);
+			if (snprintf(str2, sizeof(str2), "%d_",
+				pstRTBuf->ring_buf[dma].data[z].bFilled) < 0) {
+				LOG_DBG("[Error] snprintf failed");
+			}
 			strncat(str, str2, strLeng - strlen(str));
 		}
 		LOG_INF("%s", str);
@@ -4686,7 +4725,10 @@ static void ISP_FBC_DUMP(unsigned int dma_id, unsigned int VF_1, unsigned int VF
 		LOG_INF("RCNT_RECORD:cur dma_en_recorder\n");
 		str[0] = '\0';
 		for (z = 0; z < ISP_RT_BUF_SIZE; z++) {
-			sprintf(str2, "%d_", dma_en_recorder[dma][z]);
+			if (snprintf(str2, sizeof(str2), "%d_",
+				     dma_en_recorder[dma][z]) < 0) {
+				LOG_DBG("[Error] snprintf failed");
+			}
 			strncat(str, str2, strLeng - strlen(str));
 		}
 		LOG_INF("%s", str);
@@ -4694,7 +4736,10 @@ static void ISP_FBC_DUMP(unsigned int dma_id, unsigned int VF_1, unsigned int VF
 		LOG_INF("RCNT_RECORD:inc record\n");
 		str[0] = '\0';
 		for (z = 0; z < ISP_RT_BUF_SIZE; z++) {
-			sprintf(str2, "%d_", mFwRcnt.INC[_IRQ_D][z]);
+			if (snprintf(str2, sizeof(str2), "%d_",
+				     mFwRcnt.INC[_IRQ_D][z]) < 0) {
+				LOG_DBG("[Error] snprintf failed");
+			}
 			strncat(str, str2, strLeng - strlen(str));
 		}
 		LOG_INF("%s", str);
@@ -4713,7 +4758,10 @@ static void ISP_FBC_DUMP(unsigned int dma_id, unsigned int VF_1, unsigned int VF
 			LOG_INF("current fillled buffer(%d):\n",
 				pstRTBuf->ring_buf[dma].total_count);
 			for (z = 0; z < ISP_RT_BUF_SIZE; z++) {
-				sprintf(str2, "%d_", pstRTBuf->ring_buf[dma].data[z].bFilled);
+				if (snprintf(str2, sizeof(str2), "%d_",
+					pstRTBuf->ring_buf[dma].data[z].bFilled) < 0) {
+					LOG_DBG("[Error] snprintf failed");
+				}
 				strncat(str, str2, strLeng - strlen(str));
 			}
 			LOG_INF("%s", str);
@@ -4725,7 +4773,10 @@ static void ISP_FBC_DUMP(unsigned int dma_id, unsigned int VF_1, unsigned int VF
 			LOG_INF("RCNT_RECORD:cur dma_en_recorder\n");
 			str[0] = '\0';
 			for (z = 0; z < ISP_RT_BUF_SIZE; z++) {
-				sprintf(str2, "%d_", dma_en_recorder[dma][z]);
+				if (snprintf(str2, sizeof(str2), "%d_",
+					     dma_en_recorder[dma][z]) < 0) {
+					LOG_DBG("[Error] snprintf failed");
+				}
 				strncat(str, str2, strLeng - strlen(str));
 				LOG_INF("magic queue=0x%x", g_magQue[_camsv_1][z]);
 			}
@@ -4734,7 +4785,10 @@ static void ISP_FBC_DUMP(unsigned int dma_id, unsigned int VF_1, unsigned int VF
 			LOG_INF("RCNT_RECORD:inc record\n");
 			str[0] = '\0';
 			for (z = 0; z < ISP_RT_BUF_SIZE; z++) {
-				sprintf(str2, "%d_", mFwRcnt.INC[_CAMSV_IRQ][z]);
+				if (snprintf(str2, sizeof(str2), "%d_",
+					     mFwRcnt.INC[_CAMSV_IRQ][z]) < 0) {
+					LOG_DBG("[Error] snprintf failed");
+				}
 				strncat(str, str2, strLeng - strlen(str));
 			}
 			LOG_INF("%s", str);
@@ -4752,7 +4806,10 @@ static void ISP_FBC_DUMP(unsigned int dma_id, unsigned int VF_1, unsigned int VF
 		str[0] = '\0';
 		LOG_INF("current fillled buffer(%d):\n", pstRTBuf->ring_buf[dma].total_count);
 		for (z = 0; z < ISP_RT_BUF_SIZE; z++) {
-			sprintf(str2, "%d_", pstRTBuf->ring_buf[dma].data[z].bFilled);
+			if (snprintf(str2, sizeof(str2), "%d_",
+				pstRTBuf->ring_buf[dma].data[z].bFilled) < 0) {
+				LOG_DBG("[Error] snprintf failed");
+			}
 			strncat(str, str2, strLeng - strlen(str));
 		}
 		LOG_INF("%s", str);
@@ -4764,7 +4821,10 @@ static void ISP_FBC_DUMP(unsigned int dma_id, unsigned int VF_1, unsigned int VF
 		LOG_INF("RCNT_RECORD:cur dma_en_recorder\n");
 		str[0] = '\0';
 		for (z = 0; z < ISP_RT_BUF_SIZE; z++) {
-			sprintf(str2, "%d_", dma_en_recorder[dma][z]);
+			if (snprintf(str2, sizeof(str2), "%d_",
+				     dma_en_recorder[dma][z]) < 0) {
+				LOG_DBG("[Error] snprintf failed");
+			}
 			strncat(str, str2, strLeng - strlen(str));
 			LOG_INF("magic queue=0x%x", g_magQue[_camsv_2][z]);
 		}
@@ -4773,7 +4833,10 @@ static void ISP_FBC_DUMP(unsigned int dma_id, unsigned int VF_1, unsigned int VF
 		LOG_INF("RCNT_RECORD:inc record\n");
 		str[0] = '\0';
 		for (z = 0; z < ISP_RT_BUF_SIZE; z++) {
-			sprintf(str2, "%d_", mFwRcnt.INC[_CAMSV_D_IRQ][z]);
+			if (snprintf(str2, sizeof(str2), "%d_",
+				     mFwRcnt.INC[_CAMSV_D_IRQ][z]) < 0) {
+				LOG_DBG("[Error] snprintf failed");
+			}
 			strncat(str, str2, strLeng - strlen(str));
 		}
 		LOG_INF("%s", str);
@@ -4788,7 +4851,7 @@ static void ISP_FBC_DUMP(unsigned int dma_id, unsigned int VF_1, unsigned int VF
 static signed int ISP_RTBC_DEQUE(signed int dma, struct ISP_DEQUE_BUF_INFO_STRUCT *pdeque_buf)
 {
 	signed int Ret = 0;
-	signed int rt_dma = dma;
+	unsigned int rt_dma = dma;
 	unsigned int i = 0;
 	unsigned int index = 0, out = 0;
 
@@ -4896,7 +4959,7 @@ static unsigned int m_LastMNum[_rt_dma_max_] = { 0 };        /* imgo/rrzo */
 static long ISP_Buf_CTRL_FUNC(unsigned long Param)
 {
 	signed int Ret = 0;
-	signed int rt_dma;
+	unsigned int rt_dma;
 	unsigned int reg_val = 0;
 	unsigned int reg_val2 = 0;
 	unsigned int camsv_reg_cal[2] = { 0, 0 };
@@ -6974,7 +7037,7 @@ static signed int ISP_DONE_Buf_Time(enum eISPIrq irqT, union CQ_RTBC_FBC *pFbc, 
 				unsigned long usec)
 {
 	int i, k, m;
-	int i_dma;
+	unsigned int i_dma;
 	unsigned int curr;
 	/* unsigned     int     reg_fbc; */
 	/* unsigned int reg_val = 0; */
@@ -7921,6 +7984,9 @@ static signed int ISP_REGISTER_IRQ_USERKEY(char *userName)
 					memset((void *)IrqUserKey_UserInfo[i].userName, 0, USERKEY_STR_LEN);
 					strncpy((char *)IrqUserKey_UserInfo[i].userName, m_UserName,
 					USERKEY_STR_LEN - 1);
+					IrqUserKey_UserInfo[i].userName
+						[sizeof(IrqUserKey_UserInfo[i]
+						.userName)-1] = '\0';
 					IrqUserKey_UserInfo[i].userKey = FirstUnusedIrqUserKey;
 					key = FirstUnusedIrqUserKey;
 					FirstUnusedIrqUserKey++;
@@ -8012,6 +8078,12 @@ static signed int ISP_MARK_IRQ(struct ISP_WAIT_IRQ_STRUCT irqinfo)
 	usec = do_div(sec, 1000000);    /* sec and usec */
 
 	spin_lock_irqsave(&(IspInfo.SpinLockIrq[eIrq]), flags);
+	if ((irqinfo.UserInfo.UserKey < 0) || (irqinfo.UserInfo.UserKey >= IRQ_USER_NUM_MAX) ||
+		(irqinfo.UserInfo.Type < 0) || (irqinfo.UserInfo.Type >= ISP_IRQ_TYPE_AMOUNT) ||
+		(idx < 0) || (idx >= 32)) {
+		LOG_DBG("Error: Invalid Index");
+		return 0;
+	}
 	IspInfo.IrqInfo.MarkedTime_usec[irqinfo.UserInfo.UserKey][irqinfo.UserInfo.Type][idx] =
 		(unsigned int)usec;
 	IspInfo.IrqInfo.MarkedTime_sec[irqinfo.UserInfo.UserKey][irqinfo.UserInfo.Type][idx] =
@@ -8043,7 +8115,7 @@ static signed int ISP_GET_MARKtoQEURY_TIME(struct ISP_WAIT_IRQ_STRUCT *irqinfo)
 
 	unsigned long long sec = 0;
 	unsigned long usec = 0;
-	int idx;
+	unsigned int idx;
 
 	enum eISPIrq eIrq = _IRQ;
 
@@ -8469,7 +8541,7 @@ static signed int ISP_WaitIrq_v3(struct ISP_WAIT_IRQ_STRUCT *WaitIrq)
 	unsigned long flags; /* old: unsigned int flags;*//* FIX to avoid build warning */
 	enum eISPIrq eIrq = _IRQ;
 	/*      int cnt = 0;*/
-	int idx = my_get_pow_idx(WaitIrq->UserInfo.Status);
+	unsigned int idx = my_get_pow_idx(WaitIrq->UserInfo.Status);
 	struct timeval time_getrequest;
 	struct timeval time_ready2return;
 	bool freeze_passbysigcnt = false;
@@ -10138,20 +10210,16 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 		} else {
 			if (wakelock_ctrl == 1) {       /* Enable     wakelock */
 				if (g_bWaitLock == 0) {
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 					__pm_stay_awake(&isp_wake_lock);
-#else
-					wake_lock(&isp_wake_lock);
 #endif
 					g_bWaitLock = 1;
 					LOG_DBG("wakelock enable!!\n");
 				}
 			} else {        /* Disable wakelock */
 				if (g_bWaitLock == 1) {
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 					__pm_relax(&isp_wake_lock);
-#else
-					wake_unlock(&isp_wake_lock);
 #endif
 					g_bWaitLock = 0;
 					LOG_DBG("wakelock disable!!\n");
@@ -11613,10 +11681,8 @@ static signed int ISP_release(struct inode *pInode, struct file *pFile)
 	/* The driver must releae the wakelock, otherwise the system will not enter     */
 	/* the power-saving mode */
 	if (g_bWaitLock == 1) {
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 		__pm_relax(&isp_wake_lock);
-#else
-		wake_unlock(&isp_wake_lock);
 #endif
 		g_bWaitLock = 0;
 	}
@@ -11709,7 +11775,7 @@ static signed int mmap_kmem(struct file *filp, struct vm_area_struct *vma)
 static signed int ISP_mmap(struct file *pFile, struct vm_area_struct *pVma)
 {
 	unsigned long length = 0;
-	unsigned int pfn = 0x0;
+	unsigned long pfn = 0x0;
 
 	LOG_DBG("- E.");
 	length = (pVma->vm_end - pVma->vm_start);
@@ -12032,10 +12098,8 @@ static signed int ISP_probe(struct platform_device *pDev)
 	init_waitqueue_head(&IspInfo.WaitQueueHead);
 	tasklet_init(&isp_tasklet, ISP_TaskletFunc, 0);
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 	wakeup_source_init(&isp_wake_lock, "isp_lock_wakelock");
-#else
-	wake_lock_init(&isp_wake_lock, WAKE_LOCK_SUSPEND, "isp_lock_wakelock");
 #endif
 
 	/*      */
@@ -12733,7 +12797,7 @@ int32_t ISP_BeginGCECallback(uint32_t taskID, uint32_t *regCount, uint32_t **reg
 {
 	LOG_DBG("+,taskID(%d)", taskID);
 
-	*regCount = sizeof(addressToDump) / sizeof(uint32_t);
+	*regCount = ARRAY_SIZE(addressToDump);
 	*regAddress = (uint32_t *) addressToDump;
 
 	LOG_DBG("-,*regCount(%d)", *regCount);

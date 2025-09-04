@@ -1,22 +1,19 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (C) 2011-2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify it under
- * the terms of the GNU General Public License version 2 as published by the
- * Free Software Foundation.
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- * See the GNU General Public License for more details.
- * You should have received a copy of the GNU General Public License
- * along with this program.
- * If not, see <http://www.gnu.org/licenses/>.
+ * Copyright (c) 2020 MediaTek Inc.
  */
 
 #include <linux/io.h>
-#include "adsp_helper.h"
 #include "adsp_bus_monitor.h"
+#include "adsp_helper.h"
+#include "adsp_core.h"
+#include "adsp_platform_driver.h"
+
+#ifdef ADSP_BASE
+#undef ADSP_BASE
+#endif
+#define ADSP_BASE                  mt_base
+#define ADSP_BUS_MON_BACKUP_BASE   mt_bus_backup_base
 
 /**
  * TIMEOUT_VALUE = value * unit(15 cycle count) / clk_src
@@ -31,14 +28,25 @@
 #define ADSP_BUS_MON_BACKUP_SIZE        (sizeof(u32) + \
 					 2 * sizeof(struct bus_monitor_cblk))
 
-int adsp_bus_monitor_init(void)
+static void __iomem *mt_base;
+static void __iomem *mt_bus_backup_base;
+
+int adsp_bus_monitor_init(struct adsp_priv *pdata)
 {
+	if (unlikely(!pdata))
+		return -EINVAL;
+	mt_base = pdata->cfg;
+	mt_bus_backup_base = adsp_get_sharedmem_base(pdata,
+			     ADSP_SHAREDMEM_BUS_MON_DUMP);
+
 	/* Clear bus monitor register backup in DTCM */
 	memset_io((void *)ADSP_BUS_MON_BACKUP_BASE, 0,
 		  (size_t)ADSP_BUS_MON_BACKUP_SIZE);
 
 	/* initialize bus monitor */
 	writel(0xacce55, ADSP_BUS_DBG_EN_LOCK);
+	writel(0x00011080, ADSP_BUS_DBG_CON); /* reset bus tracker */
+
 	writel(BUS_MON_STAGE1_TIMEOUT_VALUE, ADSP_BUS_DBG_TIMER_CON0);
 	writel(BUS_MON_STAGE2_TIMEOUT_VALUE, ADSP_BUS_DBG_TIMER_CON1);
 	writel(0x0, ADSP_BUS_DBG_WP);

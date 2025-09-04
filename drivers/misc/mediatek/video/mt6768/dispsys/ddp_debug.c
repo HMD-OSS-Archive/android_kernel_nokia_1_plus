@@ -15,7 +15,14 @@
 
 #include <linux/string.h>
 #include <linux/uaccess.h>
+
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 #include <linux/debugfs.h>
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+#include <linux/proc_fs.h>
+#endif
 /* #include "mt-plat/aee.h" */
 #include "disp_assert_layer.h"
 #include <linux/dma-mapping.h>
@@ -52,16 +59,27 @@
 #include "disp_recovery.h"
 #include "disp_cust.h"
 
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 static struct dentry *debugfs;
 static struct dentry *debugDir;
 
-
 static struct dentry *debugfs_dump;
+static int debug_init;
+#endif
+
+#if IS_ENABLED(CONFIG_PROC_FS)
+//file: /proc/dispsys
+static struct proc_dir_entry *dispsys_procfs;
+//dir: /proc/disp/
+static struct proc_dir_entry *disp_dir_procfs;
+//file: /proc/disp/dump
+static struct proc_dir_entry *disp_dump_procfs;
+//file: /proc/disp/lowpowermode
+static struct proc_dir_entry *disp_lpmode_procfs;
+static int debug_procfs_init;
+#endif
 
 static const long int DEFAULT_LOG_FPS_WND_SIZE = 30;
-static int debug_init;
-
-
 unsigned char pq_debug_flag;
 unsigned char aal_debug_flag;
 
@@ -339,7 +357,7 @@ static void process_dbg_opt(const char *opt)
 			met_on, rdma0_mode,	rdma1_mode);
 	} else if (strncmp(opt, "backlight:", 10) == 0) {
 		char *p = (char *)opt + 10;
-		unsigned int level;
+		unsigned int level = 0;
 
 		ret = kstrtouint(p, 0, &level);
 		if (ret) {
@@ -391,7 +409,7 @@ static void process_dbg_opt(const char *opt)
 	} else if (strncmp(opt, "pwm0:", 5) == 0 ||
 			strncmp(opt, "pwm1:", 5) == 0) {
 		char *p = (char *)opt + 5;
-		unsigned int level;
+		unsigned int level = 0;
 
 		ret = kstrtouint(p, 0, &level);
 		if (ret) {
@@ -449,7 +467,7 @@ static void process_dbg_opt(const char *opt)
 		sprintf(buf, "aal_dbg_en = 0x%x\n", aal_dbg_en);
 	} else if (strncmp(opt, "color_dbg:", 10) == 0) {
 		char *p = (char *)opt + 10;
-		unsigned int debug_level;
+		unsigned int debug_level = 0;
 
 		ret = kstrtouint(p, 0, &debug_level);
 		if (ret) {
@@ -482,7 +500,7 @@ static void process_dbg_opt(const char *opt)
 		/* od_test(opt + 8, buf); */
 	} else if (strncmp(opt, "dump_reg:", 9) == 0) {
 		char *p = (char *)opt + 9;
-		unsigned int module;
+		unsigned int module = 0;
 
 		ret = kstrtouint(p, 0, &module);
 		if (ret) {
@@ -492,6 +510,7 @@ static void process_dbg_opt(const char *opt)
 
 		DDPMSG("%s: module=%d\n", __func__, module);
 		if (module < DISP_MODULE_NUM) {
+			primary_display_idlemgr_kick(__func__, 1);
 			ddp_dump_reg(module);
 			sprintf(buf, "dump_reg: %d\n", module);
 		} else {
@@ -500,7 +519,7 @@ static void process_dbg_opt(const char *opt)
 		}
 	} else if (strncmp(opt, "dump_path:", 10) == 0) {
 		char *p = (char *)opt + 10;
-		unsigned int mutex_idx;
+		unsigned int mutex_idx = 0;
 
 		ret = kstrtouint(p, 0, &mutex_idx);
 		if (ret) {
@@ -562,7 +581,7 @@ static void process_dbg_opt(const char *opt)
 #endif
 	} else if (strncmp(opt, "low_power_mode:", 15) == 0) {
 		char *p = (char *)opt + 15;
-		unsigned int mode;
+		unsigned int mode = 0;
 
 		ret = kstrtouint(p, 0, &mode);
 		if (ret) {
@@ -809,6 +828,7 @@ static const struct file_operations debug_fops_dump = {
 
 void ddp_debug_init(void)
 {
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	struct dentry *d;
 
 	if (debug_init)
@@ -827,6 +847,53 @@ void ddp_debug_init(void)
 		S_IFREG | 0444, debugDir, NULL, &debug_fops_dump);
 	d = debugfs_create_file("lowpowermode", S_IFREG | 0444,
 		debugDir, NULL, &low_power_cust_fops);
+#endif
+#if IS_ENABLED(CONFIG_PROC_FS)
+	if (debug_procfs_init)
+		return;
+	debug_procfs_init = 1;
+
+	dispsys_procfs = proc_create("dispsys",
+				S_IFREG | 0444,
+				NULL,
+				&debug_fops);
+	if (!dispsys_procfs) {
+		pr_info("[%s %d]failed to create dispsys in /proc/\n",
+			__func__, __LINE__);
+		goto out;
+	}
+
+	disp_dir_procfs = proc_mkdir("disp", NULL);
+	if (!disp_dir_procfs) {
+		pr_info("[%s %d]failed to create dir disp in /proc/\n",
+			__func__, __LINE__);
+		goto out;
+	}
+
+	disp_dump_procfs = proc_create("dump",
+				S_IFREG | 0444,
+				disp_dir_procfs,
+				&debug_fops_dump);
+	if (!disp_dump_procfs) {
+		pr_info("[%s %d]failed to create dump in /proc/disp/\n",
+			__func__, __LINE__);
+		goto out;
+	}
+
+	disp_lpmode_procfs = proc_create("lowpowermode",
+				S_IFREG | 0444,
+				disp_dir_procfs,
+				&low_power_cust_fops);
+	if (!disp_lpmode_procfs) {
+		pr_info("[%s %d]failed to create lowpowermode in /proc/disp/\n",
+			__func__, __LINE__);
+		goto out;
+	}
+
+out:
+	return;
+
+#endif
 }
 
 unsigned int ddp_debug_analysis_to_buffer(void)
@@ -876,9 +943,22 @@ int ddp_debug_force_roi_h(void)
 
 void ddp_debug_exit(void)
 {
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 	debugfs_remove(debugfs);
 	debugfs_remove(debugfs_dump);
 	debug_init = 0;
+#endif
+#if IS_ENABLED(CONFIG_PROC_FS)
+	if (dispsys_procfs) {
+		proc_remove(dispsys_procfs);
+		dispsys_procfs = NULL;
+	}
+	if (disp_dir_procfs) {
+		proc_remove(disp_dir_procfs);
+		disp_dir_procfs = NULL;
+	}
+	debug_procfs_init = 0;
+#endif
 }
 
 int ddp_mem_test(void)

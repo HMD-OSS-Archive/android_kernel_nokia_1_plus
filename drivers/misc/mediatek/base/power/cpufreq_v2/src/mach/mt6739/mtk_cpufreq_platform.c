@@ -180,6 +180,9 @@ void prepare_pll_addr(enum mt_cpu_dvfs_pll_id pll_id)
 {
 	struct pll_ctrl_t *pll_p = id_to_pll_ctrl(pll_id);
 
+	if (pll_p == NULL)
+		return;
+
 	pll_p->armpll_addr = (unsigned int *)ARMPLL_LL_CON1;
 
 	pll_p->armpll_div_addr = (unsigned int *)CKDIV1_LL_CFG;
@@ -359,7 +362,7 @@ unsigned int get_cur_phy_freq(struct pll_ctrl_t *pll_p)
 
 	cur_khz = _cpu_freq_calc(con1, ckdiv1);
 
-	cpufreq_ver("@%s: (%s) = cur_khz = %u, con1[0x%p] = 0x%x, ckdiv1_val = 0x%x\n",
+	cpufreq_ver_dbg("@%s: (%s) = cur_khz = %u, con1[0x%p] = 0x%x, ckdiv1_val = 0x%x\n",
 		    __func__, pll_p->name, cur_khz, pll_p->armpll_addr, con1, ckdiv1);
 
 	return cur_khz;

@@ -283,8 +283,8 @@
 			alloc-ranges = <0 0x40000000 0 0x80000000>;
 		};
 
-		wifi-reserve-memory {
-			compatible = "mediatek,wifi-reserve-memory";
+		wifi_mem: wifi-reserve-memory {
+			compatible = "shared-dma-pool";
 			no-map;
 			size = <0 0x300000>;
 			alignment = <0 0x1000000>;
@@ -297,7 +297,7 @@
 			no-map;
 #if defined(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) || \
 	defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
-			size = <0 0x2000000>;
+			size = <0 0x800000>;
 			alignment = <0 0x1000000>;
 #else
 			size = <0 0x200000>;
@@ -666,9 +666,9 @@
 	};
 
 #if (CONFIG_MTK_ADDITIONAL_BATTERY_TABLE == 1)
-	#include "bat_setting/mt6765_battery_prop_ext.dtsi"
+	#include "mediatek/bat_setting/mt6765_battery_prop_ext.dtsi"
 #else
-	#include "bat_setting/mt6765_battery_prop.dtsi"
+	#include "mediatek/bat_setting/mt6765_battery_prop.dtsi"
 #endif
 
 	topmisc@10011000 {
@@ -1225,13 +1225,20 @@
 	};
 
 	gce_mbox: gce_mbox@10238000 {
-		compatible = "mediatek,mailbox-gce";
+		compatible = "mediatek,mt6765-gce";
 		reg = <0 0x10238000 0 0x4000>;
 		interrupts = <GIC_SPI 154 IRQ_TYPE_LEVEL_LOW>,
 			<GIC_SPI 155 IRQ_TYPE_LEVEL_LOW>;
 		#mbox-cells = <3>;
 		#gce-event-cells = <1>;
 		#gce-subsys-cells = <2>;
+		default_tokens = /bits/ 16 <CMDQ_SYNC_TOKEN_GPR_SET_0>,
+			/bits/ 16 <CMDQ_SYNC_TOKEN_GPR_SET_1>,
+			/bits/ 16 <CMDQ_SYNC_TOKEN_GPR_SET_2>,
+			/bits/ 16 <CMDQ_SYNC_TOKEN_GPR_SET_3>,
+			/bits/ 16 <CMDQ_SYNC_TOKEN_GPR_SET_4>,
+			/bits/ 16 <CMDQ_SYNC_RESOURCE_WROT0>,
+			/bits/ 16 <CMDQ_SYNC_RESOURCE_WROT1>;
 		clocks = <&infracfg_ao CLK_IFR_GCE>,
 			<&infracfg_ao CLK_IFR_GCE_26M>;
 		clock-names = "gce", "gce-timer";
@@ -1843,6 +1850,7 @@
 		compatible = "mediatek,wifi";
 		reg = <0 0x18000000 0 0x100000>;
 		interrupts = <GIC_SPI 268 IRQ_TYPE_LEVEL_LOW>;
+		memory-region = <&wifi_mem>;
 	};
 
 	disp_pwm@1100e000 {
@@ -2042,9 +2050,10 @@
 		    <0 0x18080000 0 0x10000>; /*SRAM_BANK2*/
 		interrupts = <GIC_SPI 266 IRQ_TYPE_LEVEL_LOW>;
 		mediatek,infracfg = <&infracfg_ao>;
-		mediatek,offset =<0xf00 0x800 0x140 0x144 0x148>;
 		/*INFRA MISC, conn_bt_cvsd_mask*/
 		/*cvsd_mcu_read, write, packet_indicator*/
+		mediatek,offset =<0xf00 0x800 0x140 0x144 0x148>;
+		disable_write_silence = <0>;
 	};
 
 	mipi_rx_ana_csi0a: mipi_rx_ana_csi0a@11c10000 {
@@ -2921,7 +2930,7 @@
 		compatible = "mediatek,memory-ssmr-features";
 		svp-size = <0 0x10000000>;
 		iris-recognition-size = <0 0x10000000>;
-		2d_fr-size = <0 0x8000000>;
+		2d_fr-size = <0 0>;
 		tui-size = <0 0x4000000>;
 		wfd-size = <0 0x4000000>;
 		prot-sharedmem-size = <0 0x8000000>;
@@ -3142,10 +3151,10 @@
 
 };
 
-#include "cust_mt6765_msdc.dtsi"
-#include "mt6357.dtsi"
-#include "mt6370.dtsi"
-#include "mt6370_pd.dtsi"
+#include "mediatek/cust_mt6765_msdc.dtsi"
+#include "mediatek/mt6357.dtsi"
+#include "mediatek/mt6370.dtsi"
+#include "mediatek/mt6370_pd.dtsi"
 #ifdef CONFIG_CHARGER_RT9471
-#include "rt9471.dtsi"
+#include "mediatek/rt9471.dtsi"
 #endif

@@ -34,7 +34,7 @@ $(KERNEL_ZIMAGE_OUT): $(TARGET_KERNEL_CONFIG) $(KERNEL_MAKE_DEPENDENCIES)
 	$(PREBUILT_MAKE_PREFIX)$(MAKE) -C $(PRIVATE_DIR) $(KERNEL_MAKE_OPTION)
 	$(hide) $(call fixup-kernel-cmd-file,$(KERNEL_OUT)/arch/$(KERNEL_TARGET_ARCH)/boot/compressed/.piggy.xzkern.cmd)
 	# check the kernel image size
-	python device/mediatek/build/build/tools/check_kernel_size.py $(KERNEL_OUT) $(KERNEL_DIR)
+	python device/mediatek/build/build/tools/check_kernel_size.py $(KERNEL_OUT) $(KERNEL_DIR) $(PROJECT_DTB_NAMES)
 
 ifeq ($(strip $(MTK_HEADER_SUPPORT)), yes)
 $(BUILT_KERNEL_TARGET): $(KERNEL_ZIMAGE_OUT) $(TARGET_KERNEL_CONFIG) $(LOCAL_PATH)/Android.mk | $(HOST_OUT_EXECUTABLES)/mkimage$(HOST_EXECUTABLE_SUFFIX)
@@ -71,26 +71,13 @@ clean-kernel:
 	$(hide) rm -rf $(KERNEL_OUT) $(KERNEL_MODULES_OUT) $(INSTALLED_KERNEL_TARGET)
 	$(hide) rm -f $(INSTALLED_DTB_OVERLAY_TARGET)
 
+### DTB build template
+MTK_DTBIMAGE_DTS := $(addsuffix .dts,$(addprefix $(KERNEL_DIR)/arch/$(KERNEL_TARGET_ARCH)/boot/dts/,$(PLATFORM_DTB_NAME)))
+include device/mediatek/build/core/build_dtbimage.mk
 
-.PHONY: check-kernel-config check-kernel-dotconfig check-mtk-config
-droid: check-kernel-config check-kernel-dotconfig
-check-mtk-config: check-kernel-config check-kernel-dotconfig
-check-kernel-config: PRIVATE_COMMAND := $(if $(wildcard device/mediatek/build/build/tools/check_kernel_config.py),$(if $(filter yes,$(DISABLE_MTK_CONFIG_CHECK)),-)python device/mediatek/build/build/tools/check_kernel_config.py -c $(MTK_TARGET_PROJECT_FOLDER)/ProjectConfig.mk -k $(KERNEL_CONFIG_FILE) -p $(MTK_PROJECT_NAME))
-check-kernel-config:
-	$(PRIVATE_COMMAND)
+MTK_DTBOIMAGE_DTS := $(addsuffix .dts,$(addprefix $(KERNEL_DIR)/arch/$(KERNEL_TARGET_ARCH)/boot/dts/,$(PROJECT_DTB_NAMES)))
+include device/mediatek/build/core/build_dtboimage.mk
 
-check-kernel-dotconfig: PRIVATE_COMMAND := $(if $(wildcard device/mediatek/build/build/tools/check_kernel_config.py),$(if $(filter yes,$(DISABLE_MTK_CONFIG_CHECK)),-)python device/mediatek/build/build/tools/check_kernel_config.py -c $(MTK_TARGET_PROJECT_FOLDER)/ProjectConfig.mk -k $(TARGET_KERNEL_CONFIG) -p $(MTK_PROJECT_NAME))
-check-kernel-dotconfig: $(TARGET_KERNEL_CONFIG)
-	$(PRIVATE_COMMAND)
-
-### DTB
-ifdef BOARD_PREBUILT_DTBIMAGE_DIR
-INSTALLED_MTK_DTB_TARGET := $(BOARD_PREBUILT_DTBIMAGE_DIR)/mtk_dtb
-$(shell if [ ! -f $(INSTALLED_MTK_DTB_TARGET) ]; then mkdir -p $(dir $(INSTALLED_MTK_DTB_TARGET)); touch $(INSTALLED_MTK_DTB_TARGET);fi)
-$(INSTALLED_MTK_DTB_TARGET): $(INSTALLED_KERNEL_TARGET)
-	@mkdir -p $(dir $@)
-	@cp -f $(KERNEL_DTB_FILE) $@
-endif
 
 endif#TARGET_NO_KERNEL
 endif#LINUX_KERNEL_VERSION

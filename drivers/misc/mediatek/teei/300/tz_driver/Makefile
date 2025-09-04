@@ -15,25 +15,13 @@
 ccflags-y += -I$(src) -I$(src)/include
 ccflags-y += -I$(srctree)
 teei-objs += teei_client_main.o
-teei-objs += global_function.o
 teei-objs += fdrv.o
-teei-objs += backward_driver.o irq_register.o notify_queue.o teei_capi.o teei_fp.o teei_smc_call.o tz_log.o switch_queue.o teei_keymaster.o teei_cancel_cmd.o teei_client_transfer_data.o
-teei-objs += sysfs.o
-
-ifeq ($(CONFIG_MICROTRUST_TUI_DRIVER),y)
-
-ccflags-y += -I$(srctree)/drivers/misc/mediatek/mach/$(MTK_PLATFORM)/$(ARCH_MTK_PROJECT)/touchpanel/GT9XX_hotknot/
-ccflags-y += -I$(srctree)/arch/arm/mach-$(MTK_PLATFORM)/$(ARCH_MTK_PROJECT)/touchpanel/GT9XX_hotknot/
-ccflags-y += -I$(srctree)/drivers/input/touchscreen/mediatek/GT9XX_hotknot/
-ccflags-y += -I$(srctree)/drivers/input/touchscreen/mediatek/
-
-teei-objs += utr_tui_cmd.o
-ccflags-y += -D TUI_SUPPORT
-
-endif
+teei-objs += backward_driver.o irq_register.o notify_queue.o teei_fp.o teei_smc_call.o tz_log.o switch_queue.o teei_keymaster.o teei_cancel_cmd.o teei_client_transfer_data.o
+teei-objs += sysfs.o teei_task_link.o
 
 obj-$(CONFIG_MICROTRUST_TZ_DRIVER) += teei.o
 
+ccflags-$(CONFIG_MTK_ENG_BUILD) += -DENABLED_TEEI_BOOT_LOG
 
 ccflags-y += -D DEBUG_DO
 ccflags-y += -Wno-error

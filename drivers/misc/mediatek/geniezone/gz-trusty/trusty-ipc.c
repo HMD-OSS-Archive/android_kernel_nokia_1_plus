@@ -510,7 +510,7 @@ struct tipc_chan *tipc_create_channel(struct device *dev,
 				      const struct tipc_chan_ops *ops,
 				      void *ops_arg)
 {
-	struct virtio_device *vd;
+	struct virtio_device *vd = NULL;
 	struct tipc_chan *chan;
 	struct tipc_virtio_dev *vds;
 	struct tipc_dn_chan *dn = ops_arg;
@@ -519,7 +519,8 @@ struct tipc_chan *tipc_create_channel(struct device *dev,
 	if (dev) {
 		vd = container_of(dev, struct virtio_device, dev);
 	} else {
-		vd = vdev_array[dn->tee_id];
+		if (is_tee_id(dn->tee_id))
+			vd = vdev_array[dn->tee_id];
 		if (!vd) {
 			mutex_unlock(&tipc_devices_lock);
 			return ERR_PTR(-ENOENT);
@@ -986,9 +987,11 @@ static long tipc_ioctl(struct file *filp,
 	if (_IOC_TYPE(cmd) != TIPC_IOC_MAGIC)
 		return -EINVAL;
 
+#if IS_ENABLED(CONFIG_COMPAT)
 	if (is_compat)
 		user_req = (char __user *)compat_ptr(arg);
 	else
+#endif
 		user_req = (char __user *)arg;
 
 	switch (cmd) {
@@ -1012,7 +1015,7 @@ static long tipc_ioctl_entry(struct file *filp,
 	return tipc_ioctl(filp, cmd, arg, false);
 }
 
-#if defined(CONFIG_COMPAT)
+#if IS_ENABLED(CONFIG_COMPAT)
 static long tipc_compat_ioctl_entry(struct file *filp,
 					unsigned int cmd, unsigned long arg)
 {
@@ -1175,7 +1178,7 @@ static const struct file_operations tipc_fops = {
 	.open = tipc_open,
 	.release = tipc_release,
 	.unlocked_ioctl = tipc_ioctl_entry,
-#if defined(CONFIG_COMPAT)
+#if IS_ENABLED(CONFIG_COMPAT)
 	.compat_ioctl = tipc_compat_ioctl_entry,
 #endif
 	.read_iter = tipc_read_iter,
@@ -1220,6 +1223,7 @@ int port_lookup_tid(const char *port, enum tee_id_t *o_tid)
 		 * just take the default.
 		 */
 		WARN(1, "[%s] Service name error %s\n", __func__, port);
+		kfree(str);
 		return -EINVAL;
 	}
 
@@ -1235,6 +1239,7 @@ int port_lookup_tid(const char *port, enum tee_id_t *o_tid)
 		}
 	}
 
+	kfree(str);
 	return 0;
 }
 EXPORT_SYMBOL(port_lookup_tid);
@@ -1255,12 +1260,15 @@ static struct tipc_virtio_dev *port_lookup_vds(const char *port)
 			__func__, tee_id, ret);
 	}
 
-	if (vdev_array[tee_id]) {
-		vds = vdev_array[tee_id]->priv;
-		kref_get(&vds->refcount);
-		return vds;
-	} else
-		return ERR_PTR(-ENODEV);
+	if (likely(is_tee_id(tee_id))) {
+		if (likely(vdev_array[tee_id])) {
+			vds = vdev_array[tee_id]->priv;
+			kref_get(&vds->refcount);
+			return vds;
+		}
+	}
+
+	return ERR_PTR(-ENODEV);
 }
 
 static int tipc_open_channel(struct tipc_dn_chan **o_dn, const char *port)
@@ -1527,9 +1535,11 @@ static void create_cdev_node(struct tipc_virtio_dev *vds,
 
 	mutex_lock(&tipc_devices_lock);
 
-	if (!vdev_array[vds->tee_id]) {
-		kref_get(&vds->refcount);
-		vdev_array[vds->tee_id] = vds->vdev;
+	if (is_tee_id(vds->tee_id)) {
+		if (!vdev_array[vds->tee_id]) {
+			kref_get(&vds->refcount);
+			vdev_array[vds->tee_id] = vds->vdev;
+		}
 	}
 
 	if (vds->cdev_name[0] && !cdn->dev) {
@@ -1557,9 +1567,11 @@ static void destroy_cdev_node(struct tipc_virtio_dev *vds,
 		kref_put(&vds->refcount, _free_vds);
 	}
 
-	if (vdev_array[vds->tee_id] == vds->vdev) {
-		vdev_array[vds->tee_id] = NULL;
-		kref_put(&vds->refcount, _free_vds);
+	if (is_tee_id(vds->tee_id)) {
+		if (vdev_array[vds->tee_id] == vds->vdev) {
+			vdev_array[vds->tee_id] = NULL;
+			kref_put(&vds->refcount, _free_vds);
+		}
 	}
 
 	mutex_unlock(&tipc_devices_lock);
@@ -1866,9 +1878,6 @@ static int tipc_virtio_probe(struct virtio_device *vdev)
 	INIT_LIST_HEAD(&vds->free_buf_list);
 	idr_init(&vds->addr_idr);
 
-	/* For multiple TEEs */
-	tee_routing_init();
-
 	/* set default max message size and alignment */
 	memset(&config, 0, sizeof(config));
 	config.msg_buf_max_size = DEFAULT_MSG_BUF_SIZE;
@@ -2001,7 +2010,6 @@ static int __init tipc_init(void)
 	int ret;
 	dev_t dev;
 
-
 	ret = alloc_chrdev_region(&dev, 0, MAX_DEVICES, KBUILD_MODNAME);
 	if (ret) {
 		pr_info("%s: alloc_chrdev_region failed: %d\n", __func__, ret);
@@ -2015,6 +2023,9 @@ static int __init tipc_init(void)
 		pr_info("%s: class_create failed: %d\n", __func__, ret);
 		goto err_class_create;
 	}
+
+	/* For multiple TEEs */
+	tee_routing_init();
 
 	ret = register_virtio_driver(&virtio_tipc_driver);
 	if (ret) {

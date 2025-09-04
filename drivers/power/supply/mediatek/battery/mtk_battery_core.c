@@ -930,7 +930,69 @@ static void fg_custom_parse_table(const struct device_node *np,
 	}
 }
 
+/* struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[21]; */
+static void fg_custom_part_ntc_table(const struct device_node *np,
+		struct FUELGAUGE_TEMPERATURE *profile_struct)
+{
+	struct FUELGAUGE_TEMPERATURE *p_fg_temp_table;
+	int bat_temp = 0, temperature_r = 0;
+	int saddles = 0, idx = 0, ret = 0, ret_a = 0;
+#if 0
+	int i;
+#endif
+	p_fg_temp_table = profile_struct;
 
+#if 0 /* dump */
+	bm_err("[before]Fg_Temperature_Table - bat_temp : temperature_r\n");
+	for (i = 0; i < 21; i++) {
+		bm_err("%d : %d %d\n", i, Fg_Temperature_Table[i].BatteryTemp,
+			Fg_Temperature_Table[i].TemperatureR);
+	}
+#endif
+
+	ret = fg_read_dts_val(np, "RBAT_TYPE", &(gm.rbat.type), 1);
+	ret_a = fg_read_dts_val(np, "RBAT_PULL_UP_R",
+			&(gm.rbat.rbat_pull_up_r), 1);
+	if ((ret == -1) || (ret_a == -1)) {
+		bm_err("Fail to get ntc type from dts.Keep default value\t");
+		bm_err("RBAT_TYPE=%d, RBAT_PULL_UP_R=%d\n",
+			gm.rbat.type, gm.rbat.rbat_pull_up_r);
+		return;
+	}
+	bm_err("From DTS. RBAT_TYPE = %d, RBAT_PULL_UP_R=%d\n",
+		gm.rbat.type, gm.rbat.rbat_pull_up_r);
+
+	fg_read_dts_val(np, "rbat_temperature_table_num", &saddles, 1);
+	bm_err("%s : rbat_temperature_table_num(%d)\n", __func__, saddles);
+
+	idx = 0;
+
+	while (1) {
+		ret = of_property_read_u32_index(np, "rbat_battery_temperature",
+							idx, &bat_temp);
+
+		idx++;
+		if (!of_property_read_u32_index(
+			np, "rbat_battery_temperature", idx, &temperature_r))
+			bm_debug("bat_temp = %d, temperature_r=%d\n",
+					bat_temp, temperature_r);
+
+		p_fg_temp_table->BatteryTemp = bat_temp;
+		p_fg_temp_table->TemperatureR = temperature_r;
+
+		p_fg_temp_table++;
+		if ((idx++) >= (saddles * 2))
+			break;
+	}
+
+#if 0 /* dump */
+	bm_err("[after]Fg_Temperature_Table - bat_temp : temperature_r\n");
+	for (i = 0; i < saddles; i++) {
+		bm_err("%d : %d %d\n", i, Fg_Temperature_Table[i].BatteryTemp,
+			Fg_Temperature_Table[i].TemperatureR);
+	}
+#endif
+}
 
 void fg_custom_init_from_dts(struct platform_device *dev)
 {
@@ -986,6 +1048,8 @@ void fg_custom_init_from_dts(struct platform_device *dev)
 		&(fg_cust_data.com_r_fg_value), UNIT_TRANS_10);
 	if (ret == -1)
 		fg_cust_data.com_r_fg_value = fg_cust_data.r_fg_value;
+
+	fg_custom_part_ntc_table(np, Fg_Temperature_Table);
 
 	fg_read_dts_val(np, "FULL_TRACKING_BAT_INT2_MULTIPLY",
 		&(fg_cust_data.full_tracking_bat_int2_multiply), 1);
@@ -2137,9 +2201,6 @@ void fg_bat_plugout_int_handler(void)
 		for (i = 0 ; i < 20 ; i++)
 			gauge_dev_dump(gm.gdev, NULL, 0);
 
-		/* TODO debug purpose, remove it!!!!!! */
-		aee_kernel_warning("GAUGE", "BAT_PLUGOUT error!\n");
-
 		if (gm.plug_miss_count >= 3) {
 			gauge_enable_interrupt(FG_BAT_PLUGOUT_NO, 0);
 			bm_err("[%s]disable FG_BAT_PLUGOUT\n",
@@ -2700,6 +2761,36 @@ void fg_daemon_comm_INT_data(char *rcv, char *ret)
 			gm.is_reset_aging_factor = 0;
 		}
 		break;
+	case FG_GET_SOC_DECIMAL_RATE:
+		{
+			int decimal_rate = gm.soc_decimal_rate;
+
+			memcpy(&pret->output,
+				&decimal_rate, sizeof(decimal_rate));
+			bm_debug("[FG_GET_SOC_DECIMAL_RATE]soc_decimal_rate:%d %d\n",
+				decimal_rate, gm.soc_decimal_rate);
+		}
+		break;
+	case FG_GET_DIFF_SOC_SET:
+		{
+			/* 1 = 0.01%, 50 = 0.5% */
+			int soc_setting = 1;
+
+			memcpy(&pret->output,
+				&soc_setting, sizeof(soc_setting));
+		}
+		break;
+	case FG_GET_IS_FORCE_FULL:
+		{
+			/* 1 = trust customer full condition */
+			/* 0 = using gauge ori full flow */
+			int force_full = gm.is_force_full;
+
+			memcpy(&pret->output,
+				&force_full, sizeof(force_full));
+		}
+		break;
+
 	case FG_SET_SOC:
 		{
 			gm.soc = (prcv->input + 50) / 100;
@@ -2779,6 +2870,16 @@ void fg_daemon_comm_INT_data(char *rcv, char *ret)
 
 			bm_err("set GAUGE_MONITOR_SOFF_VALIDTIME ori:%d, new:%d\n",
 				ori_value, prcv->input);
+		}
+		break;
+	case FG_SET_ZCV_INTR_EN:
+		{
+			int zcv_intr_en = prcv->input;
+
+			if (zcv_intr_en == 0 || zcv_intr_en == 1)
+				gauge_set_zcv_interrupt_en(zcv_intr_en);
+
+			bm_err("set zcv_interrupt_en %d\n", zcv_intr_en);
 		}
 		break;
 	default:
@@ -3092,6 +3193,7 @@ void bmd_ctrl_cmd_from_user(void *nl_data, struct fgd_nl_msg_t *ret_msg)
 		{
 			unsigned int ptim_bat_vol = 0;
 			signed int ptim_R_curr = 0;
+			int curr_bat_vol = 0;
 
 			if (gm.init_flag == 1) {
 				_do_ptim();
@@ -3102,8 +3204,15 @@ void bmd_ctrl_cmd_from_user(void *nl_data, struct fgd_nl_msg_t *ret_msg)
 			} else {
 				ptim_bat_vol = gm.ptim_lk_v;
 				ptim_R_curr = gm.ptim_lk_i;
-				bm_warn("[fr] PTIM_LK V %d I %d\n",
-					ptim_bat_vol, ptim_R_curr);
+
+				curr_bat_vol =
+					battery_get_bat_voltage() * 10;
+				if (gm.ptim_lk_v == 0)
+					ptim_bat_vol = curr_bat_vol;
+
+				bm_err("[fr] PTIM_LK V %d I %d,curr_bat_vol=%d\n",
+					ptim_bat_vol, ptim_R_curr,
+					curr_bat_vol);
 			}
 			ptim_vbat = ptim_bat_vol;
 			ptim_i = ptim_R_curr;
@@ -4109,6 +4218,27 @@ void bmd_ctrl_cmd_from_user(void *nl_data, struct fgd_nl_msg_t *ret_msg)
 	}
 	break;
 
+	case FG_DAEMON_CMD_SET_BATTERY_CAPACITY:
+	{
+		struct fgd_cmd_param_t_8 param;
+
+		memcpy(&param, &msg->fgd_data[0],
+			sizeof(struct fgd_cmd_param_t_8));
+		bm_debug(
+			"[fr] FG_DAEMON_CMD_SET_BATTERY_CAPACITY = %d %d %d %d %d %d %d %d %d %d RM:%d\n",
+			param.data[0],
+			param.data[1],
+			param.data[2],
+			param.data[3],
+			param.data[4],
+			param.data[5],
+			param.data[6],
+			param.data[7],
+			param.data[8],
+			param.data[9],
+			param.data[4] * param.data[6] / 10000);
+	}
+	break;
 	default:
 		bm_err("bad FG_DAEMON_CTRL_CMD_FROM_USER 0x%x\n", msg->fgd_cmd);
 		break;

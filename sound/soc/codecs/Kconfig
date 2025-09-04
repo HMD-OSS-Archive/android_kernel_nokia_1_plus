@@ -941,6 +941,9 @@ config SND_SOC_TLV320AIC3X
 config SND_SOC_TLV320DAC33
 	tristate
 
+config SND_SOC_TLV320WN
+	tristate
+
 config SND_SOC_TS3A227E
 	tristate "TI Headset/Mic detect and keypress chip"
 	depends on I2C
@@ -1179,6 +1182,14 @@ config SND_SOC_TFA9874
 	  amplifier which contain speaker protection,
 	  multi-band DRC, equalizer function. It would
 	  be set to yes if device with TFA9874 on it.
+
+config SND_SOC_AW87339
+	tristate "AWINIC AW8773 speaker amplifier"
+	help
+	  Config of AWINIC AW87339 speaker amplifier.
+	  It is a speaker amp which connect with MTK
+	  PMIC device which has no speaker protection
+	  function.
 
 config SND_SOC_LM4857
 	tristate

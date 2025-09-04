@@ -64,7 +64,7 @@ static struct ccci_clk_node clk_table[] = {
 static struct pinctrl *mdcldma_pinctrl;
 #endif
 
-unsigned int devapc_check_flag = 1;
+unsigned int devapc_check_flag;
 
 static void __iomem *md_sram_pd_psmcusys_base;
 static void __iomem *md_cldma_misc_base;
@@ -208,6 +208,7 @@ int md_cd_get_modem_hw_info(struct platform_device *dev_ptr,
 
 		hw_info->sram_size = CCIF_SRAM_SIZE;
 		hw_info->md_rgu_base = MD_RGU_BASE;
+		hw_info->l1_rgu_base = L1_RGU_BASE;
 		hw_info->md_boot_slave_En = MD_BOOT_VECTOR_EN;
 #if defined(CONFIG_PINCTRL_ELBRUS)
 		mdcldma_pinctrl = devm_pinctrl_get(&dev_ptr->dev);

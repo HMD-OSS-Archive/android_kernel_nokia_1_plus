@@ -181,6 +181,7 @@ DECLARE_WAIT_QUEUE_HEAD(decouple_update_rdma_wq);
 atomic_t decouple_trigger_event = ATOMIC_INIT(0);
 DECLARE_WAIT_QUEUE_HEAD(decouple_trigger_wq);
 wait_queue_head_t primary_display_present_fence_wq;
+static bool pf_thread_init;
 atomic_t primary_display_pt_fence_update_event = ATOMIC_INIT(0);
 atomic_t real_input_layer = ATOMIC_INIT(0);
 static unsigned int _need_lfr_check(void);
@@ -716,7 +717,7 @@ static void add_fps_info_for_debug(void)
 	cal_fps_for_debug();
 	memset(disp_tmp, 0, sizeof(disp_tmp));
 	if (layer_show[show_layer_fps] == 1) {
-		snprintf(p, sizeof(disp_tmp), "fps:%2lld.%01lld ",
+		scnprintf(p, sizeof(disp_tmp), "fps:%2lld.%01lld ",
 			fps_info_debug.total_fps_high,
 			fps_info_debug.total_fps_low);
 
@@ -725,9 +726,10 @@ static void add_fps_info_for_debug(void)
 	}
 	for (i = 0; i < show_layer_fps; i++) {
 		if (layer_show[i] == 1) {
-			snprintf(p, sizeof(disp_tmp), "L%d:%2lld.%01lld ",
-			i, fps_info_debug.layer_fps_high[i],
-			fps_info_debug.layer_fps_low[i]);
+			scnprintf(p, sizeof(disp_tmp),
+				"L%d:%2lld.%01lld ",
+				i, fps_info_debug.layer_fps_high[i],
+				fps_info_debug.layer_fps_low[i]);
 
 			j = strlen(p);
 			p = p + j;
@@ -745,13 +747,17 @@ static void add_layer_info_for_debug(void)
 
 	memset(disp_tmp, 0, sizeof(disp_tmp));
 	if (hrt_show_flag == 1) {
-		snprintf(p, sizeof(disp_tmp), "hrt:%01llu.%01llu ",
-				hrt_high, hrt_low);
+		scnprintf(p, sizeof(disp_tmp),
+			"hrt:%01llu.%01llu ",
+			hrt_high, hrt_low);
+
 		j = strlen(p);
 		p = p + j;
 	}
 	if (layer_en_num_flag == 1) {
-		snprintf(p, sizeof(disp_tmp), "Lnum:%d ", layer_en_num);
+		scnprintf(p, sizeof(disp_tmp),
+			"Lnum:%d ", layer_en_num);
+
 		j = strlen(p);
 		p = p + j;
 		layer_en_num = 0;
@@ -767,11 +773,13 @@ static void add_layer_info_for_debug(void)
 				do_div(layer_size_high, full_layer_size);
 			layer_size_low *= 10;
 			do_div(layer_size_low, full_layer_size);
-			snprintf(p, sizeof(disp_tmp), "Lsize:%01llu.%01llu ",
+			scnprintf(p, sizeof(disp_tmp),
+				"Lsize:%01llu.%01llu ",
 				layer_size_high,
 				layer_size_low);
+
 		} else
-			snprintf(p, sizeof(disp_tmp), "Lsize:unknown ");
+			scnprintf(p, sizeof(disp_tmp), "Lsize:unknown ");
 		j = strlen(p);
 		p = p + j;
 		layer_size_high = 0;
@@ -829,23 +837,26 @@ static int primary_show_basic_debug_info(struct disp_frame_cfg_t *cfg)
 
 	dprec_logger_get_result_value(DPREC_LOGGER_RDMA0_TRANSFER_1SECOND,
 				      &fps);
-	snprintf(disp_tmp, sizeof(disp_tmp), ",rdma_fps:%lld.%02lld,",
-		 fps.fps, fps.fps_low);
+	scnprintf(disp_tmp, sizeof(disp_tmp), ",rdma_fps:%lld.%02lld,",
+		fps.fps, fps.fps_low);
+
 	screen_logger_add_message("rdma_fps", MESSAGE_REPLACE, disp_tmp);
 
 	dprec_logger_get_result_value(DPREC_LOGGER_OVL_FRAME_COMPLETE_1SECOND,
 				      &fps);
-	snprintf(disp_tmp, sizeof(disp_tmp), "ovl_fps:%lld.%02lld,",
+	scnprintf(disp_tmp, sizeof(disp_tmp), "ovl_fps:%lld.%02lld,",
 		 fps.fps, fps.fps_low);
 	screen_logger_add_message("ovl_fps", MESSAGE_REPLACE, disp_tmp);
 
 	dprec_logger_get_result_value(DPREC_LOGGER_PQ_TRIGGER_1SECOND, &fps);
-	snprintf(disp_tmp, sizeof(disp_tmp), "PQ_trigger:%lld.%02lld,",
+	scnprintf(disp_tmp, sizeof(disp_tmp), "PQ_trigger:%lld.%02lld,",
 		 fps.fps, fps.fps_low);
+
 	screen_logger_add_message("PQ trigger", MESSAGE_REPLACE, disp_tmp);
 
-	snprintf(disp_tmp, sizeof(disp_tmp), primary_display_is_video_mode() ?
+	scnprintf(disp_tmp, sizeof(disp_tmp), primary_display_is_video_mode() ?
 		 "vdo," : "cmd,");
+
 	screen_logger_add_message("mode", MESSAGE_REPLACE, disp_tmp);
 
 	for (i = 0; i < TOTAL_OVL_LAYER_NUM; i++) {
@@ -3282,7 +3293,7 @@ static int init_decouple_buffers(void)
 	/* INTERNAL Buf 3 frames */
 	for (i = 0; i < DISP_INTERNAL_BUFFER_COUNT; i++) {
 		pgc->dc_buf[i] = i * buffer_size +
-		primary_display_get_frame_buffer_mva_address();
+			primary_display_get_frame_buffer_mva_address();
 	}
 
 	/* initialize RDMA config */
@@ -4399,30 +4410,22 @@ static int _present_fence_release_worker_thread(void *data)
 
 	sched_setscheduler(current, SCHED_RR, &param);
 
-	dpmgr_enable_event(pgc->dpmgr_handle, DISP_PATH_EVENT_IF_VSYNC);
-
 	while (1) {
 		int ret = 0;
+		unsigned int pf_idx = 0;
 
 		wait_event_interruptible(primary_display_present_fence_wq,
 			atomic_read(&primary_display_pt_fence_update_event));
 
 		atomic_set(&primary_display_pt_fence_update_event, 0);
 
-		if (!islcmconnected && !primary_display_is_video_mode()) {
-			DISPCHECK("LCM Not Connected && CMD Mode\n");
-			msleep(20);
-		} else if (disp_helper_get_option(DISP_OPT_ARR_PHASE_1)) {
-			dpmgr_wait_event(pgc->dpmgr_handle,
-					 DISP_PATH_EVENT_FRAME_START);
-		} else {
-			dpmgr_wait_event(pgc->dpmgr_handle,
-					 DISP_PATH_EVENT_IF_VSYNC);
-		}
 
 		_primary_path_lock(__func__);
+		cmdqBackupReadSlot(pgc->cur_config_fence,
+			disp_sync_get_present_timeline_id(primary_session_id),
+			&pf_idx);
 		ret = mtkfb_release_present_fence(primary_session_id,
-				gPresentFenceIndex);
+				pf_idx);
 		_primary_path_unlock(__func__);
 		if (ret == -1)
 			continue;
@@ -4895,6 +4898,7 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 					_present_fence_release_worker_thread,
 					NULL, "present_fence_worker");
 		wake_up_process(present_fence_release_worker_task);
+		pf_thread_init = true;
 	}
 #endif
 
@@ -6114,9 +6118,22 @@ done:
 	return ret;
 }
 
-void primary_display_update_present_fence(unsigned int fence_idx)
+void primary_display_update_present_fence(struct cmdqRecStruct *cmdq_handle,
+	unsigned int fence_idx)
 {
+	cmdqRecBackupUpdateSlot(cmdq_handle,
+		pgc->cur_config_fence,
+		disp_sync_get_present_timeline_id(primary_session_id),
+		fence_idx);
+
 	gPresentFenceIndex = fence_idx;
+}
+
+void primary_display_wakeup_pf_thread(void)
+{
+	if (!pf_thread_init)
+		return;
+
 	atomic_set(&primary_display_pt_fence_update_event, 1);
 	if (disp_helper_get_option(DISP_OPT_PRESENT_FENCE))
 		wake_up_interruptible(&primary_display_present_fence_wq);
@@ -7205,7 +7222,7 @@ static int _config_ovl_input(struct disp_frame_cfg_t *cfg,
 	if (disp_helper_get_option(DISP_OPT_SHOW_VISUAL_DEBUG_INFO)) {
 		char msg[10];
 
-		snprintf(msg, sizeof(msg), "HRT=%d,", hrt_level);
+		scnprintf(msg, sizeof(msg), "HRT=%d,", hrt_level);
 		screen_logger_add_message("HRT", MESSAGE_REPLACE, msg);
 	}
 #endif
@@ -7320,7 +7337,8 @@ static int _config_ovl_input(struct disp_frame_cfg_t *cfg,
 	if (disp_helper_get_option(DISP_OPT_SHOW_VISUAL_DEBUG_INFO)) {
 		char msg[10];
 
-		snprintf(msg, sizeof(msg), "HRT=%d,", hrt_level);
+		scnprintf(msg, sizeof(msg), "HRT=%d,", hrt_level);
+
 		screen_logger_add_message("HRT", MESSAGE_REPLACE, msg);
 	}
 #endif
@@ -7549,6 +7567,10 @@ static int primary_frame_cfg_input(struct disp_frame_cfg_t *cfg)
 
 	_config_ovl_input(cfg, disp_handle, cmdq_handle);
 
+	if (cfg->present_fence_idx != (unsigned int)-1)
+		primary_display_update_present_fence(cmdq_handle,
+			cfg->present_fence_idx);
+
 	/* disp mode may be changed */
 	primary_get_path_handles(&disp_handle, &cmdq_handle);
 
@@ -7706,9 +7728,6 @@ int primary_display_frame_cfg(struct disp_frame_cfg_t *cfg)
 
 		dprec_start(trigger_event, cfg->present_fence_idx, proc_name);
 	}
-
-	if (cfg->present_fence_idx != (unsigned int)-1)
-		primary_display_update_present_fence(cfg->present_fence_idx);
 
 	primary_display_trigger_nolock(0, NULL, 0);
 
@@ -9202,11 +9221,9 @@ int primary_display_capture_framebuffer_ovl(unsigned long pbuf,
 		goto out;
 	}
 
-	/*
-	 * TODO: legacy ion_handle allocate API phase out,
-	 *	need develop another method allocate MVA
-	 */
-
+	ion_display_handle = disp_ion_alloc(ion_display_client,
+					    ION_HEAP_MULTIMEDIA_MAP_MVA_MASK,
+					    pbuf, buffer_size);
 	if (!ion_display_handle) {
 		DISPMSG("primary capture:Fail to allocate buffer\n");
 		ret = -1;

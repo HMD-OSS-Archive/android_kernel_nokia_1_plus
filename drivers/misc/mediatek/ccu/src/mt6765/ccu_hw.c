@@ -55,9 +55,8 @@ static uint64_t dmem_base;
 
 static struct ccu_device_s *ccu_dev;
 static struct task_struct *enque_task;
-static struct m4u_client_t *m4u_client;
-
-uint32_t i2c_mva;
+static struct ion_client *ccu_ion_client;
+static struct ion_handle *i2c_buffer_handle;
 
 static struct mutex cmd_mutex;
 static wait_queue_head_t cmd_wait;
@@ -94,8 +93,10 @@ static unsigned int AFg_LogBufIdx[2] = {1, 1};
 static struct ccu_cmd_s *_fast_cmd_ack;
 
 static int _ccu_powerdown(void);
-static int _ccu_allocate_mva(uint32_t *mva, void *va);
-static int _ccu_deallocate_mva(uint32_t *mva);
+static int _ccu_allocate_mva(uint32_t *mva, void *va,
+	struct ion_handle **handle);
+static int _ccu_deallocate_mva(struct ion_client **client,
+	struct ion_handle **handle);
 
 static int _ccu_config_m4u_port(void)
 {
@@ -116,51 +117,147 @@ static int _ccu_config_m4u_port(void)
 	return ret;
 }
 
-static int _ccu_deallocate_mva(uint32_t *mva)
+static struct ion_handle *_ccu_ion_alloc(struct ion_client *client,
+		unsigned int heap_id_mask, size_t align, unsigned int size)
 {
-	int ret = 0;
+	struct ion_handle *disp_handle = NULL;
 
-	LOG_DBG("X-:%s\n", __func__);
-
-	if (*mva != 0 && m4u_client != NULL) {
-		ret = m4u_dealloc_mva(m4u_client, CCUG_OF_M4U_PORT, *mva);
-		if (ret)
-			LOG_ERR("dealloc mva fail");
-		m4u_destroy_client(m4u_client);
-		m4u_client = NULL;
-		*mva = 0;
+	disp_handle = ion_alloc(client, size, align, heap_id_mask, 0);
+	if (IS_ERR(disp_handle)) {
+		LOG_ERR("disp_ion_alloc 1error %p\n", disp_handle);
+		return NULL;
 	}
 
-	return ret;
+	LOG_DBG("disp_ion_alloc 1 %p\n", disp_handle);
+
+	return disp_handle;
+
 }
 
-static int _ccu_allocate_mva(uint32_t *mva, void *va)
+static int _ccu_ion_get_mva(struct ion_client *client,
+	struct ion_handle *handle, unsigned int *mva, int port)
+{
+	struct ion_mm_data mm_data;
+	size_t mva_size;
+	ion_phys_addr_t phy_addr = 0;
+
+	mm_data.mm_cmd = ION_MM_CONFIG_BUFFER_EXT;
+	mm_data.config_buffer_param.kernel_handle = handle;
+	mm_data.config_buffer_param.module_id   = port;
+	mm_data.config_buffer_param.security    = 0;
+	mm_data.config_buffer_param.coherent    = 1;
+	mm_data.config_buffer_param.reserve_iova_start  = 0x10000000;
+	mm_data.config_buffer_param.reserve_iova_end    = 0xFFFFFFFF;
+
+	if (ion_kernel_ioctl(client, ION_CMD_MULTIMEDIA,
+		(unsigned long)&mm_data) < 0) {
+		LOG_ERR("disp_ion_get_mva: config buffer failed.%p -%p\n",
+			client, handle);
+
+		ion_free(client, handle);
+		return -1;
+	}
+	*mva = 0;
+	*mva = (port<<24) | ION_FLAG_GET_FIXED_PHYS;
+	mva_size = ION_FLAG_GET_FIXED_PHYS;
+
+	phy_addr = *mva;
+	ion_phys(client, handle, &phy_addr, &mva_size);
+	*mva = (unsigned int)phy_addr;
+	LOG_DBG_MUST("alloc mmu addr hnd=0x%p,mva=0x%08x\n",
+		handle, (unsigned int)*mva);
+	return 0;
+}
+
+static void _ccu_ion_free_handle(struct ion_client *client,
+	struct ion_handle *handle)
+{
+	if (!client) {
+		LOG_ERR("invalid ion client!\n");
+		return;
+	}
+	if (!handle)
+		return;
+
+	if (client != handle->client) {
+		LOG_DBG_MUST("client mismatch, skip free: %p, %p!\n",
+			client, handle->client);
+		return;
+	}
+
+	ion_free(client, handle);
+
+	LOG_DBG("free ion handle 0x%p\n", handle);
+}
+
+static void _ccu_ion_destroy(struct ion_client *client)
+{
+	LOG_DBG("X-:%s\n", __func__);
+	if (client && g_ion_device)
+		ion_client_destroy(client);
+}
+
+static int _ccu_deallocate_mva(struct ion_client **client,
+	struct ion_handle **handle)
+{
+	LOG_DBG("X-:%s\n", __func__);
+	if (*handle != NULL) {
+		_ccu_ion_free_handle(*client, *handle);
+		_ccu_ion_destroy(*client);
+		*handle = NULL;
+		*client = NULL;
+	}
+	return 0;
+}
+
+static int _ccu_allocate_mva(uint32_t *mva, void *va,
+	struct ion_handle **handle)
 {
 	int ret = 0;
 	int buffer_size = 4096;
-	struct sg_table *sg_table = NULL;
-	unsigned int flag;
 
-	if (!m4u_client)
-		m4u_client = m4u_create_client();
-	if (IS_ERR_OR_NULL(m4u_client)) {
-		LOG_ERR("create client fail!\n");
-		return -EINVAL;
+	if (!ccu_ion_client && g_ion_device)
+		ccu_ion_client = ion_client_create(g_ion_device, "ccu");
+
+	if (!ccu_ion_client) {
+		LOG_ERR("invalid ion client!\n");
+		_ccu_ion_destroy(ccu_ion_client);
+
+		return !ccu_ion_client;
 	}
+
+	LOG_DBG("create ion client 0x%p\n", ccu_ion_client);
 
 	ret = _ccu_config_m4u_port();
 	if (ret) {
 		LOG_ERR("fail to config m4u port!\n");
+		_ccu_ion_destroy(ccu_ion_client);
 		return ret;
 	}
 
-	/* alloc mva */
-	flag = M4U_FLAGS_START_FROM;
-	ret = m4u_alloc_mva(m4u_client, CCUG_OF_M4U_PORT, (unsigned long)va,
-		sg_table, buffer_size,
-		M4U_PROT_READ | M4U_PROT_WRITE, flag, mva);
-	if (ret)
-		LOG_ERR("alloc mva fail");
+	*handle = _ccu_ion_alloc(ccu_ion_client,
+		ION_HEAP_MULTIMEDIA_MAP_MVA_MASK,
+		(unsigned long)va, buffer_size);
+
+	/*i2c dma buffer is PAGE_SIZE(4096B)*/
+
+	if (!(*handle)) {
+		LOG_ERR("Fatal Error, ion_alloc for size %d failed\n", 4096);
+		if (ccu_ion_client != NULL)
+			_ccu_deallocate_mva(&ccu_ion_client, handle);
+
+		return -1;
+	}
+
+	ret = _ccu_ion_get_mva(ccu_ion_client, *handle, mva, CCUG_OF_M4U_PORT);
+
+	if (ret) {
+		LOG_ERR("ccu ion_get_mva failed\n");
+
+		if (ccu_ion_client != NULL)
+			_ccu_deallocate_mva(&ccu_ion_client, handle);
+		return -1;
+	}
 
 	return ret;
 }
@@ -549,8 +646,8 @@ out:
 
 int ccu_uninit_hw(struct ccu_device_s *device)
 {
-	if (m4u_client != NULL)
-		_ccu_deallocate_mva(&i2c_mva);
+	if (ccu_ion_client != NULL)
+		_ccu_deallocate_mva(&ccu_ion_client, &i2c_buffer_handle);
 
 	if (enque_task) {
 		kthread_stop(enque_task);
@@ -580,9 +677,9 @@ int ccu_get_i2c_dma_buf_addr(uint32_t *mva,
 		return ret;
 
 	/*If there is existing i2c buffer mva allocated, deallocate it first*/
-	_ccu_deallocate_mva(&i2c_mva);
-	ret = _ccu_allocate_mva(&i2c_mva, va);
-	*mva = i2c_mva;
+	_ccu_deallocate_mva(&ccu_ion_client, &i2c_buffer_handle);
+	ret = _ccu_allocate_mva(mva, va, &i2c_buffer_handle);
+
 	/* Record i2c_buffer_mva in kernel driver,
 	 *     thus can deallocate it at powerdown
 	 */
@@ -692,6 +789,7 @@ int ccu_power(struct ccu_power_s *power)
 
 	if (power->bON == 1) {
 		/*CCU power on sequence*/
+		ccu_clock_enable();
 
 		/*0. Set CCU_A_RESET. CCU_HW_RST=1*/
 		/*TSF be affected.*/
@@ -702,8 +800,6 @@ int ccu_power(struct ccu_power_s *power)
 		/*ccu_write_reg_bit(ccu_base, RESET, CCU_HW_RST, 1);*/
 
 		/*1. Enable CCU CAMSYS_CG_CON bit12 CCU_CGPDN=0*/
-		ccu_clock_enable();
-
 		LOG_DBG("CG released\n");
 		/*mdelay(1);*/
 		/**/
@@ -774,8 +870,8 @@ int ccu_power(struct ccu_power_s *power)
 
 		ccuInfo.IsCcuPoweredOn = 0;
 
-	if (m4u_client != NULL)
-		_ccu_deallocate_mva(&i2c_mva);
+	if (ccu_ion_client != NULL)
+		_ccu_deallocate_mva(&ccu_ion_client, &i2c_buffer_handle);
 	} else if (power->bON == 4) {
 		/*CCU boot fail, just enable CG*/
 
@@ -896,8 +992,8 @@ static int _ccu_powerdown(void)
 	ccuInfo.IsI2cPowerDisabling = 0;
 	ccuInfo.IsCcuPoweredOn = 0;
 
-	if (m4u_client != NULL)
-		_ccu_deallocate_mva(&i2c_mva);
+	if (ccu_ion_client != NULL)
+		_ccu_deallocate_mva(&ccu_ion_client, &i2c_buffer_handle);
 
 	return 0;
 }

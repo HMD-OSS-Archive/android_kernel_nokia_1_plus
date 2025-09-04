@@ -96,17 +96,18 @@ root_schedtune = {
  *    implementation especially for the computation of the per-CPU boost
  *    value
  */
-#ifdef CONFIG_MTK_IO_BOOST
-#define BOOSTGROUPS_COUNT 6
-#else
-#define BOOSTGROUPS_COUNT 5
-#endif
+#define BOOSTGROUPS_COUNT 10
 
 /* Array of configured boostgroups */
 static struct schedtune *allocated_group[BOOSTGROUPS_COUNT] = {
 	&root_schedtune,
 	NULL,
 };
+
+static inline bool is_group_idx_valid(int idx)
+{
+	return idx >= 0 && idx < BOOSTGROUPS_COUNT;
+}
 
 /* SchedTune boost groups
  * Keep track of all the boost groups which impact on CPU, for example when a

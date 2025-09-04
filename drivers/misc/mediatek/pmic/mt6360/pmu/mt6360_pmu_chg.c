@@ -40,7 +40,7 @@
 #include <mt-plat/upmu_common.h>
 #include <mt-plat/mtk_boot.h>
 
-#define MT6360_PMU_CHG_DRV_VERSION	"1.0.5_MTK"
+#define MT6360_PMU_CHG_DRV_VERSION	"1.0.7_MTK"
 
 void __attribute__ ((weak)) Charger_Detect_Init(void)
 {
@@ -377,7 +377,8 @@ static int mt6360_psy_online_changed(struct mt6360_pmu_chg_info *mpci)
 	union power_supply_propval propval;
 
 	/* Get chg type det power supply */
-	mpci->psy = power_supply_get_by_name("charger");
+	if (!mpci->psy)
+		mpci->psy = power_supply_get_by_name("charger");
 	if (!mpci->psy) {
 		dev_notice(mpci->dev,
 			"%s: get power supply failed\n", __func__);
@@ -403,7 +404,8 @@ static int mt6360_psy_chg_type_changed(struct mt6360_pmu_chg_info *mpci)
 	union power_supply_propval propval;
 
 	/* Get chg type det power supply */
-	mpci->psy = power_supply_get_by_name("charger");
+	if (!mpci->psy)
+		mpci->psy = power_supply_get_by_name("charger");
 	if (!mpci->psy) {
 		dev_notice(mpci->dev,
 			"%s: get power supply failed\n", __func__);
@@ -1373,6 +1375,19 @@ static int mt6360_is_safety_timer_enabled(
 	return 0;
 }
 
+static int mt6360_enable_hz(struct charger_device *chg_dev, bool en)
+{
+	struct mt6360_pmu_chg_info *mpci = charger_get_data(chg_dev);
+	int ret = 0;
+
+	dev_info(mpci->dev, "%s: en = %d\n", __func__, en);
+
+	ret = (en ? mt6360_pmu_reg_set_bits : mt6360_pmu_reg_clr_bits)
+		(mpci->mpi, MT6360_PMU_CHG_CTRL1, MT6360_MASK_HZ_EN);
+
+	return ret;
+}
+
 static const u32 otg_oc_table[] = {
 	500000, 700000, 1100000, 1300000, 1800000, 2100000, 2400000, 3000000
 };
@@ -1483,7 +1498,7 @@ out:
 	return ret;
 }
 
-static int mt6360_get_adc(struct charger_device *chg_dev, u32 chan,
+static int mt6360_get_adc(struct charger_device *chg_dev, enum adc_channel chan,
 			  int *min, int *max)
 {
 	struct mt6360_pmu_chg_info *mpci = charger_get_data(chg_dev);
@@ -1770,6 +1785,14 @@ static int mt6360_plug_in(struct charger_device *chg_dev)
 	}
 
 	/* Workaround for ibus stuck in pe/pe20 pattern */
+	if (!mpci->psy)
+		mpci->psy = power_supply_get_by_name("charger");
+	if (!mpci->psy) {
+		dev_notice(mpci->dev,
+			"%s: get power supply failed\n", __func__);
+		return -EINVAL;
+	}
+
 	ret = power_supply_get_property(mpci->psy,
 					POWER_SUPPLY_PROP_CHARGE_TYPE,
 					&propval);
@@ -1920,6 +1943,7 @@ static const struct charger_ops mt6360_chg_ops = {
 	.enable_force_typec_otp = mt6360_enable_force_typec_otp,
 	.get_ctd_dischg_status = mt6360_get_ctd_dischg_status,
 	.enable_hidden_mode = mt6360_enable_hidden_mode,
+	.enable_hz = mt6360_enable_hz,
 };
 
 static const struct charger_properties mt6360_chg_props = {
@@ -2403,12 +2427,7 @@ static int mt6360_chg_mivr_task_threadfn(void *data)
 
 	dev_info(mpci->dev, "%s ++\n", __func__);
 	while (!kthread_should_stop()) {
-		atomic_set(&mpci->mivr_cnt, 0);
-		mt6360_pmu_chg_irq_enable("chg_mivr_evt", 1);
-		ret = wait_event_interruptible(mpci->waitq,
-					      atomic_read(&mpci->mivr_cnt) > 0);
-		if (ret < 0)
-			continue;
+		wait_event(mpci->waitq, atomic_read(&mpci->mivr_cnt) > 0);
 		mt_dbg(mpci->dev, "%s: enter mivr thread\n", __func__);
 		pm_stay_awake(mpci->dev);
 		/* check real mivr stat or not */
@@ -2435,6 +2454,9 @@ static int mt6360_chg_mivr_task_threadfn(void *data)
 		}
 loop_cont:
 		pm_relax(mpci->dev);
+		atomic_set(&mpci->mivr_cnt, 0);
+		mt6360_pmu_chg_irq_enable("chg_mivr_evt", 1);
+		msleep(200);
 	}
 	dev_info(mpci->dev, "%s --\n", __func__);
 	return 0;
@@ -2676,8 +2698,38 @@ static int mt6360_chg_init_setting(struct mt6360_pmu_chg_info *mpci)
 
 static int mt6360_set_shipping_mode(struct mt6360_pmu_chg_info *mpci)
 {
-	return mt6360_pmu_reg_set_bits(mpci->mpi,
-				     MT6360_PMU_CHG_CTRL2, 0x80);
+	struct mt6360_pmu_info *mpi = mpci->mpi;
+	int ret;
+	u8 data = 0;
+
+	dev_info(mpci->dev, "%s\n", __func__);
+	mutex_lock(&mpi->io_lock);
+	/* disable shipping mode rst */
+	ret = i2c_smbus_read_i2c_block_data(mpi->i2c,
+					    MT6360_PMU_CORE_CTRL2, 1, &data);
+	if (ret < 0)
+		goto out;
+	data |= MT6360_MASK_SHIP_RST_DIS;
+	dev_info(mpci->dev, "%s: reg[0x06] = 0x%02x\n", __func__, data);
+	ret = i2c_smbus_write_i2c_block_data(mpi->i2c,
+					     MT6360_PMU_CORE_CTRL2, 1, &data);
+	if (ret < 0) {
+		dev_err(mpci->dev,
+			"%s: fail to disable shipping mode rst\n", __func__);
+		goto out;
+	}
+
+	data = 0x80;
+	/* enter shipping mode and disable cfo_en/chg_en */
+	ret = i2c_smbus_write_i2c_block_data(mpi->i2c,
+					     MT6360_PMU_CHG_CTRL2, 1, &data);
+	if (ret < 0)
+		dev_err(mpci->dev,
+			"%s: fail to enter shipping mode\n", __func__);
+	return 0;
+out:
+	mutex_unlock(&mpi->io_lock);
+	return ret;
 }
 
 static ssize_t shipping_mode_store(struct device *dev,
@@ -2734,6 +2786,7 @@ static int mt6360_pmu_chg_probe(struct platform_device *pdev)
 	struct iio_channel *channel;
 	bool use_dt = pdev->dev.of_node;
 	int i, ret = 0;
+	char *p;
 
 	dev_info(&pdev->dev, "%s\n", __func__);
 	if (use_dt) {
@@ -2818,9 +2871,14 @@ static int mt6360_pmu_chg_probe(struct platform_device *pdev)
 	mt6360_pmu_chg_irq_register(pdev);
 	device_init_wakeup(&pdev->dev, true);
 	/* mivr task */
-	mpci->mivr_task = kthread_run(mt6360_chg_mivr_task_threadfn, mpci,
-				      devm_kasprintf(mpci->dev, GFP_KERNEL,
-				      "mivr_thread.%s", dev_name(mpci->dev)));
+	p = devm_kasprintf(mpci->dev, GFP_KERNEL,
+				"mivr_thread.%s", dev_name(mpci->dev));
+	if (IS_ERR_OR_NULL(p)) {
+		dev_notice(mpci->dev, "devm kasprintf fail\n");
+		ret = -EINVAL;
+		goto err_register_chg_dev;
+	}
+	mpci->mivr_task = kthread_run(mt6360_chg_mivr_task_threadfn, mpci, p);
 	ret = PTR_ERR_OR_ZERO(mpci->mivr_task);
 	if (ret < 0) {
 		dev_err(mpci->dev, "create mivr handling thread fail\n");
@@ -2931,6 +2989,13 @@ MODULE_VERSION(MT6360_PMU_CHG_DRV_VERSION);
 
 /*
  * Version Note
+ * 1.0.7_MTK
+ * (1) Fix Unbalanced enable for MIVR IRQ
+ * (2) Sleep 200ms before do another iteration in mt6360_chg_mivr_task_threadfn
+ *
+ * 1.0.6_MTK
+ * (1) Fix the usages of charger power supply
+ *
  * 1.0.5_MTK
  * (1) Prevent charger type infromed repeatedly
  *

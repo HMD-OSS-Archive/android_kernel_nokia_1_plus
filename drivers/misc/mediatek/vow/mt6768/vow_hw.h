@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 MediaTek Inc.
+ * Copyright (C) 2020 MediaTek Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -13,10 +13,6 @@
 
 #ifndef __VOW_HW_H__
 #define __VOW_HW_H__
-
-#ifdef CONFIG_MTK_VOW_BARGE_IN_SUPPORT
-#define VOW_ECHO_SW_SRC
-#endif
 
 unsigned int vow_check_scp_status(void);
 

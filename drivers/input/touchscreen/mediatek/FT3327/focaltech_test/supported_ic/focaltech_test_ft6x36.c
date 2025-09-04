@@ -354,9 +354,10 @@ unsigned char FT6X36_TestItem_RawDataTest(bool *bTestResult)
 
     for (i = 0; i < 3; i++) {
         ReCode = write_reg(C6206_FACTORY_TEST_MODE, Proof_Normal);
-        if (ERROR_CODE_OK == ReCode)
+        if (ERROR_CODE_OK == ReCode) {
             ReCode = StartScan();
-        if (ERROR_CODE_OK == ReCode)break;
+            break;
+        }
     }
 
     ReCode = GetRawData();
@@ -457,9 +458,10 @@ unsigned char FT6X36_TestItem_CbTest(bool *bTestResult)
 
     for (i = 0; i < 3; i++) {
         ReCode = write_reg(C6206_FACTORY_TEST_MODE, Proof_NoWaterProof);
-        if (ERROR_CODE_OK == ReCode)
+        if (ERROR_CODE_OK == ReCode) {
             ReCode = StartScan();
-        if (ERROR_CODE_OK == ReCode)break;
+            break;
+        }
     }
 
     if ((ERROR_CODE_OK != ReCode)/* || (1 != WaterProofResult)*/) {
@@ -494,9 +496,10 @@ unsigned char FT6X36_TestItem_CbTest(bool *bTestResult)
     FTS_TEST_SAVE_INFO("\n Proof_Level0 CB Test...\r");
     for (i = 0; i < 3; i++) {
         ReCode = write_reg(C6206_FACTORY_TEST_MODE, Proof_Level0);
-        if (ERROR_CODE_OK == ReCode)
+        if (ERROR_CODE_OK == ReCode) {
             ReCode = StartScan();
-        if (ERROR_CODE_OK == ReCode)break;
+            break;
+        }
     }
     if ((ERROR_CODE_OK != ReCode)/* || (1 != WaterProofResult)*/) {
         btmpresult = false;
@@ -1084,17 +1087,11 @@ unsigned char ReadRawData(unsigned char Freq, unsigned char LineNum, int ByteNum
     I2C_wBuffer[1] = 0;//start index
     ReCode = fts_i2c_read_write(I2C_wBuffer, 2, NULL, 0);//   set rawdata start addr
 
-    if ((ReCode == ERROR_CODE_OK)) {
         if (ReCode == ERROR_CODE_OK) {
             I2C_wBuffer[0] = C6X36_RAWDATA_BUF; //rawdata buffer addr register;
 
             ReCode = fts_i2c_read_write(I2C_wBuffer, 1, m_ucTempData, BytesNumInTestMode1);
 
-        }
-    }
-
-
-    if (ReCode == ERROR_CODE_OK) {
         for (i = 0; i < (ByteNum >> 1); i++) {
             pRevBuffer[i] = (m_ucTempData[i << 1] << 8) + m_ucTempData[(i << 1) + 1];
         }

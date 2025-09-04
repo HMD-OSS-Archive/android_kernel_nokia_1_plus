@@ -53,17 +53,15 @@
 #include "vpu_algo.h"
 #include "vpu_dbg.h"
 #include "vpu_qos.h"
-
+#include "vpu_dump.h"
 
 #define ENABLE_PMQOS
 #ifdef ENABLE_PMQOS
 #include "helio-dvfsrc-opp.h"
 #endif
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 struct wakeup_source vpu_wake_lock[MTK_VPU_CORE];
-#else
-struct wake_lock vpu_wake_lock[MTK_VPU_CORE];
 #endif
 
 
@@ -269,6 +267,7 @@ static uint8_t max_vcore_opp;
 static uint8_t max_vvpu_opp;
 static uint8_t max_dsp_freq;
 static struct mutex power_lock_mutex;
+static struct mutex set_power_mutex;
 
 
 /* dvfs */
@@ -317,83 +316,128 @@ const struct ISR_TABLE VPU_ISR_CB_TBL[MTK_VPU_CORE] = {
 	{vpu1_isr_handler,     0,  "ipu2"}
 };
 
-static inline void lock_command(int core)
+static inline void lock_command(int core_s, int cmd)
 {
+	unsigned int core = (unsigned int)core_s;
+
 	mutex_lock(&(vpu_service_cores[core].cmd_mutex));
 	vpu_service_cores[core].is_cmd_done = false;
+	vpu_write_field(core, FLD_XTENSA_INFO17, 0);
+	LOG_INF("%s: vpu%d: cmd: %02xh, info00:%xh, info17:%xh\n",
+		__func__, core, cmd,
+		vpu_read_field(core, FLD_XTENSA_INFO00),
+		vpu_read_field(core, FLD_XTENSA_INFO17));
 }
 
-static inline int wait_command(int core)
+static void vpu_err_msg(int core, const char *msg)
+{
+	LOG_ERR("%s: (%d)(%d)(%d)(%d.%d.%d.%d)(%d/%d)(%d/%d/%d)%d\n",
+		msg,
+		core,
+		is_power_debug_lock,
+		opps.vvpu.index,
+		opps.dsp.index,
+		opps.dspcore[0].index,
+		opps.dspcore[1].index,
+		opps.ipu_if.index,
+		max_vvpu_opp,
+		max_dsp_freq,
+		force_change_vvpu_opp[core],
+		force_change_dsp_freq[core],
+		change_freq_first[core],
+		opp_keep_flag);
+}
+
+#define vpu_err_hnd(hw_fail, core, req, key, fmt, args...) \
+	do { \
+		pr_info(fmt, ##args); \
+		vpu_err_msg(core, __func__); \
+		if (hw_fail) { \
+			vpu_dmp_create_locked(core, req, fmt, ##args); \
+			apu_get_power_info(); \
+			aee_kernel_exception("VPU", \
+			"\nCRDISPATCH_KEY:" key "\n" fmt, ##args); \
+		} \
+	} while (0)
+
+static void vpu_status(int core)
+{
+}
+
+static int wait_idle(int core, uint32_t latency, uint32_t retry)
+{
+	uint32_t pwait = 0;
+	unsigned int count = 0;
+
+	do {
+		count++;
+		pwait = vpu_read_field(core, FLD_PWAITMODE);
+		if (pwait)
+			return 0;
+		udelay(latency);
+	} while (count < retry);
+
+	pr_info("%s: vpu%d: %d us: pwaitmode: %d, info00: 0x%x, info25: 0x%x\n",
+		__func__, core, (latency * retry), pwait,
+		vpu_read_field(core, FLD_XTENSA_INFO00),
+		vpu_read_field(core, FLD_XTENSA_INFO25));
+
+	return -ETIMEDOUT;
+}
+
+static inline int wait_command(int core_s)
 {
 	int ret = 0;
-	unsigned int PWAITMODE = 0x0;
-	bool jump_out = false;
 	int count = 0;
+	bool retry = true;
+	unsigned int core = (unsigned int)core_s;
 
+#define CMD_WAIT_STEP_MS 1000
+#define CMD_WAIT_COUNT (CMD_WAIT_TIME_MS / CMD_WAIT_STEP_MS)
+
+start:
 	ret = wait_event_interruptible_timeout(cmd_wait,
 				vpu_service_cores[core].is_cmd_done,
-				msecs_to_jiffies(CMD_WAIT_TIME_MS));
+				msecs_to_jiffies(CMD_WAIT_STEP_MS));
 
 	/* ret == -ERESTARTSYS, if signal interrupt */
-	if ((ret != 0) && (!vpu_service_cores[core].is_cmd_done)) {
-		LOG_WRN("[vpu_%d]%s, done(%d), ret=%d, wait cmd again\n", core,
-			"interrupt by signal",
-			vpu_service_cores[core].is_cmd_done, ret);
+	if (ret == -ERESTARTSYS) {
+		pr_info("%s: vpu%d: interrupt by signal: ret=%d\n",
+			__func__, core, ret);
 
-		ret = wait_event_interruptible_timeout(
-					cmd_wait,
-					vpu_service_cores[core].is_cmd_done,
-					msecs_to_jiffies(CMD_WAIT_TIME_MS));
+		if (retry) {
+			pr_info("%s: vpu%d: try wait again\n",
+				__func__, core);
+			retry = false;
+			goto start;
+		}
+		goto out;
 	}
 
-	if ((ret != 0) && (!vpu_service_cores[core].is_cmd_done)) {
-		/* ret == -ERESTARTSYS, if signal interrupt */
-		LOG_ERR("[vpu_%d] %s, done(%d), ret=%d\n",
-				core,
-				"interrupt by signal again",
-				vpu_service_cores[core].is_cmd_done, ret);
-		ret = -ERESTARTSYS;
-	} else {
-		LOG_DBG("[vpu_%d] test ret(%d)\n", core, ret);
-		if (ret > 0) {
-			/* check PWAITMODE, request by DE */
-			do {
-				PWAITMODE = vpu_read_field(core, FLD_PWAITMODE);
-				count++;
-				if (PWAITMODE & 0x1) {
-					ret = 0;
-					jump_out = true;
-
-					LOG_DBG("[vpu_%d] %s(%d), ret(%d)\n",
-						core,
-						"test PWAITMODE status",
-						PWAITMODE, ret);
-				} else {
-					LOG_WRN("[vpu_%d]%s(%d)%s(%d)%s(%d)%s(0x%x)\n",
-						core,
-						"PWAITMODE", count,
-						"error status", PWAITMODE,
-						"ret", ret, "info25",
-						vpu_read_field(core, FLD_XTENSA_INFO25));
-						vpu_dump_register(NULL);
-					if (count == 5) {
-						ret = -ETIMEDOUT;
-						jump_out = true;
-					}
-					/*wait 2 ms to check, total 5 times*/
-					mdelay(2);
-				}
-			} while (!jump_out);
-		} else {
+	++count;
+	if (ret) {  /* condition true: cmd done */
+		ret = 0;
+	} else {    /* condition false: timeout or retry*/
+		if (count >= CMD_WAIT_COUNT) {
+			pr_info("%s: vpu%d: timeout: %d ms\n",
+				__func__, core, CMD_WAIT_TIME_MS);
 			ret = -ETIMEDOUT;
+		} else {
+			vpu_status(core);
+			goto start;
 		}
 	}
 
+	if (ret < 0)
+		ret = wait_idle(core, 2000 /* ms */, 5 /* times */);
+out:
 	return ret;
 }
 
-static inline void unlock_command(int core)
+static inline void unlock_command(int core_s)
 {
+	unsigned int core = (unsigned int)core_s;
+
 	mutex_unlock(&(vpu_service_cores[core].cmd_mutex));
 }
 
@@ -476,8 +520,10 @@ void MET_Events_DVFS_Trace(void)
 		dsp1_freq, dsp2_freq);
 }
 
-void MET_Events_Trace(bool enter, int core, int algo_id)
+void MET_Events_Trace(bool enter, int core_s, int algo_id)
 {
+	unsigned int core = (unsigned int)core_s;
+
 	if (enter) {
 		int dsp_freq = 0;
 
@@ -799,8 +845,10 @@ int get_vpu_opp(void)
 }
 EXPORT_SYMBOL(get_vpu_opp);
 
-int get_vpu_dspcore_opp(int core)
+int get_vpu_dspcore_opp(int core_s)
 {
+	unsigned int core = (unsigned int)core_s;
+
 	LOG_DBG("[vpu_%d] get opp:%d\n", core, opps.dspcore[core].index);
 	return opps.dspcore[core].index;
 }
@@ -812,8 +860,9 @@ int get_vpu_platform_floor_opp(void)
 }
 EXPORT_SYMBOL(get_vpu_platform_floor_opp);
 
-int get_vpu_ceiling_opp(int core)
+int get_vpu_ceiling_opp(int core_s)
 {
+	unsigned int core = (unsigned int)core_s;
 	return max_opp[core];
 }
 EXPORT_SYMBOL(get_vpu_ceiling_opp);
@@ -894,33 +943,21 @@ EXPORT_SYMBOL(get_vpu_init_done);
 
 static void get_segment_from_efuse(void)
 {
-	int segment = 0;
-
-	segment = get_devinfo_with_index(7) & 0xFF;
-	switch (segment) {
-	case 0x7://segment p90M 5mode
-		segment_max_opp = 5;
-		break;
-	case 0xE0://segment p90M 6mode 525M
-		segment_max_opp = 5;
-		break;
-	default: //segment p90
-		segment_max_opp = 0;
-		break;
-	}
-	LOG_DVFS("vpu segment_max_opp: %d\n", segment_max_opp);
+	segment_max_opp = 0;
+	LOG_INF("vpu segment_max_opp: %d\n", segment_max_opp);
 }
 
 /* expected range, vvpu_index: 0~15 */
 /* expected range, freq_index: 0~15 */
 //static void vpu_opp_check(int core, uint8_t vcore_index, uint8_t freq_index)
-static void vpu_opp_check(int core, uint8_t vvpu_index, uint8_t freq_index)
+static void vpu_opp_check(int core_s, uint8_t vvpu_index, uint8_t freq_index)
 {
 	int i = 0;
 	bool freq_check = false;
 	int log_freq = 0, log_max_freq = 0;
 	//int get_vcore_opp = 0;
 	int get_vvpu_opp = 0;
+	unsigned int core = (unsigned int)core_s;
 
 	if (is_power_debug_lock) {
 		force_change_vcore_opp[core] = false;
@@ -1161,7 +1198,7 @@ out:
 		opp_keep_flag);
 }
 
-static bool vpu_change_opp(int core, int type)
+static bool vpu_change_opp(int core_s, int type)
 {
 #ifdef MTK_VPU_FPGA_PORTING
 	LOG_INF("[vpu_%d] %d Skip at FPGA", core, type);
@@ -1169,6 +1206,7 @@ static bool vpu_change_opp(int core, int type)
 	return true;
 #else
 	int ret = false;
+	unsigned int core = (unsigned int)core_s;
 #if 0
 	if (get_vvpu_DVFS_is_paused_by_ptpod()) {
 		LOG_INF("[vpu_%d] dvfs skip by ptpod", core);
@@ -2135,13 +2173,14 @@ static struct my_ftworkQ_struct_t ftrace_dump_work[MTK_VPU_CORE];
 static void vpu_dump_ftrace_workqueue(struct work_struct *);
 static int vpu_check_postcond(int core);
 
-static void __MET_PACKET__(int vpu_core, unsigned long long wclk,
+static void __MET_PACKET__(int vpu_core_s, unsigned long long wclk,
 	 unsigned char action_id, char *str_desc, unsigned int sessid)
 {
 	char action = 'Z';
 	char null_str[] = "null";
 	char *__str_desc = str_desc;
 	int val = 0;
+	unsigned int vpu_core = (unsigned int)vpu_core_s;
 
 	switch (action_id) {
 	/* For Sync Maker Begin/End */
@@ -2192,10 +2231,11 @@ static void dump_buf(void *ptr, int leng)
 
 }
 
-static int vpulog_clone_buffer(int core, unsigned int addr, unsigned int size,
-	 void *ptr)
+static int vpulog_clone_buffer(int core_s, unsigned int addr,
+	unsigned int size, void *ptr)
 {
 	int idx = 0;
+	unsigned int core = (unsigned int)core_s;
 
 	for (idx = 0; idx < size; idx += 4) {
 		/* read 4 bytes from VPU DMEM */
@@ -2388,7 +2428,7 @@ list_rescan:
 }
 
 #define VPU_MOVE_WAKE_TO_BACK
-static int isr_common_handler(int core)
+static int isr_common_handler(int core_s)
 {
 	int req_cmd = 0, normal_check_done = 0;
 	int req_dump = 0;
@@ -2398,6 +2438,7 @@ static int isr_common_handler(int core)
 	struct vpu_log_reader_t *vpu_log_reader;
 	void *ptr;
 	uint32_t status;
+	unsigned int core = (unsigned int)core_s;
 
 	LOG_DBG("vpu %d received a interrupt\n", core);
 
@@ -2610,7 +2651,7 @@ static int vpu_service_routine(void *arg)
 	struct vpu_user *user_in_list = NULL;
 	struct list_head *head = NULL;
 	int *d = (int *)arg;
-	int service_core = (*d);
+	unsigned int service_core = (*d);
 	bool get = false;
 	int i = 0, j = 0, cnt = 0;
 
@@ -2798,31 +2839,16 @@ for (j = 0 ; j < req->buffers[i].plane_count ; j++) { \
 
 #undef LOG_STRING
 
-			#ifdef CONFIG_PM_WAKELOCKS
+			#ifdef CONFIG_PM_SLEEP
 			__pm_stay_awake(&(vpu_wake_lock[service_core]));
-			#else
-			wake_lock(&(vpu_wake_lock[service_core]));
 			#endif
 			exception_isr_check[service_core] = true;
 			if (vpu_hw_processing_request(service_core, req)) {
-				LOG_WRN("[vpu_%d] =========================\n",
-						service_core);
-				LOG_WRN("[vpu_%d] %s failed, retry once\n",
-						service_core,
-						"hw_processing_request");
-				LOG_WRN("[vpu_%d] =========================\n",
-						service_core);
-				exception_isr_check[service_core] = true;
-				if (vpu_hw_processing_request(service_core,
-									req)) {
-					LOG_ERR("[vpu_%d] %s failed @ Q\n",
-						service_core,
-						"hw_processing_request");
-					req->status = VPU_REQ_STATUS_FAILURE;
-					goto out;
-				} else {
-					req->status = VPU_REQ_STATUS_SUCCESS;
-				}
+				LOG_ERR("[vpu_%d] %s failed @ Q\n",
+					service_core,
+					"hw_processing_request");
+				req->status = VPU_REQ_STATUS_FAILURE;
+				goto out;
 			} else {
 				req->status = VPU_REQ_STATUS_SUCCESS;
 			}
@@ -2859,10 +2885,8 @@ out:
 		if (vpu_service_cores[service_core].state != VCT_SHUTDOWN)
 			vpu_service_cores[service_core].state = VCT_IDLE;
 		mutex_unlock(&(vpu_service_cores[service_core].state_mutex));
-		#ifdef CONFIG_PM_WAKELOCKS
+		#ifdef CONFIG_PM_SLEEP
 		__pm_relax(&(vpu_wake_lock[service_core]));
-		#else
-		wake_unlock(&(vpu_wake_lock[service_core]));
 		#endif
 		mutex_lock(&vpu_dev->user_mutex);
 
@@ -2941,9 +2965,10 @@ static void vpu_emi_mpu_set(unsigned long start, unsigned long size)
 	emi_mpu_set_protection(&region_info);
 }
 
-static int vpu_map_mva_of_bin(int core, uint64_t bin_pa)
+static int vpu_map_mva_of_bin(int core_s, uint64_t bin_pa)
 {
 	int ret = 0;
+	unsigned int core = (unsigned int)core_s;
 
 #ifndef BYPASS_M4U_DBG
 #ifdef CONFIG_MTK_IOMMU_V2
@@ -3238,16 +3263,17 @@ out:
 
 #endif
 
-int vpu_get_default_algo_num(int core, vpu_id_t *algo_num)
+int vpu_get_default_algo_num(int core_s, vpu_id_t *algo_num)
 {
 	int ret = 0;
+	unsigned int core = (unsigned int)core_s;
 
 	*algo_num = vpu_service_cores[core].default_algo_num;
 
 	return ret;
 }
 
-static int vpu_get_power(int core, bool secure)
+int vpu_get_power(int core, bool secure)
 {
 	int ret = 0;
 
@@ -3330,8 +3356,10 @@ static int vpu_get_power(int core, bool secure)
 		return ret;
 }
 
-static void vpu_put_power(int core, enum VpuPowerOnType type)
+void vpu_put_power(int core_s, enum VpuPowerOnType type)
 {
+	unsigned int core = (unsigned int)core_s;
+
 	LOG_DBG("[vpu_%d/%d] pp +\n", core, power_counter[core]);
 	mutex_lock(&power_counter_mutex[core]);
 	power_counter_work[core].logbackup = 1;
@@ -3375,7 +3403,10 @@ int vpu_set_power(struct vpu_user *user, struct vpu_power *power)
 	uint8_t vcore_opp_index = 0xFF;
 	uint8_t vvpu_opp_index = 0xFF;
 	uint8_t dsp_freq_index = 0xFF;
-	int i = 0, core = -1;
+	unsigned int i = 0, core = 0xFFFFFFFF;
+
+	mutex_lock(&set_power_mutex);
+
 
 	for (i = 0 ; i < MTK_VPU_CORE ; i++) {
 		/*LOG_DBG("debug i(%d), (0x1 << i) (0x%x)", i, (0x1 << i));*/
@@ -3385,10 +3416,11 @@ int vpu_set_power(struct vpu_user *user, struct vpu_power *power)
 		}
 	}
 
-	if (core >= MTK_VPU_CORE || core < 0) {
+	if (core >= MTK_VPU_CORE) {
 		LOG_ERR("wrong core index (0x%x/%d/%d)",
 				power->core, core, MTK_VPU_CORE);
 		ret = -1;
+		mutex_unlock(&set_power_mutex);
 		return ret;
 	}
 
@@ -3410,6 +3442,7 @@ int vpu_set_power(struct vpu_user *user, struct vpu_power *power)
 		} else {
 			LOG_ERR("wrong opp step (%d)", power->opp_step);
 			ret = -1;
+			mutex_unlock(&set_power_mutex);
 			return ret;
 		}
 	}
@@ -3417,6 +3450,7 @@ int vpu_set_power(struct vpu_user *user, struct vpu_power *power)
 	user->power_opp = power->opp_step;
 
 	ret = vpu_get_power(core, false);
+	mutex_unlock(&set_power_mutex);
 	mutex_lock(&(vpu_service_cores[core].state_mutex));
 	vpu_service_cores[core].state = VCT_IDLE;
 	mutex_unlock(&(vpu_service_cores[core].state_mutex));
@@ -3506,10 +3540,10 @@ static void vpu_power_counter_routine(struct work_struct *work)
 	LOG_DVFS("vpu_%d counterR -", core);
 }
 
-bool vpu_is_idle(int core)
+bool vpu_is_idle(int core_s)
 {
 	bool idle = false;
-
+	unsigned int core = (unsigned int)core_s;
 
 	mutex_lock(&(vpu_service_cores[core].state_mutex));
 
@@ -3526,8 +3560,10 @@ bool vpu_is_idle(int core)
 
 }
 
-int vpu_quick_suspend(int core)
+int vpu_quick_suspend(int core_s)
 {
+	unsigned int core = (unsigned int)core_s;
+
 	LOG_DBG("[vpu_%d] q_suspend +\n", core);
 	mutex_lock(&power_counter_mutex[core]);
 	LOG_INF("[vpu_%d] q_suspend (%d/%d)\n", core,
@@ -3583,11 +3619,11 @@ static void vpu_sdsp_routine(struct work_struct *work)
 	}
 }
 
-int vpu_init_hw(int core, struct vpu_device *device)
+int vpu_init_hw(int core_s, struct vpu_device *device)
 {
 	int ret, i, j;
 	int param;
-
+	unsigned int core = (unsigned int)core_s;
 	struct vpu_shared_memory_param mem_param;
 
 	/* setup emi mpu protection */
@@ -3635,6 +3671,7 @@ int vpu_init_hw(int core, struct vpu_device *device)
 		init_waitqueue_head(&lock_wait);
 		mutex_init(&opp_mutex);
 		mutex_init(&power_lock_mutex);
+		mutex_init(&set_power_mutex);
 		init_waitqueue_head(&waitq_change_vcore);
 		init_waitqueue_head(&waitq_do_core_executing);
 		is_locked = false;
@@ -3691,31 +3728,17 @@ int vpu_init_hw(int core, struct vpu_device *device)
 				vpu_dump_ftrace_workqueue);
 #endif
 
-			#ifdef CONFIG_PM_WAKELOCKS
+			#ifdef CONFIG_PM_SLEEP
 			if (i == 0) {
 				wakeup_source_init(&(vpu_wake_lock[i]),
 							"vpu_wakelock_0");
 			} else {
 				wakeup_source_init(&(vpu_wake_lock[i]),
-							"vpu_wakelock_1");
-			}
-			#else
-			if (i == 0) {
-				wake_lock_init(&(vpu_wake_lock[i]),
-							WAKE_LOCK_SUSPEND,
-							"vpu_wakelock_0");
-			} else {
-				wake_lock_init(&(vpu_wake_lock[i]),
-							WAKE_LOCK_SUSPEND,
 							"vpu_wakelock_1");
 			}
 			#endif
 
 			if (vpu_dev->vpu_hw_support[i]) {
-				vpu_service_cores[i].srvc_task =
-				kmalloc(sizeof(struct task_struct), GFP_KERNEL);
-
-			if (vpu_service_cores[i].srvc_task != NULL) {
 				param = i;
 				vpu_service_cores[i].thread_var = i;
 				if (i == 0) {
@@ -3739,10 +3762,6 @@ int vpu_init_hw(int core, struct vpu_device *device)
 				ftrace_dump_work[i].pid =
 				vpu_service_cores[i].srvc_task->pid;
 #endif
-			} else {
-				LOG_ERR("allocate enque task(%d) fail", i);
-				goto out;
-			}
 			wake_up_process(vpu_service_cores[i].srvc_task);
 			}
 
@@ -4007,13 +4026,12 @@ int vpu_init_hw(int core, struct vpu_device *device)
 		/* pmqos  */
 		#ifdef ENABLE_PMQOS
 		for (i = 0 ; i < MTK_VPU_CORE ; i++) {
+			pm_qos_add_request(&vpu_qos_vvpu_request[i],
+				PM_QOS_VVPU_OPP,
+				PM_QOS_VVPU_OPP_DEFAULT_VALUE);
 
-		    pm_qos_add_request(&vpu_qos_vvpu_request[i],
-					    PM_QOS_VVPU_OPP,
-					    PM_QOS_VVPU_OPP_DEFAULT_VALUE);
-
-		pm_qos_update_request(&vpu_qos_vvpu_request[i],
-							VVPU_OPP_3);
+			pm_qos_update_request(&vpu_qos_vvpu_request[i],
+				VVPU_OPP_3);
 		}
 		#endif
 
@@ -4039,7 +4057,7 @@ out:
 
 	for (i = 0 ; i < MTK_VPU_CORE ; i++) {
 		if (vpu_service_cores[i].srvc_task != NULL) {
-			kfree(vpu_service_cores[i].srvc_task);
+			kthread_stop(vpu_service_cores[i].srvc_task);
 			vpu_service_cores[i].srvc_task = NULL;
 		}
 
@@ -4060,7 +4078,6 @@ int vpu_uninit_hw(void)
 
 		if (vpu_service_cores[i].srvc_task != NULL) {
 			kthread_stop(vpu_service_cores[i].srvc_task);
-			kfree(vpu_service_cores[i].srvc_task);
 			vpu_service_cores[i].srvc_task = NULL;
 		}
 
@@ -4072,9 +4089,8 @@ int vpu_uninit_hw(void)
 	cancel_delayed_work(&opp_keep_work);
 	/* pmqos  */
 	#ifdef ENABLE_PMQOS
-	for (i = 0 ; i < MTK_VPU_CORE ; i++) {
+	for (i = 0 ; i < MTK_VPU_CORE ; i++)
 		pm_qos_remove_request(&vpu_qos_vvpu_request[i]);
-	}
 	#endif
 
 	vpu_unprepare_regulator_and_clock();
@@ -4165,7 +4181,7 @@ int vpu_hw_enable_jtag(bool enabled)
 	return ret;
 }
 
-int vpu_hw_boot_sequence(int core)
+int vpu_hw_boot_sequence(int core_s)
 {
 	int ret;
 	uint64_t ptr_ctrl;
@@ -4174,6 +4190,12 @@ int vpu_hw_boot_sequence(int core)
 	uint64_t ptr_axi_1;
 	unsigned int reg_value = 0;
 	bool is_hw_fail = true;
+	unsigned int core = (unsigned int)core_s;
+
+	if (core >= MTK_VPU_CORE) {
+		LOG_DBG("invalid core =%d\n", core);
+		return -EINVAL;
+	}
 
 	vpu_trace_begin("%s", __func__);
 	LOG_INF("[vpu_%d] boot-seq core(%d)\n", core, core);
@@ -4191,7 +4213,7 @@ int vpu_hw_boot_sequence(int core)
 			vpu_read_reg32(vpu_service_cores[core].vpu_base,
 						CTRL_BASE_OFFSET + 0x11C));
 
-	lock_command(core);
+	lock_command(core, 0x0);
 	ptr_ctrl = vpu_service_cores[core].vpu_base +
 				g_vpu_reg_descs[REG_CTRL].offset;
 
@@ -4240,11 +4262,10 @@ int vpu_hw_boot_sequence(int core)
 	ndelay(27); /* wait for 27ns */
 
 	VPU_CLR_BIT(ptr_reset, 12); /* OCD_HALT_ON_RST pull down */
-	if (core >= MTK_VPU_CORE) { /* set PRID */
-		LOG_DBG("vpu set prid failed, core idx=%d invalid\n", core);
-	} else {
-		vpu_write_field(core, FLD_PRID, core);
-	}
+
+	/* set PRID */
+	vpu_write_field(core, FLD_PRID, core);
+
 	VPU_SET_BIT(ptr_reset, 4); /* B_RST pull up */
 	VPU_SET_BIT(ptr_reset, 8); /* D_RST pull up */
 	ndelay(27); /* wait for 27ns */
@@ -4295,18 +4316,8 @@ int vpu_hw_boot_sequence(int core)
 
 	vpu_trace_end();
 	if (ret) {
-		LOG_ERR("[vpu_%d] boot-up timeout , status(%d/%d), ret(%d)\n",
-			core,
-			vpu_read_field(core, FLD_XTENSA_INFO00),
-			vpu_service_cores[core].is_cmd_done, ret);
-		vpu_dump_mesg(NULL);
-		vpu_dump_register(NULL);
-		if (is_hw_fail == true) {
-			vpu_dump_debug_stack(core, DEBUG_STACK_SIZE);
-			vpu_dump_code_segment(core);
-			vpu_aee("VPU Timeout", "timeout to external boot\n");
-			apu_get_power_info();
-		}
+		vpu_err_hnd(is_hw_fail, core,
+			NULL, "VPU Timeout", "vpu%d: Boot-Up Timeout", core);
 		goto out;
 	}
 
@@ -4332,7 +4343,7 @@ static int vpu_hw_set_log_option(int core)
 	int ret;
 
 	/* update log enable and mpu enable */
-	lock_command(core);
+	lock_command(core, VPU_CMD_SET_FTRACE_LOG);
 	/* set vpu internal log enable,disable */
 	if (g_func_mask & VFM_ROUTINE_PRT_SYSLOG) {
 		vpu_write_field(core, FLD_XTENSA_INFO01,
@@ -4362,17 +4373,18 @@ static int vpu_hw_set_log_option(int core)
 }
 #endif
 
-int vpu_hw_set_debug(int core)
+int vpu_hw_set_debug(int core_s)
 {
 	int ret;
 	struct timespec now;
 	unsigned int device_version = 0x0;
 	bool is_hw_fail = true;
+	unsigned int core = (unsigned int)core_s;
 
 	LOG_DBG("%s (%d)+\n", __func__, core);
 	vpu_trace_begin("%s", __func__);
 
-	lock_command(core);
+	lock_command(core, VPU_CMD_SET_DEBUG);
 
 	/* 1. set debug */
 	getnstimeofday(&now);
@@ -4438,43 +4450,8 @@ int vpu_hw_set_debug(int core)
 	}
 
 	if (ret) {
-		LOG_ERR("[vpu_%d] %s, status(%d/%d), ret(%d)\n",
-			core,
-			"set-debug timeout/fail",
-			vpu_read_field(core, FLD_XTENSA_INFO00),
-			vpu_service_cores[core].is_cmd_done, ret);
-
-	LOG_INF("%s(%d)(%d)(%d)(%d.%d.%d.%d)(%d/%d)(%d/%d/%d)%d\n",
-		"set-debug timeout ",
-		core,
-		is_power_debug_lock,
-		opps.vvpu.index,
-		opps.dsp.index,
-		opps.dspcore[0].index,
-		opps.dspcore[1].index,
-		opps.ipu_if.index,
-		max_vvpu_opp,
-		max_dsp_freq,
-		force_change_vvpu_opp[core],
-		force_change_dsp_freq[core],
-		change_freq_first[core],
-		opp_keep_flag);
-		vpu_dump_mesg(NULL);
-		vpu_dump_register(NULL);
-		if (is_hw_fail == true) {
-			vpu_dump_debug_stack(core, DEBUG_STACK_SIZE);
-			vpu_dump_code_segment(core);
-			apu_get_power_info();
-			vpu_aee("VPU Timeout",
-				"core_%d timeout to do set_debug, (%d/%d), ret(%d)\n",
-				core,
-				vpu_read_field(core, FLD_XTENSA_INFO00),
-				vpu_service_cores[core].is_cmd_done, ret);
-		}
-	}
-
-	if (ret) {
-		LOG_ERR("[vpu_%d]timeout of set debug\n", core);
+		vpu_err_hnd(is_hw_fail, core,
+			NULL, "VPU Timeout", "vpu%d: Set Debug Timeout", core);
 		goto out;
 	}
 
@@ -4499,11 +4476,12 @@ out:
 	return ret;
 }
 
-int vpu_get_name_of_algo(int core, int id, char **name)
+int vpu_get_name_of_algo(int core_s, int id, char **name)
 {
 	int i;
-	int tmp = id;
+	unsigned int tmp = (unsigned int)id;
 	struct vpu_image_header *header;
+	unsigned int core = (unsigned int)core_s;
 
 	header = (struct vpu_image_header *)
 			((uintptr_t)vpu_service_cores[core].bin_base +
@@ -4524,11 +4502,12 @@ int vpu_get_name_of_algo(int core, int id, char **name)
 	return -ENOENT;
 }
 
-int vpu_total_algo_num(int core)
+int vpu_total_algo_num(int core_s)
 {
 	int i;
 	int total = 0;
 	struct vpu_image_header *header;
+	unsigned int core = (unsigned int)core_s;
 
 	LOG_DBG("[vpu] %s +\n", __func__);
 
@@ -4543,7 +4522,7 @@ int vpu_total_algo_num(int core)
 	return total;
 };
 
-int vpu_get_entry_of_algo(int core, char *name, int *id,
+int vpu_get_entry_of_algo(int core_s, char *name, int *id,
 	unsigned int *mva, int *length)
 {
 	int i, j;
@@ -4551,6 +4530,7 @@ int vpu_get_entry_of_algo(int core, char *name, int *id,
 	unsigned int coreMagicNum;
 	struct vpu_algo_info *algo_info;
 	struct vpu_image_header *header;
+	unsigned int core = (unsigned int)core_s;
 
 	LOG_DBG("[vpu] %s +\n", __func__);
 	/* coreMagicNum = ( 0x60 | (0x01 << core) ); */
@@ -4606,7 +4586,7 @@ int vpu_ext_be_busy(void)
 	/* CHRISTODO */
 	int TEMP_CORE = 0;
 
-	lock_command(TEMP_CORE);
+	lock_command(TEMP_CORE, VPU_CMD_EXT_BUSY);
 
 	/* 1. write register */
 	vpu_write_field(TEMP_CORE, FLD_XTENSA_INFO01, VPU_CMD_EXT_BUSY);
@@ -4621,17 +4601,20 @@ int vpu_ext_be_busy(void)
 	return ret;
 }
 
-int vpu_debug_func_core_state(int core, enum VpuCoreState state)
+int vpu_debug_func_core_state(int core_s, enum VpuCoreState state)
 {
+	unsigned int core = (unsigned int)core_s;
+
 	mutex_lock(&(vpu_service_cores[core].state_mutex));
 	vpu_service_cores[core].state = state;
 	mutex_unlock(&(vpu_service_cores[core].state_mutex));
 	return 0;
 }
 
-int vpu_boot_up(int core, bool secure)
+int vpu_boot_up(int core_s, bool secure)
 {
 	int ret = 0;
+	unsigned int core = (unsigned int)core_s;
 
 	/*secure flag is for sdsp force shut down*/
 
@@ -4733,11 +4716,12 @@ int vpu_shut_down(int core)
 	return vpu_shut_down_ex(core, 1);
 }
 
-int vpu_shut_down_ex(int core, int logbackup)
+int vpu_shut_down_ex(int core_s, int logbackup)
 {
 	int ret = 0;
-#ifdef ENABLE_EARA_QOS
+	unsigned int core = (unsigned int)core_s;
 
+#ifdef ENABLE_EARA_QOS
 	vpu_qos_counter_end(core);
 	if (core == 0)
 		apu_power_count_enable(false, USER_VPU0);
@@ -4818,10 +4802,11 @@ out:
 	return ret;
 }
 
-int vpu_hw_load_algo(int core, struct vpu_algo *algo)
+int vpu_hw_load_algo(int core_s, struct vpu_algo *algo)
 {
 	int ret;
 	bool is_hw_fail = true;
+	unsigned int core = (unsigned int)core_s;
 
 	LOG_DBG("[vpu_%d] %s +\n", core, __func__);
 	/* no need to reload algo if have same loaded algo*/
@@ -4849,7 +4834,7 @@ int vpu_hw_load_algo(int core, struct vpu_algo *algo)
 	vpu_service_cores[core].state = VCT_EXECUTING;
 	mutex_unlock(&(vpu_service_cores[core].state_mutex));
 
-	lock_command(core);
+	lock_command(core, VPU_CMD_DO_LOADER);
 	LOG_DBG("start to load algo\n");
 
 	ret = vpu_check_precond(core);
@@ -4896,22 +4881,9 @@ int vpu_hw_load_algo(int core, struct vpu_algo *algo)
 	vpu_write_field(core, FLD_RUN_STALL, 1);
 	vpu_trace_end();
 	if (ret) {
-		LOG_ERR("[vpu_%d] load_algo timeout, status(%d/%d), ret(%d)\n",
-				core,
-				vpu_read_field(core, FLD_XTENSA_INFO00),
-				vpu_service_cores[core].is_cmd_done,
-				ret);
-
-		vpu_dump_mesg(NULL);
-		vpu_dump_register(NULL);
-		if (is_hw_fail == true) {
-			vpu_dump_debug_stack(core, DEBUG_STACK_SIZE);
-			vpu_dump_code_segment(core);
-			vpu_dump_algo_segment(core, algo->id[core], 0x0);
-			vpu_aee("VPU Timeout",
-					"core_%d timeout to do loader, algo_id=%d\n",
-					core, vpu_service_cores[core].current_algo);
-		}
+		vpu_err_hnd(is_hw_fail, core,
+			NULL, "VPU Timeout",
+			"DO_LOADER (%s) Timeout", algo->name);
 		goto out;
 	}
 
@@ -4944,150 +4916,11 @@ out:
 	return ret;
 }
 
-int vpu_hw_enque_request(int core, struct vpu_request *request)
-{
-	int ret;
-	bool is_hw_fail = true;
-
-	LOG_DBG("[vpu_%d/%d] eq + ", core, request->algo_id[core]);
-
-	vpu_trace_begin("%s(%d)", __func__, request->algo_id[core]);
-	ret = vpu_get_power(core, false);
-	if (ret) {
-		LOG_ERR("[vpu_%d]fail to get power!\n", core);
-		goto out;
-	}
-
-	ret = wait_to_do_vpu_running(core);
-	if (ret) {
-		LOG_ERR("[vpu_%d] %s, ret = %d\n", core,
-			"enq fail to wait_to_do_vpu_running!",
-			ret);
-		goto out;
-	}
-
-	mutex_lock(&(vpu_service_cores[core].state_mutex));
-	vpu_service_cores[core].state = VCT_EXECUTING;
-	mutex_unlock(&(vpu_service_cores[core].state_mutex));
-
-	lock_command(core);
-	LOG_DBG("start to enque request\n");
-
-	ret = vpu_check_precond(core);
-	if (ret) {
-		request->status = VPU_REQ_STATUS_BUSY;
-		LOG_ERR("error state before enque request!\n");
-		goto out;
-	}
-
-	memcpy((void *) (uintptr_t)vpu_service_cores[core].work_buf->va,
-			request->buffers,
-			sizeof(struct vpu_buffer) * request->buffer_count);
-
-	if (g_vpu_log_level > VpuLogThre_DUMP_BUF_MVA)
-		vpu_dump_buffer_mva(request);
-	LOG_INF("[vpu_%d] start d2d, id/frm (%d/%d)\n", core,
-		request->algo_id[core], request->frame_magic);
-	/* 1. write register */
-	/* command: d2d */
-	vpu_write_field(core, FLD_XTENSA_INFO01, VPU_CMD_DO_D2D);
-	/* buffer count */
-	vpu_write_field(core, FLD_XTENSA_INFO12, request->buffer_count);
-	/* pointer to array of struct vpu_buffer */
-	vpu_write_field(core, FLD_XTENSA_INFO13,
-					vpu_service_cores[core].work_buf->pa);
-	/* pointer to property buffer */
-	vpu_write_field(core, FLD_XTENSA_INFO14, request->sett.sett_ptr);
-	/* size of property buffer */
-	vpu_write_field(core, FLD_XTENSA_INFO15, request->sett.sett_lens);
-
-	/* 2. trigger interrupt */
-	#ifdef ENABLE_PMQOS
-	/* pmqos, 10880 Mbytes per second */
-	#endif
-	vpu_trace_begin("dsp:running");
-	LOG_DBG("[vpu] %s running... ", __func__);
-	#if defined(VPU_MET_READY)
-	MET_Events_Trace(1, core, request->algo_id[core]);
-	#endif
-
-	/* RUN_STALL pull down */
-	vpu_write_field(core, FLD_RUN_STALL, 0);
-	vpu_write_field(core, FLD_CTL_INT, 1);
-
-	/* 3. wait until done */
-	ret = wait_command(core);
-	if (ret == -ERESTARTSYS)
-		is_hw_fail = false;
-
-	LOG_DBG("[vpu_%d] end d2d\n", core);
-
-	/* RUN_STALL pull up to avoid fake cmd */
-	vpu_write_field(core, FLD_RUN_STALL, 1);
-	#ifdef ENABLE_PMQOS
-	/* pmqos, release request after d2d done */
-
-	#endif
-	vpu_trace_end();
-	#if defined(VPU_MET_READY)
-	MET_Events_Trace(0, core, request->algo_id[core]);
-	#endif
-	if (ret) {
-		request->status = VPU_REQ_STATUS_TIMEOUT;
-		LOG_ERR("[vpu_%d] %s, status(%d/%d), ret(%d)\n", core,
-			"hw_enque_request timeout",
-			vpu_read_field(core, FLD_XTENSA_INFO00),
-			vpu_service_cores[core].is_cmd_done, ret);
-
-		vpu_dump_buffer_mva(request);
-		vpu_dump_mesg(NULL);
-		vpu_dump_register(NULL);
-		if (is_hw_fail == true) {
-			vpu_dump_debug_stack(core, DEBUG_STACK_SIZE);
-			vpu_dump_code_segment(core);
-			vpu_aee("VPU Timeout",
-				"core_%d timeout to do d2d, algo_id=%d\n", core,
-				vpu_service_cores[core].current_algo);
-		}
-		goto out;
-	}
-
-	request->status = (vpu_check_postcond(core)) ?
-			VPU_REQ_STATUS_FAILURE : VPU_REQ_STATUS_SUCCESS;
-
-out:
-	unlock_command(core);
-	if (ret) {
-		mutex_lock(&(vpu_service_cores[core].state_mutex));
-		vpu_service_cores[core].state = VCT_SHUTDOWN;
-		mutex_unlock(&(vpu_service_cores[core].state_mutex));
-		/* vpu_put_power(core, VPT_IMT_OFF); */
-		/* blocking use same ththread to avoid race between
-		 * delayedworkQ and serviceThread
-		 */
-		mutex_lock(&power_counter_mutex[core]);
-		power_counter[core]--;
-		mutex_unlock(&power_counter_mutex[core]);
-		apu_get_power_info();
-		LOG_ERR("[vpu_%d] pr hw error, force shutdown, cnt(%d)\n",
-				core, power_counter[core]);
-
-		if (power_counter[core] == 0)
-			vpu_shut_down(core);
-	} else {
-		vpu_put_power(core, VPT_ENQUE_ON);
-	}
-	vpu_trace_end();
-	LOG_DBG("[vpu] %s - (%d)", __func__, request->status);
-	return ret;
-
-}
-
 /* do whole processing for enque request, including check algo, load algo,
  * run d2d. minimize timing gap between each step for a single eqneu request
  * and minimize the risk of timing issue
  */
-int vpu_hw_processing_request(int core, struct vpu_request *request)
+int vpu_hw_processing_request(int core_s, struct vpu_request *request)
 {
 	int ret;
 	struct vpu_algo *algo = NULL;
@@ -5095,15 +4928,9 @@ int vpu_hw_processing_request(int core, struct vpu_request *request)
 	struct timespec start, end;
 	uint64_t latency = 0;
 	bool is_hw_fail = true;
-
-	LOG_INF("%s, lock sdsp(%d) in + ", __func__, core);
+	unsigned int core = (unsigned int)core_s;
 
 	mutex_lock(&vpu_dev->sdsp_control_mutex[core]);
-
-	LOG_INF("%s, lock sdsp(%d) in - ", __func__, core);
-
-	if (g_vpu_log_level > Log_ALGO_OPP_INFO)
-		LOG_INF("[vpu_%d/%d] pr + ", core, request->algo_id[core]);
 
 	/* step1, enable clocks and boot-up if needed */
 	ret = vpu_get_power(core, false);
@@ -5128,6 +4955,9 @@ int vpu_hw_processing_request(int core, struct vpu_request *request)
 		}
 	}
 
+	LOG_INF("%s: vpu%d: algo: %s(%d)\n", __func__,
+		core, algo ? algo->name : "", request->algo_id[core]);
+
 	/* step3. do processing, algo loader and d2d*/
 	ret = wait_to_do_vpu_running(core);
 	if (ret) {
@@ -5144,7 +4974,7 @@ int vpu_hw_processing_request(int core, struct vpu_request *request)
 	if (need_reload) {
 		vpu_trace_begin("[vpu_%d] hw_load_algo(%d)",
 						core, algo->id[core]);
-		lock_command(core);
+		lock_command(core, VPU_CMD_DO_LOADER);
 		LOG_DBG("start to load algo\n");
 
 		ret = vpu_check_precond(core);
@@ -5225,24 +5055,11 @@ int vpu_hw_processing_request(int core, struct vpu_request *request)
 
 		if (ret) {
 			request->status = VPU_REQ_STATUS_TIMEOUT;
-			LOG_ERR("[vpu_%d] %s, status(%d/%d), ret(%d)\n",
-				core,
-				"pr_load_algo timeout/fail",
-				vpu_read_field(core, FLD_XTENSA_INFO00),
-				vpu_service_cores[core].is_cmd_done,
-				ret);
-			vpu_dump_mesg(NULL);
-			vpu_dump_register(NULL);
-			if (is_hw_fail == true) {
-				vpu_dump_debug_stack(core, DEBUG_STACK_SIZE);
-				vpu_dump_code_segment(core);
-					vpu_dump_algo_segment(core,
-						request->algo_id[core],	0x0);
-				vpu_aee("VPU Timeout",
-					"core_%d timeout to do loader, algo_id=%d\n",
-					core,
-					vpu_service_cores[core].current_algo);
-			}
+			vpu_err_hnd(is_hw_fail, core,
+				request, "VPU Timeout",
+				"vpu%d: DO_LOADER Timeout, algo: %s(%d)",
+				core, algo->name,
+				vpu_service_cores[core].current_algo);
 			goto out;
 		}
 
@@ -5257,7 +5074,7 @@ int vpu_hw_processing_request(int core, struct vpu_request *request)
 				core, request->algo_id[core]);
 
 	LOG_DBG("start to enque request\n");
-	lock_command(core);
+	lock_command(core, VPU_CMD_DO_D2D);
 	ret = vpu_check_precond(core);
 	if (ret) {
 		request->status = VPU_REQ_STATUS_BUSY;
@@ -5269,8 +5086,6 @@ int vpu_hw_processing_request(int core, struct vpu_request *request)
 			request->buffers,
 			sizeof(struct vpu_buffer) * request->buffer_count);
 
-	if (g_vpu_log_level > VpuLogThre_DUMP_BUF_MVA)
-		vpu_dump_buffer_mva(request);
 	LOG_DBG("[vpu_%d]start d2d, %s(%d/%d), %s(%d), %s(%d/%d,%d), %s(%d)\n",
 		core,
 		"id/frm", request->algo_id[core], request->frame_magic,
@@ -5360,41 +5175,12 @@ if (g_vpu_log_level > Log_STATE_MACHINE) {
 			vpu_service_cores[core].is_cmd_done, ret);
 	if (ret) {
 		request->status = VPU_REQ_STATUS_TIMEOUT;
-		LOG_ERR("[vpu_%d] %s, status(%d/%d), ret(%d)\n",
-				core,
-				"hw_d2d timeout/fail",
-				vpu_read_field(core, FLD_XTENSA_INFO00),
-				vpu_service_cores[core].is_cmd_done,
-				ret);
-
-		vpu_dump_buffer_mva(request);
-		vpu_dump_mesg(NULL);
-		vpu_dump_register(NULL);
-		if (is_hw_fail == true) {
-			vpu_dump_debug_stack(core, DEBUG_STACK_SIZE);
-			vpu_dump_code_segment(core);
-			vpu_dump_algo_segment(core,
-				request->algo_id[core], 0x0);
-			LOG_INF("%s(%d)(%d)(%d)(%d.%d.%d.%d)(%d/%d)(%d/%d/%d)%d\n",
-			"timeout to do d2d ",
+		vpu_err_hnd(is_hw_fail, core,
+			request, "VPU Timeout",
+			"vpu%d: D2D Timeout, algo: %s(%d)",
 			core,
-			is_power_debug_lock,
-			opps.vvpu.index,
-			opps.dsp.index,
-			opps.dspcore[0].index,
-			opps.dspcore[1].index,
-			opps.ipu_if.index,
-			max_vvpu_opp,
-			max_dsp_freq,
-			force_change_vvpu_opp[core],
-			force_change_dsp_freq[core],
-			change_freq_first[core],
-			opp_keep_flag);
-			vpu_aee("VPU Timeout",
-				"core_%d timeout to do d2d, algo_id=%d\n",
-				core,
-				vpu_service_cores[core].current_algo);
-		}
+			algo ? algo->name : "",
+			vpu_service_cores[core].current_algo);
 		goto out;
 	}
 
@@ -5436,14 +5222,13 @@ if (g_vpu_log_level > Log_STATE_MACHINE) {
 		request->busy_time, request->bandwidth);
 }
 	mutex_unlock(&vpu_dev->sdsp_control_mutex[core]);
-	LOG_INF("%s, unlock sdsp(%d) in - ", __func__, core);
 
 	return ret;
 
 }
 
 
-int vpu_hw_get_algo_info(int core, struct vpu_algo *algo)
+int vpu_hw_get_algo_info(int core_s, struct vpu_algo *algo)
 {
 	int ret = 0;
 	int port_count = 0;
@@ -5452,6 +5237,7 @@ int vpu_hw_get_algo_info(int core, struct vpu_algo *algo)
 	unsigned int ofs_ports, ofs_info, ofs_info_descs, ofs_sett_descs;
 	int i;
 	bool is_hw_fail = true;
+	unsigned int core = (unsigned int)core_s;
 
 	vpu_trace_begin("%s(%d)", __func__, algo->id[core]);
 	ret = vpu_get_power(core, false);
@@ -5460,7 +5246,7 @@ int vpu_hw_get_algo_info(int core, struct vpu_algo *algo)
 		goto out;
 	}
 
-	lock_command(core);
+	lock_command(core, VPU_CMD_GET_ALGO);
 	LOG_DBG("start to get algo, algo_id=%d\n", algo->id[core]);
 
 	ret = vpu_check_precond(core);
@@ -5505,15 +5291,9 @@ int vpu_hw_get_algo_info(int core, struct vpu_algo *algo)
 	LOG_INF("[vpu_%d] VPU_CMD_GET_ALGO done\n", core);
 	vpu_trace_end();
 	if (ret) {
-		vpu_dump_mesg(NULL);
-		vpu_dump_register(NULL);
-		if (is_hw_fail == true) {
-			vpu_dump_debug_stack(core, DEBUG_STACK_SIZE);
-			vpu_dump_code_segment(core);
-			vpu_aee("VPU Timeout",
-					"core_%d timeout to get algo, algo_id=%d\n",
-					core, vpu_service_cores[core].current_algo);
-		}
+		vpu_err_hnd(is_hw_fail, core,
+			NULL, "VPU Timeout", "vpu%d: GET_ALGO Timeout: %s(%d)",
+			core, algo->name, algo->id[core]);
 		goto out;
 	}
 
@@ -5717,418 +5497,16 @@ void vpu_free_shared_memory(struct vpu_shared_memory *shmem)
 	kfree(shmem);
 }
 
-int vpu_dump_buffer_mva(struct vpu_request *request)
-{
-	struct vpu_buffer *buf;
-	struct vpu_plane *plane;
-	int i, j;
-
-	LOG_INF("dump request - setting: 0x%x, length: %d\n",
-			(uint32_t) request->sett.sett_ptr,
-			request->sett.sett_lens);
-
-	for (i = 0; i < request->buffer_count; i++) {
-		buf = &request->buffers[i];
-		LOG_INF("  buffer[%d] - %s:%d, %s:%dx%d, %s:%d\n",
-				i,
-				"port", buf->port_id,
-				"size", buf->width, buf->height,
-				"format", buf->format);
-
-		for (j = 0; j < buf->plane_count; j++) {
-			plane = &buf->planes[j];
-			LOG_INF("	 plane[%d] - %s:0x%x, %s:%d, %s:%d\n",
-				j,
-				"ptr", (uint32_t) plane->ptr,
-				"length", plane->length,
-				"stride", plane->stride);
-		}
-	}
-
-	return 0;
-
-}
 int vpu_dump_vpu_memory(struct seq_file *s)
 {
-	int i = 0;
-	int core = 0; // temp
-	unsigned int size = 0x0;
-	unsigned long addr = 0x0;
-	unsigned int dump_addr = 0x0;
-	unsigned int value_1, value_2, value_3, value_4;
-	unsigned int bin_offset = 0x0;
-	//unsigned int vpu_domain_addr = 0x0;
-	//unsigned int vpu_dump_size = 0x0;
-	//unsigned int vpu_shift_offset = 0x0;
-
-	vpu_print_seq(s, "===%s, vpu_dump_exception = 0x%x===\n",
-		__func__, vpu_dump_exception);
-
-	if ((vpu_dump_exception & 0xFFFF0000) != VPU_EXCEPTION_MAGIC)
-		return 0;
-
-	core = vpu_dump_exception & 0x000000FF;
-
-	vpu_print_seq(s, "==========%s, core_%d===========\n", __func__, core);
-
-	vpu_print_seq(s, "=====core service state=%d=====\n",
-		vpu_service_cores[core].state);
-
-	if (core >= MTK_VPU_CORE) {
-		vpu_print_seq(s, "vpu_dump_exception data error...\n");
-		return 0;
-	}
-
-
-#if 0
-	vpu_print_seq(s, "[vpu_%d] hw_d2d err, status(%d/%d), %d\n",
-		core,
-		vpu_read_field(core, FLD_XTENSA_INFO00),
-		vpu_service_cores[core].is_cmd_done,
-		exception_isr_check[core]);
-
-	vpu_dump_register(s);
-	vpu_dump_mesg(s);
-#else
-	vpu_print_seq(s, "======== dump message=======\n");
-
-	vpu_dump_mesg(s);
-
-	vpu_print_seq(s, "========no dump register=======\n");
-#endif
-
-#if 0
-	vpu_print_seq(s, " ========== stack segment dump start ==========\n");
-
-	/* dmem 0 */
-	vpu_domain_addr = 0x7FF00000;
-	vpu_shift_offset = 0x0;
-	vpu_dump_size = 0x20000;
-	vpu_print_seq(s, "==========dmem0 => 0x%x/0x%x: 0x%x==============\n",
-		vpu_domain_addr, vpu_shift_offset, vpu_dump_size);
-	for (i = 0 ; i < (int)vpu_dump_size / 4 ; i = i + 4) {
-		vpu_print_seq(s, "%08X %08X %08X %08X %08X\n", vpu_domain_addr,
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i)),
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i + 4)),
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i + 8)),
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i + 12)));
-		vpu_domain_addr += (4 * 4);
-	}
-	/* dmem 1 */
-	vpu_domain_addr = 0x7FF20000;
-	vpu_shift_offset = 0x20000;
-	vpu_dump_size = 0x20000;
-	vpu_print_seq(s, "==========dmem1 => 0x%x/0x%x: 0x%x==============\n",
-		vpu_domain_addr, vpu_shift_offset, vpu_dump_size);
-	for (i = 0 ; i < (int)vpu_dump_size / 4 ; i = i + 4) {
-		vpu_print_seq(s, "%08X %08X %08X %08X %08X\n", vpu_domain_addr,
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i)),
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i + 4)),
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i + 8)),
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i + 12)));
-		vpu_domain_addr += (4 * 4);
-	}
-	/* imem */
-	vpu_domain_addr = 0x7FF40000;
-	vpu_shift_offset = 0x40000;
-	vpu_dump_size = 0x10000;
-	vpu_print_seq(s, "==========imem => 0x%x/0x%x: 0x%x==============\n",
-		vpu_domain_addr, vpu_shift_offset, vpu_dump_size);
-	for (i = 0 ; i < (int)vpu_dump_size / 4 ; i = i + 4) {
-		vpu_print_seq(s, "%08X %08X %08X %08X %08X\n", vpu_domain_addr,
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i)),
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i + 4)),
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i + 8)),
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i + 12)));
-		vpu_domain_addr += (4 * 4);
-	}
-#else
-	vpu_print_seq(s, " ========== no dump stack segment ==========\n");
-
-#endif
-	vpu_print_seq(s, "\n\n\n===code segment dump start===\n\n\n");
-
-	vpu_print_seq(s, "\n\n\n==main code segment_reset_vector==\n\n\n\n");
-
-	vpu_print_seq(s, "|Clock index %d|\n", opps.dspcore[0].index);
-
-	switch (core) {
-	case 0:
-	default:
-		dump_addr = VPU_MVA_RESET_VECTOR;
-		bin_offset = 0x0;
-		break;
-	case 1:
-		dump_addr = VPU2_MVA_RESET_VECTOR;
-		bin_offset = VPU_DDR_SHIFT_RESET_VECTOR;
-		break;
-	}
-
-	size = DEBUG_MAIN_CODE_SEG_SIZE_1; /* define by mon/jackie*/
-	vpu_print_seq(s, "==============0x%x/0x%x/0x%x/0x%x==============\n",
-			bin_offset, dump_addr,
-			size, VPU_SIZE_RESET_VECTOR);
-	for (i = 0 ; i < (int)size / 4 ; i = i + 4) {
-		value_1 = vpu_read_reg32(vpu_service_cores[core].bin_base,
-			bin_offset + (4 * i));
-		value_2 = vpu_read_reg32(vpu_service_cores[core].bin_base,
-			bin_offset + (4 * i + 4));
-		value_3 = vpu_read_reg32(vpu_service_cores[core].bin_base,
-			bin_offset + (4 * i + 8));
-		value_4 = vpu_read_reg32(vpu_service_cores[core].bin_base,
-			bin_offset + (4 * i + 12));
-		vpu_print_seq(s, "%08X %08X %08X %08X %08X\n", dump_addr,
-			value_1, value_2, value_3, value_4);
-		dump_addr += (4 * 4);
-	}
-
-
-	vpu_print_seq(s, "===main code segment_main_program===\n");
-	switch (core) {
-	case 0:
-	default:
-		dump_addr = VPU_MVA_MAIN_PROGRAM;
-		bin_offset = VPU_OFFSET_MAIN_PROGRAM;
-		break;
-	case 1:
-		dump_addr = VPU2_MVA_MAIN_PROGRAM;
-		bin_offset = VPU_DDR_SHIFT_RESET_VECTOR +
-					VPU_OFFSET_MAIN_PROGRAM;
-		break;
-	}
-	size = DEBUG_MAIN_CODE_SEG_SIZE_2; /* define by mon/jackie*/
-	vpu_print_seq(s, "==============0x%x/0x%x/0x%x/0x%x==============\n",
-			bin_offset, dump_addr,
-			size, VPU_SIZE_MAIN_PROGRAM);
-	for (i = 0 ; i < (int)size / 4 ; i = i + 4) {
-		value_1 = vpu_read_reg32(vpu_service_cores[core].bin_base,
-			bin_offset + (4 * i));
-		value_2 = vpu_read_reg32(vpu_service_cores[core].bin_base,
-			bin_offset + (4 * i + 4));
-		value_3 = vpu_read_reg32(vpu_service_cores[core].bin_base,
-			bin_offset + (4 * i + 8));
-		value_4 = vpu_read_reg32(vpu_service_cores[core].bin_base,
-			bin_offset + (4 * i + 12));
-		vpu_print_seq(s, "%08X %08X %08X %08X %08X\n", dump_addr,
-			value_1, value_2, value_3, value_4);
-		dump_addr += (4 * 4);
-	}
-
-	vpu_print_seq(s, "============== kernel code segment ==============\n");
-	switch (core) {
-	case 0:
-	default:
-		dump_addr = VPU_MVA_KERNEL_LIB;
-		break;
-	case 1:
-		dump_addr = VPU2_MVA_KERNEL_LIB;
-		break;
-	}
-	addr = (unsigned long)(vpu_service_cores[core].exec_kernel_lib->va);
-	size = DEBUG_CODE_SEG_SIZE; /* define by mon/jackie*/
-	vpu_print_seq(s, "==============0x%lx/0x%x/0x%x/0x%x==============\n",
-			addr, dump_addr,
-			size, DEBUG_CODE_SEG_SIZE);
-	for (i = 0 ; i < (int)size / 4 ; i = i + 4) {
-		value_1 = (unsigned int)
-			(*((unsigned long *)((uintptr_t)addr + (4 * i))));
-
-		value_2 = (unsigned int)
-			(*((unsigned long *)((uintptr_t)addr + (4 * i + 4))));
-
-		value_3 = (unsigned int)
-			(*((unsigned long *)((uintptr_t)addr + (4 * i + 8))));
-
-		value_4 = (unsigned int)
-			(*((unsigned long *)((uintptr_t)addr + (4 * i + 12))));
-
-		vpu_print_seq(s, "%08X %08X %08X %08X %08X\n", dump_addr,
-			value_1, value_2, value_3, value_4);
-
-		dump_addr += (4 * 4);
-	}
+	vpu_dmp_seq(s);
+	vpu_dump_image_file(s);
 
 	return 0;
-
-}
-
-void vpu_dump_reg_ipu_core(int core)
-{
-	int i;
-	unsigned int addr = 0x0;
-	unsigned long base;
-
-	/* ipu_cores */
-	if (core == 0)
-		addr = 0x19180000;
-	else if (core == 1)
-		addr = 0x19280000;
-	else
-		return;
-
-	base = vpu_service_cores[core].vpu_base;
-
-	for (i = 0 ; i < (int)(0x20C) / 4 ; i = i + 4) {
-		LOG_WRN("%08X %08X %08X %08X %08X\n", addr,
-			vpu_read_reg32(base, CTRL_BASE_OFFSET + (4 * i)),
-			vpu_read_reg32(base, CTRL_BASE_OFFSET + (4 * i + 4)),
-			vpu_read_reg32(base, CTRL_BASE_OFFSET + (4 * i + 8)),
-			vpu_read_reg32(base, CTRL_BASE_OFFSET + (4 * i + 12)));
-		addr += (4 * 4);
-	}
-}
-
-void vpu_dump_reg_ipu_conn(void)
-{
-	int i;
-	unsigned int addr;
-	unsigned long base;
-
-	/* ipu_conn */
-	/* 19000000: 0x0 ~ 0x30*/
-	addr = 0x19000000;
-	base = vpu_dev->vpu_syscfg_base;
-	for (i = 0 ; i < (int)(0x200) / 4 ; i = i + 4) {
-		LOG_WRN("%08X %08X %08X %08X %08X\n", addr,
-			vpu_read_reg32(base, (4 * i)),
-			vpu_read_reg32(base, (4 * i + 4)),
-			vpu_read_reg32(base, (4 * i + 8)),
-			vpu_read_reg32(base, (4 * i + 12)));
-		addr += (4 * 4);
-	}
-	/* 19000800~1900080c */
-	addr = 0x19000800;
-	base = vpu_dev->vpu_syscfg_base;
-	LOG_WRN("%08X %08X %08X %08X %08X\n", addr,
-		vpu_read_reg32(base, 0x800),
-		vpu_read_reg32(base, 0x804),
-		vpu_read_reg32(base, 0x808),
-		vpu_read_reg32(base, 0x80C));
-	/* 19000C00*/
-	addr = 0x19000C00;
-	base = vpu_dev->vpu_syscfg_base;
-	LOG_WRN("%08X %08X\n", addr,
-		vpu_read_reg32(base, 0xC00));
-
-	/* 0x19020048/0x1902006c / 0x19020070 */
-	addr = 0x19020000;
-	base = vpu_dev->vpu_vcorecfg_base;
-	for (i = 0 ; i < (int)(0x200) / 4 ; i = i + 4) {
-		LOG_WRN("%08X %08X %08X %08X %08X\n", addr,
-		vpu_read_reg32(base, (4 * i)),
-		vpu_read_reg32(base, (4 * i + 4)),
-		vpu_read_reg32(base, (4 * i + 8)),
-		vpu_read_reg32(base, (4 * i + 12)));
-		addr += (4 * 4);
-	}
 }
 
 int vpu_dump_register(struct seq_file *s)
 {
-	int i, j;
-	bool first_row_of_field;
-	struct vpu_reg_desc *reg;
-	struct vpu_reg_field_desc *field;
-	int TEMP_CORE = 0;
-	bool ipu_conn_dumped = false;
-
-#define LINE_BAR "  +---------------+-------+---+---+-------------------------+----------+\n"
-
-	vpu_print_seq(s, "  |Core 0 clock index %d|\n", opps.dspcore[0].index);
-	vpu_print_seq(s, "  |Core 1 clock index %d|\n", opps.dspcore[1].index);
-
-	for (TEMP_CORE = 0; TEMP_CORE < MTK_VPU_CORE; TEMP_CORE++) {
-		mutex_lock(&power_mutex[TEMP_CORE]);
-
-		/* skip, if the core was not powered on */
-		if (!is_power_on[TEMP_CORE]) {
-			vpu_print_seq(s, LINE_BAR);
-			vpu_print_seq(s, "  |Core: %-62d| was powered off\n",
-				TEMP_CORE);
-			vpu_print_seq(s, LINE_BAR);
-			goto unlock_core;
-		}
-
-		/* dump ipu_conn registers to kernel log */
-		if (!ipu_conn_dumped) {
-			vpu_dump_reg_ipu_conn();
-			ipu_conn_dumped = true;
-		}
-		/* dump ipu_core registers to kernel log */
-		vpu_dump_reg_ipu_core(TEMP_CORE);
-
-		vpu_print_seq(s, LINE_BAR);
-		/* print ipu_conn, ipu_core registers to seq file */
-		vpu_print_seq(s, "  |Core: %-62d|\n", TEMP_CORE);
-		vpu_print_seq(s, LINE_BAR);
-		vpu_print_seq(s, "  |%-15s|%-7s|%-3s|%-3s|%-25s|%-10s|\n",
-			"Register", "Offset", "MSB", "LSB", "Field", "Value");
-		vpu_print_seq(s, LINE_BAR);
-
-		for (i = 0; i < VPU_NUM_REGS; i++) {
-			reg = &g_vpu_reg_descs[i];
-#if 0
-			if (reg->reg < REG_DEBUG_INFO00)
-				continue;
-#endif
-			first_row_of_field = true;
-
-			for (j = 0; j < VPU_NUM_REG_FIELDS; j++) {
-				field = &g_vpu_reg_field_descs[j];
-				if (reg->reg != field->reg)
-					continue;
-
-				if (first_row_of_field) {
-					first_row_of_field = false;
-#define PRINT_STRING "  |%-15s|0x%-5.5x|%-3d|%-3d|%-25s|0x%-8.8x|\n"
-					vpu_print_seq(s, PRINT_STRING,
-						  reg->name,
-						  reg->offset,
-						  field->msb,
-						  field->lsb,
-						  field->name,
-						  vpu_read_field(TEMP_CORE, j));
-#undef PRINT_STRING
-
-				} else {
-#define PRINT_STRING "  |%-15s|%-7s|%-3d|%-3d|%-25s|0x%-8.8x|\n"
-					vpu_print_seq(s, PRINT_STRING,
-						  "", "",
-						  field->msb,
-						  field->lsb,
-						  field->name,
-						  vpu_read_field(TEMP_CORE, j));
-#undef PRINT_STRING
-
-				}
-			}
-			vpu_print_seq(s, LINE_BAR);
-		}
-unlock_core:
-		mutex_unlock(&power_mutex[TEMP_CORE]);
-	}
-
-	vpu_print_seq(s, LINE_BAR);
-#ifdef CONFIG_MTK_M4U
-	// m4u_dump_reg_for_hang_issue(1);
-#elif defined(CONFIG_MTK_IOMMU_V2)
-	mtk_dump_reg_for_hang_issue(1);
-#endif
-
-#undef LINE_BAR
-
 	return 0;
 }
 
@@ -6169,304 +5547,35 @@ int vpu_dump_image_file(struct seq_file *s)
 	vpu_print_seq(s, LINE_BAR);
 #undef LINE_BAR
 
-/* #ifdef MTK_VPU_DUMP_BINARY */
-#if 0
-	{
-		uint32_t dump_1k_size = (0x00000400);
-		unsigned char *ptr = NULL;
+	return 0;
+}
 
-		vpu_print_seq(s, "Reset Vector Data:\n");
-		ptr = (unsigned char *) vpu_service_cores[core].bin_base +
-				VPU_OFFSET_RESET_VECTOR;
-		for (i = 0; i < dump_1k_size / 2; i++, ptr++) {
-			if (i % 16 == 0)
-				vpu_print_seq(s, "\n%07X0h: ", i / 16);
-
-			vpu_print_seq(s, "%02X ", *ptr);
-		}
-		vpu_print_seq(s, "\n");
-		vpu_print_seq(s, "\n");
-		vpu_print_seq(s, "Main Program Data:\n");
-		ptr = (unsigned char *) vpu_service_cores[core].bin_base +
-				VPU_OFFSET_MAIN_PROGRAM;
-		for (i = 0; i < dump_1k_size; i++, ptr++) {
-			if (i % 16 == 0)
-				vpu_print_seq(s, "\n%07X0h: ", i / 16);
-
-			vpu_print_seq(s, "%02X ", *ptr);
-		}
-		vpu_print_seq(s, "\n");
-	}
-#endif
+int vpu_dump_mesg(struct seq_file *s)
+{
+	vpu_dump_mesg_seq(s, 0);
+	vpu_dump_mesg_seq(s, 1);
 
 	return 0;
 }
 
-void vpu_dump_debug_stack(int core, int size)
-{
-	int i = 0;
-	unsigned int vpu_domain_addr = 0x0;
-	unsigned int vpu_dump_size = 0x0;
-	unsigned int vpu_shift_offset = 0x0;
-
-	vpu_domain_addr = ((DEBUG_STACK_BASE_OFFSET & 0x000fffff) | 0x7FF00000);
-
-	LOG_ERR("===========%s, core_%d============\n", __func__, core);
-	/* dmem 0 */
-	vpu_domain_addr = 0x7FF00000;
-	vpu_shift_offset = 0x0;
-	vpu_dump_size = 0x20000;
-	LOG_WRN("==========dmem0 => 0x%x/0x%x: 0x%x==============\n",
-		vpu_domain_addr, vpu_shift_offset, vpu_dump_size);
-	for (i = 0 ; i < (int)vpu_dump_size / 4 ; i = i + 4) {
-		LOG_WRN("%08X %08X %08X %08X %08X\n", vpu_domain_addr,
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i)),
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i + 4)),
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i + 8)),
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i + 12)));
-		vpu_domain_addr += (4 * 4);
-		mdelay(1);
-	}
-	/* dmem 1 */
-	vpu_domain_addr = 0x7FF20000;
-	vpu_shift_offset = 0x20000;
-	vpu_dump_size = 0x20000;
-	LOG_WRN("==========dmem1 => 0x%x/0x%x: 0x%x==============\n",
-		vpu_domain_addr, vpu_shift_offset, vpu_dump_size);
-	for (i = 0 ; i < (int)vpu_dump_size / 4 ; i = i + 4) {
-		LOG_WRN("%08X %08X %08X %08X %08X\n", vpu_domain_addr,
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i)),
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i + 4)),
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i + 8)),
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i + 12)));
-		vpu_domain_addr += (4 * 4);
-		mdelay(1);
-	}
-	/* imem */
-	vpu_domain_addr = 0x7FF40000;
-	vpu_shift_offset = 0x40000;
-	vpu_dump_size = 0x10000;
-	LOG_WRN("==========imem => 0x%x/0x%x: 0x%x==============\n",
-		vpu_domain_addr, vpu_shift_offset, vpu_dump_size);
-	for (i = 0 ; i < (int)vpu_dump_size / 4 ; i = i + 4) {
-		LOG_WRN("%08X %08X %08X %08X %08X\n", vpu_domain_addr,
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i)),
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i + 4)),
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i + 8)),
-			vpu_read_reg32(vpu_service_cores[core].vpu_base,
-			vpu_shift_offset + (4 * i + 12)));
-		vpu_domain_addr += (4 * 4);
-		mdelay(1);
-	}
-}
-
-void vpu_dump_code_segment(int core)
-{
-	int i = 0;
-	unsigned int size = 0x0;
-	unsigned long addr = 0x0;
-	unsigned int dump_addr = 0x0;
-	unsigned int value_1, value_2, value_3, value_4;
-	unsigned int bin_offset = 0x0;
-
-	vpu_dump_exception = VPU_EXCEPTION_MAGIC | core;
-
-	LOG_ERR("==========%s, core_%d===========\n", __func__, core);
-	LOG_ERR("==========main code segment_reset_vector===========\n");
-	switch (core) {
-	case 0:
-	default:
-		dump_addr = VPU_MVA_RESET_VECTOR;
-		bin_offset = 0x0;
-		break;
-	case 1:
-		dump_addr = VPU2_MVA_RESET_VECTOR;
-		bin_offset = VPU_DDR_SHIFT_RESET_VECTOR;
-		break;
-	}
-
-	size = DEBUG_MAIN_CODE_SEG_SIZE_1; /* define by mon/jackie*/
-	LOG_WRN("==============0x%x/0x%x/0x%x/0x%x==============\n",
-			bin_offset, dump_addr,
-			size, VPU_SIZE_RESET_VECTOR);
-	for (i = 0 ; i < (int)size / 4 ; i = i + 4) {
-		value_1 = vpu_read_reg32(vpu_service_cores[core].bin_base,
-			bin_offset + (4 * i));
-		value_2 = vpu_read_reg32(vpu_service_cores[core].bin_base,
-			bin_offset + (4 * i + 4));
-		value_3 = vpu_read_reg32(vpu_service_cores[core].bin_base,
-			bin_offset + (4 * i + 8));
-		value_4 = vpu_read_reg32(vpu_service_cores[core].bin_base,
-			bin_offset + (4 * i + 12));
-		LOG_WRN("%08X %08X %08X %08X %08X\n", dump_addr,
-			value_1, value_2, value_3, value_4);
-		dump_addr += (4 * 4);
-		mdelay(1);
-	}
-
-
-	LOG_ERR("=========== main code segment_main_program ===========\n");
-	switch (core) {
-	case 0:
-	default:
-		dump_addr = VPU_MVA_MAIN_PROGRAM;
-		bin_offset = VPU_OFFSET_MAIN_PROGRAM;
-		break;
-	case 1:
-		dump_addr = VPU2_MVA_MAIN_PROGRAM;
-		bin_offset = VPU_DDR_SHIFT_RESET_VECTOR +
-					VPU_OFFSET_MAIN_PROGRAM;
-		break;
-	}
-	size = DEBUG_MAIN_CODE_SEG_SIZE_2; /* define by mon/jackie*/
-	LOG_WRN("==============0x%x/0x%x/0x%x/0x%x==============\n",
-			bin_offset, dump_addr,
-			size, VPU_SIZE_MAIN_PROGRAM);
-	for (i = 0 ; i < (int)size / 4 ; i = i + 4) {
-		value_1 = vpu_read_reg32(vpu_service_cores[core].bin_base,
-			bin_offset + (4 * i));
-		value_2 = vpu_read_reg32(vpu_service_cores[core].bin_base,
-			bin_offset + (4 * i + 4));
-		value_3 = vpu_read_reg32(vpu_service_cores[core].bin_base,
-			bin_offset + (4 * i + 8));
-		value_4 = vpu_read_reg32(vpu_service_cores[core].bin_base,
-			bin_offset + (4 * i + 12));
-		LOG_WRN("%08X %08X %08X %08X %08X\n", dump_addr,
-			value_1, value_2, value_3, value_4);
-		dump_addr += (4 * 4);
-		mdelay(1);
-	}
-
-	LOG_ERR("============== kernel code segment ==============\n");
-	switch (core) {
-	case 0:
-	default:
-		dump_addr = VPU_MVA_KERNEL_LIB;
-		break;
-	case 1:
-		dump_addr = VPU2_MVA_KERNEL_LIB;
-		break;
-	}
-	addr = (unsigned long)(vpu_service_cores[core].exec_kernel_lib->va);
-	size = DEBUG_CODE_SEG_SIZE; /* define by mon/jackie*/
-	LOG_WRN("==============0x%lx/0x%x/0x%x/0x%x==============\n",
-			addr, dump_addr,
-			size, DEBUG_CODE_SEG_SIZE);
-	for (i = 0 ; i < (int)size / 4 ; i = i + 4) {
-		value_1 = (unsigned int)
-			(*((unsigned long *)((uintptr_t)addr + (4 * i))));
-
-		value_2 = (unsigned int)
-			(*((unsigned long *)((uintptr_t)addr + (4 * i + 4))));
-
-		value_3 = (unsigned int)
-			(*((unsigned long *)((uintptr_t)addr + (4 * i + 8))));
-
-		value_4 = (unsigned int)
-			(*((unsigned long *)((uintptr_t)addr + (4 * i + 12))));
-
-		LOG_WRN("%08X %08X %08X %08X %08X\n", dump_addr,
-			value_1, value_2, value_3, value_4);
-
-		dump_addr += (4 * 4);
-		mdelay(1);
-	}
-
-	vpu_dump_exception = VPU_EXCEPTION_MAGIC | core;
-
-}
-
-void vpu_dump_algo_segment(int core, int algo_id, int size)
-{
-/* we do not mapping out va(bin_ptr is mva) for algo bin file currently */
-#if 1
-	struct vpu_algo *algo = NULL;
-	int ret = 0;
-
-	LOG_WRN("==========%s, core_%d, id_%d===========\n",
-	 __func__, core, algo_id);
-
-	ret = vpu_find_algo_by_id(core, algo_id, &algo, NULL);
-	if (ret) {
-		LOG_ERR("%s can not find the algo, core=%d, id=%d\n",
-			__func__, core, algo_id);
-		return;
-	}
-	LOG_WRN("== algo name : %s ==\n", algo->name);
-
-#endif
-#if 0
-
-	unsigned int addr = 0x0;
-	unsigned int length = 0x0;
-	int i = 0;
-
-	addr = (unsigned int)algo->bin_ptr;
-	length = (unsigned int)algo->bin_length;
-
-	LOG_WRN("==============0x%x/0x%x/0x%x==============\n",
-			addr, length, size);
-
-	for (i = 0 ; i < (int)length / 4 ; i = i + 4) {
-		LOG_WRN("%X %X %X %X %X\n", addr,
-		(unsigned int)
-			(*((unsigned int *)((uintptr_t)addr + (4 * i)))),
-		(unsigned int)
-			(*((unsigned int *)((uintptr_t)addr + (4 * i + 4)))),
-		(unsigned int)
-			(*((unsigned int *)((uintptr_t)addr + (4 * i + 8)))),
-		(unsigned int)
-			(*((unsigned int *)((uintptr_t)addr + (4 * i + 12)))));
-		addr += (4 * 4);
-	}
-#endif
-}
-
-int vpu_dump_mesg(struct seq_file *s)
+int vpu_dump_mesg_seq(struct seq_file *s, int core_s)
 {
 	char *ptr = NULL;
 	char *log_head = NULL;
 	char *log_buf;
 	char *log_a_pos = NULL;
-	int core_index = 0;
 	bool jump_out = false;
+	unsigned int core = (unsigned int)core_s;
 
-	for (core_index = 0 ; core_index < MTK_VPU_CORE; core_index++) {
-		log_buf = (char *)
-			((uintptr_t)vpu_service_cores[core_index].work_buf->va +
-						VPU_OFFSET_LOG);
-	if (g_vpu_log_level > 8) {
-		pr_info("=== VPU_%d Hex Log Buffer ===\n", core_index);
-		print_hex_dump(KERN_INFO, "", DUMP_PREFIX_ADDRESS, 32, 1,
-			log_buf, VPU_SIZE_LOG_BUF, 1);
-	}
+	log_buf = (char *)
+		((uintptr_t)vpu_service_cores[core].work_buf->va +
+					VPU_OFFSET_LOG);
 
 	ptr = log_buf;
 	log_head = log_buf;
 
 	/* set the last byte to '\0' */
-	#if 0
-	*(ptr + VPU_SIZE_LOG_BUF - 1) = '\0';
-
-	/* skip the header part */
-	ptr += VPU_SIZE_LOG_HEADER;
-	log_head = strchr(ptr, '\0') + 1;
-
-	vpu_print_seq(s, "=== VPU_%d Log Buffer ===\n", core_index);
-	vpu_print_seq(s, "vpu: print dsp log\n%s%s", log_head, ptr);
-	#else
-	vpu_print_seq(s, "=== VPU_%d Log Buffer ===\n", core_index);
+	vpu_print_seq(s, "=== VPU_%d Log Buffer ===\n", core);
 	vpu_print_seq(s, "vpu: print dsp log (0x%x):\n",
 					(unsigned int)(uintptr_t)log_buf);
 
@@ -6498,12 +5607,16 @@ int vpu_dump_mesg(struct seq_file *s)
 		/* incase log_a_pos is at end of string */
 		if (ptr >= log_head + VPU_SIZE_LOG_DATA)
 			break;
-
-		mdelay(1);
 	} while (!jump_out);
 
-	#endif
-	}
+	if (vpu_service_cores[core].work_buf && s) {
+		seq_printf(s, "\n======== vpu%d: logbuf @0x%x ========\n",
+		core, vpu_service_cores[core].work_buf->pa + VPU_OFFSET_LOG);
+		seq_hex_dump(s, "logbuf ", DUMP_PREFIX_OFFSET, 32, 4,
+		(void *)(vpu_service_cores[core].work_buf->va + VPU_OFFSET_LOG),
+		VPU_SIZE_LOG_BUF, true);
+	} else
+		pr_info("%s: NULL handle for dump!\n", __func__);
 	return 0;
 }
 
@@ -6598,6 +5711,7 @@ int vpu_dump_vpu(struct seq_file *s)
 int vpu_set_power_parameter(uint8_t param, int argc, int *args)
 {
 	int ret = 0;
+	unsigned int lv = 0;
 
 	switch (param) {
 	case VPU_POWER_PARAM_FIX_OPP:
@@ -6633,19 +5747,21 @@ int vpu_set_power_parameter(uint8_t param, int argc, int *args)
 			goto out;
 		}
 
-		ret = args[0] >= opps.count;
+		lv = (unsigned int)args[0];
+		ret = lv >= opps.count;
+
 		if (ret) {
 			LOG_ERR("opp step(%d) is out-of-bound, count:%d\n",
 					(int)(args[0]), opps.count);
 			goto out;
 		}
 
-		opps.vcore.index = opps.vcore.opp_map[args[0]];
-		opps.vvpu.index = opps.vvpu.opp_map[args[0]];
-		opps.dsp.index = opps.dsp.opp_map[args[0]];
-		opps.ipu_if.index = opps.ipu_if.opp_map[args[0]];
-		opps.dspcore[0].index = opps.dspcore[0].opp_map[args[0]];
-		opps.dspcore[1].index = opps.dspcore[1].opp_map[args[0]];
+		opps.vcore.index = opps.vcore.opp_map[lv];
+		opps.vvpu.index = opps.vvpu.opp_map[lv];
+		opps.dsp.index = opps.dsp.opp_map[lv];
+		opps.ipu_if.index = opps.ipu_if.opp_map[lv];
+		opps.dspcore[0].index = opps.dspcore[0].opp_map[lv];
+		opps.dspcore[1].index = opps.dspcore[1].opp_map[lv];
 
 		is_power_debug_lock = true;
 
@@ -6856,7 +5972,7 @@ uint8_t vpu_boost_value_to_opp(uint8_t boost_value)
 bool vpu_update_lock_power_parameter(struct vpu_lock_power *vpu_lock_power)
 {
 	bool ret = true;
-	int i, core = -1;
+	unsigned int i, core = 0xFFFFFFFF;
 	unsigned int priority = vpu_lock_power->priority;
 
 	for (i = 0 ; i < MTK_VPU_CORE ; i++) {
@@ -6866,7 +5982,7 @@ bool vpu_update_lock_power_parameter(struct vpu_lock_power *vpu_lock_power)
 		}
 	}
 
-	if (core >= MTK_VPU_CORE || core < 0) {
+	if (core >= MTK_VPU_CORE) {
 		LOG_ERR("wrong core index (0x%x/%d/%d)",
 			vpu_lock_power->core, core, MTK_VPU_CORE);
 		ret = false;
@@ -6890,7 +6006,7 @@ LOG_INF("power_parameter core %d, maxb:%d, minb:%d priority %d\n",
 bool vpu_update_unlock_power_parameter(struct vpu_lock_power *vpu_lock_power)
 {
 	bool ret = true;
-	int i, core = -1;
+	unsigned int i, core = 0xFFFFFFFF;
 	unsigned int priority = vpu_lock_power->priority;
 
 	for (i = 0 ; i < MTK_VPU_CORE ; i++) {
@@ -6900,7 +6016,7 @@ bool vpu_update_unlock_power_parameter(struct vpu_lock_power *vpu_lock_power)
 		}
 	}
 
-	if (core >= MTK_VPU_CORE || core < 0) {
+	if (core >= MTK_VPU_CORE) {
 		LOG_ERR("wrong core index (0x%x/%d/%d)",
 			vpu_lock_power->core, core, MTK_VPU_CORE);
 		ret = false;
@@ -6936,7 +6052,7 @@ uint8_t max_of(uint8_t value1, uint8_t value2)
 bool vpu_update_max_opp(struct vpu_lock_power *vpu_lock_power)
 {
 	bool ret = true;
-	int i, core = -1;
+	unsigned int i, core = 0xFFFFFFFF;
 	uint8_t first_priority = NORMAL;
 	uint8_t first_priority_max_boost_value = 100;
 	uint8_t first_priority_min_boost_value = 0;
@@ -6954,7 +6070,7 @@ bool vpu_update_max_opp(struct vpu_lock_power *vpu_lock_power)
 		}
 	}
 
-	if (core >= MTK_VPU_CORE || core < 0) {
+	if (core >= MTK_VPU_CORE) {
 		LOG_ERR("wrong core index (0x%x/%d/%d)",
 			vpu_lock_power->core, core, MTK_VPU_CORE);
 		ret = false;
@@ -7010,7 +6126,7 @@ LOG_DVFS("final_min_boost_value:%d final_max_boost_value:%d\n",
 int vpu_lock_set_power(struct vpu_lock_power *vpu_lock_power)
 {
 	int ret = -1;
-	int i, core = -1;
+	unsigned int i, core = 0xFFFFFFFF;
 
 	mutex_lock(&power_lock_mutex);
 	for (i = 0 ; i < MTK_VPU_CORE ; i++) {
@@ -7020,7 +6136,7 @@ int vpu_lock_set_power(struct vpu_lock_power *vpu_lock_power)
 		}
 	}
 
-	if (core >= MTK_VPU_CORE || core < 0) {
+	if (core >= MTK_VPU_CORE) {
 		LOG_ERR("wrong core index (0x%x/%d/%d)",
 			vpu_lock_power->core, core, MTK_VPU_CORE);
 		ret = -1;
@@ -7044,7 +6160,7 @@ int vpu_lock_set_power(struct vpu_lock_power *vpu_lock_power)
 int vpu_unlock_set_power(struct vpu_lock_power *vpu_lock_power)
 {
 	int ret = -1;
-	int i, core = -1;
+	unsigned int i, core = 0xFFFFFFFF;
 
 	mutex_lock(&power_lock_mutex);
 	for (i = 0 ; i < MTK_VPU_CORE ; i++) {
@@ -7054,10 +6170,11 @@ int vpu_unlock_set_power(struct vpu_lock_power *vpu_lock_power)
 		}
 	}
 
-	if (core >= MTK_VPU_CORE || core < 0) {
+	if (core >= MTK_VPU_CORE) {
 		LOG_ERR("wrong core index (0x%x/%d/%d)",
 			vpu_lock_power->core, core, MTK_VPU_CORE);
 		ret = false;
+		mutex_unlock(&power_lock_mutex);
 		return ret;
 	}
 	if (!vpu_update_unlock_power_parameter(vpu_lock_power)) {
@@ -7071,5 +6188,53 @@ int vpu_unlock_set_power(struct vpu_lock_power *vpu_lock_power)
 	mutex_unlock(&power_lock_mutex);
 	return ret;
 
+}
+
+
+void vpu_lock(int core)
+{
+	mutex_lock(&vpu_dev->sdsp_control_mutex[core]);
+}
+
+void vpu_unlock(int core)
+{
+	mutex_unlock(&vpu_dev->sdsp_control_mutex[core]);
+}
+
+
+uint32_t vpu_get_iram_data(int core)
+{
+	if (core < 0 || core >= MTK_VPU_CORE)
+		return 0;
+
+	return vpu_service_cores[core].iram_data_mva;
+}
+
+struct vpu_shared_memory *vpu_get_kernel_lib(int core)
+{
+	if (core < 0 || core >= MTK_VPU_CORE)
+		return NULL;
+	if (!vpu_service_cores[core].exec_kernel_lib)
+		return NULL;
+
+	return vpu_service_cores[core].exec_kernel_lib;
+}
+
+struct vpu_shared_memory *vpu_get_work_buf(int core)
+{
+	if (core < 0 || core >= MTK_VPU_CORE)
+		return NULL;
+	if (!vpu_service_cores[core].work_buf)
+		return NULL;
+
+	return vpu_service_cores[core].work_buf;
+}
+
+unsigned long vpu_get_ctrl_base(int core)
+{
+	if (core < 0 || core >= MTK_VPU_CORE)
+		return 0;
+
+	return vpu_service_cores[core].vpu_base;
 }
 

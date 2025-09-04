@@ -1346,14 +1346,13 @@ void musb_start(struct musb *musb)
 			musb->is_host, musb->is_active);
 
 	musb_platform_enable(musb);
+	musb_platform_reset(musb);
 	musb_generic_disable(musb);
 
 	intrusbe = musb_readb(regs, MUSB_INTRUSBE);
 	if (musb->is_host) {
 		musb->intrtxe = 0xffff;
-		musb_writew(regs, MUSB_INTRTXE, musb->intrtxe);
 		musb->intrrxe = 0xfffe;
-		musb_writew(regs, MUSB_INTRRXE, musb->intrrxe);
 		intrusbe = 0xf7;
 
 		while (!musb_platform_get_vbus_status(musb)) {
@@ -1365,6 +1364,9 @@ void musb_start(struct musb *musb)
 		}
 
 	} else if (!musb->is_host) {
+		/* enable ep0 interrupt */
+		musb->intrtxe = 0x1;
+		musb->intrrxe = 0;
 		/* device mode enable reset interrupt */
 		intrusbe |= MUSB_INTR_RESET;
 #if defined(CONFIG_USBIF_COMPLIANCE)
@@ -1373,6 +1375,8 @@ void musb_start(struct musb *musb)
 #endif
 	}
 
+	musb_writew(regs, MUSB_INTRTXE, musb->intrtxe);
+	musb_writew(regs, MUSB_INTRRXE, musb->intrrxe);
 	musb_writeb(regs, MUSB_INTRUSBE, intrusbe);
 
 	/* In U2 host mode, USB bus will issue
@@ -1934,6 +1938,7 @@ static int musb_core_init(u16 musb_type, struct musb *musb)
 	void __iomem *mbase = musb->mregs;
 	int status = 0;
 	int i;
+	int ret;
 
 	/* log core options (read using indexed model) */
 	reg = musb_read_configdata(mbase);
@@ -1980,9 +1985,13 @@ static int musb_core_init(u16 musb_type, struct musb *musb)
 
 	/* log release info */
 	musb->hwvers = musb_read_hwvers(mbase);
-	snprintf(aRevision, 32, "%d.%d%s", MUSB_HWVERS_MAJOR(musb->hwvers),
+	ret = snprintf(aRevision, 32, "%d.%d%s", MUSB_HWVERS_MAJOR(musb->hwvers),
 		 MUSB_HWVERS_MINOR(musb->hwvers),
 		 (musb->hwvers & MUSB_HWVERS_RC) ? "RC" : "");
+
+	if (ret < 0)
+		return -EINVAL;
+
 	pr_debug("%s: %sHDRC RTL version %s %s\n"
 		, musb_driver_name, type, aRevision, aDate);
 
@@ -2590,7 +2599,7 @@ static int musb_init_controller
 
 	/* attach to the IRQ */
 	if (request_irq(musb->nIrq, musb->isr
-			, IRQF_TRIGGER_LOW, dev_name(dev), musb)) {
+			, IRQF_TRIGGER_NONE, dev_name(dev), musb)) {
 		DBG(0, "request_irq %d failed!\n", musb->nIrq);
 		status = -ENODEV;
 		goto fail3;
@@ -2649,10 +2658,11 @@ static int musb_init_controller
 	if (status < 0)
 		goto fail3;
 
+#ifdef CONFIG_DEBUG_FS
 	status = musb_init_debugfs(musb);
 	if (status < 0)
 		goto fail4;
-
+#endif
 #ifdef CONFIG_SYSFS
 	status = sysfs_create_group(&musb->controller->kobj, &musb_attr_group);
 	if (status)
@@ -2662,13 +2672,14 @@ static int musb_init_controller
 	pm_runtime_put(musb->controller);
 
 	return 0;
-
+#ifdef CONFIG_DEBUG_FS
 #ifdef CONFIG_SYSFS
 fail5:
 	musb_exit_debugfs(musb);
 #endif
 
 fail4:
+#endif
 	musb_gadget_cleanup(musb);
 
 fail3:
@@ -2705,11 +2716,15 @@ static int musb_probe(struct platform_device *pdev)
 	struct resource *iomem;
 
 	iomem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!iomem)
+		return -ENODEV;
 	base = devm_ioremap(dev, iomem->start, resource_size(iomem));
 	if (IS_ERR(base))
 		return PTR_ERR(base);
 
 	iomem = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (!iomem)
+		return -ENODEV;
 	pbase = devm_ioremap(dev, iomem->start, resource_size(iomem));
 	if (IS_ERR(pbase))
 		return PTR_ERR(pbase);
@@ -2736,7 +2751,9 @@ static int musb_remove(struct platform_device *pdev)
 	 *  - Peripheral mode: peripheral is deactivated (or never-activated)
 	 *  - OTG mode: both roles are deactivated (or never-activated)
 	 */
+#ifdef CONFIG_DEBUG_FS
 	musb_exit_debugfs(musb);
+#endif
 	musb_shutdown(pdev);
 
 	musb_free(musb);

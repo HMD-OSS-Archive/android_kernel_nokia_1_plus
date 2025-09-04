@@ -194,9 +194,9 @@ static int mipi_clk_change_sta;
 static int dsi_currect_mode;
 static int dsi_force_config;
 static int dsi0_te_enable = 1;
-static const struct LCM_UTIL_FUNCS lcm_utils_dsi0;
-static const struct LCM_UTIL_FUNCS lcm_utils_dsi1;
-static const struct LCM_UTIL_FUNCS lcm_utils_dsidual;
+static struct LCM_UTIL_FUNCS lcm_utils_dsi0;
+static struct LCM_UTIL_FUNCS lcm_utils_dsi1;
+static struct LCM_UTIL_FUNCS lcm_utils_dsidual;
 static cmdqBackupSlotHandle _h_intstat;
 unsigned int impendance0[2] = { 0 }; /* MIPITX_DSI_IMPENDANCE0 */
 unsigned int impendance1[2] = { 0 }; /* MIPITX_DSI_IMPENDANCE1 */
@@ -2583,15 +2583,16 @@ int mipi_clk_change(enum DISP_MODULE_ENUM module, int en)
 #endif
 		DISP_PR_INFO("%s,re-calc vdo timing\n", __func__);
 		DSI_Calc_VDO_Timing(module, dsi_params);
-	}
+}
+	if (_is_power_on_status(module) == 0)
+		return 0;
 
 #ifndef CONFIG_MTK_HIGH_FRAME_RATE
 	ret = cmdqRecCreate(CMDQ_SCENARIO_PRIMARY_DISP, &handle);
 	if (ret) {
-		DISP_PR_INFO("%s:Fail to create cmdq handle\n", __func__);
+		DISP_PR_ERR("%s:Fail to create cmdq handle\n", __func__);
 		return -1;
 	}
-
 	cmdqRecReset(handle);
 #endif
 
@@ -2843,6 +2844,9 @@ void dsi_phy_clk_switch_gce(enum DISP_MODULE_ENUM module,
 	}
 }
 
+void DSI_PHY_TIMCONFIG(enum DISP_MODULE_ENUM module,
+	struct cmdqRecStruct *cmdq, struct LCM_DSI_PARAMS *dsi_params);
+
 void dsi_cmd_mode_clk_change(enum DISP_MODULE_ENUM module,
 	struct cmdqRecStruct *cmdq, struct LCM_DSI_PARAMS *dsi_params)
 {
@@ -2930,18 +2934,18 @@ void DSI_CPHY_TIMCONFIG(enum DISP_MODULE_ENUM module, struct cmdqRecStruct *cmdq
 			if (dfps_params) {
 				if (!mipi_clk_change_sta) {
 					if (dfps_params->data_rate != 0 ||
-						dfps_params->PLL_CLOCK != 0)
+						dfps_params->PLL_CLOCK != 0){
 						_data_rate =
 							dfps_params->data_rate;
 						_PLL_CLOCK =
-							dfps_params->PLL_CLOCK;
+							dfps_params->PLL_CLOCK; }
 				} else {
 					if (dfps_params->data_rate_dyn != 0 ||
-						dfps_params->PLL_CLOCK_dyn != 0)
+						dfps_params->PLL_CLOCK_dyn != 0){
 						_data_rate =
 						dfps_params->data_rate_dyn;
 						_PLL_CLOCK =
-						dfps_params->PLL_CLOCK_dyn;
+						dfps_params->PLL_CLOCK_dyn; }
 
 				}
 			}
@@ -2964,7 +2968,6 @@ void DSI_CPHY_TIMCONFIG(enum DISP_MODULE_ENUM module, struct cmdqRecStruct *cmdq
 		DISPCHECK("[dsi_dsi.c] PLL clock should not be 0!\n");
 		ASSERT(0);
 	}
-
 
 #define NS_TO_CYCLE(n, c)	((n) / (c))
 
@@ -3683,7 +3686,7 @@ UINT32 DSI_dcs_read_lcm_reg_v4(enum DISP_MODULE_ENUM module,
 	/* Just read 10 bytes valid each time */
 	UINT32 VALID_DATA_SIZE = 10;
 	int dsi_i, i, ret = 0;
-	UINT8 buffer[30] = {0};
+	UINT8 buffer[30];
 	struct DSI_RX_DATA_REG read_data[4];
 	UINT32 recv_data_cnt = 0;
 	UINT32 read_data_cnt = 0;
@@ -7320,12 +7323,18 @@ void ddp_dsi_dynfps_get_vfp_info(unsigned int disp_fps,
 void DSI_dynfps_send_cmd(
 	void *cmdq, unsigned int cmd,
 	unsigned char count, unsigned char *para_list,
-	unsigned char force_update)
+	unsigned char force_update, enum LCM_Send_Cmd_Mode sendmode)
 {
-	DDPMSG("%s,cmd=0x%x,count=%d,para[0]=0x%x\n",
-		__func__, cmd, count, para_list[0]);
-	DSI_send_cmd_cmd(cmdq, DISP_MODULE_DSI0, false, REGFLAG_ESCAPE_ID,
+	DDPMSG("%s,cmd=0x%x,count=%d,para[0]=0x%x,sendcmd in %s mode\n",
+		__func__, cmd, count, para_list[0], sendmode?"VDO":"CMD");
+
+	if (sendmode == LCM_SEND_IN_VDO) {
+		DSI_send_vm_cmd(cmdq, DISP_MODULE_DSI0, REGFLAG_ESCAPE_ID,
 		cmd, count, para_list, force_update);
+	} else{
+		DSI_send_cmd_cmd(cmdq, DISP_MODULE_DSI0, false, REGFLAG_ESCAPE_ID,
+		cmd, count, para_list, force_update);
+	}
 }
 
 /*-------------------------------DynFPS end------------------------------*/

@@ -249,6 +249,8 @@ void prepare_pll_addr(enum mt_cpu_dvfs_pll_id pll_id)
 {
 	struct pll_ctrl_t *pll_p = id_to_pll_ctrl(pll_id);
 
+	if (pll_p == NULL)
+		return;
 	pll_p->armpll_addr =
 	(unsigned int *)(pll_id == PLL_LL_CLUSTER ? ARMPLL_LL_CON1 :
 	pll_id == PLL_L_CLUSTER ? ARMPLL_L_CON1 : CCIPLL_CON1);
@@ -611,20 +613,8 @@ unsigned int _mt_cpufreq_get_cpu_level(void)
 	if (turbocode == 1)
 		lv = CPU_LEVEL_6;	/* V5_T */
 
-#if defined(CONFIG_ARM64)
-	if ((strstr(CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES,
-			"k71v1_bsp_2g") != NULL) ||
-		(strstr(CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES,
-			"k71v1_bsp_2g_ducam") != NULL)) {
-		lv = buf;
-	}
-#else
-	if ((strstr(CONFIG_BUILD_ARM_DTB_OVERLAY_IMAGE_NAMES,
-			"k71v1_bsp_2g") != NULL) ||
-		(strstr(CONFIG_BUILD_ARM_DTB_OVERLAY_IMAGE_NAMES,
-			"k71v1_bsp_2g_ducam") != NULL)) {
-		lv = buf;
-	}
+#if defined(LV)
+	lv = buf;
 #endif
 
 	turbo_flag = 0;

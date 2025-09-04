@@ -912,7 +912,7 @@ static void SCP_sensorHub_init_sensor_state(void)
 }
 
 static void init_sensor_config_cmd(struct ConfigCmd *cmd,
-		int sensor_type)
+		uint8_t sensor_type)
 {
 	uint8_t alt = mSensorState[sensor_type].alt;
 	bool enable = 0;
@@ -1021,7 +1021,8 @@ static int SCP_sensorHub_flush(int handle)
 static int SCP_sensorHub_report_raw_data(struct data_unit_t *data_t)
 {
 	struct SCP_sensorHub_data *obj = obj_data;
-	int err = 0, sensor_type = 0, sensor_id = 0;
+	int err = 0;
+	uint8_t sensor_type = 0, sensor_id = 0;
 	atomic_t *p_flush_count = NULL;
 	bool raw_enable = 0;
 	int64_t raw_enable_time = 0;
@@ -1068,8 +1069,8 @@ static int SCP_sensorHub_report_raw_data(struct data_unit_t *data_t)
 static int SCP_sensorHub_report_alt_data(struct data_unit_t *data_t)
 {
 	struct SCP_sensorHub_data *obj = obj_data;
-	int err = 0, sensor_type = 0, sensor_id = 0, alt_id;
-	uint8_t alt = 0;
+	int err = 0;
+	uint8_t alt = 0, alt_id, sensor_type = 0, sensor_id = 0;
 	atomic_t *p_flush_count = NULL;
 	bool alt_enable = 0;
 	int64_t alt_enable_time = 0;
@@ -1126,6 +1127,7 @@ static int SCP_sensorHub_server_dispatch_data(uint32_t *currWp)
 
 	int64_t scp_time = 0;
 
+	memset(&event, 0, sizeof(struct data_unit_t));
 	pStart = (char *)READ_ONCE(obj->SCP_sensorFIFO) +
 		offsetof(struct sensorFIFO, data);
 	pEnd = pStart +  READ_ONCE(obj->SCP_sensorFIFO->FIFOSize);
@@ -2407,7 +2409,8 @@ static ssize_t nanohub_trace_store(struct device_driver *ddri,
 	const char *buf, size_t count)
 {
 	struct SCP_sensorHub_data *obj = obj_data;
-	int handle, trace = 0;
+	int trace = 0;
+	unsigned int handle;
 	int res = 0;
 
 	pr_debug("%s buf:%s\n", __func__, buf);

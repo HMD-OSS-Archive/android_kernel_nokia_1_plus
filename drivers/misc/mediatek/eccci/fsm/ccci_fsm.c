@@ -16,6 +16,12 @@
  */
 
 #include "ccci_fsm_internal.h"
+#include <memory/mediatek/emi.h>
+
+#if (MD_GENERATION >= 6297)
+#include <mt-plat/mtk_ccci_common.h>
+#include "modem_secure_base.h"
+#endif
 
 static struct ccci_fsm_ctl *ccci_fsm_entries[MAX_MD_NUM];
 
@@ -26,6 +32,22 @@ static void fsm_finish_event(struct ccci_fsm_ctl *ctl,
 
 static int needforcestop;
 
+static int s_is_normal_mdee;
+static int s_devapc_dump_counter;
+
+static void (*s_md_state_cb)(enum MD_STATE old_state,
+				enum MD_STATE new_state);
+
+int mtk_ccci_register_md_state_cb(
+		void (*md_state_cb)(
+			enum MD_STATE old_state,
+			enum MD_STATE new_state))
+{
+	s_md_state_cb = md_state_cb;
+
+	return 0;
+}
+EXPORT_SYMBOL(mtk_ccci_register_md_state_cb);
 
 int force_md_stop(struct ccci_fsm_monitor *monitor_ctl)
 {
@@ -33,6 +55,11 @@ int force_md_stop(struct ccci_fsm_monitor *monitor_ctl)
 	struct ccci_fsm_ctl *ctl = fsm_get_entity_by_md_id(monitor_ctl->md_id);
 
 	needforcestop = 1;
+	if (!ctl) {
+		CCCI_ERROR_LOG(monitor_ctl->md_id, FSM,
+			"fsm_append_command:CCCI_COMMAND_STOP fal\n");
+		return -1;
+	}
 	ret = fsm_append_command(ctl, CCCI_COMMAND_STOP, 0);
 	CCCI_NORMAL_LOG(monitor_ctl->md_id, FSM,
 			"force md stop\n");
@@ -49,13 +76,19 @@ void mdee_set_ex_time_str(unsigned char md_id, unsigned int type, char *str)
 {
 	struct ccci_fsm_ctl *ctl = fsm_get_entity_by_md_id(md_id);
 
+	if (ctl == NULL) {
+		CCCI_ERROR_LOG(md_id, FSM,
+			"%s:fsm_get_entity_by_md_id fail\n", __func__);
+		return;
+	}
 	mdee_set_ex_start_str(&ctl->ee_ctl, type, str);
 }
 
 static struct ccci_fsm_command *fsm_check_for_ee(struct ccci_fsm_ctl *ctl,
 	int xip)
 {
-	struct ccci_fsm_command *cmd, *next = NULL;
+	struct ccci_fsm_command *cmd = NULL;
+	struct ccci_fsm_command *next = NULL;
 	unsigned long flags;
 
 	spin_lock_irqsave(&ctl->command_lock, flags);
@@ -75,6 +108,8 @@ static struct ccci_fsm_command *fsm_check_for_ee(struct ccci_fsm_ctl *ctl,
 static inline int fsm_broadcast_state(struct ccci_fsm_ctl *ctl,
 	enum MD_STATE state)
 {
+	enum MD_STATE old_state;
+
 	if (unlikely(ctl->md_state != BOOT_WAITING_FOR_HS2 && state == READY)) {
 		CCCI_NORMAL_LOG(ctl->md_id, FSM,
 		"ignore HS2 when md_state=%d\n",
@@ -83,8 +118,10 @@ static inline int fsm_broadcast_state(struct ccci_fsm_ctl *ctl,
 	}
 
 	CCCI_NORMAL_LOG(ctl->md_id, FSM,
-	"md_state change from %d to %d\n",
-	ctl->md_state, state);
+			"md_state change from %d to %d\n",
+			ctl->md_state, state);
+
+	old_state = ctl->md_state;
 	ctl->md_state = state;
 
 	/* update to port first,
@@ -95,13 +132,20 @@ static inline int fsm_broadcast_state(struct ccci_fsm_ctl *ctl,
 #ifdef FEATURE_SCP_CCCI_SUPPORT
 	schedule_work(&ctl->scp_ctl.scp_md_state_sync_work);
 #endif
+
+	if (old_state != state &&
+		s_md_state_cb != NULL)
+		s_md_state_cb(old_state, state);
+
 	return 0;
 }
 
 static void fsm_routine_zombie(struct ccci_fsm_ctl *ctl)
 {
-	struct ccci_fsm_event *event, *evt_next;
-	struct ccci_fsm_command *cmd, *cmd_next;
+	struct ccci_fsm_event *event = NULL;
+	struct ccci_fsm_event *evt_next = NULL;
+	struct ccci_fsm_command *cmd = NULL;
+	struct ccci_fsm_command *cmd_next = NULL;
 	unsigned long flags;
 
 	CCCI_ERROR_LOG(ctl->md_id, FSM,
@@ -131,13 +175,23 @@ static void fsm_routine_zombie(struct ccci_fsm_ctl *ctl)
 #endif
 }
 
+int ccci_fsm_is_normal_mdee(void)
+{
+	return s_is_normal_mdee;
+}
+
+int ccci_fsm_increase_devapc_dump_counter(void)
+{
+	return (++ s_devapc_dump_counter);
+}
+
 /* cmd is not NULL only when reason is ordinary EE */
 static void fsm_routine_exception(struct ccci_fsm_ctl *ctl,
 	struct ccci_fsm_command *cmd, enum CCCI_EE_REASON reason)
 {
 	int count = 0, ex_got = 0;
 	int rec_ok_got = 0, pass_got = 0;
-	struct ccci_fsm_event *event;
+	struct ccci_fsm_event *event = NULL;
 	unsigned long flags;
 
 	CCCI_NORMAL_LOG(ctl->md_id, FSM,
@@ -191,6 +245,11 @@ static void fsm_routine_exception(struct ccci_fsm_ctl *ctl,
 		 */
 		ccci_md_exception_handshake(ctl->md_id,
 			MD_EX_CCIF_TIMEOUT);
+#if (MD_GENERATION >= 6297)
+#ifndef MTK_EMI_MPU_DISABLE
+		mtk_clear_md_violation();
+#endif
+#endif
 		count = 0;
 		while (count < MD_EX_REC_OK_TIMEOUT/EVENT_POLL_INTEVAL) {
 			spin_lock_irqsave(&ctl->event_lock, flags);
@@ -231,8 +290,6 @@ static void fsm_routine_exception(struct ccci_fsm_ctl *ctl,
 			msleep(EVENT_POLL_INTEVAL);
 		}
 		fsm_md_exception_stage(&ctl->ee_ctl, 2);
-		/*wait until modem memory dump done*/
-		fsm_check_ee_done(&ctl->ee_ctl, EE_DONE_TIMEOUT);
 		break;
 	default:
 		break;
@@ -242,12 +299,28 @@ static void fsm_routine_exception(struct ccci_fsm_ctl *ctl,
 		fsm_finish_command(ctl, cmd, 1);
 }
 
+#if (MD_GENERATION >= 6297)
+static void fsm_dump_boot_status(int md_id)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(MTK_SIP_KERNEL_CCCI_CONTROL,
+		MD_POWER_CONFIG, MD_BOOT_STATUS,
+		0, 0, 0, 0, 0, &res);
+
+	CCCI_NORMAL_LOG(md_id, FSM,
+		"[%s] AP: boot_ret=%lu, boot_status_0=%lX, boot_status_1=%lX\n",
+		__func__, res.a0, res.a1, res.a2);
+}
+#endif
+
 static void fsm_routine_start(struct ccci_fsm_ctl *ctl,
 	struct ccci_fsm_command *cmd)
 {
 	int ret;
 	int count = 0, user_exit = 0, hs1_got = 0, hs2_got = 0;
-	struct ccci_fsm_event *event, *next;
+	struct ccci_fsm_event *event = NULL;
+	struct ccci_fsm_event  *next = NULL;
 	unsigned long flags;
 
 	/* 1. state sanity check */
@@ -303,6 +376,9 @@ static void fsm_routine_start(struct ccci_fsm_ctl *ctl,
 						struct ccci_fsm_event, entry);
 			if (event->event_id == CCCI_EVENT_HS1) {
 				hs1_got = 1;
+#if (MD_GENERATION >= 6297)
+				fsm_dump_boot_status(ctl->md_id);
+#endif
 				fsm_broadcast_state(ctl, BOOT_WAITING_FOR_HS2);
 
 				if (event->length
@@ -389,7 +465,8 @@ success:
 static void fsm_routine_stop(struct ccci_fsm_ctl *ctl,
 	struct ccci_fsm_command *cmd)
 {
-	struct ccci_fsm_event *event, *next;
+	struct ccci_fsm_event *event = NULL;
+	struct ccci_fsm_event *next = NULL;
 	struct ccci_fsm_command *ee_cmd = NULL;
 	struct port_t *port = NULL;
 	struct sk_buff *skb = NULL;
@@ -448,6 +525,11 @@ success:
 	needforcestop = 0;
 	/* when MD is stopped, the skb list of ccci_fs should be clean */
 	port = port_get_by_channel(ctl->md_id, CCCI_FS_RX);
+	if (port == NULL) {
+		CCCI_ERROR_LOG(ctl->md_id, FSM, "port_get_by_channel fail");
+		return;
+	}
+
 	if (port->flags & PORT_F_CLEAN) {
 		spin_lock_irqsave(&port->rx_skb_list.lock, flags);
 		while ((skb = __skb_dequeue(&port->rx_skb_list)) != NULL)
@@ -521,6 +603,10 @@ static int fsm_main_thread(void *data)
 
 		CCCI_NORMAL_LOG(ctl->md_id, FSM,
 			"command %d process\n", cmd->cmd_id);
+
+		s_is_normal_mdee = 0;
+		s_devapc_dump_counter = 0;
+
 		switch (cmd->cmd_id) {
 		case CCCI_COMMAND_START:
 			fsm_routine_start(ctl, cmd);
@@ -532,6 +618,7 @@ static int fsm_main_thread(void *data)
 			fsm_routine_wdt(ctl, cmd);
 			break;
 		case CCCI_COMMAND_EE:
+			s_is_normal_mdee = 1;
 			fsm_routine_exception(ctl, cmd, EXCEPTION_EE);
 			break;
 		case CCCI_COMMAND_MD_HANG:
@@ -704,12 +791,19 @@ struct ccci_fsm_ctl *fsm_get_entity_by_md_id(int md_id)
 
 int ccci_fsm_init(int md_id)
 {
-	struct ccci_fsm_ctl *ctl;
+	struct ccci_fsm_ctl *ctl = NULL;
+	int ret = 0;
 
 	if (md_id < 0 || md_id >= ARRAY_SIZE(ccci_fsm_entries))
 		return -CCCI_ERR_INVALID_PARAM;
 
 	ctl = kzalloc(sizeof(struct ccci_fsm_ctl), GFP_KERNEL);
+	if (ctl == NULL) {
+		CCCI_ERROR_LOG(md_id, FSM,
+					"%s kzalloc ccci_fsm_ctl fail\n",
+					__func__);
+		return -1;
+	}
 	ctl->md_id = md_id;
 	ctl->last_state = CCCI_FSM_INVALID;
 	ctl->curr_state = CCCI_FSM_GATED;
@@ -720,8 +814,14 @@ int ccci_fsm_init(int md_id)
 	spin_lock_init(&ctl->command_lock);
 	spin_lock_init(&ctl->cmd_complete_lock);
 	atomic_set(&ctl->fs_ongoing, 0);
-	snprintf(ctl->wakelock_name, sizeof(ctl->wakelock_name),
+	ret = snprintf(ctl->wakelock_name, sizeof(ctl->wakelock_name),
 		"md%d_wakelock", ctl->md_id + 1);
+	if (ret <= 0 || ret >= sizeof(ctl->wakelock_name)) {
+		CCCI_ERROR_LOG(md_id, FSM,
+			"%s snprintf wakelock_name fail\n",
+			__func__);
+		ctl->wakelock_name[0] = 0;
+	}
 	wakeup_source_init(&ctl->wakelock, ctl->wakelock_name);
 
 	ctl->fsm_thread = kthread_run(fsm_main_thread, ctl,
@@ -800,7 +900,7 @@ int ccci_fsm_recv_control_packet(int md_id, struct sk_buff *skb)
 	struct ccci_fsm_ctl *ctl = fsm_get_entity_by_md_id(md_id);
 	struct ccci_header *ccci_h = (struct ccci_header *)skb->data;
 	int ret = 0, free_skb = 1;
-	struct c2k_ctrl_port_msg *c2k_ctl_msg;
+	struct c2k_ctrl_port_msg *c2k_ctl_msg = NULL;
 	struct ccci_per_md *per_md_data = ccci_get_per_md_data(md_id);
 
 	if (!ctl)

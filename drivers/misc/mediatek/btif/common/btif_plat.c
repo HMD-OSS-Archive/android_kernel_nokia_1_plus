@@ -116,16 +116,17 @@ static int btif_tx_thr_set(struct _MTK_BTIF_INFO_STR_ *p_btif,
 			   unsigned int thr_count);
 #endif
 
-static int btif_dump_array(char *string, char *p_buf, int len)
+static int btif_dump_array(const char *string, const char *p_buf, int len)
 {
 	unsigned int idx = 0;
 	unsigned char str[30];
-	unsigned char *p_str;
+	unsigned char *p_str = NULL;
 
 	pr_debug("========dump %s start <length:%d>========\n", string, len);
 	p_str = &str[0];
 	for (idx = 0; idx < len; idx++, p_buf++) {
-		sprintf(p_str, "%02x ", *p_buf);
+		if (sprintf(p_str, "%02x ", *p_buf) < 0)
+			return -1;
 		p_str += 3;
 		if (7 == (idx % 8)) {
 			*p_str++ = '\n';
@@ -210,6 +211,11 @@ static void _btif_set_default_setting(void)
 	struct device_node *node = NULL;
 	unsigned int irq_info[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
 	unsigned int phy_base;
+
+	if (!g_btif[0].private_data) {
+		BTIF_INFO_FUNC("g_btif[0].private_data is NULL");
+		return;
+	}
 
 	node = ((struct device *)(g_btif[0].private_data))->of_node;
 	if (node) {

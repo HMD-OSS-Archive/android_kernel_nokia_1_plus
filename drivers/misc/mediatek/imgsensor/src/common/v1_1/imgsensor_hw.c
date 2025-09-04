@@ -144,10 +144,11 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 
 				if (__ratelimit(&ratelimit))
 					PK_DBG(
-					"sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_on %d",
+					"sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_on %d, delay %u",
 					sensor_idx,
 					ppwr_info->pin,
-					ppwr_info->pin_state_on);
+					ppwr_info->pin_state_on,
+					ppwr_info->pin_on_delay);
 
 				if (pdev->set != NULL)
 					pdev->set(pdev->pinstance,
@@ -169,10 +170,11 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 
 			if (__ratelimit(&ratelimit))
 				PK_DBG(
-				"sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_off %d",
+				"sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_off %d, delay %u",
 				sensor_idx,
 				ppwr_info->pin,
-				ppwr_info->pin_state_off);
+				ppwr_info->pin_state_off,
+				ppwr_info->pin_on_delay);
 
 			if (ppwr_info->pin != IMGSENSOR_HW_PIN_UNDEF) {
 				pdev =
@@ -196,6 +198,7 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
 		struct IMGSENSOR_SENSOR *psensor,
 		enum IMGSENSOR_HW_POWER_STATUS pwr_status)
 {
+	int ret = 0;
 	enum IMGSENSOR_SENSOR_IDX sensor_idx = psensor->inst.sensor_idx;
 	char *curr_sensor_name = psensor->inst.psensor_list->name;
 	char str_index[LENGTH_FOR_SNPRINTF];
@@ -204,16 +207,20 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
 		sensor_idx,
 		pwr_status,
 		curr_sensor_name,
-		phw->enable_sensor_by_index[sensor_idx] == NULL
+		phw->enable_sensor_by_index[(uint32_t)sensor_idx] == NULL
 		? "NULL"
-		: phw->enable_sensor_by_index[sensor_idx]);
+		: phw->enable_sensor_by_index[(uint32_t)sensor_idx]);
 
-	if (phw->enable_sensor_by_index[sensor_idx] &&
-	!strstr(phw->enable_sensor_by_index[sensor_idx], curr_sensor_name))
+	if (phw->enable_sensor_by_index[(uint32_t)sensor_idx] &&
+	!strstr(phw->enable_sensor_by_index[(uint32_t)sensor_idx], curr_sensor_name))
 		return IMGSENSOR_RETURN_ERROR;
 
-
-	snprintf(str_index, sizeof(str_index), "%d", sensor_idx);
+	ret = snprintf(str_index, sizeof(str_index), "%d", sensor_idx);
+	if (ret < 0) {
+		pr_info("Error! snprintf allocate 0");
+		ret = IMGSENSOR_RETURN_ERROR;
+		return ret;
+	}
 	imgsensor_hw_power_sequence(
 			phw,
 			sensor_idx,

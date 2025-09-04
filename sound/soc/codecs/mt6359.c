@@ -9,12 +9,14 @@
 #include <linux/module.h>
 #include <linux/of_device.h>
 #include <linux/delay.h>
+#ifdef CONFIG_DEBUG_FS
 #include <linux/debugfs.h>
+#endif
 #include <linux/kthread.h>
 #include <linux/sched.h>
 
 #include <sound/soc.h>
-
+#include <sound/tlv.h>
 #include <mach/upmu_hw.h>
 
 #ifdef CONFIG_MTK_ACCDET
@@ -311,19 +313,17 @@ int mt6359_set_mtkaif_protocol(struct snd_soc_component *cmpnt,
 static void gpio_smt_set(struct mt6359_priv *priv)
 {
 	/* set gpio SMT mode */
-	regmap_update_bits(priv->regmap, MT6359_SMT_CON1,
-			   0x3ff0, 0x3ff0);
+	regmap_update_bits(priv->regmap, MT6359_SMT_CON1, 0x3ff0, 0x3ff0);
 }
 
 static void gpio_driving_set(struct mt6359_priv *priv)
 {
 	/* 8:4mA(default), a:8mA, c:12mA, e:16mA */
-	regmap_update_bits(priv->regmap, MT6359_DRV_CON2,
-			   0xffff, 0x8888);
-	regmap_update_bits(priv->regmap, MT6359_DRV_CON3,
-			   0xffff, 0x8888);
-	regmap_update_bits(priv->regmap, MT6359_DRV_CON4,
-			   0x00ff, 0x88);
+#if 0 // enable when need it
+	regmap_update_bits(priv->regmap, MT6359_DRV_CON2, 0xffff, 0xaaaa);
+	regmap_update_bits(priv->regmap, MT6359_DRV_CON3, 0xffff, 0xaaaa);
+	regmap_update_bits(priv->regmap, MT6359_DRV_CON4, 0x00ff, 0xaa);
+#endif
 }
 
 static void playback_gpio_set(struct mt6359_priv *priv)
@@ -755,8 +755,8 @@ static void headset_volume_ramp(struct mt6359_priv *priv,
 		dev_warn(priv->dev, "%s(), volume index is not valid, from %d, to %d\n",
 			 __func__, from, to);
 
-	dev_info(priv->dev, "%s(), from %d, to %d\n",
-		 __func__, from, to);
+	dev_dbg(priv->dev, "%s(), from %d, to %d\n",
+		__func__, from, to);
 
 	if (to > from)
 		offset = to - from;
@@ -867,6 +867,70 @@ static int dl_pga_set(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int mt6359_put_volsw(struct snd_kcontrol *kcontrol,
+			    struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_component *component =
+			snd_soc_kcontrol_component(kcontrol);
+	struct mt6359_priv *priv = snd_soc_component_get_drvdata(component);
+	struct soc_mixer_control *mc =
+			(struct soc_mixer_control *)kcontrol->private_value;
+	unsigned int reg;
+	int index = ucontrol->value.integer.value[0];
+	int ret;
+
+	ret = snd_soc_put_volsw(kcontrol, ucontrol);
+	if (ret < 0)
+		return ret;
+
+	switch (mc->reg) {
+	case MT6359_ZCD_CON2:
+		regmap_read(priv->regmap, MT6359_ZCD_CON2, &reg);
+		priv->ana_gain[AUDIO_ANALOG_VOLUME_HPOUTL] =
+			(reg >> RG_AUDHPLGAIN_SFT) & RG_AUDHPLGAIN_MASK;
+		priv->ana_gain[AUDIO_ANALOG_VOLUME_HPOUTR] =
+			(reg >> RG_AUDHPRGAIN_SFT) & RG_AUDHPRGAIN_MASK;
+		break;
+	case MT6359_ZCD_CON1:
+		regmap_read(priv->regmap, MT6359_ZCD_CON1, &reg);
+		priv->ana_gain[AUDIO_ANALOG_VOLUME_LINEOUTL] =
+			(reg >> RG_AUDLOLGAIN_SFT) & RG_AUDLOLGAIN_MASK;
+		priv->ana_gain[AUDIO_ANALOG_VOLUME_LINEOUTR] =
+			(reg >> RG_AUDLORGAIN_SFT) & RG_AUDLORGAIN_MASK;
+		break;
+	case MT6359_ZCD_CON3:
+		regmap_read(priv->regmap, MT6359_ZCD_CON3, &reg);
+		priv->ana_gain[AUDIO_ANALOG_VOLUME_HSOUTL] =
+			(reg >> RG_AUDHSGAIN_SFT) & RG_AUDHSGAIN_MASK;
+		break;
+	case MT6359_AUDENC_ANA_CON0:
+		regmap_read(priv->regmap, MT6359_AUDENC_ANA_CON0, &reg);
+		priv->ana_gain[AUDIO_ANALOG_VOLUME_MICAMP1] =
+			(reg >> RG_AUDPREAMPLGAIN_SFT) & RG_AUDPREAMPLGAIN_MASK;
+		break;
+	case MT6359_AUDENC_ANA_CON1:
+		regmap_read(priv->regmap, MT6359_AUDENC_ANA_CON1, &reg);
+		priv->ana_gain[AUDIO_ANALOG_VOLUME_MICAMP2] =
+			(reg >> RG_AUDPREAMPRGAIN_SFT) & RG_AUDPREAMPRGAIN_MASK;
+		break;
+	case MT6359_AUDENC_ANA_CON2:
+		regmap_read(priv->regmap, MT6359_AUDENC_ANA_CON2, &reg);
+		priv->ana_gain[AUDIO_ANALOG_VOLUME_MICAMP3] =
+			(reg >> RG_AUDPREAMP3GAIN_SFT) & RG_AUDPREAMP3GAIN_MASK;
+
+		break;
+	}
+
+	dev_dbg(priv->dev, "%s(), name %s, reg(0x%x) = 0x%x, set index = %x\n",
+		__func__, kcontrol->id.name, mc->reg, reg, index);
+
+	return ret;
+}
+
+static const DECLARE_TLV_DB_SCALE(hp_playback_tlv, -2200, 100, 0);
+static const DECLARE_TLV_DB_SCALE(playback_tlv, -1000, 100, 0);
+static const DECLARE_TLV_DB_SCALE(capture_tlv, 0, 600, 0);
+
 static const struct soc_enum dl_pga_enum[] = {
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(dl_pga_gain), dl_pga_gain),
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(hp_dl_pga_gain), hp_dl_pga_gain),
@@ -879,6 +943,25 @@ static const struct soc_enum dl_pga_enum[] = {
 	.private_value = (unsigned long)&xenum }
 
 static const struct snd_kcontrol_new mt6359_snd_controls[] = {
+	/* dl pga gain */
+	SOC_SINGLE_EXT_TLV("HeadsetL Volume",
+			   MT6359_ZCD_CON2, 0, 0x1E, 0,
+			   snd_soc_get_volsw, mt6359_put_volsw,
+			   hp_playback_tlv),
+	SOC_SINGLE_EXT_TLV("HeadsetR Volume",
+			   MT6359_ZCD_CON2, 7, 0x1E, 0,
+			   snd_soc_get_volsw, mt6359_put_volsw,
+			   hp_playback_tlv),
+	SOC_SINGLE_EXT_TLV("Handset Volume",
+			   MT6359_ZCD_CON3, 0, 0x12, 0,
+			   snd_soc_get_volsw, mt6359_put_volsw, playback_tlv),
+	SOC_SINGLE_EXT_TLV("LineoutL Volume",
+			   MT6359_ZCD_CON1, 0, 0x12, 0,
+			   snd_soc_get_volsw, mt6359_put_volsw, playback_tlv),
+	SOC_SINGLE_EXT_TLV("LineoutR Volume",
+			   MT6359_ZCD_CON1, 7, 0x12, 0,
+			   snd_soc_get_volsw, mt6359_put_volsw, playback_tlv),
+
 	MT_SOC_ENUM_EXT_ID("Headset_PGAL_GAIN", dl_pga_enum[1],
 			   dl_pga_get, dl_pga_set,
 			   AUDIO_ANALOG_VOLUME_HPOUTL),
@@ -1033,6 +1116,17 @@ static int mic_type_set(struct snd_kcontrol *kcontrol,
 }
 
 static const struct snd_kcontrol_new mt6359_snd_ul_controls[] = {
+	/* ul pga gain */
+	SOC_SINGLE_EXT_TLV("PGAL Volume",
+			   MT6359_AUDENC_ANA_CON0, RG_AUDPREAMPLGAIN_SFT, 4, 0,
+			   snd_soc_get_volsw, mt6359_put_volsw, capture_tlv),
+	SOC_SINGLE_EXT_TLV("PGAR Volume",
+			   MT6359_AUDENC_ANA_CON1, RG_AUDPREAMPRGAIN_SFT, 4, 0,
+			   snd_soc_get_volsw, mt6359_put_volsw, capture_tlv),
+	SOC_SINGLE_EXT_TLV("PGA3 Volume",
+			   MT6359_AUDENC_ANA_CON2, RG_AUDPREAMP3GAIN_SFT, 4, 0,
+			   snd_soc_get_volsw, mt6359_put_volsw, capture_tlv),
+
 	MT_SOC_ENUM_EXT_ID("Audio_PGA1_Setting", ul_pga_enum[0],
 			   ul_pga_get, ul_pga_set,
 			   AUDIO_ANALOG_VOLUME_MICAMP1),
@@ -4423,6 +4517,7 @@ static void enable_trim_buf(struct mt6359_priv *priv, bool enable)
 			   (enable ? 1 : 0) << RG_AUDTRIMBUF_EN_VAUDP32_SFT);
 }
 
+#if !defined(CONFIG_FPGA_EARLY_PORTING)
 static void enable_trim_circuit(struct mt6359_priv *priv, bool enable)
 {
 	if (enable) {
@@ -4446,7 +4541,6 @@ static void enable_trim_circuit(struct mt6359_priv *priv, bool enable)
 	}
 }
 
-#ifndef CONFIG_FPGA_EARLY_PORTING
 static void start_trim_hardware(struct mt6359_priv *priv)
 {
 	dev_info(priv->dev, "%s(), ++\n", __func__);
@@ -4707,9 +4801,7 @@ static void stop_trim_hardware(struct mt6359_priv *priv)
 
 	dev_info(priv->dev, "%s(), --\n", __func__);
 }
-#endif
 
-#ifndef CONFIG_FPGA_EARLY_PORTING
 static int calculate_trim_result(int *on_value, int *off_value,
 				 int trimTime, int discard_num, int useful_num)
 {
@@ -4738,12 +4830,10 @@ static int calculate_trim_result(int *on_value, int *off_value,
 
 	return DIV_ROUND_CLOSEST(offset, useful_num);
 }
-#endif
 
 static void get_hp_dctrim_offset(struct mt6359_priv *priv,
 				 int *hpl_trim, int *hpr_trim)
 {
-#ifndef CONFIG_FPGA_EARLY_PORTING
 #define TRIM_TIMES 26
 #define TRIM_DISCARD_NUM 3
 #define TRIM_USEFUL_NUM (TRIM_TIMES - (TRIM_DISCARD_NUM * 2))
@@ -4827,7 +4917,6 @@ static void get_hp_dctrim_offset(struct mt6359_priv *priv,
 
 	dev_info(priv->dev, "%s(), R_offset = %d, L_offset = %d\n",
 		 __func__, *hpr_trim, *hpl_trim);
-#endif
 }
 
 static void update_finetrim_offset(struct mt6359_priv *priv,
@@ -4932,6 +5021,7 @@ static unsigned int update_trim_code(const bool is_negative,
 	}
 	return ret_trim_code;
 }
+
 static void calculate_lr_finetrim_code(struct mt6359_priv *priv)
 {
 	struct hp_trim_data *hp_trim = &priv->hp_trim_3_pole;
@@ -5177,9 +5267,11 @@ EXIT:
 	dev_info(priv->dev, "%s(), result hp_trim_code(R/L) = (0x%x/0x%x)\n",
 		 __func__, hpr_trim_code, hpl_trim_code);
 }
+#endif
 
 static void get_hp_trim_offset(struct mt6359_priv *priv, bool force)
 {
+#if !defined(CONFIG_FPGA_EARLY_PORTING)
 	struct dc_trim_data *dc_trim = &priv->dc_trim;
 	struct hp_trim_data *hp_trim_3_pole = &priv->hp_trim_3_pole;
 	unsigned int reg_value;
@@ -5208,15 +5300,17 @@ static void get_hp_trim_offset(struct mt6359_priv *priv, bool force)
 		 __func__,
 		 hp_trim_3_pole->hp_fine_trim_r, hp_trim_3_pole->hp_trim_r,
 		 hp_trim_3_pole->hp_fine_trim_l, hp_trim_3_pole->hp_trim_l);
+#else
+	dev_info(priv->dev, "%s(), bypass while FPGA", __func__);
+#endif
 }
+
 
 static int dc_trim_thread(void *arg)
 {
-#ifndef CONFIG_FPGA_EARLY_PORTING
 	struct mt6359_priv *priv = arg;
 
 	get_hp_trim_offset(priv, false);
-#endif
 
 #ifdef CONFIG_MTK_ACCDET
 	accdet_late_init(0);
@@ -5234,7 +5328,10 @@ static int mtk_calculate_impedance_formula(int pcm_offset, int aux_diff)
 	/* R = V /I */
 	/* V = auxDiff * (1800mv /auxResolution)  /TrimBufGain */
 	/* I =  pcmOffset * DAC_constant * Gsdm * Gibuf */
-	return DIV_ROUND_CLOSEST(3600000 / pcm_offset * aux_diff, 7832);
+
+	long val = 3600000 / pcm_offset * aux_diff;
+
+	return (int)DIV_ROUND_CLOSEST(val, 7832);
 }
 
 static int calculate_impedance(struct mt6359_priv *priv,
@@ -6103,6 +6200,12 @@ static int mt6359_codec_debug_set(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static const char *const rcv_mic_function[] = {"Off", "ACC", "DCC"};
+
+static const struct soc_enum rcv_mic_enum[] = {
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(rcv_mic_function), rcv_mic_function),
+};
+
 static const struct soc_enum misc_control_enum[] = {
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(off_on_function), off_on_function),
 };
@@ -6319,7 +6422,7 @@ static const struct snd_kcontrol_new mt6359_snd_misc_controls[] = {
 		       hp_impedance_get, NULL),
 	SOC_ENUM_EXT("Audio_Codec_Debug_Setting", misc_control_enum[0],
 		     mt6359_codec_debug_get, mt6359_codec_debug_set),
-	SOC_ENUM_EXT("PMIC_REG_CLEAR", misc_control_enum[0],
+	SOC_ENUM_EXT("PMIC_REG_CLEAR", rcv_mic_enum[0],
 		     mt6359_rcv_dcc_get, mt6359_rcv_dcc_set),
 };
 
@@ -6354,6 +6457,11 @@ static int mt6359_codec_init_reg(struct mt6359_priv *priv)
 	regmap_update_bits(priv->regmap, MT6359_AUDDEC_ANA_CON7,
 			   RG_AUDLOLSCDISABLE_VAUDP32_MASK_SFT,
 			   0x1 << RG_AUDLOLSCDISABLE_VAUDP32_SFT);
+
+	/* Set HP_EINT trigger level to 2.0v */
+	regmap_update_bits(priv->regmap, MT6359_AUDENC_ANA_CON19,
+			   RG_EINTCOMPVTH_MASK_SFT,
+			   0x2 << RG_EINTCOMPVTH_SFT);
 
 	/* set gpio */
 	gpio_smt_set(priv);
@@ -6493,6 +6601,7 @@ static struct snd_soc_codec_driver mt6359_soc_codec_driver = {
 	},
 };
 
+#ifdef CONFIG_DEBUG_FS
 static void debug_write_reg(struct file *file, void *arg)
 {
 	struct mt6359_priv *priv = file->private_data;
@@ -6626,6 +6735,7 @@ static ssize_t mt6359_debugfs_read(struct file *file, char __user *buf,
 	regmap_read(priv->regmap, MT6359_SMT_CON1, &value);
 	n += scnprintf(buffer + n, size - n,
 		       "MT6359_SMT_CON1 = 0x%x\n", value);
+
 	regmap_read(priv->regmap, MT6359_GPIO_DIR0, &value);
 	n += scnprintf(buffer + n, size - n,
 		       "MT6359_GPIO_DIR0 = 0x%x\n", value);
@@ -7456,6 +7566,7 @@ static const struct file_operations mt6359_debugfs_ops = {
 	.write = mt6359_debugfs_write,
 	.read = mt6359_debugfs_read,
 };
+#endif
 
 #ifndef CONFIG_MTK_PMIC_WRAP
 #ifdef CONFIG_MTK_PMIC_WRAP_HAL
@@ -7608,10 +7719,12 @@ static int mt6359_platform_driver_probe(struct platform_device *pdev)
 	if (IS_ERR(priv->regmap))
 		return PTR_ERR(priv->regmap);
 
+#ifdef CONFIG_DEBUG_FS
 	/* create debugfs file */
 	priv->debugfs = debugfs_create_file("mtksocanaaudio",
 					    S_IFREG | 0444, NULL,
 					    priv, &mt6359_debugfs_ops);
+#endif
 
 	dev_info(priv->dev, "%s(), dev name %s\n",
 		__func__, dev_name(&pdev->dev));
@@ -7624,12 +7737,13 @@ static int mt6359_platform_driver_probe(struct platform_device *pdev)
 
 static int mt6359_platform_driver_remove(struct platform_device *pdev)
 {
+#ifdef CONFIG_DEBUG_FS
 	struct mt6359_priv *priv = dev_get_drvdata(&pdev->dev);
 
 	dev_info(&pdev->dev, "%s()\n", __func__);
 
 	debugfs_remove(priv->debugfs);
-
+#endif
 	snd_soc_unregister_codec(&pdev->dev);
 	return 0;
 }

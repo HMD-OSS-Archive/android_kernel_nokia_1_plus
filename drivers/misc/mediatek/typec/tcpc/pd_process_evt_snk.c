@@ -188,7 +188,7 @@ static inline bool pd_process_data_msg(
 			return true;
 		break;
 #endif	/* CONFIG_USB_PD_PR_SWAP */
-		/* fall-through */
+
 #ifdef CONFIG_USB_PD_REV30
 #ifdef CONFIG_USB_PD_REV30_ALERT_REMOTE
 	case PD_DATA_ALERT:
@@ -284,8 +284,8 @@ static inline bool pd_process_hw_msg_sink_tx_change(
 	if (pd_port->pe_data.pd_traffic_control == pd_traffic)
 		return false;
 
-	dpm_reaction_set_ready_once(pd_port);
 	pd_port->pe_data.pd_traffic_control = pd_traffic;
+	dpm_reaction_set_ready_once(pd_port);
 #endif	/* CONFIG_USB_PD_REV30_COLLISION_AVOID */
 
 	return false;
@@ -305,7 +305,8 @@ static inline bool pd_process_hw_msg(
 		return false;
 
 	case PD_HW_TX_FAILED:
-		return pd_process_tx_failed(pd_port);
+	case PD_HW_TX_DISCARD:
+		return pd_process_tx_failed_discard(pd_port, pd_event->msg);
 
 #ifdef CONFIG_USB_PD_REV30_COLLISION_AVOID
 	case PD_HW_SINK_TX_CHANGE:

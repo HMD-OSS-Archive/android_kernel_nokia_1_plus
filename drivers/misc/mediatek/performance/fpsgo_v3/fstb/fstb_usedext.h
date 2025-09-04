@@ -23,7 +23,7 @@
 #include <linux/sched.h>
 
 #define DEFAULT_DFPS 60
-#define CFG_MAX_FPS_LIMIT	120
+#define CFG_MAX_FPS_LIMIT	240
 #define CFG_MIN_FPS_LIMIT	10
 #define FRAME_TIME_BUFFER_SIZE 200
 #define MAX_NR_FPS_LEVELS	1
@@ -34,6 +34,9 @@
 #define VPU_MAX_CAP 100
 #define MDLA_MAX_CAP 100
 #define RESET_TOLERENCE 3
+#define DEFAULT_JUMP_CHECK_NUM 21
+#define DEFAULT_JUMP_CHECK_Q_PCT 33
+#define JUMP_VOTE_MAX_I 60
 
 extern int (*fbt_notifier_cpu_frame_time_fps_stabilizer)(
 	int pid,
@@ -50,6 +53,7 @@ struct FSTB_FRAME_INFO {
 	struct hlist_node hlist;
 
 	int pid;
+	char proc_name[16];
 	int target_fps;
 	int target_fps_margin;
 	int target_fps_margin2;
@@ -67,12 +71,15 @@ struct FSTB_FRAME_INFO {
 	long long m_m_time;
 	unsigned int m_m_cap;
 
+	long long cpu_time;
 	long long gpu_time;
 	int gpu_freq;
 
 	unsigned long long queue_time_ts[FRAME_TIME_BUFFER_SIZE]; /*timestamp*/
 	int queue_time_begin;
 	int queue_time_end;
+	int vote_fps[JUMP_VOTE_MAX_I];
+	int vote_i;
 	unsigned long long weighted_cpu_time[FRAME_TIME_BUFFER_SIZE];
 	unsigned long long weighted_cpu_time_ts[FRAME_TIME_BUFFER_SIZE];
 	unsigned long long weighted_gpu_time[FRAME_TIME_BUFFER_SIZE];
@@ -86,6 +93,7 @@ struct FSTB_FRAME_INFO {
 
 	unsigned long long gblock_b;
 	unsigned long long gblock_time;
+	int fps_raise_flag;
 };
 
 struct FSTB_RENDER_TARGET_FPS {
@@ -104,4 +112,3 @@ struct FSTB_FTEH_LIST {
 };
 
 #endif
-

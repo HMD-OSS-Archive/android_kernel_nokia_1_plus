@@ -279,6 +279,19 @@ void msdc_sd_power(struct msdc_host *host, u32 on)
 		msdc_ldo_power(card_on, host->mmc->supply.vmmc, VOL_3000,
 			&host->power_flash);
 
+		if (card_on) {
+			if (host->hw->cd_level == 1) {
+				/* 1: high; 0: low, vmch fast off
+				 * hw_det default high active
+				 */
+				pmic_set_register_value(PMIC_RG_LDO_VMCH_SD_POL,
+							0);
+			}
+			pmic_set_register_value(PMIC_RG_LDO_VMCH_SD_EN, 1);
+		} else {
+			udelay(1500);
+			pmic_set_register_value(PMIC_RG_LDO_VMCH_SD_EN, 0);
+		}
 
 		/* Enable VMCH OC */
 		if (card_on) {
@@ -460,7 +473,7 @@ int msdc_get_ccf_clk_pointer(struct platform_device *pdev,
 		pr_notice("[msdc%d] can not get clock control\n", pdev->id);
 		return 1;
 	}
-	if (clk_prepare(host->clk_ctl)) {
+	if (clk_prepare_enable(host->clk_ctl)) {
 		pr_notice("[msdc%d] can not prepare clock control\n", pdev->id);
 		return 1;
 	}
@@ -469,13 +482,13 @@ int msdc_get_ccf_clk_pointer(struct platform_device *pdev,
 		pr_notice("[msdc%d] can not get clock control\n", pdev->id);
 		return 1;
 	}
-	if (hclk_names[pdev->id] && clk_prepare(host->hclk_ctl)) {
+	if (hclk_names[pdev->id] && clk_prepare_enable(host->hclk_ctl)) {
 		pr_notice("[msdc%d] can not prepare hclock control\n",
 			pdev->id);
 		return 1;
 	}
 
-#ifdef CONFIG_MTK_HW_FDE
+#if defined(CONFIG_MTK_HW_FDE) || defined(CONFIG_MMC_CRYPTO)
 	if (pdev->id == 0) {
 		host->aes_clk_ctl = devm_clk_get(&pdev->dev,
 			MSDC0_AES_CLK_NAME);
@@ -485,7 +498,7 @@ int msdc_get_ccf_clk_pointer(struct platform_device *pdev,
 			WARN_ON(1);
 			return 1;
 		}
-		if (clk_prepare(host->aes_clk_ctl)) {
+		if (clk_prepare_enable(host->aes_clk_ctl)) {
 			pr_notice(
 				"[msdc%d] can not prepare aes clock control\n",
 				pdev->id);
@@ -526,7 +539,7 @@ static void msdc_dump_clock_sts_core(char **buff, unsigned long *size,
 			topckgen_base + 0x70,
 			MSDC_READ32(topckgen_base + 0x70));
 
-#ifdef CONFIG_MTK_HW_FDE
+#if defined(CONFIG_MTK_HW_FDE) || defined(CONFIG_MMC_CRYPTO)
 		buf_ptr += sprintf(buf_ptr,
 		" topckgen [0x%p]=0x%x(AES:should bit[26:24]=001b, bit[31]=0)\n",
 			topckgen_base + 0xa0,
@@ -539,7 +552,7 @@ static void msdc_dump_clock_sts_core(char **buff, unsigned long *size,
 			infracfg_ao_base + 0x94,
 			MSDC_READ32(infracfg_ao_base + 0x94));
 
-#ifdef CONFIG_MTK_HW_FDE
+#if defined(CONFIG_MTK_HW_FDE) || defined(CONFIG_MMC_CRYPTO)
 		buf_ptr += sprintf(buf_ptr,
 		" infracfg_ao [0x%p]=0x%x(should bit[29]=0b)\n",
 			infracfg_ao_base + 0xac,

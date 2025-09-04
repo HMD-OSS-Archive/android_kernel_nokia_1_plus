@@ -102,6 +102,7 @@ static void ccci_ringbuf_dump(int md_id, unsigned char *title,
 	unsigned char tmp_buf[256];
 	unsigned char buf[256];
 	unsigned int write = read + dump_size;
+	int ret = 0;
 
 	if (write >= length)
 		write -= length;
@@ -119,13 +120,28 @@ static void ccci_ringbuf_dump(int md_id, unsigned char *title,
 	i = read;
 	while (1) {
 		memset(tmp_buf, 0, sizeof(tmp_buf));
-		snprintf(tmp_buf, sizeof(tmp_buf), "%08X:", i);
+		ret = snprintf(tmp_buf, sizeof(tmp_buf), "%08X:", i);
+		if (ret < 0 || ret >= sizeof(tmp_buf)) {
+			CCCI_ERROR_LOG(md_id, TAG,
+				"%s-%d:snprintf fail,ret = %d\n", __func__, __LINE__, ret);
+			return;
+		}
 		for (j = 0; j < 4; j++) {
-			snprintf(buf, sizeof(tmp_buf), "%s", tmp_buf);
-			snprintf(tmp_buf, sizeof(tmp_buf),
+			ret = snprintf(buf, sizeof(tmp_buf), "%s", tmp_buf);
+			if (ret < 0 || ret >= sizeof(tmp_buf)) {
+				CCCI_ERROR_LOG(md_id, TAG,
+					"%s-%d:snprintf fail,ret = %d\n", __func__, __LINE__, ret);
+				return;
+			}
+			ret = snprintf(tmp_buf, sizeof(tmp_buf),
 				 "%s %02X%02X%02X%02X", buf, *(buffer + i),
 				 *(buffer + i + 1), *(buffer + i + 2),
 				 *(buffer + i + 3));
+			if (ret < 0 || ret >= sizeof(tmp_buf)) {
+				CCCI_ERROR_LOG(md_id, TAG,
+					"%s-%d:snprintf fail,ret = %d\n", __func__, __LINE__, ret);
+				return;
+			}
 			i += sizeof(unsigned int);
 			if (i >= length)
 				i -= length;
@@ -195,9 +211,10 @@ int ccci_ringbuf_writeable(int md_id, struct ccci_ringbuf *ringbuf,
 	write = (unsigned int)(ringbuf->tx_control.write);
 	length = (unsigned int)(ringbuf->tx_control.length);
 	if (write_size > length) {
-		CCCI_ERROR_LOG(md_id, TAG,
-		"rbwb param error,writesize(%d) > length(%d)\n",
-		write_size, length);
+		if (length > 0)
+			CCCI_ERROR_LOG(md_id, TAG,
+				"rbwb param error,writesize(%d) > length(%d)\n",
+				write_size, length);
 		return -CCCI_RINGBUF_PARAM_ERR;
 	}
 	write_size += CCIF_HEADER_LEN + CCIF_FOOTER_LEN;

@@ -26,9 +26,79 @@
 #include <linux/seq_file.h>
 
 #include <teei_client_main.h>
+#include <tee_sanity.h>
 #include "tz_log.h"
 
 #include "log_perf.h"
+
+struct tz_log_state *g_tz_log_state;
+static struct completion teei_log_comp;
+
+int init_tlog_comp_fn(void)
+{
+	init_completion(&teei_log_comp);
+
+	return 0;
+}
+
+void teei_notify_log_fn(void)
+{
+	complete(&teei_log_comp);
+}
+
+static int __tz_driver_read_logs(struct tz_log_state *s, char *buffer,
+				uint32_t get, unsigned int cnt)
+{
+	struct log_rb *log = s->log;
+	int i = 0;
+	size_t mask = log->sz - 1;
+
+	for (i = 0; i < cnt;)
+		buffer[i++] = log->data[get++ & mask];
+
+	return i;
+}
+
+int tz_driver_read_logs(char *buffer, unsigned long count)
+{
+	struct tz_log_state *local_s = NULL;
+	uint32_t get = 0;
+	uint32_t put = 0;
+	uint32_t alloc = 0;
+	int read_chars = 0;
+	struct log_rb *log = NULL;
+	unsigned int real_cnt = 0;
+
+	local_s = g_tz_log_state;
+	log = local_s->log;
+
+	get = local_s->read_get;
+	put = log->put;
+
+	if (put != get) {
+
+		alloc = log->alloc;
+
+		if ((alloc - get) > log->sz) {
+			IMSG_INFO("log overflow.\n");
+			get = alloc - log->sz;
+		}
+
+		if ((put - get) > (unsigned int)count)
+			real_cnt = (unsigned int)count;
+		else
+			real_cnt = put - get;
+
+		read_chars = __tz_driver_read_logs(local_s,
+					buffer, get, real_cnt);
+
+		get += read_chars;
+	}
+
+	local_s->read_get = get;
+	return read_chars;
+
+}
 
 static int log_read_line(struct tz_log_state *s, int put, int get)
 {
@@ -102,9 +172,11 @@ static void tz_driver_dump_logs(struct tz_log_state *s)
 		 * if log level >= KERN_INFO)
 		 */
 
-		if (likely(is_teei_ready()))
-			IMSG_PRINTK("[TZ_LOG] %s", s->line_buffer);
-		else
+		if (likely(is_teei_ready())) {
+			if (mtk_tee_log_tracing(get_current_cpuid(), 0,
+						s->line_buffer, read_chars))
+				IMSG_PRINTK("[TZ_LOG] %s", s->line_buffer);
+		} else
 			IMSG_PRINTK("[TZ_LOG] %s", s->line_buffer);
 
 		/*
@@ -132,23 +204,26 @@ static void tz_driver_dump_logs(struct tz_log_state *s)
 	s->get = get;
 }
 
-static int tz_log_call_notify(struct notifier_block *nb,
-				  unsigned long action, void *data)
+int teei_log_fn(void *work)
 {
+	int retVal = 0;
 #ifdef CONFIG_MICROTRUST_TZ_LOG
 	struct tz_log_state *s;
 	unsigned long flags;
 
-	if (action != TZ_CALL_RETURNED)
-		return NOTIFY_DONE;
-
-	IMSG_TRACE("SMC return, handling tz log\n");
-
-	s = container_of(nb, struct tz_log_state, call_notifier);
-	spin_lock_irqsave(&s->lock, flags);
-	tz_driver_dump_logs(s);
-	spin_unlock_irqrestore(&s->lock, flags);
+	s = g_tz_log_state;
 #endif
+
+	while (1) {
+		retVal = wait_for_completion_interruptible(&teei_log_comp);
+		if (retVal != 0)
+			continue;
+#ifdef CONFIG_MICROTRUST_TZ_LOG
+		spin_lock_irqsave(&s->lock, flags);
+		tz_driver_dump_logs(s);
+		spin_unlock_irqrestore(&s->lock, flags);
+#endif
+	}
 
 	return NOTIFY_OK;
 }
@@ -168,9 +243,7 @@ static int tz_log_panic_notify(struct notifier_block *nb,
 	return NOTIFY_OK;
 }
 
-/*
- * tz_log debugfs
- */
+#ifdef ENABLED_TEEI_BOOT_LOG
 static struct tz_log_state *get_tz_log_state(void)
 {
 	struct tz_driver_state *drv_state = get_tz_drv_state();
@@ -277,6 +350,9 @@ static int tz_log_debugfs_init(void)
 	return 0;
 }
 
+
+#endif
+
 int tz_log_probe(struct platform_device *pdev)
 {
 	struct tz_log_state *s;
@@ -290,9 +366,12 @@ int tz_log_probe(struct platform_device *pdev)
 		goto error_alloc_state;
 	}
 
+	g_tz_log_state = s;
+
 	spin_lock_init(&s->lock);
 	s->dev = &pdev->dev;
 	s->get = 0;
+	s->read_get = 0;
 	s->log_pages = alloc_pages(GFP_KERNEL | __GFP_ZERO | GFP_DMA,
 				   get_order(TZ_LOG_SIZE));
 	if (!s->log_pages) {
@@ -313,13 +392,6 @@ int tz_log_probe(struct platform_device *pdev)
 	s->boot_log->sz = rounddown_pow_of_two(
 				TZ_LOG_SIZE - sizeof(struct boot_log_rb));
 
-	s->call_notifier.notifier_call = tz_log_call_notify;
-	result = tz_call_notifier_register(&s->call_notifier);
-	if (result < 0) {
-		IMSG_ERROR("failed to register tz driver call notifier\n");
-		goto error_call_notifier;
-	}
-
 	s->panic_notifier.notifier_call = tz_log_panic_notify;
 	result = atomic_notifier_chain_register(&panic_notifier_list,
 						&s->panic_notifier);
@@ -329,18 +401,19 @@ int tz_log_probe(struct platform_device *pdev)
 	}
 	platform_device_add_data(pdev, s, sizeof(struct tz_log_state));
 
+#ifdef ENABLED_TEEI_BOOT_LOG
 	tz_log_debugfs_init();
+#endif
 
 	return 0;
 
 error_panic_notifier:
-	tz_call_notifier_unregister(&s->call_notifier);
-error_call_notifier:
 	__free_pages(s->boot_log_pages, get_order(TZ_LOG_SIZE));
 error_alloc_boot_log:
 	__free_pages(s->log_pages, get_order(TZ_LOG_SIZE));
 error_alloc_log:
 	kfree(s);
+	g_tz_log_state = NULL;
 error_alloc_state:
 	return result;
 }
@@ -353,11 +426,11 @@ int tz_log_remove(struct platform_device *pdev)
 
 	atomic_notifier_chain_unregister(&panic_notifier_list,
 					 &s->panic_notifier);
-	tz_call_notifier_unregister(&s->call_notifier);
 
 	__free_pages(s->log_pages, get_order(TZ_LOG_SIZE));
 	__free_pages(s->boot_log_pages, get_order(TZ_LOG_SIZE));
 	kfree(s);
+	g_tz_log_state = NULL;
 
 	return 0;
 }

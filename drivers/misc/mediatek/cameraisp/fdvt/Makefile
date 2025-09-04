@@ -6,7 +6,7 @@ MTK_CUSTOM_PATH  := $(srctree)/drivers/misc/mediatek
 FDVT_35_PLATFORM = mt6763 mt6761
 FDVT_40_PLATFORM = mt6758 mt6757 mt6799 mt6759 mt6775 mt6771 mt6765 mt6768
 FDVT_50_PLATFORM = mt8168 mt6785
-FDVT_51_PLATFORM = mt6885
+FDVT_51_PLATFORM = mt6885 mt6873 mt6853 mt6833
 FDVT_CURRENT_PLATFORM = $(subst ",,$(CONFIG_MTK_PLATFORM))
 
 #$(info FDVT_CURRENT_PLATFORM= $(FDVT_CURRENT_PLATFORM))
@@ -45,6 +45,17 @@ else ifeq ($(CONFIG_MACH_MT6771),y)
   MTK_FD_LARB := 5
 endif
 
+ifeq ($(strip $(CONFIG_MTK_ENABLE_GENIEZONE)),y)
+ifeq ($(strip $(CONFIG_MTK_CAM_GENIEZONE_SUPPORT)),y)
+  MTK_SECURE_FD_SUPPORT := 1
+else
+  MTK_SECURE_FD_SUPPORT := 0
+endif
+else
+  MTK_SECURE_FD_SUPPORT := 0
+endif
+
 subdir-ccflags-y += -DMTK_FD_LARB=$(MTK_FD_LARB)
+subdir-ccflags-y += -DMTK_SECURE_FD_SUPPORT=$(MTK_SECURE_FD_SUPPORT)
 #$(info FDVT: makefile end)
 

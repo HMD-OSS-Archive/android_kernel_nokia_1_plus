@@ -43,6 +43,8 @@
 #define CLKDBG_HACK_CLK		0
 #define CLKDBG_HACK_CLK_CORE	1
 
+#define MAX_CLK_NUM	1024
+#define MAX_PD_NUM	32
 
 #if !CLKDBG_CCF_API_4_4
 
@@ -344,12 +346,29 @@ void print_regs(void)
 static void seq_print_reg(const struct regname *rn, void *data)
 {
 	struct seq_file *s = data;
+	const char *pg = rn->base->pg;
+	struct clk *clk;
+	struct clk_hw *c_hw;
+	bool is_pwr_on = true;
 
 	if (!is_valid_reg(ADDR(rn)))
 		return;
 
-	seq_printf(s, "%-21s: [0x%08x][0x%p] = 0x%08x\n",
-		rn->name, PHYSADDR(rn), ADDR(rn), clk_readl(ADDR(rn)));
+	if (pg) {
+		clk = __clk_lookup(pg);
+		if (!clk)
+			return;
+		c_hw = __clk_get_hw(clk);
+		if (c_hw)
+			is_pwr_on = clk_hw_is_prepared(c_hw);
+	}
+
+	if (is_pwr_on)
+		seq_printf(s, "%-21s: [0x%08x][0x%p] = 0x%08x\n",
+			rn->name, PHYSADDR(rn), ADDR(rn), clk_readl(ADDR(rn)));
+	else
+		seq_printf(s, "%-21s: [0x%08x][0x%p] cannot read, pwr_off\n",
+			rn->name, PHYSADDR(rn), ADDR(rn));
 }
 
 static int seq_print_regs(struct seq_file *s, void *v)
@@ -413,12 +432,18 @@ static bool pvdck_pwr_is_on(struct provider_clk *pvdck, u32 spm_pwr_status)
 
 static bool pvdck_is_on(struct provider_clk *pvdck)
 {
-	u32 spm_pwr_status = 0;
+	u32 val = 0;
 
-	if (pvdck->pwr_mask != 0U)
-		spm_pwr_status = read_spm_pwr_status();
+	if (clkdbg_ops == NULL || clkdbg_ops->is_pwr_on == NULL) {
+		if (pvdck->pwr_mask != 0U)
+			val = read_spm_pwr_status();
 
-	return pvdck_pwr_is_on(pvdck, spm_pwr_status);
+		return pvdck_pwr_is_on(pvdck, val);
+	}
+
+	val = clkdbg_ops->is_pwr_on(pvdck);
+
+	return val;
 }
 
 static const char *ccf_state(struct clk_hw *hw)
@@ -499,9 +524,9 @@ static const char *get_provider_name(struct device_node *node, u32 *cells)
 
 struct provider_clk *get_all_provider_clks(void)
 {
-	static struct provider_clk provider_clks[512];
+	static struct provider_clk provider_clks[MAX_CLK_NUM];
 	struct device_node *node = NULL;
-	int n = 0;
+	unsigned int n = 0;
 
 	if (provider_clks[0].ck != NULL)
 		return provider_clks;
@@ -550,7 +575,7 @@ struct provider_clk *get_all_provider_clks(void)
 				++n;
 			}
 		}
-	} while (node != NULL);
+	} while (node != NULL && n < MAX_CLK_NUM);
 
 	return provider_clks;
 }
@@ -1183,8 +1208,8 @@ static int clkdbg_clr_flag(struct seq_file *s, void *v)
 
 static struct generic_pm_domain **get_all_genpd(void)
 {
-	static struct generic_pm_domain *pds[20];
-	static int num_pds;
+	static struct generic_pm_domain *pds[MAX_PD_NUM];
+	static unsigned int num_pds;
 	const size_t maxpd = ARRAY_SIZE(pds);
 	struct device_node *node;
 #if CLKDBG_PM_DOMAIN_API_4_9
@@ -1202,6 +1227,8 @@ static struct generic_pm_domain **get_all_genpd(void)
 
 #if CLKDBG_PM_DOMAIN_API_4_9
 	pdev = platform_device_alloc("traverse", 0);
+	if (!pdev)
+		return NULL;
 #endif
 
 	for (num_pds = 0; num_pds < maxpd; num_pds++) {
@@ -1244,7 +1271,7 @@ static struct platform_device *pdev_from_name(const char *name)
 {
 	struct generic_pm_domain **pds = get_all_genpd();
 
-	for (; *pds != NULL; pds++) {
+	for (; pds != NULL && *pds != NULL; pds++) {
 		struct pm_domain_data *pdd;
 		struct generic_pm_domain *pd = *pds;
 
@@ -1267,7 +1294,7 @@ static struct generic_pm_domain *genpd_from_name(const char *name)
 {
 	struct generic_pm_domain **pds = get_all_genpd();
 
-	for (; *pds != NULL; pds++) {
+	for (; pds != NULL && *pds != NULL; pds++) {
 		struct generic_pm_domain *pd = *pds;
 
 		if (IS_ERR_OR_NULL(pd))
@@ -1302,7 +1329,7 @@ static void save_all_genpd_state(struct genpd_state *genpd_states,
 	struct genpd_dev_state *devst = genpd_dev_states;
 	struct generic_pm_domain **pds = get_all_genpd();
 
-	for (; *pds != NULL; pds++) {
+	for (; pds != NULL && *pds != NULL; pds++) {
 		struct pm_domain_data *pdd;
 		struct generic_pm_domain *pd = *pds;
 
@@ -1430,7 +1457,7 @@ static void dump_genpd_state(struct genpd_state *pdst, struct seq_file *s)
 static void seq_print_all_genpd(struct seq_file *s)
 {
 	static struct genpd_dev_state devst[100];
-	static struct genpd_state pdst[20];
+	static struct genpd_state pdst[MAX_PD_NUM];
 
 	save_all_genpd_state(pdst, devst);
 	dump_genpd_state(pdst, s);
@@ -1573,7 +1600,7 @@ static int genpd_op(const char *gpd_op_name, struct seq_file *s)
 	char *pd_name;
 	struct generic_pm_domain *genpd;
 	int gpd_op_id;
-	int (*gpd_op)(struct generic_pm_domain *);
+	int (*gpd_op)(struct generic_pm_domain *genpd);
 	int r = 0;
 
 	strncpy(cmd, last_cmd, sizeof(cmd));
@@ -1593,7 +1620,7 @@ static int genpd_op(const char *gpd_op_name, struct seq_file *s)
 	if (strcmp(pd_name, "all") == 0) {
 		struct generic_pm_domain **pds = get_all_genpd();
 
-		for (; *pds != NULL; pds++) {
+		for (; pds != NULL && *pds != NULL; pds++) {
 			genpd = *pds;
 
 			if (IS_ERR_OR_NULL(genpd))
@@ -1693,6 +1720,22 @@ static struct pdev_drv pderv[] = {
 	PDEV_DRV("clkdbg-pd13"),
 	PDEV_DRV("clkdbg-pd14"),
 	PDEV_DRV("clkdbg-pd15"),
+	PDEV_DRV("clkdbg-pd16"),
+	PDEV_DRV("clkdbg-pd17"),
+	PDEV_DRV("clkdbg-pd18"),
+	PDEV_DRV("clkdbg-pd19"),
+	PDEV_DRV("clkdbg-pd20"),
+	PDEV_DRV("clkdbg-pd21"),
+	PDEV_DRV("clkdbg-pd22"),
+	PDEV_DRV("clkdbg-pd23"),
+	PDEV_DRV("clkdbg-pd24"),
+	PDEV_DRV("clkdbg-pd25"),
+	PDEV_DRV("clkdbg-pd26"),
+	PDEV_DRV("clkdbg-pd27"),
+	PDEV_DRV("clkdbg-pd28"),
+	PDEV_DRV("clkdbg-pd29"),
+	PDEV_DRV("clkdbg-pd30"),
+	PDEV_DRV("clkdbg-pd31"),
 };
 
 static void reg_pdev_drv(const char *pdname, struct seq_file *s)
@@ -1702,7 +1745,7 @@ static void reg_pdev_drv(const char *pdname, struct seq_file *s)
 	bool allpd = (pdname == NULL || strcmp(pdname, "all") == 0);
 	int r;
 
-	for (i = 0; i < ARRAY_SIZE(pderv) && *pds != NULL; i++, pds++) {
+	for (i = 0; i < ARRAY_SIZE(pderv) && pds != NULL && *pds != NULL; i++, pds++) {
 		const char *name = pderv[i].pdrv.driver.name;
 		struct generic_pm_domain *pd = *pds;
 
@@ -1841,9 +1884,9 @@ struct provider_clk_state {
 
 struct save_point {
 	u32 spm_pwr_status;
-	struct provider_clk_state clks_states[512];
+	struct provider_clk_state clks_states[MAX_CLK_NUM];
 #if CLKDBG_PM_DOMAIN
-	struct genpd_state genpd_states[20];
+	struct genpd_state genpd_states[MAX_PD_NUM];
 	struct genpd_dev_state genpd_dev_states[100];
 #endif
 };

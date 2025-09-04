@@ -16,7 +16,13 @@
 #include <linux/ioctl.h>
 #include <linux/fs.h>
 #include <aee.h>
+#if IS_ENABLED(CONFIG_DEBUG_FS)
 #include <linux/debugfs.h>
+#endif
+#if IS_ENABLED(CONFIG_PROC_FS)
+#include <linux/proc_fs.h>
+#endif
+#include <linux/seq_file.h>
 #include <linux/platform_device.h>
 #include <linux/miscdevice.h>
 
@@ -97,11 +103,36 @@ extern void smp_inner_dcache_flush_all(void);
 
 #include <linux/clk.h>
 
+#if IS_ENABLED(CONFIG_PROC_FS)
+#define DEFINE_PROC_ATTRIBUTE(__fops, __get, __set, __fmt)		  \
+static int __fops ## _open(struct inode *inode, struct file *file)	  \
+{									  \
+	struct inode local_inode = *inode;				  \
+									  \
+	local_inode.i_private = PDE_DATA(inode);			  \
+	__simple_attr_check_format(__fmt, 0ull);			  \
+	return simple_attr_open(&local_inode, file, __get, __set, __fmt); \
+}									  \
+static const struct file_operations __fops = {				  \
+	.owner	 = THIS_MODULE,						  \
+	.open	 = __fops ## _open,					  \
+	.release = simple_attr_release,					  \
+	.read	 = simple_attr_read,					  \
+	.write	 = simple_attr_write,					  \
+	.llseek	 = generic_file_llseek,					  \
+}
+#endif
+
 struct m4u_device {
 	struct miscdevice dev;
 	struct proc_dir_entry *m4u_dev_proc_entry;
 	struct device *pDev[TOTAL_M4U_NUM];
-	struct dentry *debug_root;
+#if IS_ENABLED(CONFIG_DEBUG_FS)
+		struct dentry *debug_root;
+#endif
+#if IS_ENABLED(CONFIG_PROC_FS)
+		struct proc_dir_entry *proc_root;
+#endif
 	unsigned long m4u_base[TOTAL_M4U_NUM];
 	unsigned int irq_num[TOTAL_M4U_NUM];
 	struct clk *infra_m4u;
@@ -276,6 +307,14 @@ extern int gM4U_log_to_uart;
 		pr_info("[M4U] error:" string, ##args);                        \
 	} while (0)
 /*aee_kernel_warning(m4u_name, "[M4U] error:"string,##args); */
+
+#define M4U_PRINT_SEQ(seq_file, fmt, args...)                           \
+	do {                                                                   \
+		if (seq_file)                                                  \
+			seq_printf(seq_file, fmt, ##args);                     \
+		else                                                           \
+			pr_info(fmt, ##args);                                  \
+	} while (0)
 
 #define M4U_PRINT_LOG_OR_SEQ(seq_file, fmt, args...)                           \
 	do {                                                                   \

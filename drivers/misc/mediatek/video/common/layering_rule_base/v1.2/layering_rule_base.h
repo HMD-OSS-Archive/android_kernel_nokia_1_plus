@@ -149,7 +149,6 @@ struct layering_rule_info_t {
 	int hrt_sys_state;
 	int wrot_sram;
 	unsigned int hrt_idx;
-	/*int active_config_id;*/
 };
 
 struct layering_rule_ops {
@@ -179,6 +178,7 @@ struct layering_rule_ops {
 	void (*fbdc_restore_layout)(struct disp_layer_info *dst_info,
 		enum ADJUST_LAYOUT_PURPOSE p);
 	void (*fbdc_rule)(struct disp_layer_info *disp_info);
+	void (*clear_layer)(struct disp_layer_info *disp_info);
 };
 
 #define HRT_GET_DVFS_LEVEL(hrt_num) (hrt_num & 0xF)

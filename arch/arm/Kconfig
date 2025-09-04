@@ -1535,12 +1535,10 @@ config THUMB2_KERNEL
 	bool "Compile the kernel in Thumb-2 mode" if !CPU_THUMBONLY
 	depends on (CPU_V7 || CPU_V7M) && !CPU_V6 && !CPU_V6K
 	default y if CPU_THUMBONLY
-	select ARM_ASM_UNIFIED
 	select ARM_UNWIND
 	help
 	  By enabling this option, the kernel will be compiled in
-	  Thumb-2 mode. A compiler/assembler that understand the unified
-	  ARM-Thumb syntax is needed.
+	  Thumb-2 mode.
 
 	  If unsure, say N.
 
@@ -1574,9 +1572,6 @@ config THUMB2_AVOID_R_ARM_THM_JUMP11
 	  Only Thumb-2 kernels are affected.
 
 	  Unless you are sure your tools don't have this problem, say Y.
-
-config ARM_ASM_UNIFIED
-	bool
 
 config ARM_PATCH_IDIV
 	bool "Runtime patch udiv/sdiv instructions into __aeabi_{u}idiv()"
@@ -1881,22 +1876,6 @@ config BUILD_ARM_APPENDED_DTB_IMAGE_NAMES
 	  Space separated list of names of dtbs to append when
 	  building a concatenated zImage-dtb.
 
-config BUILD_ARM_DTB_OVERLAY_IMAGE
-	bool "Build a device tree overlay image"
-	depends on OF
-	help
-	  Enabling this option will casue overlay device tree
-	  to be built by default.
-	  Overlay DT contains device-specific configurations.
-	  Please be aware that bootloader supports DT merging.
-
-config BUILD_ARM_DTB_OVERLAY_IMAGE_NAMES
-	string "Default dtb overlay names"
-	depends on BUILD_ARM_DTB_OVERLAY_IMAGE
-	help
-	  Space separated list of names of dtbs to append when
-	  building a concatenated overlay image
-
 # Compressed boot loader in ROM.  Yes, we really want to ask about
 # TEXT and BSS so we preserve their values in the config files.
 config ZBOOT_ROM_TEXT
@@ -2052,7 +2031,7 @@ config XIP_PHYS_ADDR
 config KEXEC
 	bool "Kexec system call (EXPERIMENTAL)"
 	depends on (!SMP || PM_SLEEP_SMP)
-	depends on !CPU_V7M
+	depends on MMU
 	select KEXEC_CORE
 	help
 	  kexec is a system call that implements the ability to shutdown your

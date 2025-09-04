@@ -280,9 +280,12 @@ static int get_devinfo(void)
 	for (i = 0; i < n; i++) {
 		det = id_to_eem_det(pi_eem_ctrl_id[i]);
 
+		if (det == NULL || !det->pi_efuse_count)
+			return 0;
+
 		idx = i % det->pi_efuse_count;
 
-		if (!det->pi_efuse[idx])
+		if ((idx >= NR_PI_SHARED_CTRL) || !det->pi_efuse[idx])
 			continue;
 
 		p = &pi_efuse_idx[i];
@@ -348,9 +351,9 @@ static int get_devinfo(void)
 	}
 
 #ifdef CONFIG_EEM_AEE_RR_REC
-	aee_rr_rec_ptp_devinfo_1(turbocode || (turbo_bininfo.CPU_T_BIN >> 1) ||
-				 (turbo_bininfo.GPU_OPP0_T_BIN >> 4) ||
-				 (turbo_bininfo.GPU_OPP1_T_BIN >> 7));
+	aee_rr_rec_ptp_devinfo_1(turbocode || (turbo_bininfo.CPU_T_BIN << 1) ||
+				 (turbo_bininfo.GPU_OPP0_T_BIN << 4) ||
+				 (turbo_bininfo.GPU_OPP1_T_BIN << 7));
 
 #if 0
 	eem_error("t:%d, tbin:%d, g0bin:%d, g1bin:%d, bin data: 0x%x",
@@ -1063,9 +1066,13 @@ static enum hrtimer_restart eem_log_timer_func(struct hrtimer *timer)
 static int eem_volt_thread_handler(void *data)
 {
 	struct eem_ctrl *ctrl = (struct eem_ctrl *)data;
-	struct eem_det *det = id_to_eem_det(ctrl->det_id);
+	struct eem_det *det;
 
 	FUNC_ENTER(FUNC_LV_HELP);
+	if (ctrl == NULL)
+		return 0;
+
+	det = id_to_eem_det(ctrl->det_id);
 
 #if ENABLE_LOO
 	/* For share cci bank */
@@ -1073,6 +1080,8 @@ static int eem_volt_thread_handler(void *data)
 		det = &eem_detector_cci;
 #endif
 
+	if (det == NULL)
+		return 0;
 	do {
 		wait_event_interruptible(ctrl->wq, ctrl->volt_update);
 
@@ -1590,6 +1599,8 @@ static void eem_set_eem_volt(struct eem_det *det)
 		ctrl = id_to_eem_ctrl(det->ctrl_id);
 	}
 #endif
+	if (ctrl == NULL)
+		return;
 	det->temp = det->ops->get_temp(det);
 
 #if UPDATE_TO_UPOWER
@@ -1811,6 +1822,8 @@ static void eem_restore_eem_volt(struct eem_det *det)
 #if SET_PMIC_VOLT
 	struct eem_ctrl *ctrl = id_to_eem_ctrl(det->ctrl_id);
 
+	if (ctrl == NULL)
+		return;
 	ctrl->volt_update |= EEM_VOLT_RESTORE;
 	wake_up_interruptible(&ctrl->wq);
 #endif
@@ -3302,6 +3315,8 @@ int mt_eem_opp_num(enum eem_det_id id)
 	struct eem_det *det = id_to_eem_det(id);
 
 	FUNC_ENTER(FUNC_LV_API);
+	if (det == NULL)
+		return 0;
 	FUNC_EXIT(FUNC_LV_API);
 
 	return det->num_freq_tbl;
@@ -3315,6 +3330,8 @@ void mt_eem_opp_freq(enum eem_det_id id, unsigned int *freq)
 
 	FUNC_ENTER(FUNC_LV_API);
 
+	if (det == NULL)
+		return;
 	for (i = 0; i < det->num_freq_tbl; i++)
 		freq[i] = det->freq_tbl[i];
 
@@ -3330,6 +3347,8 @@ void mt_eem_opp_status(enum eem_det_id id, unsigned int *temp,
 
 	FUNC_ENTER(FUNC_LV_API);
 
+	if (det == NULL)
+		return;
 #ifdef CONFIG_THERMAL
 	if (id == EEM_DET_2L)
 		*temp = tscpu_get_temp_by_bank(THERMAL_BANK0);
@@ -3958,6 +3977,8 @@ void eem_set_pi_efuse(enum eem_det_id id, unsigned int pi_efuse)
 {
 	struct eem_det *det = id_to_eem_det(id);
 
+	if (det == NULL)
+		return;
 	if (det->pi_efuse_count >= NR_PI_SHARED_CTRL)
 		return;
 

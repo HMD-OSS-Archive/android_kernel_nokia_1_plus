@@ -64,10 +64,8 @@
 #include <linux/compat.h>
 #endif
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 #include <linux/pm_wakeup.h>
-#else
-#include <linux/wakelock.h>
 #endif
 
 #ifdef CONFIG_OF
@@ -337,10 +335,8 @@ static struct isp_sec_dapc_reg lock_reg;
 static unsigned int sec_on;
 static unsigned int log_on;
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 struct wakeup_source isp_wake_lock;
-#else
-struct wake_lock isp_wake_lock;
 #endif
 static int g_WaitLockCt;
 
@@ -723,10 +719,11 @@ static struct SV_LOG_STR gSvLog[ISP_IRQ_TYPE_AMOUNT];
 		usec = do_div(sec, 1000000); \
 	}
 
-#define IRQ_LOG_KEEPER(irq, ppb, logT, fmt, ...) do { \
+#define IRQ_LOG_KEEPER(irq, ppb_in, logT_in, fmt, ...) do { \
 	char *ptr;  \
 	char *pDes; \
 	int avaLen; \
+	unsigned int ppb = ppb_in, logT = logT_in;\
 	unsigned int *ptr2 = &gSvLog[irq]._cnt[ppb][logT]; \
 	unsigned int str_leng; \
 	unsigned int i; \
@@ -745,11 +742,13 @@ static struct SV_LOG_STR gSvLog[ISP_IRQ_TYPE_AMOUNT];
 	avaLen = str_leng - 1 - gSvLog[\
 		irq]._cnt[ppb][logT]; \
 	if (avaLen > 1) { \
-		snprintf((char *)(pDes), avaLen, \
+		if (snprintf((char *)(pDes), avaLen, \
 			"[%d.%06d]" fmt, \
 			gSvLog[irq]._lastIrqTime.sec, \
 			gSvLog[irq]._lastIrqTime.usec, \
-			##__VA_ARGS__); \
+			##__VA_ARGS__) < 0) {\
+			LOG_NOTICE("[Error] %s: snprintf failed", __func__);\
+		} \
 		if ('\0' != gSvLog[irq]._str[\
 			ppb][logT][str_leng - 1]) \
 			LOG_NOTICE("log str over flow(%d)", irq); \
@@ -811,7 +810,11 @@ static struct SV_LOG_STR gSvLog[ISP_IRQ_TYPE_AMOUNT];
 			ptr = pDes = (char *)&(pSrc->_str[ppb][\
 				logT][pSrc->_cnt[ppb][logT]]); \
 			ptr2 = &(pSrc->_cnt[ppb][logT]); \
-			snprintf((char *)(pDes), avaLen, fmt, ##__VA_ARGS__); \
+			if (snprintf((char *)(pDes), avaLen,\
+					fmt, ##__VA_ARGS__) < 0) {\
+				LOG_NOTICE("[Error] %s: snprintf failed",\
+					   __func__);\
+			} \
 			while (*ptr++ != '\0') \
 				(*ptr2)++; \
 		} \
@@ -822,8 +825,8 @@ static struct SV_LOG_STR gSvLog[ISP_IRQ_TYPE_AMOUNT];
 		struct SV_LOG_STR *pSrc = &gSvLog[irq]; \
 		char *ptr; \
 		unsigned int i; \
-		int ppb = 0; \
-		int logT = 0; \
+		unsigned int ppb = 0; \
+		unsigned int logT = 0; \
 		if (ppb_in > 1) \
 			ppb = 1; \
 		else \
@@ -2027,8 +2030,8 @@ static long ISP_Buf_CTRL_FUNC(unsigned long Param)
 		(void __user *)Param,
 		sizeof(struct ISP_BUFFER_CTRL_STRUCT)) == 0) {
 
-		if (rt_buf_ctrl.module >=
-			ISP_IRQ_TYPE_AMOUNT) {
+		if (rt_buf_ctrl.module >= ISP_IRQ_TYPE_AMOUNT ||
+		    rt_buf_ctrl.module < 0) {
 			LOG_NOTICE("[rtbc]not supported	module:0x%x\n",
 				rt_buf_ctrl.module);
 			return -EFAULT;
@@ -2041,7 +2044,8 @@ static long ISP_Buf_CTRL_FUNC(unsigned long Param)
 		}
 
 		rt_dma = rt_buf_ctrl.buf_id;
-		if (rt_dma >= _cam_max_) {
+		if (rt_dma >= _cam_max_ ||
+		    rt_dma < 0) {
 			LOG_NOTICE("[rtbc]buf_id error:0x%x\n",
 				rt_dma);
 			return -EFAULT;
@@ -2330,20 +2334,21 @@ static int ISP_FLUSH_IRQ(struct ISP_WAIT_IRQ_STRUCT *irqinfo)
 		irqinfo->EventInfo.St_type,
 		irqinfo->EventInfo.Status);
 
-	if (irqinfo->Type >= ISP_IRQ_TYPE_AMOUNT) {
+	if (irqinfo->Type >= ISP_IRQ_TYPE_AMOUNT ||
+	    irqinfo->Type < 0) {
 		LOG_NOTICE("FLUSH_IRQ: type error(%d)", irqinfo->Type);
 		return -EFAULT;
 	}
 
-	if (irqinfo->EventInfo.St_type >= ISP_IRQ_ST_AMOUNT) {
+	if (irqinfo->EventInfo.St_type >= ISP_IRQ_ST_AMOUNT ||
+	    irqinfo->EventInfo.St_type < 0) {
 		LOG_NOTICE("FLUSH_IRQ: st_type error(%d)",
 			irqinfo->EventInfo.St_type);
 		return -EFAULT;
 	}
 
-	if (irqinfo->EventInfo.UserKey >=
-		IRQ_USER_NUM_MAX ||
-		irqinfo->EventInfo.UserKey < 0) {
+	if (irqinfo->EventInfo.UserKey >= IRQ_USER_NUM_MAX ||
+	    irqinfo->EventInfo.UserKey < 0) {
 		LOG_NOTICE("FLUSH_IRQ: userkey error(%d)",
 			irqinfo->EventInfo.UserKey);
 		return -EFAULT;
@@ -2413,23 +2418,22 @@ static int ISP_WaitIrq(struct ISP_WAIT_IRQ_STRUCT *WaitIrq)
 	time_getrequest.tv_usec = usec;
 	time_getrequest.tv_sec = sec;
 
-	if (WaitIrq->Type >=
-		ISP_IRQ_TYPE_AMOUNT) {
+	if (WaitIrq->Type >= ISP_IRQ_TYPE_AMOUNT ||
+	    WaitIrq->Type < 0) {
 		LOG_NOTICE("WaitIrq: type error(%d)",
 			WaitIrq->Type);
 		return -EFAULT;
 	}
 
-	if (WaitIrq->EventInfo.St_type >=
-		ISP_IRQ_ST_AMOUNT) {
+	if (WaitIrq->EventInfo.St_type >= ISP_IRQ_ST_AMOUNT ||
+	    WaitIrq->EventInfo.St_type < 0) {
 		LOG_NOTICE("WaitIrq: st_type error(%d)",
 			WaitIrq->EventInfo.St_type);
 		return -EFAULT;
 	}
 
-	if (WaitIrq->EventInfo.UserKey >=
-		IRQ_USER_NUM_MAX ||
-		WaitIrq->EventInfo.UserKey < 0) {
+	if (WaitIrq->EventInfo.UserKey >= IRQ_USER_NUM_MAX ||
+	    WaitIrq->EventInfo.UserKey < 0) {
 		LOG_NOTICE("WaitIrq: userkey error(%d)",
 			WaitIrq->EventInfo.UserKey);
 		return -EFAULT;
@@ -2617,7 +2621,7 @@ static int ISP_WaitIrq(struct ISP_WAIT_IRQ_STRUCT *WaitIrq)
 			goto NON_CLEAR_WAIT;
 		}
 	}
-//#ifdef ENABLE_WAITIRQ_LOG
+#ifdef ENABLE_WAITIRQ_LOG
 	if (WaitIrq->EventInfo.UserKey == 1) {
 		LOG_INF("Before wait: C:%d T:%d StT:%d Sts:0x%08X\n",
 			WaitIrq->EventInfo.Clear,
@@ -2630,7 +2634,7 @@ static int ISP_WaitIrq(struct ISP_WAIT_IRQ_STRUCT *WaitIrq)
 			WaitIrq->EventInfo.Timeout,
 			WaitIrq->EventInfo.UserKey);
 	}
-//#endif
+#endif
 	/* 2. start to wait signal */
 	if (log_on)
 		LOG_NOTICE("+ start to wait signal\n");
@@ -2727,7 +2731,6 @@ static int ISP_WaitIrq(struct ISP_WAIT_IRQ_STRUCT *WaitIrq)
 		Ret = -EFAULT;
 		goto EXIT;
 	}
-//#ifdef ENABLE_WAITIRQ_LOG
 	else {
 		/* Store irqinfo status in here to
 		 * redeuce time of spin_lock_irqsave
@@ -2742,7 +2745,7 @@ static int ISP_WaitIrq(struct ISP_WAIT_IRQ_STRUCT *WaitIrq)
 
 		spin_unlock_irqrestore(&(IspInfo.SpinLockIrq[
 			WaitIrq->Type]), flags);
-
+#ifdef ENABLE_WAITIRQ_LOG
 		if (WaitIrq->EventInfo.UserKey == 1) {
 			LOG_INF("Done WaitIrq Clear(%d) Type(%d) StType(%d)\n",
 				WaitIrq->EventInfo.Clear,
@@ -2754,8 +2757,8 @@ static int ISP_WaitIrq(struct ISP_WAIT_IRQ_STRUCT *WaitIrq)
 				WaitIrq->EventInfo.Timeout,
 				WaitIrq->EventInfo.UserKey);
 		}
+#endif
 	}
-//#endif
 
 NON_CLEAR_WAIT:
 	/* 3. get interrupt and update time related
@@ -3136,10 +3139,8 @@ static long ISP_ioctl(struct file *pFile,
 					LOG_DBG("add wakelock cnt(%d)\n",
 						g_WaitLockCt);
 				} else {
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 					__pm_stay_awake(&isp_wake_lock);
-#else
-					wake_lock(&isp_wake_lock);
 #endif
 					g_WaitLockCt++;
 					LOG_DBG("wakelock enable!! cnt(%d)\n",
@@ -3153,10 +3154,8 @@ static long ISP_ioctl(struct file *pFile,
 					LOG_DBG("subtract wakelock cnt(%d)\n",
 						g_WaitLockCt);
 				else {
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 					__pm_relax(&isp_wake_lock);
-#else
-					wake_unlock(&isp_wake_lock);
 #endif
 					LOG_DBG("wakelock disable!! cnt(%d)\n",
 						g_WaitLockCt);
@@ -3770,7 +3769,7 @@ static long ISP_ioctl(struct file *pFile,
 	case ISP_GET_CUR_ISP_CLOCK:
 		{
 			struct ISP_GET_CLK_INFO getclk;
-			unsigned int clk[2];
+			unsigned int clk[2] = {0, 0};
 
 			ISP_SetPMQOS(E_CLK_CUR, ISP_IRQ_TYPE_INT_CAM_A_ST, clk);
 			getclk.curClk = clk[0];
@@ -5270,10 +5269,8 @@ static int ISP_release(
 	/* the power-saving mode */
 	if (g_WaitLockCt) {
 		LOG_INF("wakelock disable!! cnt(%d)\n",	g_WaitLockCt);
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 		__pm_relax(&isp_wake_lock);
-#else
-		wake_unlock(&isp_wake_lock);
 #endif
 		g_WaitLockCt = 0;
 	}
@@ -5370,7 +5367,7 @@ EXIT:
 static int ISP_mmap(struct file *pFile, struct vm_area_struct *pVma)
 {
 	unsigned long length = 0;
-	unsigned int pfn = 0x0;
+	unsigned long pfn = 0x0;
 
 	/*LOG_DBG("- E.");*/
 	length = (pVma->vm_end - pVma->vm_start);
@@ -5723,7 +5720,7 @@ static int ISP_probe(struct platform_device *pDev)
 					&IspInfo.WaitQHeadCamsv[i][j]);
 			}
 
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 		wakeup_source_init(&isp_wake_lock, "isp_lock_wakelock");
 #else
 		wake_lock_init(&
@@ -5890,8 +5887,9 @@ static int ISP_suspend(
 )
 {
 	unsigned int regVal;
-	int IrqType, ret, module;
-	char moduleName[128];
+	unsigned int IrqType;
+	int ret, module;
+	char moduleName[128] = {'\0'};
 
 	unsigned int regTGSt, loopCnt;
 	struct ISP_WAIT_IRQ_STRUCT waitirq;
@@ -5900,7 +5898,8 @@ static int ISP_suspend(
 
 	ret = 0;
 	module = -1;
-	strncpy(moduleName, pDev->dev.of_node->name, 127);
+	strncpy(moduleName, pDev->dev.of_node->name, sizeof(moduleName)-1);
+	moduleName[sizeof(moduleName)-1] = '\0';
 
 	/* update device node count*/
 	atomic_dec(&G_u4DevNodeCt);
@@ -6081,12 +6080,14 @@ EXIT:
 static int ISP_resume(struct platform_device *pDev)
 {
 	unsigned int regVal;
-	int IrqType, ret, module;
-	char moduleName[128];
+	unsigned int IrqType;
+	int ret, module;
+	char moduleName[128] = {'\0'};
 
 	ret = 0;
 	module = -1;
-	strncpy(moduleName, pDev->dev.of_node->name, 127);
+	strncpy(moduleName, pDev->dev.of_node->name, sizeof(moduleName)-1);
+	moduleName[sizeof(moduleName)-1] = '\0';
 
 	/* update device node count*/
 	atomic_inc(&G_u4DevNodeCt);
@@ -6365,7 +6366,11 @@ static int __init ISP_Init(void)
 
 		for (i = 0; i < ARRAY_SIZE(SMI_LARB_BASE); i++) {
 
-			snprintf(comp_str, 64, "mediatek,smi_larb%d", i);
+			if (snprintf(comp_str, 64,
+					"mediatek,smi_larb%d", i) < 0) {
+				LOG_NOTICE("[Error] %s: snprintf failed",
+					   __func__);
+			}
 			LOG_INF("Finding SMI_LARB compatible:%s\n", comp_str);
 
 			node = of_find_compatible_node(NULL, NULL, comp_str);
@@ -6749,25 +6754,25 @@ enum CAM_FrameST Irq_CAM_FrameStatus(
 				enum ISP_IRQ_TYPE_ENUM irq_mod,
 				unsigned int delayCheck)
 {
-	int dma_arry_map[_cam_max_] = {
+	unsigned int dma_arry_map[_cam_max_] = {
 		/*      0,  1,  2,  3,  4,  5,  6,  7,  8,  9,*/
 		 0, /* _imgo_*/
 		 1, /* _rrzo_ */
 		 2, /* _ufeo_ */
-		-1, /* _aao_ */
-		-1, /* _afo_ */
+	 _cam_max_, /* _aao_ */
+	 _cam_max_, /* _afo_ */
 		 3, /* _lcso_ */
-		-1, /* _pdo_ */
+	 _cam_max_, /* _pdo_ */
 		 4, /* _lmvo_ */
-		-1, /* _flko_ */
+	 _cam_max_, /* _flko_ */
 		 5, /* _rsso_ */
-		-1, /* _pso_ */
+	 _cam_max_, /* _pso_ */
 		 6 /* _ufgo_ */
 	};
 
 	unsigned int dma_en;
-	union FBC_CTRL_1 fbc_ctrl1[7];
-	union FBC_CTRL_2 fbc_ctrl2[7];
+	union FBC_CTRL_1 fbc_ctrl1[_cam_max_ + 1];
+	union FBC_CTRL_2 fbc_ctrl2[_cam_max_ + 1];
 	bool bQueMode = MFALSE;
 	unsigned int product = 1;
 	/* TSTP_V3 unsigned int frmPeriod =
@@ -6858,7 +6863,7 @@ enum CAM_FrameST Irq_CAM_FrameStatus(
 	}
 
 	for (i = 0; i < _cam_max_; i++) {
-		if (dma_arry_map[i] >= 0) {
+		if (dma_arry_map[i] != _cam_max_) {
 			if (fbc_ctrl1[dma_arry_map[i]].Raw != 0) {
 				bQueMode =
 				fbc_ctrl1[dma_arry_map[i]].Bits.FBC_MODE;
@@ -6869,7 +6874,7 @@ enum CAM_FrameST Irq_CAM_FrameStatus(
 
 	if (bQueMode) {
 		for (i = 0; i < _cam_max_; i++) {
-			if (dma_arry_map[i] < 0)
+			if (dma_arry_map[i] == _cam_max_)
 				continue;
 
 			if (fbc_ctrl1[
@@ -6934,7 +6939,7 @@ enum CAM_FrameST Irq_CAM_FrameStatus(
 		}
 	} else {
 		for (i = 0; i < _cam_max_; i++) {
-			if (dma_arry_map[i] < 0)
+			if (dma_arry_map[i] == _cam_max_)
 				continue;
 
 			if (fbc_ctrl1[dma_arry_map[i]].Raw != 0) {
@@ -8310,9 +8315,9 @@ irqreturn_t ISP_Irq_CAM_C(int  Irq, void *DeviceId)
 	return ISP_Irq_CAM(ISP_IRQ_TYPE_INT_CAM_C_ST);
 }
 
-#define Sylvia_WAM_CQ_ERR   (1)
+#define P1_WAM_CQ_ERR   (1)
 
-#if Sylvia_WAM_CQ_ERR
+#if P1_WAM_CQ_ERR
 static void ISP_RecordCQAddr(enum ISP_DEV_NODE_ENUM regModule)
 {
 		unsigned int i = regModule;
@@ -9490,8 +9495,9 @@ irqreturn_t ISP_Irq_CAM(enum ISP_IRQ_TYPE_ENUM irq_module)
 					"SW ISR right on next hw p1_done\n");
 
 		}
-#if Sylvia_WAM_CQ_ERR
-		ISP_RecordCQAddr(reg_module);
+#if P1_WAM_CQ_ERR
+		if (!(ErrStatus & CQ_VS_ERR_ST))
+			ISP_RecordCQAddr(reg_module);
 #endif
 		/* update SOF time stamp for eis user
 		 *(need match with the time stamp in image header)
@@ -9565,6 +9571,7 @@ LB_CAM_SOF_IGNORE:
 			[ISP_WAITQ_HEAD_IRQ_SW_P1_DONE]);
 	}
 	if (DmaStatus & AAO_DONE_ST) {
+#ifdef ENABLE_STT_IRQ_LOG
 		IRQ_LOG_KEEPER(module, m_CurrentPPB, _LOG_INF,
 			"CAM_%c AAO_DONE_%d_%d(aao_ctrl_1:0x%x,aao_ctrl_2:0x%x)\n",
 			'A'+cardinalNum, sof_count[module],
@@ -9573,6 +9580,7 @@ LB_CAM_SOF_IGNORE:
 			CAM_REG_FBC_AAO_CTL1(reg_module))),
 			(unsigned int)(ISP_RD32(
 			CAM_REG_FBC_AAO_CTL2(reg_module))));
+#endif
 		wake_up_interruptible(&IspInfo.WaitQHeadCam
 			[ISP_GetWaitQCamIndex(module)]
 			[ISP_WAITQ_HEAD_IRQ_AAO_DONE]);
@@ -9634,7 +9642,7 @@ static void SMI_INFO_DUMP(enum ISP_IRQ_TYPE_ENUM irq_module)
 		}
 		if (g_ISPIntStatus_SMI[irq_module].ispIntErr &
 			CQ_VS_ERR_ST) {
-#if Sylvia_WAM_CQ_ERR
+#if P1_WAM_CQ_ERR
 			CQ_Recover(g_ISPIntStatus_SMI[irq_module].ispIntErr,
 				irq_module);
 #endif

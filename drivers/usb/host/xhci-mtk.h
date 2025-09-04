@@ -133,6 +133,7 @@ struct xhci_hcd_mtk {
 	int wakeup_src;
 	bool lpm_support;
 	struct dentry *debugfs_root;
+	int last_speed;
 };
 
 static inline struct xhci_hcd_mtk *hcd_to_mtk(struct usb_hcd *hcd)
@@ -150,6 +151,8 @@ int xhci_mtk_add_ep_quirk(struct usb_hcd *hcd, struct usb_device *udev,
 		struct usb_host_endpoint *ep);
 void xhci_mtk_drop_ep_quirk(struct usb_hcd *hcd, struct usb_device *udev,
 		struct usb_host_endpoint *ep);
+void xhci_mtk_set_port_mode(struct usb_hcd *hcd, __le32 __iomem **port_array,
+				int port_id);
 
 #else
 static inline int xhci_mtk_add_ep_quirk(struct usb_hcd *hcd,
@@ -163,6 +166,10 @@ static inline void xhci_mtk_drop_ep_quirk(struct usb_hcd *hcd,
 {
 }
 
+static inline void xhci_mtk_set_port_mode(struct usb_hcd *hcd,
+	__le32 __iomem **port_array, int port_id)
+{
+}
 #endif
 
 #if IS_ENABLED(CONFIG_MTK_UAC_POWER_SAVING)
@@ -203,11 +210,11 @@ extern int mtk_audio_request_sram(dma_addr_t *phys_addr,
 extern void mtk_audio_free_sram(void *user);
 int xhci_mtk_init_sram(struct xhci_hcd *xhci);
 int xhci_mtk_deinit_sram(struct xhci_hcd *xhci);
-int xhci_mtk_allocate_sram(int id, dma_addr_t *sram_phys_addr,
+int xhci_mtk_allocate_sram(unsigned int id, dma_addr_t *sram_phys_addr,
 	unsigned char **msram_virt_addr);
-int xhci_mtk_free_sram(int id);
-void *mtk_usb_alloc_sram(int id, size_t size, dma_addr_t *dma);
-void mtk_usb_free_sram(int id);
+int xhci_mtk_free_sram(unsigned int id);
+void *mtk_usb_alloc_sram(unsigned int id, size_t size, dma_addr_t *dma);
+void mtk_usb_free_sram(unsigned int id);
 void xhci_mtk_allow_sleep(unsigned int sleep_ms, int speed);
 void xhci_mtk_set_sleep(bool enable);
 #endif

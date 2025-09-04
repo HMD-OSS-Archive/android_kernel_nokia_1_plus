@@ -112,7 +112,8 @@ enum vdec_get_param_type {
 	GET_PARAM_PLATFORM_SUPPORTED_FIX_BUFFERS,
 	GET_PARAM_PLATFORM_SUPPORTED_FIX_BUFFERS_SVP,
 	GET_PARAM_INTERLACING,
-	GET_PARAM_CODEC_TYPE
+	GET_PARAM_CODEC_TYPE,
+	GET_PARAM_INPUT_DRIVEN
 };
 
 /*
@@ -297,6 +298,7 @@ struct vdec_vcu_ipi_query_cap_ack {
  * @y_fb_dma    : dma address of Y frame buffer
  * @c_fb_dma    : dma address of C frame buffer
  * @poc         : picture order count of frame buffer
+ * @timestamp : timestamp of frame buffer
  * @reserved    : for 8 bytes alignment
  */
 struct vdec_ipi_fb {
@@ -304,6 +306,7 @@ struct vdec_ipi_fb {
 	__u64 y_fb_dma;
 	__u64 c_fb_dma;
 	__s32 poc;
+	__u64 timestamp;
 	__u32 reserved;
 };
 
@@ -316,10 +319,10 @@ struct vdec_ipi_fb {
  */
 struct ring_bs_list {
 	__u64 vdec_bs_va_list[DEC_MAX_BS_NUM];
-	__s32 read_idx;
-	__s32 write_idx;
-	__s32 count;
-	__s32 reserved;
+	__u32 read_idx;
+	__u32 write_idx;
+	__u32 count;
+	__u32 reserved;
 };
 
 /**
@@ -331,10 +334,10 @@ struct ring_bs_list {
  */
 struct ring_fb_list {
 	struct vdec_ipi_fb fb_list[DEC_MAX_FB_NUM];
-	__s32 read_idx;
-	__s32 write_idx;
-	__s32 count;
-	__s32 reserved;
+	__u32 read_idx;
+	__u32 write_idx;
+	__u32 count;
+	__u32 reserved;
 };
 
 /**
@@ -370,6 +373,9 @@ struct vdec_vsi {
 	__u8 crc_path[256];
 	__u8 golden_path[256];
 	__u8 input_driven;
+	__s32 general_buf_fd;
+	__u64 general_buf_dma;
+	__u32 general_buf_size;
 };
 
 #endif

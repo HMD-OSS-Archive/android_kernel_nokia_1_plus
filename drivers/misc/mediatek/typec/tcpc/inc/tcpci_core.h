@@ -29,6 +29,9 @@
 
 #ifdef CONFIG_USB_POWER_DELIVERY
 #include "pd_core.h"
+#ifdef CONFIG_TYPEC_WAIT_BC12
+#include <mt-plat/charger_type.h>
+#endif /* CONFIG_TYPEC_WAIT_BC12 */
 #endif
 
 /* The switch of log message */
@@ -87,6 +90,18 @@ struct tcpc_desc {
 	uint8_t vconn_supply;
 	int notifier_supply_num;
 	char *name;
+#ifdef CONFIG_WATER_DETECTION
+	u32 wd_sbu_calib_init;
+	u32 wd_sbu_pl_bound;
+	u32 wd_sbu_pl_lbound_c2c;
+	u32 wd_sbu_pl_ubound_c2c;
+	u32 wd_sbu_ph_auddev;
+	u32 wd_sbu_ph_lbound;
+	u32 wd_sbu_ph_lbound1_c2c;
+	u32 wd_sbu_ph_ubound1_c2c;
+	u32 wd_sbu_ph_ubound2_c2c;
+	u32 wd_sbu_aud_ubound;
+#endif /* CONFIG_WATER_DETECTION */
 };
 
 /*---------------------------------------------------------------------------*/
@@ -196,6 +211,7 @@ struct tcpc_ops {
 	int (*init_alert_mask)(struct tcpc_device *tcpc);
 	int (*alert_status_clear)(struct tcpc_device *tcpc, uint32_t mask);
 	int (*fault_status_clear)(struct tcpc_device *tcpc, uint8_t status);
+	int (*set_alert_mask)(struct tcpc_device *tcpc, uint32_t mask);
 	int (*get_alert_mask)(struct tcpc_device *tcpc, uint32_t *mask);
 	int (*get_alert_status)(struct tcpc_device *tcpc, uint32_t *alert);
 	int (*get_power_status)(struct tcpc_device *tcpc, uint16_t *pwr_status);
@@ -330,6 +346,7 @@ struct tcpc_device {
 
 	struct delayed_work	init_work;
 	struct delayed_work	event_init_work;
+	struct workqueue_struct *evt_wq;
 	struct srcu_notifier_head evt_nh[TCP_NOTIFY_IDX_NR];
 	struct tcpc_managed_res *mr_head;
 	struct mutex mr_lock;
@@ -351,6 +368,7 @@ struct tcpc_device {
 	bool typec_power_ctrl;
 	bool typec_watchdog;
 	bool typec_reach_vsafe0v;
+	bool typec_is_attached_src;
 
 	int typec_usb_sink_curr;
 
@@ -475,6 +493,9 @@ struct tcpc_device {
 	uint8_t charging_status;
 	int bat_soc;
 #endif /* CONFIG_USB_PD_REV30 */
+#ifdef CONFIG_TYPEC_WAIT_BC12
+	uint8_t sink_wait_bc12_count;
+#endif /* CONFIG_TYPEC_WAIT_BC12 */
 #endif /* CONFIG_USB_POWER_DELIVERY */
 	u8 vbus_level:2;
 	bool vbus_safe0v;
@@ -488,6 +509,7 @@ struct tcpc_device {
 #endif /* CONFIG_WATER_DETECTION */
 #ifdef CONFIG_CABLE_TYPE_DETECTION
 	enum tcpc_cable_type typec_cable_type;
+	enum tcpc_cable_type pre_typec_cable_type;
 #endif /* CONFIG_CABLE_TYPE_DETECTION */
 };
 

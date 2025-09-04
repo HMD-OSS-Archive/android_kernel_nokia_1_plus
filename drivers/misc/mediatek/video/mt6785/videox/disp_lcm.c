@@ -1738,10 +1738,8 @@ int disp_lcm_is_dynfps_support(struct disp_lcm_handle *plcm)
 	else
 		return 0;
 
-	if (lcm_param->type != LCM_TYPE_DSI ||
-		lcm_param->dsi.mode == CMD_MODE) {
+	if (lcm_param->type != LCM_TYPE_DSI)
 		return 0;
-	}
 
 	dfps_enable = lcm_param->dsi.dfps_enable;
 	dfps_num = lcm_param->dsi.dfps_num;
@@ -1804,6 +1802,7 @@ bool disp_lcm_need_send_cmd(
 	int to_level = -1;
 	struct dfps_info *dfps_params = NULL;
 	unsigned int j = 0;
+//	enum LCM_Send_Cmd_Mode sendmode = 0;
 
 	DISPFUNC();
 	if (_is_lcm_inited(plcm)) {
@@ -1840,7 +1839,9 @@ bool disp_lcm_need_send_cmd(
 		to_level < 0)
 		return false;
 
-	return	lcm_drv->dfps_need_send_cmd(from_level, to_level);
+	//sendmode = lcm_param->sendmode;
+
+	return	lcm_drv->dfps_need_send_cmd(from_level, to_level, lcm_param);
 }
 
 void disp_lcm_dynfps_send_cmd(
@@ -1885,7 +1886,7 @@ void disp_lcm_dynfps_send_cmd(
 	}
 
 	lcm_drv->dfps_send_lcm_cmd(cmdq_handle,
-		from_level, to_level);
+		from_level, to_level, lcm_param);
 done:
 	DISPCHECK("%s,add done\n", __func__);
 }

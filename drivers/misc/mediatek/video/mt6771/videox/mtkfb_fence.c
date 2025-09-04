@@ -135,65 +135,75 @@ static struct disp_session_sync_info
 		session_ctx[i].session_id = session;
 		s_info = &(session_ctx[i]);
 
-		sprintf(name, "%s%d_prepare", disp_session_type_str(session),
+		scnprintf(name, sizeof(name),
+			"%s%d_prepare", disp_session_type_str(session),
 			DISP_SESSION_DEV(session));
 		dprec_logger_event_init(&s_info->event_prepare, name,
 					DPREC_LOGGER_LEVEL_DEFAULT |
 					DPREC_LOGGER_LEVEL_SYSTRACE,
 					&ddp_mmp_get_events()->session_Parent);
-		sprintf(name, "%s%d_frame_cfg", disp_session_type_str(session),
+		scnprintf(name, sizeof(name),
+			"%s%d_frame_cfg", disp_session_type_str(session),
 			DISP_SESSION_DEV(session));
 		dprec_logger_event_init(&s_info->event_frame_cfg, name,
 					DPREC_LOGGER_LEVEL_DEFAULT,
 					&s_info->event_prepare.mmp);
 
-		sprintf(name, "%s%d_wait_fence", disp_session_type_str(session),
+		scnprintf(name, sizeof(name),
+			"%s%d_wait_fence", disp_session_type_str(session),
 			DISP_SESSION_DEV(session));
 		dprec_logger_event_init(&s_info->event_wait_fence, name,
 					DPREC_LOGGER_LEVEL_DEFAULT,
 					&s_info->event_prepare.mmp);
-		sprintf(name, "%s%d_setinput", disp_session_type_str(session),
+		scnprintf(name, sizeof(name),
+			"%s%d_setinput", disp_session_type_str(session),
 			DISP_SESSION_DEV(session));
 		dprec_logger_event_init(&s_info->event_setinput, name,
 					DPREC_LOGGER_LEVEL_DEFAULT |
 					DPREC_LOGGER_LEVEL_SYSTRACE,
 					&s_info->event_prepare.mmp);
 
-		sprintf(name, "%s%d_setoutput", disp_session_type_str(session),
+		scnprintf(name, sizeof(name),
+			"%s%d_setoutput", disp_session_type_str(session),
 			DISP_SESSION_DEV(session));
 		dprec_logger_event_init(&s_info->event_setoutput, name,
 					DPREC_LOGGER_LEVEL_DEFAULT |
 					DPREC_LOGGER_LEVEL_SYSTRACE,
 					&s_info->event_prepare.mmp);
 
-		sprintf(name, "%s%d_trigger", disp_session_type_str(session),
+		scnprintf(name, sizeof(name),
+			"%s%d_trigger", disp_session_type_str(session),
 			DISP_SESSION_DEV(session));
 		dprec_logger_event_init(&s_info->event_trigger, name,
 					DPREC_LOGGER_LEVEL_DEFAULT |
 					DPREC_LOGGER_LEVEL_SYSTRACE,
 					&s_info->event_prepare.mmp);
 
-		sprintf(name, "%s%d_findidx", disp_session_type_str(session),
+		scnprintf(name, sizeof(name),
+			"%s%d_findidx", disp_session_type_str(session),
 			DISP_SESSION_DEV(session));
 		dprec_logger_event_init(&s_info->event_findidx, name,
 					DPREC_LOGGER_LEVEL_DEFAULT,
 					&s_info->event_prepare.mmp);
 
-		sprintf(name, "%s%d_release", disp_session_type_str(session),
+		scnprintf(name, sizeof(name),
+			"%s%d_release", disp_session_type_str(session),
 			DISP_SESSION_DEV(session));
 		dprec_logger_event_init(&s_info->event_release, name,
 					DPREC_LOGGER_LEVEL_DEFAULT |
 					DPREC_LOGGER_LEVEL_SYSTRACE,
 					&s_info->event_prepare.mmp);
 
-		sprintf(name, "%s%d_waitvsync", disp_session_type_str(session),
+		scnprintf(name, sizeof(name),
+			"%s%d_waitvsync", disp_session_type_str(session),
 			DISP_SESSION_DEV(session));
 		dprec_logger_event_init(&s_info->event_waitvsync, name,
 					DPREC_LOGGER_LEVEL_DEFAULT |
 					DPREC_LOGGER_LEVEL_SYSTRACE,
 					&s_info->event_prepare.mmp);
 
-		sprintf(name, "%s%d_err", disp_session_type_str(session),
+		scnprintf(name, sizeof(name),
+			"%s%d_err", disp_session_type_str(session),
 			DISP_SESSION_DEV(session));
 		dprec_logger_event_init(&s_info->event_err, name,
 					DPREC_LOGGER_LEVEL_DEFAULT |
@@ -204,18 +214,22 @@ static struct disp_session_sync_info
 				 sizeof(s_info->session_layer_info[0])); j++) {
 
 			if (DISP_SESSION_TYPE(session) == DISP_SESSION_PRIMARY)
-				sprintf(name, "%s-primary-%d-%d", prefix,
+				scnprintf(name, sizeof(name),
+					"%s-primary-%d-%d", prefix,
 					DISP_SESSION_DEV(session), j);
 			else if (DISP_SESSION_TYPE(session) ==
 						DISP_SESSION_EXTERNAL)
-				sprintf(name, "%s-external-%d-%d", prefix,
+				scnprintf(name, sizeof(name),
+					"%s-external-%d-%d", prefix,
 					DISP_SESSION_DEV(session), j);
 			else if (DISP_SESSION_TYPE(session) ==
 						DISP_SESSION_MEMORY)
-				sprintf(name, "%s-memory-%d-%d", prefix,
+				scnprintf(name, sizeof(name),
+					"%s-memory-%d-%d", prefix,
 					DISP_SESSION_DEV(session), j);
 			else
-				sprintf(name, "%s-unknown-%d-%d", prefix,
+				scnprintf(name, sizeof(name),
+					"%s-unknown-%d-%d", prefix,
 					DISP_SESSION_DEV(session), j);
 
 			l_info = &(s_info->session_layer_info[j]);
@@ -319,7 +333,6 @@ static struct ion_handle *mtkfb_ion_import_handle(struct ion_client *client,
 						  int fd)
 {
 	struct ion_handle *handle = NULL;
-	struct ion_mm_data mm_data;
 
 	/* If no need ION support, do nothing! */
 	if (fd == MTK_FB_NO_ION_FD) {
@@ -340,15 +353,6 @@ static struct ion_handle *mtkfb_ion_import_handle(struct ion_client *client,
 		MTKFB_FENCE_PR_ERR("import ion handle failed!\n");
 		return NULL;
 	}
-	mm_data.mm_cmd = ION_MM_CONFIG_BUFFER;
-	mm_data.config_buffer_param.kernel_handle = handle;
-	mm_data.config_buffer_param.module_id = 0;
-	mm_data.config_buffer_param.security = 0;
-	mm_data.config_buffer_param.coherent = 0;
-
-	if (ion_kernel_ioctl(ion_client, ION_CMD_MULTIMEDIA,
-		(unsigned long)&mm_data))
-		pr_info("configure ion buffer failed!\n");
 
 	MTKFB_FENCE_LOG("import ion handle fd=%d,hnd=0x%p\n", fd, handle);
 
@@ -375,7 +379,7 @@ static size_t mtkfb_ion_phys_mmu_addr(struct ion_client *client,
 				      unsigned int *mva)
 {
 	size_t size;
-	ion_phys_addr_t phy_addr = 0;
+	struct ion_mm_data mm_data;
 
 	if (!ion_client) {
 		MTKFB_FENCE_PR_ERR("invalid ion client!\n");
@@ -384,8 +388,17 @@ static size_t mtkfb_ion_phys_mmu_addr(struct ion_client *client,
 	if (!handle)
 		return 0;
 
-	ion_phys(client, handle, &phy_addr, &size);
-	*mva = (unsigned int)phy_addr;
+	memset((void *)&mm_data, 0, sizeof(mm_data));
+	mm_data.mm_cmd = ION_MM_GET_IOVA;
+	mm_data.config_buffer_param.kernel_handle = handle;
+	mm_data.config_buffer_param.module_id = 0;
+
+	if (ion_kernel_ioctl(ion_client, ION_CMD_MULTIMEDIA,
+			     (unsigned long)&mm_data))
+		pr_info("configure ion buffer failed!\n");
+
+	*mva = (unsigned int)mm_data.get_phys_param.phy_addr;
+	size = (size_t)mm_data.get_phys_param.len;
 	MTKFB_FENCE_LOG("alloc mmu addr hnd=0x%p,mva=0x%08x\n",
 			handle, (unsigned int)*mva);
 	return size;
@@ -964,26 +977,26 @@ int mtkfb_release_present_fence(unsigned int session, unsigned int fence_idx)
 	mutex_lock(&l_info->sync_lock);
 	fence_increment = fence_idx - l_info->timeline->value;
 
+	if (fence_increment <= 0)
+		goto done;
+
 	if (fence_increment >= 2)
 		DISPPR_FENCE("Warning, R/%s%d/L%d/timeline idx:%d/fence:%d\n",
 			disp_session_type_str(session),
 			DISP_SESSION_DEV(session), timeline_id,
 			l_info->timeline->value, fence_idx);
 
-	if (fence_increment > 0) {
-		timeline_inc(l_info->timeline, fence_increment);
-		DISPPR_FENCE("RL+/%s%d/L%d/id%d\n",
+	timeline_inc(l_info->timeline, fence_increment);
+	DISPPR_FENCE("RL+/%s%d/L%d/id%d\n",
 		     disp_session_type_str(session),
 		     DISP_SESSION_DEV(session), timeline_id, fence_idx);
-	}
 
 	if (DISP_SESSION_TYPE(session) == DISP_SESSION_PRIMARY)
 		mmprofile_log_ex(
 			ddp_mmp_get_events()->primary_present_fence_release,
 			MMPROFILE_FLAG_PULSE, fence_idx, fence_increment);
-
+done:
 	mutex_unlock(&l_info->sync_lock);
-
 	return 0;
 }
 
@@ -1228,8 +1241,9 @@ struct mtkfb_fence_buf_info
 	data.value = ++(l_info->fence_idx);
 	mutex_unlock(&(l_info->sync_lock));
 
-	snprintf(data.name, sizeof(data.name), "disp-S%x-L%d-%d",
-		 session, timeline_id, data.value);
+	scnprintf(data.name, sizeof(data.name), "disp-S%x-L%d-%d",
+		       session, timeline_id, data.value);
+
 	ret = fence_create(l_info->timeline, &data);
 	if (ret) {
 		/* Does this really happen? */

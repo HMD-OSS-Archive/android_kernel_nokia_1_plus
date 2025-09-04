@@ -1994,11 +1994,6 @@
                 <speed_kbps>400</speed_kbps>
                 <pullPushEn>false</pullPushEn>
             </i2c_bus8>
-            <device0>
-                <varName>CAP_TOUCH</varName>
-                <channel>I2C_CHANNEL_0</channel>
-                <address>0x5D</address>
-            </device0>
             <device4>
                 <varName>CAMERA_MAIN</varName>
                 <channel>I2C_CHANNEL_2</channel>
@@ -2044,11 +2039,6 @@
                 <channel>I2C_CHANNEL_5</channel>
                 <address>0x4E</address>
             </device12>
-            <device13>
-                <varName>SPEAKER_AMP</varName>
-                <channel>I2C_CHANNEL_7</channel>
-                <address>0x34</address>
-            </device13>
             <device14>
                 <varName>SLAVE_CHARGER</varName>
                 <channel>I2C_CHANNEL_7</channel>

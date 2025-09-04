@@ -56,6 +56,11 @@
 #include <linux/cpu.h>
 #include <linux/pm_qos.h>
 #include <linux/spinlock.h>
+
+#include <linux/memblock.h>		/* for memblock_free */
+#include <linux/arm-smccc.h> /* for smc call*/
+#include <linux/soc/mediatek/mtk_sip_svc.h> /* for smc call cases*/
+
 #include <helio-dvfsrc-opp.h>
 #ifdef CONFIG_MTK_CPU_FREQ
 #include "cpu_ctrl.h"
@@ -83,6 +88,7 @@
 #define EMI_MPU_ALIGN_ORDER (0)
 /*timeout warning set to 80ms*/
 #define TIMEOUT_WARNING (80000000)
+#define AMMS_STRESS 0
 
 static struct task_struct *amms_task;
 bool amms_static_free;
@@ -97,14 +103,18 @@ static unsigned int amms_alloc_count;
 static unsigned int amms_dealloc_count;
 static unsigned int amms_irq_count;
 #ifdef CONFIG_MTK_CPU_FREQ
+#if AMMS_STRESS
 static unsigned int amms_pos_stress_operation;
+#endif
 #endif
 
 //static int amms_bind_cpu = -1;
 static struct device *amms_dev;
 static int amms_irq_num;
 #ifdef CONFIG_MTK_CPU_FREQ
+#if AMMS_STRESS
 static struct timer_list amms_pos_stress_timer;
+#endif
 #endif
 
 static struct cma *ccci_share_cma;
@@ -241,12 +251,12 @@ int amms_cma_free(phys_addr_t addr, unsigned int size)
 		pr_info("ccci_share_cma_init failed\n");
 		return -1;
 	}
-	pr_info("%s: addr=0x%p size=0x%x\n", __func__,
-		(void *)addr, size);
+	pr_info("%s: addr=0x%pa size=0x%x\n", __func__,
+		&addr, size);
 	rs = cma_release(ccci_share_cma, pages, count);
 	if (rs == false) {
-		pr_info("cma_release failed addr=%p size=%x\n",
-		(void *)addr, size);
+		pr_info("cma_release failed addr=%pa size=%x\n",
+		&addr, size);
 		return -1;
 	}
 	return 0;
@@ -326,7 +336,7 @@ module_param(amms_irq_count, uint, 0644);
 
 
 #if CONFIG_SYSFS
-
+#if AMMS_STRESS
 void amms_pos_stress_timer_call_back(unsigned long data)
 {
 	pr_info("%s:%d\n", __func__, __LINE__);
@@ -352,21 +362,22 @@ void amms_pos_stress_timer_control(int operation)
 		del_timer_sync(&amms_pos_stress_timer);
 	}
 }
-
-static ssize_t amms_version_show(struct kobject *kobj,
-		struct kobj_attribute *attr, char *buf)
+#endif
+static ssize_t amms_version_show(struct module_attribute *attr,
+		struct module_kobject *kobj, char *buf)
 {
 	return snprintf(buf, 5, "%s\n", "1.0");
 }
 
-static ssize_t amms_pos_stress_show(struct kobject *kobj,
-		struct kobj_attribute *attr, char *buf)
+#if AMMS_STRESS
+static ssize_t amms_pos_stress_show(struct module_attribute *attr,
+		struct module_kobject *kobj, char *buf)
 {
 	return snprintf(buf, 3, "%d\n", amms_pos_stress_operation);
 }
 
-static ssize_t amms_pos_stress_store(struct kobject *kobj,
-		struct kobj_attribute *attr, const char *buf, size_t count)
+static ssize_t amms_pos_stress_store(struct module_attribute *attr,
+		struct module_kobject *kobj, const char *buf, size_t count)
 {
 	unsigned long operation = 0;
 	int status;
@@ -399,16 +410,20 @@ static ssize_t amms_pos_stress_store(struct kobject *kobj,
 	amms_pos_stress_operation = operation;
 	return count;
 }
+#endif
+static struct module_attribute amms_version_attribute =
+	__ATTR(amms_version, 0400, amms_version_show, NULL);
 
-static struct kobj_attribute amms_version_attribute =
-	__ATTR(amms_version, 0600, amms_version_show, NULL);
-
-static struct kobj_attribute amms_pos_stress_attribute =
+#if AMMS_STRESS
+static struct module_attribute amms_pos_stress_attribute =
 	__ATTR(amms_pos_stress, 0600,
 	amms_pos_stress_show, amms_pos_stress_store);
+#endif
 static struct attribute *attrs[] = {
 	&amms_version_attribute.attr,
+#if AMMS_STRESS
 	&amms_pos_stress_attribute.attr,
+#endif
 	NULL,
 };
 
@@ -447,13 +462,18 @@ static int __init memory_ccci_share_init(struct reserved_mem *rmem)
 		 __func__, rmem->name,
 		 &rmem->base, &rmem->size);
 
-
 	pos_addr = mt_secure_call(
 		MTK_SIP_KERNEL_AMMS_GET_MD_POS_ADDR, 0, 0, 0, 0);
 	pos_length = mt_secure_call(
 		MTK_SIP_KERNEL_AMMS_GET_MD_POS_LENGTH, 0, 0, 0, 0);
-	pr_info("pos_addr=%p pos_length=%p\n",
-		(void *)pos_addr, (void *)pos_length);
+	pr_info("pos_addr=%pa pos_length=%pa\n",
+		&pos_addr, &pos_length);
+
+	if ((long long)pos_addr == -1 || (long long)pos_addr == 0xffffffff) {
+		pr_info("%s: no support POS\n", __func__);
+		return 0;
+	}
+
 	if (pos_addr != 0)
 	/* init cma area */
 		ret = cma_init_reserved_mem(rmem->base,
@@ -471,7 +491,9 @@ static int __init memory_ccci_share_init(struct reserved_mem *rmem)
 	return 0;
 }
 
-RESERVEDMEM_OF_DECLARE(memory_ccci_share, "mediatek,md_smem_ncache",
+RESERVEDMEM_OF_DECLARE(legacy_memory_ccci_share, "mediatek,md_smem_ncache",
+			memory_ccci_share_init);
+RESERVEDMEM_OF_DECLARE(memory_ccci_share, "mediatek,ap_md_nc_smem",
 			memory_ccci_share_init);
 static irqreturn_t amms_irq_handler(int irq, void *dev_id)
 {
@@ -488,12 +510,17 @@ static irqreturn_t amms_irq_handler(int irq, void *dev_id)
 static inline void check_amms_timeout_warn(void)
 {
 	char msg[128];
+	int ret;
 #ifdef CONFIG_MTK_SCHED_CPULOAD
 	int cpu;
 #endif
 	const char msg2[] = "AMMS timeout %lld us .\nCRDISPATCH_KEY:AMMS\n";
 
-	sprintf(msg, msg2, (t_after - t_before));
+	ret = sprintf(msg, msg2, (t_after - t_before));
+	if (ret < 0) {
+		pr_info("%s: sprintf fail\n", __func__);
+		return;
+	}
 	if ((t_after  - t_before) > TIMEOUT_WARNING) {
 		pr_info("%s: timeout happened %lld us\n",
 			__func__, (t_after - t_before));
@@ -534,6 +561,35 @@ void amms_handle_event(void)
 			, 0, 0, 0, 0);
 	pending = mt_secure_call(MTK_SIP_KERNEL_AMMS_GET_PENDING, 0, 0, 0, 0);
 	pr_info("%s:pending = 0x%llx\n", __func__, pending);
+	pr_info("%s:pending = %lld\n", __func__, (long long)pending);
+
+	// Not support clear pending for legacy chip
+	if ((((long long)pending) != AMMS_PENDING_DRDI_FREE_BIT)
+	&& (((long long)pending) != AMMS_PENDING_POS_DEALLOC_BIT)
+	&& (((long long)pending) != AMMS_PENDING_POS_ALLOC_BIT)) {
+		if (!amms_static_free) {
+			addr = mt_secure_call(MTK_SIP_KERNEL_AMMS_GET_FREE_ADDR,
+			0, 0, 0, 0);
+			length = mt_secure_call(
+			MTK_SIP_KERNEL_AMMS_GET_FREE_LENGTH,
+			0, 0, 0, 0);
+			if (pfn_valid(__phys_to_pfn(addr))
+				&& pfn_valid(__phys_to_pfn(
+				addr + length - 1))) {
+				pr_info("%s:addr=%pa length=%pa\n", __func__,
+				&addr, &length);
+				free_reserved_memory(addr, addr+length);
+				amms_static_free = true;
+			} else {
+				pr_info("AMMS: error addr and length is not set properly\n");
+				pr_info("can not free_reserved_memory\n");
+			}
+		} else {
+			pr_info("amms: static memory already free, should not happened\n");
+		}
+		return;
+	}
+
 	if (pending & AMMS_PENDING_DRDI_FREE_BIT) {
 		/*below part is for staic memory free */
 		if (!amms_static_free) {
@@ -545,8 +601,8 @@ void amms_handle_event(void)
 			if (pfn_valid(__phys_to_pfn(addr))
 				&& pfn_valid(__phys_to_pfn(
 				addr + length - 1))) {
-				pr_info("%s:addr=0x%p length=0x%p\n", __func__,
-				(void *)addr, (void *)length);
+				pr_info("%s:addr=%pa length=%pa\n", __func__,
+				&addr, &length);
 				free_reserved_memory(addr, addr+length);
 				amms_static_free = true;
 				mt_secure_call(MTK_SIP_KERNEL_AMMS_ACK_PENDING,
@@ -570,8 +626,8 @@ void amms_handle_event(void)
 			0, 0, 0);
 		amms_cma_free(pos_addr, pos_length);
 		amms_dealloc_count++;
-		pr_info("amms: finish deallocate pending interrupt addr=0x%p length=0x%p\n",
-		(void *)pos_addr, (void *)pos_length);
+		pr_info("amms: finish deallocate pending interrupt addr=0x%pa length=0x%pa\n",
+		&pos_addr, &pos_length);
 	} else if (pending & AMMS_PENDING_POS_ALLOC_BIT)  {
 
 		pr_info("amms: receive allocate pending interrupt\n");
@@ -613,9 +669,9 @@ void amms_handle_event(void)
 
 		} else if (pos_alloc_addr && pos_addr != pos_alloc_addr) {
 			pr_notice("amms: allocate different address");
-			pr_notice("pos_addr=%p pos_length=%p pos_alloc_addr=%p\n",
-				(void *)pos_addr, (void *)pos_length
-				, (void *)pos_alloc_addr);
+			pr_notice("pos_addr=%pa pos_length=%pa pos_alloc_addr=%pa\n",
+				&pos_addr, &pos_length
+				, &pos_alloc_addr);
 			pos_addr = pos_alloc_addr;
 			mt_secure_call(MTK_SIP_KERNEL_AMMS_MD_POS_ADDR,
 				pos_addr, 0, 0, 0);

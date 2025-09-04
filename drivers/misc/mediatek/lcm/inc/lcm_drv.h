@@ -94,6 +94,14 @@ enum LCM_IOCTL {
 	LCM_IOCTL_NULL = 0,
 };
 
+
+
+enum LCM_Send_Cmd_Mode {
+	LCM_SEND_IN_CMD = 0,
+	LCM_SEND_IN_VDO
+};
+
+
 /* DBI related enumerations */
 
 enum LCM_DBI_CLOCK_FREQ {
@@ -519,7 +527,6 @@ enum MIPITX_PHY_PORT {
 	MIPITX_PHY_PORT_NUM
 };
 
-/*ARR*/
 #define DYNAMIC_FPS_LEVELS 10
 struct dynamic_fps_info {
 	unsigned int fps;
@@ -786,6 +793,10 @@ struct LCM_PARAMS {
 	unsigned int min_luminance;
 	unsigned int average_luminance;
 	unsigned int max_luminance;
+
+#ifdef CONFIG_MTK_HIGH_FRAME_RATE
+	enum LCM_Send_Cmd_Mode sendmode;
+#endif
 };
 
 
@@ -957,7 +968,7 @@ struct LCM_UTIL_FUNCS {
 	void (*dsi_dynfps_send_cmd)(
 		void *cmdq, unsigned int cmd,
 		unsigned char count, unsigned char *para_list,
-		unsigned char force_update);
+		unsigned char force_update, enum LCM_Send_Cmd_Mode sendmode);
 
 };
 enum LCM_DRV_IOCTL_CMD {
@@ -1022,9 +1033,9 @@ struct LCM_DRIVER {
 
 	/* /////////////DynFPS///////////////////////////// */
 	void (*dfps_send_lcm_cmd)(void *cmdq_handle,
-		unsigned int from_level, unsigned int to_level);
+		unsigned int from_level, unsigned int to_level, struct LCM_PARAMS *params);
 	bool (*dfps_need_send_cmd)(
-	unsigned int from_level, unsigned int to_level);
+	unsigned int from_level, unsigned int to_level, struct LCM_PARAMS *params);
 };
 
 /* LCM Driver Functions */

@@ -95,7 +95,7 @@ static int has_memory_session;
 /* @g_session: SESSION_TYPE | DEVICE_ID */
 static unsigned int g_session[MAX_SESSION_COUNT];
 static DEFINE_MUTEX(disp_session_lock);
-
+static DEFINE_MUTEX(disp_layer_lock);
 static dev_t mtk_disp_mgr_devno;
 static struct cdev *mtk_disp_mgr_cdev;
 static struct class *mtk_disp_mgr_class;
@@ -578,7 +578,7 @@ void dump_input_cfg_info(struct disp_input_config *input_cfg,
 			 unsigned int session, int is_err)
 {
 	_DISP_PRINT_FENCE_OR_ERR(is_err,
-		"S+/%sL%d/e%d/id%d/(%d,%d,%dx%d)(%d,%d,%dx%d)/%s/%d/mva%p/t%d/s%d\n",
+		"S+/%sL%d/e%d/id%d/(%d,%d,%dx%d)(%d,%d,%dx%d)/%s/%d/mva0x%08lx/t%d/s%d\n",
 		disp_session_type_str(session),
 		input_cfg->layer_id, input_cfg->layer_enable,
 		input_cfg->next_buff_idx,
@@ -587,7 +587,8 @@ void dump_input_cfg_info(struct disp_input_config *input_cfg,
 		input_cfg->tgt_offset_x, input_cfg->tgt_offset_y,
 		input_cfg->tgt_width, input_cfg->tgt_height,
 		_disp_format_str(input_cfg->src_fmt),
-		input_cfg->src_pitch, input_cfg->src_phy_addr,
+		input_cfg->src_pitch,
+		(unsigned long)(input_cfg->src_phy_addr),
 		get_ovl2mem_ticket(), input_cfg->security);
 }
 
@@ -1258,9 +1259,9 @@ int _ioctl_query_valid_layer(unsigned long arg)
 
 	if (disp_helper_get_option(DISP_OPT_ANTILATENCY))
 		antilatency_config_hrt();
-
+	mutex_lock(&disp_layer_lock);
 	layering_rule_start(&disp_info_user, 0);
-
+	mutex_unlock(&disp_layer_lock);
 	if (copy_to_user(argp, &disp_info_user, sizeof(disp_info_user))) {
 		DISPPR_ERROR("[FB] copy_to_user failed! line:%d\n", __LINE__);
 		return -EFAULT;

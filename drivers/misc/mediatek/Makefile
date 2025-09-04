@@ -12,7 +12,7 @@
 #
 
 #$(call all-subdir-src-or-makefile)
-MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
+export MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
 subdir-ccflags-y += -Werror
 
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include
@@ -20,6 +20,7 @@ subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLA
 subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/
 subdir-ccflags-y += -I$(srctree)/drivers/mmc/host/mediatek/$(MTK_PLATFORM)
 
+obj-$(CONFIG_MTK_L3C_PART) += l3c_part/
 obj-$(CONFIG_MTK_EMI) += emi/
 obj-$(CONFIG_MTK_EMI_BWL)	+= emi_bwl/
 obj-$(CONFIG_MTK_EMI_MPU) += emi_mpu/
@@ -33,10 +34,9 @@ obj-$(CONFIG_MTK_ICE_DEBUG) += ice_debug/
 obj-y += mmdvfs/
 obj-$(CONFIG_MTK_SYSTRACKER_V2)   += systracker/
 
-obj-$(CONFIG_MTK_CCCI_DEVICES)	+=  ccci_util/
-obj-$(CONFIG_MTK_NET_CCMNI) +=  ccmni/
-obj-$(CONFIG_MTK_ECCCI_DRIVER) +=  eccci/
 obj-$(CONFIG_MTK_IRRX) += irrx/
+
+obj-$(CONFIG_NFC_CHIP_SUPPORT) += nfc/
 
 obj-$(CONFIG_MTK_COMBO) += connectivity/
 obj-$(CONFIG_MTK_BTIF) += btif/
@@ -56,7 +56,10 @@ obj-$(CONFIG_MTK_TINYSYS_MCUPM_SUPPORT) += mcupm/
 obj-y += timer/
 obj-$(CONFIG_MTK_ACCDET) += accdet/
 obj-$(CONFIG_MTK_DRAMC) += dramc/
+obj-$(CONFIG_MTK_DRAMC_WA) += dramc/
+obj-$(CONFIG_MTK_DBGTOP) += dbgtop/
 obj-$(CONFIG_MTK_DEBUG_LATCH) += debug_latch/
+obj-$(CONFIG_MTK_DEBUG_TRACER)	+= debug_tracer/
 obj-$(CONFIG_MTK_GIC_EXT) += ext_gic/
 obj-$(CONFIG_MTK_SYS_CIRQ) += cirq/
 obj-$(CONFIG_MTK_SECURITY_SW_SUPPORT) +=masp/
@@ -73,21 +76,27 @@ obj-$(CONFIG_RT_FLASHLIGHT)     += flashlight/richtek/
 obj-$(CONFIG_MTK_VPU_SUPPORT) += vpu/
 obj-$(CONFIG_MTK_IN_HOUSE_TEE_SUPPORT) += mtee/
 obj-$(CONFIG_MTK_IN_HOUSE_TEE_SUPPORT) += gcpu/
-obj-$(CONFIG_MTK_MEMORY_LOWPOWER) += memory-lowpower/
 obj-$(CONFIG_MTK_MLOG) += mlog/
 obj-$(CONFIG_MTK_AUXADC)	+= auxadc/
 obj-$(CONFIG_MTK_GPT_SCHEME_SUPPORT)	+= partition/
 obj-$(CONFIG_MTK_PWM)	    += pwm/
 obj-$(CONFIG_MTK_IRTX_PWM_SUPPORT)	    += irtx/
-obj-$(CONFIG_MTK_SENSORS_1_0) += sensors-1.0/
+ifeq ($(subst ",,$(CONFIG_MTK_SENSOR_ARCHITECTURE)),1.0)
+obj-y += sensors-1.0/
+else
+obj-y += sensor/
+endif
 obj-$(CONFIG_MTK_TINYSYS_SCP_SUPPORT) += scp/
 obj-$(CONFIG_MTK_HIFIXDSP_SUPPORT) += hifi_dsp/
 obj-$(CONFIG_MTK_HIFIXDSP_SUPPORT) += hifidsp_audio_ipi/
 obj-$(CONFIG_MTK_AUDIODSP_SUPPORT) += adsp/
-obj-$(CONFIG_MTK_AUDIODSP_SUPPORT) += audio_ipi/
-obj-$(CONFIG_MTK_TINYSYS_SCP_SUPPORT) += audio_ipi/
+obj-$(CONFIG_MTK_AUDIO_IPI) += audio_ipi/
 obj-$(CONFIG_MTK_TINYSYS_SCP_SUPPORT) += audio_scp/
+obj-$(CONFIG_MTK_CCCI_DEVICES)	+=  ccci_util/
+obj-$(CONFIG_MTK_NET_CCMNI) +=  ccmni/
+obj-$(CONFIG_MTK_ECCCI_DRIVER) +=  eccci/
 obj-$(CONFIG_MTK_SSMR) += memory-ssmr/
+obj-y += cache-auditor/
 obj-$(CONFIG_MTK_AMMS) += memory-amms/
 obj-$(CONFIG_ZONE_MOVABLE_CMA) += zone_movable_cma/
 obj-$(CONFIG_MTK_VIBRATOR) += vibrator/
@@ -104,7 +113,6 @@ obj-$(CONFIG_MICROTRUST_TEE_SUPPORT) += teei/
 obj-$(CONFIG_TRUSTKERNEL_TEE_SUPPORT) += tkcore/
 obj-$(CONFIG_MTK_DEVMPU) += devmpu/
 obj-y += pidmap/
-obj-$(CONFIG_MTK_KEY_HINT) += keyhint/
 obj-$(CONFIG_MTK_RAM_CONSOLE) += ram_console/
 obj-$(CONFIG_MEDIATEK_SOLUTION)	+= aee/
 obj-$(CONFIG_MEDIATEK_SOLUTION) += sched/
@@ -113,12 +121,15 @@ obj-$(CONFIG_MU3_PHY)   += mu3phy/
 obj-$(CONFIG_USB_MU3D_DRV)  += mu3d/
 obj-$(CONFIG_MTK_RTC)	+= rtc/
 obj-$(CONFIG_MTK_XO)	+= xo/
+obj-$(CONFIG_MTK_DCXO)	+= dcxo/
 obj-$(CONFIG_MTK_CMDQ) += cmdq/
 obj-$(CONFIG_MTK_CMDQ) += mdp/
 obj-$(CONFIG_MTK_SMI_EXT) += smi/
 obj-$(CONFIG_MTK_LCM) += lcm/
 obj-$(CONFIG_MTK_LCM) += ext_disp/
+ifneq ($(CONFIG_CUSTOM_KERNEL_HDMI), "")
 obj-$(CONFIG_MTK_HDMI_SUPPORT) += hdmi/
+endif
 obj-$(CONFIG_MTK_FB) += video/
 obj-$(CONFIG_MTK_DYNAMIC_FPS_FRAMEWORK_SUPPORT) += dfrc/
 obj-$(CONFIG_MTK_PMIC_WRAP_HAL) += pmic_wrap/
@@ -156,7 +167,10 @@ obj-y += perf/
 obj-$(CONFIG_MTK_JPEG) += jpeg/
 obj-$(CONFIG_MTK_SPMTWAM) += twam/
 obj-$(CONFIG_MTK_LOW_POWER_MODULE) += lpm/
-
-ifeq ($(CONFIG_MTK_HAVE_EXTERNAL_VENDOR_PATH),y)
-obj-y += ../../../../$(subst $\",,$(CONFIG_MTK_EXTERNAL_VENDOR_PATH))
-endif
+obj-$(CONFIG_MTK_TASK_TURBO) += task_turbo/
+obj-$(CONFIG_MTK_UNIFIED_DEBUG_INTERFACE) += udi/
+obj-y += rps/
+obj-$(CONFIG_MTK_MDDP_SUPPORT) += mddp/
+obj-$(CONFIG_MTK_USB2JTAG_SUPPORT) += usb2jtag/
+obj-y += subpmic/
+obj-$(CONFIG_MTK_OTP) += otp/

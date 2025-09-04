@@ -23,18 +23,17 @@ struct ufs_cmd_hlist_struct {
 	u8 crypted;
 	u8 keyslot;
 	pid_t pid;
+	u32 cpu;
 	u32 tag;
 	u32 transfer_len;
 	sector_t lba;
 	u64 time;
 	u64 duration;
 	struct request *rq;
-#if defined(CONFIG_UFSHPB)
 	unsigned long long ppn;
 	u32 region;
 	u32 subregion;
 	u32 resv;
-#endif
 };
 
 /*
@@ -131,7 +130,13 @@ void ufs_mtk_dbg_add_trace(struct ufs_hba *hba,
 	enum ufs_trace_event event, u32 tag,
 	u8 lun, u32 transfer_len, sector_t lba, u8 opcode,
 	unsigned long long ppn, u32 region, u32 subregion, u32 resv);
+void ufs_mtk_dbg_stop_trace(struct ufs_hba *hba);
+void ufs_mtk_dbg_start_trace(struct ufs_hba *hba);
 void ufs_mtk_dbg_hang_detect_dump(void);
 void ufs_mtk_dbg_proc_dump(struct seq_file *m);
+void ufs_mtk_dme_cmd_log(struct ufs_hba *hba, struct uic_command *ucmd,
+	enum ufs_trace_event event);
+void ufs_mtk_dbg_dump_trace(char **buff, unsigned long *size,
+	u32 latest_cnt, struct seq_file *m);
 
 #endif

@@ -82,6 +82,9 @@ struct regmap;
 struct snd_pcm_substream;
 struct snd_soc_dai;
 struct snd_soc_dai_driver;
+typedef int (*mtk_sp_copy_f)(struct snd_pcm_substream *substream,
+				 int channel, unsigned long hwoff,
+				 void *buf, unsigned long bytes);
 
 struct mtk_base_afe {
 	void __iomem *base_addr;
@@ -99,6 +102,7 @@ struct mtk_base_afe {
 
 	struct mtk_base_afe_memif *memif;
 	int memif_size;
+	int memif_32bit_supported;
 	struct mtk_base_afe_irq *irqs;
 	int irqs_size;
 
@@ -123,6 +127,11 @@ struct mtk_base_afe {
 	const struct mtk_afe_debug_cmd *debug_cmds;
 
 	void *platform_priv;
+
+	int (*copy)(struct snd_pcm_substream *substream,
+		    int channel, unsigned long hwoff,
+		    void *buf, unsigned long bytes,
+		    mtk_sp_copy_f sp_copy);
 };
 
 struct mtk_base_afe_memif {
@@ -134,6 +143,8 @@ struct mtk_base_afe_memif {
 	const struct mtk_base_memif_data *data;
 	int irq_usage;
 	int const_irq;
+	unsigned int phys_buf_addr;
+	int buffer_size;
 
 	int using_sram;
 	int use_dram_only;

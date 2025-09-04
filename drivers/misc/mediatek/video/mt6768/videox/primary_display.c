@@ -178,6 +178,7 @@ DECLARE_WAIT_QUEUE_HEAD(decouple_update_rdma_wq);
 atomic_t decouple_trigger_event = ATOMIC_INIT(0);
 DECLARE_WAIT_QUEUE_HEAD(decouple_trigger_wq);
 wait_queue_head_t primary_display_present_fence_wq;
+static bool pf_thread_init;
 atomic_t primary_display_pt_fence_update_event = ATOMIC_INIT(0);
 static unsigned int _need_lfr_check(void);
 struct Layer_draw_info *draw;
@@ -2633,9 +2634,11 @@ static int init_decouple_buffers(void)
 	} else {
 		/* INTERNAL Buf 3 frames */
 		for (i = 0; i < DISP_INTERNAL_BUFFER_COUNT; i++) {
-			pgc->dc_buf[i] = i * buffer_size +
-			primary_display_get_frame_buffer_mva_address();
-		}
+			decouple_buffer_info[i] = allocat_decouple_buffer(
+								buffer_size);
+			if (decouple_buffer_info[i])
+				pgc->dc_buf[i] = decouple_buffer_info[i]->mva;
+			}
 	}
 
 	/* initialize rdma config */
@@ -3586,32 +3589,17 @@ static int _present_fence_release_worker_thread(void *data)
 
 	sched_setscheduler(current, SCHED_RR, &param);
 
-	dpmgr_enable_event(pgc->dpmgr_handle, DISP_PATH_EVENT_IF_VSYNC);
-
 	while (1) {
 		int fence_increment = 0;
 		int timeline_id;
 		struct disp_sync_info *layer_info;
+		unsigned int pf_idx = 0;
 
 		wait_event_interruptible(primary_display_present_fence_wq,
 			atomic_read(&primary_display_pt_fence_update_event));
 		mmprofile_log_ex(ddp_mmp_get_events()->present_fence_release,
 			MMPROFILE_FLAG_PULSE, 0, 0);
 		atomic_set(&primary_display_pt_fence_update_event, 0);
-
-		if (!islcmconnected && !primary_display_is_video_mode()) {
-			DISPCHECK("LCM Not Connected && CMD Mode\n");
-			msleep(20);
-		} else if (disp_helper_get_option(DISP_OPT_ARR_PHASE_1)) {
-			dpmgr_wait_event_timeout(pgc->dpmgr_handle,
-				DISP_PATH_EVENT_FRAME_START, HZ/10);
-		} else {
-			dpmgr_wait_event_timeout(pgc->dpmgr_handle,
-				DISP_PATH_EVENT_IF_VSYNC, HZ/10);
-			mmprofile_log_ex(
-				ddp_mmp_get_events()->present_fence_release,
-				MMPROFILE_FLAG_PULSE, 1, 1);
-		}
 
 		timeline_id = disp_sync_get_present_timeline_id();
 		layer_info = _get_sync_info(primary_session_id, timeline_id);
@@ -3623,19 +3611,22 @@ static int _present_fence_release_worker_thread(void *data)
 		}
 
 		_primary_path_lock(__func__);
-		fence_increment =
-			gPresentFenceIndex - layer_info->timeline->value;
+		cmdqBackupReadSlot(pgc->cur_config_fence,
+			disp_sync_get_present_timeline_id(),
+			&pf_idx);
+		fence_increment = pf_idx - layer_info->timeline->value;
+
 		if (fence_increment > 0) {
 			timeline_inc(layer_info->timeline, fence_increment);
 			DISPPR_FENCE("R+/%s%d/L%d/id%d\n",
 				disp_session_mode_spy(primary_session_id),
 				DISP_SESSION_DEV(primary_session_id),
 				timeline_id,
-				gPresentFenceIndex);
+				pf_idx);
 		}
 		mmprofile_log_ex(ddp_mmp_get_events()->present_fence_release,
 				 MMPROFILE_FLAG_PULSE,
-				 gPresentFenceIndex, fence_increment);
+				 pf_idx, fence_increment);
 		_primary_path_unlock(__func__);
 
 		if (atomic_read(&od_trigger_kick)) {
@@ -4078,6 +4069,7 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps,
 			kthread_create(_present_fence_release_worker_thread,
 				NULL, "present_fence_worker");
 		wake_up_process(present_fence_release_worker_task);
+		pf_thread_init = true;
 	}
 #endif
 
@@ -5497,11 +5489,23 @@ done:
 	return ret;
 }
 
-void primary_display_update_present_fence(unsigned int fence_idx)
+void primary_display_update_present_fence(struct cmdqRecStruct *cmdq_handle,
+	unsigned int fence_idx)
 {
+	cmdqRecBackupUpdateSlot(cmdq_handle,
+				pgc->cur_config_fence,
+				disp_sync_get_present_timeline_id(),
+				fence_idx);
 	gPresentFenceIndex = fence_idx;
-	mmprofile_log_ex(ddp_mmp_get_events()->present_fence_set,
-		MMPROFILE_FLAG_PULSE, fence_idx, 1);
+}
+
+void primary_display_wakeup_pf_thread(void)
+{
+	if (!pf_thread_init)
+		return;
+
+	//mmprofile_log_ex(ddp_mmp_get_events()->present_fence_set,
+		//MMPROFILE_FLAG_PULSE, fence_idx, 1);
 	atomic_set(&primary_display_pt_fence_update_event, 1);
 	if (disp_helper_get_option(DISP_OPT_PRESENT_FENCE))
 		wake_up_interruptible(&primary_display_present_fence_wq);
@@ -5779,13 +5783,14 @@ static enum SVP_STATE svp_state = SVP_NOMAL;
 static int svp_sum;
 
 #ifndef OPT_BACKUP_NUM
-	#define OPT_BACKUP_NUM 3
+	#define OPT_BACKUP_NUM 4
 #endif
 
 static enum DISP_HELPER_OPT opt_backup_name[OPT_BACKUP_NUM] = {
 	DISP_OPT_SMART_OVL,
 	DISP_OPT_IDLEMGR_SWTCH_DECOUPLE,
-	DISP_OPT_BYPASS_OVL
+	DISP_OPT_BYPASS_OVL,
+	DISP_OPT_OVL_SBCH
 };
 
 static int opt_backup_value[OPT_BACKUP_NUM];
@@ -6984,6 +6989,16 @@ int primary_display_frame_cfg(struct disp_frame_cfg_t *cfg)
 	primary_frame_cfg_input(cfg);
 	dprec_done(input_event, cfg->overlap_layer_num, 0);
 
+	if (cfg->present_fence_idx != (unsigned int)-1) {
+		struct cmdqRecStruct *cmdq_handle;
+
+		if (primary_display_is_decouple_mode())
+			cmdq_handle = pgc->cmdq_handle_ovl1to2_config;
+		else
+			cmdq_handle = pgc->cmdq_handle_config;
+		primary_display_update_present_fence(cmdq_handle, cfg->present_fence_idx);
+	}
+
 	if (cfg->output_en) {
 		dprec_start(output_event, cfg->present_fence_idx,
 			cfg->output_cfg.buff_idx);
@@ -7001,9 +7016,6 @@ int primary_display_frame_cfg(struct disp_frame_cfg_t *cfg)
 	}
 
 	primary_display_trigger_nolock(0, NULL, 0);
-
-	if (cfg->present_fence_idx != (unsigned int)-1)
-		primary_display_update_present_fence(cfg->present_fence_idx);
 
 	dprec_done(trigger_event, 0, 0);
 
@@ -8764,7 +8776,7 @@ done:
 		read_table.data1[0].byte2,
 		read_table.data1[0].byte3);
 
-	if (read_table.data[0].byte0 == 0x21) {
+	if (read_table.data[0].byte0 == 0x1C) {
 		recv_data_cnt = read_table.data[0].byte1
 			+ read_table.data[0].byte2 * 16;
 		if (recv_data_cnt <= 4) {

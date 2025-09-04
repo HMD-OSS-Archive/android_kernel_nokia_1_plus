@@ -15,16 +15,15 @@
  */
 
 #include "kpd.h"
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 #include <linux/pm_wakeup.h>
-#else
-#include <linux/wakelock.h>
 #endif
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/clk.h>
 #include <linux/debugfs.h>
+#include <linux/pinctrl/consumer.h>
 
 #define KPD_NAME	"mtk-kpd"
 
@@ -46,10 +45,8 @@ static u32 kpd_keymap[KPD_NUM_KEYS];
 static u16 kpd_keymap_state[KPD_NUM_MEMS];
 
 struct input_dev *kpd_input_dev;
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 struct wakeup_source kpd_suspend_lock;
-#else
-struct wake_lock kpd_suspend_lock;
 #endif
 struct keypad_dts_data kpd_dts_data;
 
@@ -186,10 +183,8 @@ static void kpd_keymap_handler(unsigned long data)
 	void *dest;
 
 	kpd_get_keymap_state(new_state);
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 	__pm_wakeup_event(&kpd_suspend_lock, 500);
-#else
-	wake_lock_timeout(&kpd_suspend_lock, HZ / 2);
 #endif
 	for (i = 0; i < KPD_NUM_MEMS; i++) {
 		change = new_state[i] ^ kpd_keymap_state[i];
@@ -428,10 +423,8 @@ static int kpd_pdrv_probe(struct platform_device *pdev)
 		kpd_notice("register input device failed (%d)\n", err);
 		return err;
 	}
-#ifdef CONFIG_PM_WAKELOCKS
+#ifdef CONFIG_PM_SLEEP
 	wakeup_source_init(&kpd_suspend_lock, "kpd wakelock");
-#else
-	wake_lock_init(&kpd_suspend_lock, WAKE_LOCK_SUSPEND, "kpd wakelock");
 #endif
 	/* register IRQ and EINT */
 	kpd_set_debounce(kpd_dts_data.kpd_key_debounce);
@@ -442,6 +435,10 @@ static int kpd_pdrv_probe(struct platform_device *pdev)
 		input_unregister_device(kpd_input_dev);
 		return err;
 	}
+
+	if (enable_irq_wake(kp_irqnr) < 0)
+		kpd_notice("irq %d enable irq wake fail\n", kp_irqnr);
+
 #ifdef CONFIG_MTK_MRDUMP_KEY
 	mt_eint_register();
 #endif

@@ -585,6 +585,7 @@ static int mtkfb_pan_display_impl(struct fb_var_screeninfo *var,
 		return -1;
 	}
 
+	session_input->config_layer_num = 0;
 	/* pan display use layer 0 */
 	input = &session_input->config[0];
 	input->layer_id = 0;
@@ -2685,6 +2686,9 @@ static int mtkfb_probe(struct platform_device *pdev)
 	/* this function will get fb_heap base address to ion
 	 * for management frame buffer
 	 */
+#ifdef MTK_FB_ION_SUPPORT
+	ion_drv_create_FB_heap(mtkfb_get_fb_base(), mtkfb_get_fb_size());
+#endif
 	fbdev->state = MTKFB_ACTIVE;
 
 	if (!strcmp(mtkfb_find_lcm_driver(),

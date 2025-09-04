@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2015 MediaTek Inc.
  */
 
 #include "cmdq_driver.h"
@@ -43,6 +35,7 @@
 #include <linux/spinlock.h>
 #include <linux/sched.h>
 #include <linux/pm.h>
+#include <linux/pm_runtime.h>
 #include <linux/suspend.h>
 #include <linux/soc/mediatek/mtk-cmdq.h>
 #include <linux/sched/clock.h>
@@ -65,18 +58,47 @@ static dev_t gCmdqDevNo;
 static struct cdev *gCmdqCDev;
 static struct class *gCMDQClass;
 
-static ssize_t cmdq_driver_dummy_write(struct device *dev,
+static ssize_t error_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	return cmdq_core_print_error(dev, attr, buf);
+}
+
+static ssize_t error_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
 	return -EACCES;
 }
 
-static DEVICE_ATTR(error, 0600, cmdq_core_print_error,
-	cmdq_driver_dummy_write);
-static DEVICE_ATTR(log_level, 0600, cmdq_core_print_log_level,
-	cmdq_core_write_log_level);
-static DEVICE_ATTR(profile_enable, 0600,
-	cmdq_core_print_profile_enable, cmdq_core_write_profile_enable);
+static DEVICE_ATTR_RW(error);
+
+static ssize_t log_level_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	return cmdq_core_write_log_level(dev, attr, buf, size);
+}
+
+static ssize_t log_level_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	return cmdq_core_print_log_level(dev, attr, buf);
+}
+
+static DEVICE_ATTR_RW(log_level);
+
+static ssize_t profile_enable_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	return cmdq_core_print_profile_enable(dev, attr, buf);
+}
+
+static ssize_t profile_enable_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	return cmdq_core_write_profile_enable(dev, attr, buf, size);
+}
+
+static DEVICE_ATTR_RW(profile_enable);
 
 
 static int cmdq_proc_status_open(struct inode *inode, struct file *file)
@@ -106,9 +128,19 @@ static const struct file_operations cmdqDebugRecordOp = {
 };
 
 #ifdef CMDQ_INSTRUCTION_COUNT
-static DEVICE_ATTR(instruction_count_level, 0600,
-	cmdqCorePrintInstructionCountLevel,
-	cmdqCoreWriteInstructionCountLevel);
+static ssize_t instruction_count_level_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	return cmdqCorePrintInstructionCountLevel(dev, attr, buf);
+}
+
+static ssize_t instruction_count_level_store(struct device *dev,
+	struct device_attribute *attr, const char *buf, size_t size)
+{
+	return cmdqCoreWriteInstructionCountLevel(dev, attr, buf, size);
+}
+
+static DEVICE_ATTR_RW(instruction_count_level);
 
 static int cmdq_proc_instruction_count_open(struct inode *inode,
 	struct file *file)
@@ -125,15 +157,6 @@ static const struct file_operations cmdqDebugInstructionCountOp = {
 	.release = single_release,
 };
 #endif
-
-static u64 job_mapping_idx = 1;
-static struct list_head job_mapping_list;
-struct cmdq_job_mapping_struct {
-	u64 id;
-	struct cmdqRecStruct *job;
-	struct list_head list_entry;
-};
-static DEFINE_MUTEX(cmdq_job_mapping_list_mutex);
 
 void cmdq_driver_dump_readback(u32 *addrs, u32 count, u32 *values)
 {}
@@ -344,7 +367,6 @@ do { \
 static long cmdq_driver_destroy_secure_medadata(
 	struct cmdqCommandStruct *pCommand)
 {
-#ifdef CMDQ_SECURE_PATH_SUPPORT
 	u32 i;
 
 	kfree(CMDQ_U32_PTR(pCommand->secData.addrMetadatas));
@@ -352,7 +374,7 @@ static long cmdq_driver_destroy_secure_medadata(
 
 	for (i = 0; i < ARRAY_SIZE(pCommand->secData.ispMeta.ispBufs); i++)
 		CMDQ_PTR_FREE_NULL(pCommand->secData.ispMeta.ispBufs[i].va);
-#endif
+
 	return 0;
 }
 
@@ -485,9 +507,6 @@ static long cmdq_driver_create_secure_medadata(
 		}
 	}
 
-#if 0
-	cmdq_core_dump_secure_metadata(&(pCommand->secData));
-#endif
 #endif
 	return 0;
 }
@@ -624,9 +643,6 @@ static s32 cmdq_driver_copy_handle_prop_from_user(void *from, u32 size,
 		}
 
 		*to = task_prop;
-	} else if (to) {
-		CMDQ_LOG("Initialize prop_addr to NULL...\n");
-		*to = NULL;
 	}
 
 	return 0;
@@ -634,10 +650,8 @@ static s32 cmdq_driver_copy_handle_prop_from_user(void *from, u32 size,
 
 static void cmdq_release_handle_property(void **prop_addr, u32 *prop_size)
 {
-	if (!prop_addr || !prop_size || !*prop_size) {
-		CMDQ_LOG("Return w/o need of kfree(prop_addr)\n");
+	if (!prop_addr || !prop_size)
 		return;
-	}
 
 	kfree(*prop_addr);
 	*prop_addr = NULL;
@@ -712,8 +726,6 @@ s32 cmdq_driver_ioctl_async_job_exec(struct file *pf,
 	struct cmdqRecStruct *handle = NULL;
 	u32 userRegCount;
 	s32 status;
-
-	struct cmdq_job_mapping_struct *mapping_job = NULL;
 
 	if (copy_from_user(&job, (void *)param, sizeof(job))) {
 		CMDQ_ERR("copy job from user fail\n");
@@ -799,24 +811,7 @@ s32 cmdq_driver_ioctl_async_job_exec(struct file *pf,
 	/* free secure path metadata */
 	cmdq_driver_destroy_secure_medadata(&job.command);
 
-	/* privateData can reset since it has passed to handle */
-	job.command.privateData = 0;
-
-	mapping_job = kzalloc(sizeof(*mapping_job), GFP_KERNEL);
-	if (!mapping_job)
-		return -ENOMEM;
-
-	INIT_LIST_HEAD(&mapping_job->list_entry);
-	mutex_lock(&cmdq_job_mapping_list_mutex);
-	if (job_mapping_idx == 0)
-		job_mapping_idx = 1;
-	mapping_job->id = job_mapping_idx;
-	job.hJob = job_mapping_idx;
-	job_mapping_idx++;
-	mapping_job->job = handle;
-	list_add_tail(&mapping_job->list_entry, &job_mapping_list);
-	mutex_unlock(&cmdq_job_mapping_list_mutex);
-
+	job.hJob = (unsigned long)handle;
 	if (copy_to_user((void *)param, (void *)&job, sizeof(job))) {
 		CMDQ_ERR("CMDQ_IOCTL_ASYNC_JOB_EXEC copy_to_user failed\n");
 		return -EFAULT;
@@ -833,29 +828,14 @@ s32 cmdq_driver_ioctl_async_job_wait_and_close(unsigned long param)
 	/* backup value after task release */
 	s32 status;
 	u64 exec_cost = sched_clock();
-	struct cmdq_job_mapping_struct *mapping_job = NULL, *tmp = NULL;
 
 	if (copy_from_user(&jobResult, (void *)param, sizeof(jobResult))) {
 		CMDQ_ERR("copy_from_user jobResult fail\n");
 		return -EFAULT;
 	}
 
-	handle = NULL;
 	/* verify job handle */
-	mutex_lock(&cmdq_job_mapping_list_mutex);
-	list_for_each_entry_safe(mapping_job, tmp, &job_mapping_list,
-		list_entry) {
-		if (mapping_job->id == jobResult.hJob) {
-			handle = mapping_job->job;
-			CMDQ_MSG("find handle:%p with id:%llx\n",
-				handle, jobResult.hJob);
-			list_del(&mapping_job->list_entry);
-			kfree(mapping_job);
-			break;
-		}
-	}
-	mutex_unlock(&cmdq_job_mapping_list_mutex);
-
+	handle = cmdq_mdp_get_valid_handle((unsigned long)jobResult.hJob);
 	if (!handle) {
 		CMDQ_ERR("job does not exists:0x%016llx\n", jobResult.hJob);
 		return -EFAULT;
@@ -1254,9 +1234,9 @@ static int cmdq_probe(struct platform_device *pDevice)
 
 	/* init cmdq context */
 	cmdq_mdp_init();
-#if 0
-	cmdqCoreInitialize();
-#endif
+
+	/* register mdp power domain control. */
+	pm_runtime_enable(&pDevice->dev);
 
 	status = alloc_chrdev_region(&gCmdqDevNo, 0, 1,
 		CMDQ_DRIVER_DEVICE_NAME);
@@ -1282,34 +1262,6 @@ static int cmdq_probe(struct platform_device *pDevice)
 		CMDQ_DRIVER_DEVICE_NAME);
 
 	/* mtk-cmdq-mailbox will register the irq */
-#if 0
-	status = request_irq(cmdq_dev_get_irq_id(), cmdq_irq_handler,
-		IRQF_TRIGGER_LOW | IRQF_SHARED,
-		CMDQ_DRIVER_DEVICE_NAME, gCmdqCDev);
-	if (status != 0) {
-		CMDQ_ERR("Register cmdq driver irq handler(%d) failed(%d)\n",
-			gCmdqDevNo, status);
-		return -EFAULT;
-	}
-
-	/* although secusre CMDQ driver is responsible for handle secure IRQ,
-	 * MUST registet secure IRQ to GIC in normal world to ensure it
-	 * will be initialize correctly
-	 * (that's because t-base does not support GIC init IRQ
-	 * in secure world...)
-	 */
-#ifdef CMDQ_SECURE_PATH_SUPPORT
-	status = request_irq(cmdq_dev_get_irq_secure_id(), cmdq_irq_handler,
-		IRQF_TRIGGER_LOW, CMDQ_DRIVER_DEVICE_NAME, gCmdqCDev);
-	CMDQ_MSG("register sec IRQ:%d\n", cmdq_dev_get_irq_secure_id());
-	if (status != 0) {
-		CMDQ_ERR(
-			"Register cmdq driver secure irq handler(%d) failed(%d)\n",
-			gCmdqDevNo, status);
-		return -EFAULT;
-	}
-#endif
-#endif
 
 	/* proc debug access point */
 	cmdq_create_debug_entries();
@@ -1331,8 +1283,6 @@ static int cmdq_probe(struct platform_device *pDevice)
 		CMDQ_ERR("%s attr inst count create fail\n", __func__);
 #endif
 
-	INIT_LIST_HEAD(&job_mapping_list);
-
 	mdp_limit_dev_create(pDevice);
 	CMDQ_LOG("CMDQ driver probe end\n");
 
@@ -1342,6 +1292,8 @@ static int cmdq_probe(struct platform_device *pDevice)
 
 static int cmdq_remove(struct platform_device *pDevice)
 {
+	/* unregister mdp power domain control. */
+	pm_runtime_disable(&pDevice->dev);
 	disable_irq(cmdq_dev_get_irq_id());
 
 	device_remove_file(&pDevice->dev, &dev_attr_error);

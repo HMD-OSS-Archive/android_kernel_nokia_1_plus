@@ -954,7 +954,6 @@ static void _vdo_mode_enter_idle(void)
 	disp_pm_qos_update_bw(bandwidth);
 #endif
 	lcm_fps_ctx_reset(&lcm_fps_ctx);
-
 }
 
 static void _vdo_mode_leave_idle(void)
@@ -1137,7 +1136,7 @@ int primary_display_request_dvfs_perf(int scenario, int req)
 unsigned long long disp_lp_set_idle_check_interval(
 	unsigned long long new_interval)
 {
-	/*ToDo: ARR  & DynFPS whether need lock*/
+	/*ToDo: ARR whether need lock*/
 	unsigned long long old_interval = idle_check_interval;
 
 	idle_check_interval = new_interval;

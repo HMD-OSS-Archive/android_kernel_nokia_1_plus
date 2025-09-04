@@ -37,6 +37,7 @@ void (*fpsgo_get_nn_ttime_fp)(unsigned int pid, unsigned long long mid,
 	int num_step, __u64 *ttime);
 
 void (*rsu_getusage_fp)(__s32 *devusage, __u32 *bwusage, __u32 pid);
+void (*rsu_getstate_fp)(int *throttled);
 
 static unsigned long perfctl_copy_from_user(void *pvTo,
 		const void __user *pvFrom, unsigned long ulBytes)
@@ -194,6 +195,16 @@ static long eara_ioctl_impl(struct file *filp,
 				sizeof(struct _EARA_NN_PACKAGE));
 
 		break;
+	case EARA_GETSTATE:
+		if (rsu_getstate_fp)
+			rsu_getstate_fp(&msgKM->thrm_throttled);
+		else
+			msgKM->thrm_throttled = -1;
+
+		perfctl_copy_to_user(msgUM, msgKM,
+				sizeof(struct _EARA_NN_PACKAGE));
+
+		break;
 	default:
 		pr_debug(TAG "%s %d: unknown cmd %x\n",
 			__FILE__, __LINE__, cmd);
@@ -225,6 +236,7 @@ static long eara_compat_ioctl(struct file *filp,
 
 		__s32 dev_usage;
 		__u32 bw_usage;
+		__s32 thrm_throttled;
 
 		union {
 			__u32 device;
@@ -277,63 +289,6 @@ static const struct file_operations eara_Fops = {
 	.llseek = seq_lseek,
 	.release = single_release,
 };
-
-/*--------------------PERFMGR OP------------------------*/
-static int dev_perfmgr_show(struct seq_file *m, void *v)
-{
-	return 0;
-}
-
-static int dev_perfmgr_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, dev_perfmgr_show, inode->i_private);
-}
-
-static long dev_perfmgr_ioctl(struct file *filp,
-		unsigned int cmd, unsigned long arg)
-{
-	ssize_t ret = 0;
-	struct _PERFMGR_PACKAGE *msgKM = NULL,
-		*msgUM = (struct _PERFMGR_PACKAGE *)arg;
-	struct _PERFMGR_PACKAGE smsgKM;
-
-	msgKM = &smsgKM;
-
-	if (perfctl_copy_from_user(msgKM, msgUM,
-		sizeof(struct _PERFMGR_PACKAGE))) {
-		ret = -EFAULT;
-		goto ret_ioctl;
-	}
-
-	switch (cmd) {
-	case PERFMGR_CPU_PREFER:
-		pr_debug(TAG " sched_set_cpuprefer:%d, %d\n",
-			msgKM->tid, msgKM->prefer_type);
-#if defined(CONFIG_MTK_SCHED_BOOST)
-		sched_set_cpuprefer(msgKM->tid, msgKM->prefer_type);
-#endif
-		break;
-
-	default:
-		pr_debug(TAG "%s %d: unknown cmd %x\n",
-			__FILE__, __LINE__, cmd);
-		ret = -1;
-		goto ret_ioctl;
-	}
-
-ret_ioctl:
-	return ret;
-}
-
-static const struct file_operations perfmgr_Fops = {
-	.unlocked_ioctl = dev_perfmgr_ioctl,
-	.compat_ioctl = dev_perfmgr_ioctl,
-	.open = dev_perfmgr_open,
-	.read = seq_read,
-	.llseek = seq_lseek,
-	.release = single_release,
-};
-
 
 /*--------------------INIT------------------------*/
 
@@ -451,15 +406,6 @@ int init_perfctl(struct proc_dir_entry *parent)
 	}
 
 	pe = proc_create("eara_ioctl", 0664, parent, &eara_Fops);
-	if (!pe) {
-		pr_debug(TAG"%s failed with %d\n",
-				"Creating file node ",
-				ret_val);
-		ret_val = -ENOMEM;
-		goto out_wq;
-	}
-
-	pe = proc_create("perfmgr_ioctl", 0664, parent, &perfmgr_Fops);
 	if (!pe) {
 		pr_debug(TAG"%s failed with %d\n",
 				"Creating file node ",
