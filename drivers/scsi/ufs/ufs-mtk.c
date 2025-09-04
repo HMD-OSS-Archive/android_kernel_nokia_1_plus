@@ -46,6 +46,7 @@
 
 /* Query request retries */
 #define QUERY_REQ_RETRIES 10
+#define MAX_WRITE_BUFFER_SIZE (512 * 1024)
 
 /* refer to ufs_mtk_init() for default value of these globals */
 int  ufs_mtk_rpm_autosuspend_delay;    /* runtime PM: auto suspend delay */
@@ -1004,6 +1005,14 @@ static int ufs_mtk_pre_pwr_change(struct ufs_hba *hba,
 
 	ufs_mtk_pltfrm_pwr_change_final_gear(hba, final);
 
+	/* Set PAPowerModeUserData[0~5] = 0xffff, default is 0 */
+	ufshcd_dme_set(hba, UIC_ARG_MIB(PA_PWRMODEUSERDATA0), 0x1fff);
+	ufshcd_dme_set(hba, UIC_ARG_MIB(PA_PWRMODEUSERDATA1), 0xffff);
+	ufshcd_dme_set(hba, UIC_ARG_MIB(PA_PWRMODEUSERDATA2), 0x7fff);
+	ufshcd_dme_set(hba, UIC_ARG_MIB(PA_PWRMODEUSERDATA3), 0x1fff);
+	ufshcd_dme_set(hba, UIC_ARG_MIB(PA_PWRMODEUSERDATA4), 0xffff);
+	ufshcd_dme_set(hba, UIC_ARG_MIB(PA_PWRMODEUSERDATA5), 0x7fff);
+
 	return err;
 }
 
@@ -1034,10 +1043,6 @@ static int ufs_mtk_init_mphy(struct ufs_hba *hba)
 
 static int ufs_mtk_enable_crypto(struct ufs_hba *hba)
 {
-	/* avoid resetting host during resume flow or when link is not off */
-	if (hba->pm_op_in_progress || !ufshcd_is_link_off(hba))
-		return 0;
-
 	/* restore vendor crypto setting by re-using resume operation */
 	mt_secure_call(MTK_SIP_KERNEL_HW_FDE_UFS_CTL, (1 << 2), 0, 0, 0);
 
@@ -1095,6 +1100,24 @@ int ufs_mtk_linkup_fail_handler(struct ufs_hba *hba, int left_retry)
 	return 0;
 }
 
+int ufs_mtk_check_powerctl(struct ufs_hba *hba)
+{
+	int err = 0;
+	u32 val = 0;
+
+	/* check if host in power saving */
+	err = ufshcd_dme_get(hba,
+		UIC_ARG_MIB(VENDOR_UNIPROPOWERDOWNCONTROL), &val);
+	if (!err && val == 0x1) {
+		err = ufshcd_dme_set(hba,
+			UIC_ARG_MIB(VENDOR_UNIPROPOWERDOWNCONTROL), 0);
+		dev_info(hba->dev, "get dme 0x%x = %d, set 0 (%d)\n",
+			VENDOR_UNIPROPOWERDOWNCONTROL, val, err);
+	}
+
+	return err;
+}
+
 static int ufs_mtk_hce_enable_notify(struct ufs_hba *hba,
 	enum ufs_notify_change_status stage)
 {
@@ -1136,6 +1159,11 @@ static int ufs_mtk_pre_link(struct ufs_hba *hba)
 
 	/* ensure auto-hibern8 is disabled during hba probing */
 	ufshcd_vops_auto_hibern8(hba, false);
+
+	/* powerup unipro if unipro powerdown */
+	ret = ufs_mtk_check_powerctl(hba);
+	if (ret)
+		return ret;
 
 	/* configure deep stall */
 	ret = ufshcd_dme_get(hba, UIC_ARG_MIB(VENDOR_SAVEPOWERCONTROL), &tmp);
@@ -1211,8 +1239,21 @@ static int ufs_mtk_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 		 */
 		ret = ufshcd_dme_set(hba,
 			UIC_ARG_MIB_SEL(VENDOR_UNIPROPOWERDOWNCONTROL, 0), 1);
-		if (ret)
+		if (ret) {
+			/* dump ufs debug Info like XO_UFS/VEMC/VUFS18 */
+			ufs_mtk_pltfrm_gpio_trigger_and_debugInfo_dump(hba);
+
+			/*
+			 * Power down fail leave vendor-specific power down mode
+			 * to resume UniPro state
+			 */
+			(void)ufshcd_dme_set(hba,
+				UIC_ARG_MIB_SEL(VENDOR_UNIPROPOWERDOWNCONTROL,
+				0), 0);
+			ret = -EAGAIN;
+
 			return ret;
+		}
 
 		ufs_mtk_pltfrm_suspend(hba);
 
@@ -1393,6 +1434,7 @@ static int ufs_mtk_ffu_send_cmd(struct scsi_device *dev,
 	struct scsi_sense_hdr sshdr;
 	unsigned long flags;
 	int ret;
+	int size_to_write, written;
 
 	if (dev)
 		hba = shost_priv(dev->host);
@@ -1407,43 +1449,55 @@ static int ufs_mtk_ffu_send_cmd(struct scsi_device *dev,
 		scsi_device_put(dev);
 	}
 
-
 	spin_unlock_irqrestore(hba->host->host_lock, flags);
 
 	if (ret)
 		return ret;
 
-	/*
-	 * If scsi commands fail, the scsi mid-layer schedules scsi error-
-	 * handling, which would wait for host to be resumed. Since we know
-	 * we are functional while we are here, skip host resume in error
-	 * handling context.
-	 */
-	hba->host->eh_noresume = 1;
+	for (written = 0; written < idata->buf_byte;
+	     written += size_to_write) {
+		if ((idata->buf_byte - written) > MAX_WRITE_BUFFER_SIZE)
+			size_to_write = MAX_WRITE_BUFFER_SIZE;
+		else
+			size_to_write = (idata->buf_byte - written);
 
-	cmd[0] = WRITE_BUFFER;                   /* Opcode */
-	cmd[1] = 0xE;                            /* 0xE: Download firmware */
-	cmd[2] = 0;                              /* Buffer ID = 0 */
-	cmd[3] = 0;                              /* Buffer Offset[23:16] = 0 */
-	cmd[4] = 0;                              /* Buffer Offset[15:08] = 0 */
-	cmd[5] = 0;                              /* Buffer Offset[07:00] = 0 */
-	cmd[6] = (idata->buf_byte >> 16) & 0xff; /* Length[23:16] */
-	cmd[7] = (idata->buf_byte >> 8) & 0xff;  /* Length[15:08] */
-	cmd[8] = (idata->buf_byte) & 0xff;       /* Length[07:00] */
-	cmd[9] = 0x0;                            /* Control = 0 */
+		/*
+		 * If scsi commands fail, the scsi mid-layer schedules scsi
+		 * error-handling, which would wait for host to be resumed.
+		 * Since we know we are functional while we are here, skip
+		 * host resume in error handling context.
+		 */
+		hba->host->eh_noresume = 1;
 
-	/*
-	 * Current function would be generally called from the power management
-	 * callbacks hence set the RQF_PM flag so that it doesn't resume the
-	 * already suspended children.
-	 */
-	ret = scsi_execute(dev, cmd, DMA_TO_DEVICE,
-				idata->buf_ptr, idata->buf_byte, NULL, &sshdr,
-				msecs_to_jiffies(1000), 0, 0, RQF_PM, NULL);
+		cmd[0] = WRITE_BUFFER;                   /* Opcode */
+		/* 0xE: Download firmware */
+		cmd[1] = 0xE;
+		cmd[2] = 0;                              /* Buffer ID = 0 */
+		/* Buffer Offset[23:16] = 0 */
+		cmd[3] = (unsigned char)((written >> 16) & 0xff);
+		/* Buffer Offset[15:08] = 0 */
+		cmd[4] = (unsigned char)((written >> 8) & 0xff);
+		/* Buffer Offset[07:00] = 0 */
+		cmd[5] = (unsigned char)(written & 0xff);
+		cmd[6] = (size_to_write >> 16) & 0xff;   /* Length[23:16] */
+		cmd[7] = (size_to_write >> 8) & 0xff;    /* Length[15:08] */
+		cmd[8] = (size_to_write) & 0xff;         /* Length[07:00] */
+		cmd[9] = 0x0;                            /* Control = 0 */
 
-	if (ret) {
-		sdev_printk(KERN_ERR, dev,
-			  "WRITE BUFFER failed for firmware upgrade\n");
+		/*
+		 * Current function would be generally called from the power
+		 * management callbacks hence set the RQF_PM flag so that it
+		 * doesn't resume the already suspended children.
+		 */
+		ret = scsi_execute(dev, cmd, DMA_TO_DEVICE,
+				   idata->buf_ptr + written,
+				   size_to_write, NULL, &sshdr,
+				   msecs_to_jiffies(1000), 0, 0, RQF_PM, NULL);
+
+		if (ret) {
+			sdev_printk(KERN_ERR, dev,
+				  "WRITE BUFFER failed for firmware upgrade\n");
+		}
 	}
 
 	scsi_device_put(dev);
@@ -2104,6 +2158,33 @@ int ufs_mtk_auto_hiber8_quirk_handler(struct ufs_hba *hba, bool enable)
 
 	return 0;
 }
+
+int ufs_mtk_wait_link_state(struct ufs_hba *hba, u32 *state,
+			    unsigned long retry_ms)
+{
+	unsigned long timeout;
+	u32 val;
+
+	timeout = jiffies + msecs_to_jiffies(retry_ms);
+	do {
+		ufshcd_writel(hba, 0x20, REG_UFS_MTK_DEBUG_SEL);
+		val = ufshcd_readl(hba, REG_UFS_MTK_PROBE);
+		val = val >> 28;
+
+		if (val == *state)
+			break;
+
+		/* sleep for max. 200us */
+		usleep_range(100, 200);
+	} while (time_before(jiffies, timeout));
+
+	if (val == *state)
+		return 0;
+
+	*state = val;
+	return -ETIMEDOUT;
+}
+
 
 /* Notice: this function must be called in automic context */
 /* Because it is not protected by ufs spin_lock or mutex */

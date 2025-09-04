@@ -238,6 +238,8 @@ static struct ufs_dev_fix ufs_fixups[] = {
 		UFS_DEVICE_QUIRK_PA_TACTIVATE),
 	UFS_FIX(UFS_VENDOR_TOSHIBA, "THGLF2G9D8KBADG",
 		UFS_DEVICE_QUIRK_PA_TACTIVATE),
+	UFS_FIX(UFS_VENDOR_SAMSUNG, UFS_ANY_MODEL,
+		UFS_DEVICE_QUIRK_PA_TACTIVATE),
 	UFS_FIX(UFS_VENDOR_SKHYNIX, UFS_ANY_MODEL, UFS_DEVICE_NO_VCCQ),
 	UFS_FIX(UFS_VENDOR_SKHYNIX, UFS_ANY_MODEL,
 		UFS_DEVICE_QUIRK_HOST_PA_SAVECONFIGTIME),
@@ -2639,6 +2641,7 @@ static int ufshcd_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
 	unsigned long flags;
 	int tag;
 	int err = 0;
+	u8 opcode = 0;
 
 	hba = shost_priv(host);
 
@@ -2735,6 +2738,10 @@ static int ufshcd_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
 
 	/* reset crypto_en first and set it later only on encrypted request */
 	lrbp->crypto_en = 0;
+
+	opcode = (u8)(*cmd->cmnd);
+	if ((opcode == READ_10) || (opcode == WRITE_10))
+		hie_req_check_integrity(cmd->request);
 
 	if (hie_request_crypted(cmd->request)) {
 		struct ufs_crypt_info info = {
@@ -7575,9 +7582,13 @@ static void ufshcd_tune_unipro_params(struct ufs_hba *hba)
 		ufshcd_tune_pa_hibern8time(hba);
 	}
 
-	if (hba->dev_quirks & UFS_DEVICE_QUIRK_PA_TACTIVATE)
-		/* set 1ms timeout for PA_TACTIVATE */
-		ufshcd_dme_set(hba, UIC_ARG_MIB(PA_TACTIVATE), 10);
+	if (hba->dev_quirks & UFS_DEVICE_QUIRK_PA_TACTIVATE) {
+		/* set timeout for PA_TACTIVATE by vender */
+		if (hba->card->wmanufacturerid == UFS_VENDOR_SAMSUNG)
+			ufshcd_dme_set(hba, UIC_ARG_MIB(PA_TACTIVATE), 6);
+		else
+			ufshcd_dme_set(hba, UIC_ARG_MIB(PA_TACTIVATE), 10);
+	}
 
 	if (hba->dev_quirks & UFS_DEVICE_QUIRK_HOST_PA_TACTIVATE)
 		ufshcd_quirk_tune_host_pa_tactivate(hba);
@@ -8756,20 +8767,8 @@ static int ufshcd_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 	 * 3. Manually enter h8.
 	 */
 	ufshcd_vops_auto_hibern8(hba, false);
-	timeout = jiffies + msecs_to_jiffies(H8_POLL_TOUT_MS);
-	do {
-		ret = ufshcd_dme_get(hba, UIC_ARG_MIB(VENDOR_POWERSTATE), &reg);
-		if (ret != 0)
-			dev_err(hba->dev,
-				"ufshcd_dme_get_ 0x%x fail, ret = %d!\n",
-				VENDOR_POWERSTATE, ret);
-
-		if (reg != VENDOR_POWERSTATE_HIBERNATE)
-			break;
-
-		/* sleep for max. 200us */
-		usleep_range(100, 200);
-	} while (time_before(jiffies, timeout));
+	reg = VENDOR_POWERSTATE_LINKUP;
+	ufs_mtk_wait_link_state(hba, &reg, 100);
 
 	/* Device is stuck in H8 state */
 	if (reg == VENDOR_POWERSTATE_HIBERNATE) {
@@ -8852,17 +8851,7 @@ disable_clks:
 		dev_err(hba->dev, "%s: vender suspend failed. ret = %d\n",
 			__func__, ret);
 
-		/* block commands from scsi mid-layer */
-		ufshcd_scsi_block_requests(hba);
-		hba->ufshcd_state = UFSHCD_STATE_ERROR;
-		hba->force_host_reset = true;
-		schedule_work(&hba->eh_work);
-
-		/* Unable to recover the link, so no point proceeding */
-		if (ret) {
-			ret = -EAGAIN;
-			goto set_link_active;
-		}
+		goto set_link_active;
 	}
 
 	if (!ufshcd_is_link_active(hba))
