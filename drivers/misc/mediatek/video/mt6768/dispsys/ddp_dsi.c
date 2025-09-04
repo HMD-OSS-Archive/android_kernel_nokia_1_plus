@@ -570,10 +570,11 @@ void DSI_enter_ULPS(enum DISP_MODULE_ENUM module)
 
 		DSI_OUTREGBIT(NULL, struct DSI_PHY_LD0CON_REG,
 			DSI_REG[i]->DSI_PHY_LD0CON, Lx_ULPM_AS_L0, 1);
-		DSI_OUTREGBIT(NULL, struct DSI_PHY_LD0CON_REG,
-			DSI_REG[i]->DSI_PHY_LD0CON, L0_ULPM_EN, 1);
 		DSI_OUTREGBIT(NULL, struct DSI_PHY_LCCON_REG,
 			DSI_REG[i]->DSI_PHY_LCCON, LC_ULPM_EN, 1);
+		udelay(1);
+		DSI_OUTREGBIT(NULL, struct DSI_PHY_LD0CON_REG,
+			DSI_REG[i]->DSI_PHY_LD0CON, L0_ULPM_EN, 1);
 
 		waitq = &(_dsi_context[i].sleep_in_done_wq);
 		ret = wait_event_timeout(waitq->wq,
@@ -587,9 +588,6 @@ void DSI_enter_ULPS(enum DISP_MODULE_ENUM module)
 
 		DSI_OUTREGBIT(NULL, struct DSI_INT_ENABLE_REG,
 			DSI_REG[i]->DSI_INTEN, SLEEPIN_ULPS_INT_EN, 0);
-		/* clear lane_num when enter ulps */
-		DSI_OUTREGBIT(NULL, struct DSI_TXRX_CTRL_REG,
-			DSI_REG[i]->DSI_TXRX_CTRL, LANE_NUM, 0);
 	}
 }
 
@@ -620,11 +618,6 @@ void DSI_exit_ULPS(enum DISP_MODULE_ENUM module)
 			DSI_REG[i]->DSI_PHY_LD0CON, Lx_ULPM_AS_L0, 1);
 		DSI_OUTREGBIT(NULL, struct DSI_INT_ENABLE_REG,
 			DSI_REG[i]->DSI_INTEN, SLEEPOUT_DONE, 1);
-		DSI_OUTREGBIT(NULL, struct DSI_MODE_CTRL_REG,
-			DSI_REG[i]->DSI_MODE_CTRL, SLEEP_MODE, 1);
-		DSI_OUTREGBIT(NULL, struct DSI_TIME_CON0_REG,
-			DSI_REG[i]->DSI_TIME_CON0, UPLS_WAKEUP_PRD,
-			wake_up_prd);
 
 		switch (_dsi_context[i].dsi_params.LANE_NUM) {
 		case LCM_ONE_LANE:
@@ -646,6 +639,11 @@ void DSI_exit_ULPS(enum DISP_MODULE_ENUM module)
 		DSI_OUTREGBIT(NULL, struct DSI_TXRX_CTRL_REG,
 			DSI_REG[i]->DSI_TXRX_CTRL, LANE_NUM, lane_num_bitvalue);
 
+		DSI_OUTREGBIT(NULL, struct DSI_MODE_CTRL_REG,
+			DSI_REG[i]->DSI_MODE_CTRL, SLEEP_MODE, 1);
+		DSI_OUTREGBIT(NULL, struct DSI_TIME_CON0_REG,
+			DSI_REG[i]->DSI_TIME_CON0, UPLS_WAKEUP_PRD,
+			wake_up_prd);
 		DSI_OUTREGBIT(NULL, struct DSI_START_REG,
 			DSI_REG[i]->DSI_START, SLEEPOUT_START, 0);
 		DSI_OUTREGBIT(NULL, struct DSI_START_REG,
@@ -1840,14 +1838,15 @@ void DSI_PHY_TIMCONFIG(enum DISP_MODULE_ENUM module,
 
 	hs_trail_m = 1;
 	hs_trail_n = (dsi_params->HS_TRAIL == 0) ?
-		NS_TO_CYCLE(((hs_trail_m * 0x4 * ui) + 0x50), cycle_time) :
+		(NS_TO_CYCLE(((hs_trail_m * 0x4 * ui) + 0x50)
+		* dsi_params->PLL_CLOCK * 2, 0x1F40) + 0x1) :
 		dsi_params->HS_TRAIL;
 	/* +3 is recommended from designer becauase of HW latency */
 	timcon0.HS_TRAIL = (hs_trail_m > hs_trail_n) ? hs_trail_m : hs_trail_n;
 
 	timcon0.HS_PRPR =
 		(dsi_params->HS_PRPR == 0) ?
-		NS_TO_CYCLE((0x40 + 0x5 * ui), cycle_time) :
+		(NS_TO_CYCLE((0x40 + 0x5 * ui), cycle_time) + 0x1) :
 		dsi_params->HS_PRPR;
 	/* HS_PRPR can't be 1. */
 	if (timcon0.HS_PRPR < 1)
@@ -1863,7 +1862,8 @@ void DSI_PHY_TIMCONFIG(enum DISP_MODULE_ENUM module,
 
 	timcon0.LPX =
 		(dsi_params->LPX == 0) ?
-		NS_TO_CYCLE(0x55, cycle_time) : dsi_params->LPX;
+		(NS_TO_CYCLE(dsi_params->PLL_CLOCK * 2 * 0x4b, 0x1F40) + 0x1) :
+		dsi_params->LPX;
 	if (timcon0.LPX < 1)
 		timcon0.LPX = 1;
 
@@ -1888,8 +1888,8 @@ void DSI_PHY_TIMCONFIG(enum DISP_MODULE_ENUM module,
 
 	timcon2.CLK_TRAIL =
 		((dsi_params->CLK_TRAIL == 0) ?
-		NS_TO_CYCLE(0x60, cycle_time) :
-		dsi_params->CLK_TRAIL) + 0x01;
+		NS_TO_CYCLE(0x64 * dsi_params->PLL_CLOCK * 2,
+		0x1F40) : dsi_params->CLK_TRAIL) + 0x01;
 	/* CLK_TRAIL can't be 1. */
 	if (timcon2.CLK_TRAIL < 2)
 		timcon2.CLK_TRAIL = 2;
@@ -1902,8 +1902,8 @@ void DSI_PHY_TIMCONFIG(enum DISP_MODULE_ENUM module,
 
 	timcon3.CLK_HS_PRPR =
 		(dsi_params->CLK_HS_PRPR == 0) ?
-		NS_TO_CYCLE(0x40, cycle_time) :
-		dsi_params->CLK_HS_PRPR;
+		NS_TO_CYCLE(0x50 * dsi_params->PLL_CLOCK * 2,
+		0x1F40) : dsi_params->CLK_HS_PRPR;
 
 	if (timcon3.CLK_HS_PRPR < 1)
 		timcon3.CLK_HS_PRPR = 1;
@@ -6037,8 +6037,11 @@ int ddp_dsi_read_lcm_cmdq(enum DISP_MODULE_ENUM module,
 		/* 2. save RX data */
 		if (*read_Slot && dsi_i == 0) {
 			DSI_BACKUPREG32(cmdq_trigger_handle,
-				*read_Slot, i,
+				read_Slot[0], i,
 				&DSI_REG[dsi_i]->DSI_RX_DATA0);
+			DSI_BACKUPREG32(cmdq_trigger_handle,
+				read_Slot[1], i,
+				&DSI_REG[dsi_i]->DSI_RX_DATA1);
 		}
 
 		/* 3. write RX_RACK */

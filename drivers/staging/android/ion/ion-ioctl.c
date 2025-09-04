@@ -21,6 +21,8 @@
 #include "ion.h"
 #include "ion_priv.h"
 #include "compat_ion.h"
+#include "mtk/mtk_ion.h"
+#include "mtk/ion_drv.h"
 
 union ion_ioctl_arg {
 	struct ion_fd_data fd;
@@ -102,11 +104,10 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	{
 		struct ion_handle *handle;
 
-		handle = ion_alloc(
-						client, data.allocation.len,
-						data.allocation.align,
-						data.allocation.heap_id_mask,
-						data.allocation.flags);
+		handle = ion_alloc(client, data.allocation.len,
+				   data.allocation.align,
+				   data.allocation.heap_id_mask,
+				   data.allocation.flags);
 		if (IS_ERR(handle)) {
 			IONMSG(
 				"ION_IOC_ALLOC handle is invalid. ret = %d.\n",
@@ -114,6 +115,7 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			return PTR_ERR(handle);
 		}
 
+		pass_to_user(handle);
 		data.allocation.handle = handle->id;
 
 		cleanup_handle = handle;
@@ -133,7 +135,7 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				data.handle.handle, ret);
 			return PTR_ERR(handle);
 		}
-		ion_free_nolock(client, handle);
+		user_ion_free_nolock(client, handle);
 		ion_handle_put_nolock(handle);
 		mutex_unlock(&client->lock);
 		break;
@@ -143,15 +145,19 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	{
 		struct ion_handle *handle;
 
-		handle = ion_handle_get_by_id(client, data.handle.handle);
+		mutex_lock(&client->lock);
+		handle = ion_handle_get_by_id_nolock(client,
+						     data.handle.handle);
 		if (IS_ERR(handle)) {
+			mutex_unlock(&client->lock);
 			ret = PTR_ERR(handle);
 			IONMSG("ION_IOC_SHARE handle(%d) is invalid, ret %d\n",
 			       data.handle.handle, ret);
 			return ret;
 		}
-		data.fd.fd = ion_share_dma_buf_fd(client, handle);
-		ion_handle_put(handle);
+		data.fd.fd = ion_share_dma_buf_fd_nolock(client, handle);
+		ion_handle_put_nolock(handle);
+		mutex_unlock(&client->lock);
 		if (data.fd.fd < 0) {
 			IONMSG("ION_IOC_SHARE fd = %d.\n", data.fd.fd);
 			ret = data.fd.fd;
@@ -168,8 +174,13 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			IONMSG("ion_import fail: fd=%d, ret=%d\n",
 			       data.fd.fd, ret);
 			return ret;
+		} else {
+			handle = pass_to_user(handle);
+			if (IS_ERR(handle))
+				ret = PTR_ERR(handle);
+			else
+				data.handle.handle = handle->id;
 		}
-		data.handle.handle = handle->id;
 		break;
 	}
 	case ION_IOC_SYNC:
@@ -196,8 +207,12 @@ long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	if (dir & _IOC_READ) {
 		if (copy_to_user((void __user *)arg, &data, _IOC_SIZE(cmd))) {
-			if (cleanup_handle)
-				ion_free(client, cleanup_handle);
+			if (cleanup_handle) {
+				mutex_lock(&client->lock);
+				user_ion_free_nolock(client, cleanup_handle);
+				ion_handle_put_nolock(cleanup_handle);
+				mutex_unlock(&client->lock);
+			}
 			IONMSG(
 				"%s %d fail! cmd = %d, n = %d.\n",
 				__func__, __LINE__,

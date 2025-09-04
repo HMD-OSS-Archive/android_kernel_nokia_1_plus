@@ -110,8 +110,6 @@
 #define FRM_UPDATE_SEQ_CACHE_NUM (DISP_INTERNAL_BUFFER_COUNT+1)
 
 static struct disp_internal_buffer_info
-	*decouple_buffer_info[DISP_INTERNAL_BUFFER_COUNT];
-static struct disp_internal_buffer_info
 	*freeze_buffer_info;
 static struct RDMA_CONFIG_STRUCT decouple_rdma_config;
 static struct WDMA_CONFIG_STRUCT decouple_wdma_config;
@@ -3283,9 +3281,8 @@ static int init_decouple_buffers(void)
 
 	/* INTERNAL Buf 3 frames */
 	for (i = 0; i < DISP_INTERNAL_BUFFER_COUNT; i++) {
-		decouple_buffer_info[i] = allocat_decouple_buffer(buffer_size);
-		if (decouple_buffer_info[i])
-			pgc->dc_buf[i] = decouple_buffer_info[i]->mva;
+		pgc->dc_buf[i] = i * buffer_size +
+		primary_display_get_frame_buffer_mva_address();
 	}
 
 	/* initialize RDMA config */
@@ -3838,6 +3835,7 @@ static int _rdma_update_callback(unsigned long if_fence)
 static void DC_config_nightlight(struct cmdqRecStruct *cmdq_handle)
 {
 	int i, mode, ccorr_matrix[16], all_zero = 1;
+	static DEFINE_RATELIMIT_STATE(_rs, HZ, 1);
 
 	cmdqBackupReadSlot(pgc->night_light_params, 0, &mode);
 
@@ -3851,10 +3849,12 @@ static void DC_config_nightlight(struct cmdqRecStruct *cmdq_handle)
 			break;
 		}
 	}
-	if (all_zero)
-		disp_aee_print("Night light backup param is zero matrix\n");
-	else
+	if (all_zero) {
+		if (__ratelimit(&_rs))
+			DISPWARN("Night light backup param is zero matrix\n");
+	} else {
 		disp_ccorr_set_color_matrix(cmdq_handle, ccorr_matrix, mode);
+	}
 }
 
 static int _decouple_update_rdma_config_nolock(void)
@@ -7509,6 +7509,7 @@ static int primary_frame_cfg_input(struct disp_frame_cfg_t *cfg)
 	disp_path_handle disp_handle;
 	struct cmdqRecStruct *cmdq_handle;
 	struct disp_ccorr_config m_ccorr_config = cfg->ccorr_config;
+	static DEFINE_RATELIMIT_STATE(_rs, HZ, 1);
 
 	if (gTriggerDispMode > 0)
 		return 0;
@@ -7561,9 +7562,10 @@ static int primary_frame_cfg_input(struct disp_frame_cfg_t *cfg)
 				break;
 			}
 		}
-		if (all_zero)
-			disp_aee_print("HWC set zero matrix\n");
-		else if (!primary_display_is_decouple_mode()) {
+		if (all_zero) {
+			if (__ratelimit(&_rs))
+				DISPWARN("HWC set zero matrix\n");
+		} else if (!primary_display_is_decouple_mode()) {
 			disp_ccorr_set_color_matrix(cmdq_handle,
 				m_ccorr_config.color_matrix,
 				m_ccorr_config.mode);
@@ -9200,9 +9202,11 @@ int primary_display_capture_framebuffer_ovl(unsigned long pbuf,
 		goto out;
 	}
 
-	ion_display_handle = disp_ion_alloc(ion_display_client,
-					    ION_HEAP_MULTIMEDIA_MAP_MVA_MASK,
-					    pbuf, buffer_size);
+	/*
+	 * TODO: legacy ion_handle allocate API phase out,
+	 *	need develop another method allocate MVA
+	 */
+
 	if (!ion_display_handle) {
 		DISPMSG("primary capture:Fail to allocate buffer\n");
 		ret = -1;

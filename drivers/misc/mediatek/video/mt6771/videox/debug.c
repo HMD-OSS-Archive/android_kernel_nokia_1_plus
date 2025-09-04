@@ -360,7 +360,7 @@ static int alloc_buffer_from_ion(size_t size, struct test_buf_info *buf_info)
 	struct ion_mm_data mm_data;
 	struct ion_handle *handle;
 	size_t mva_size;
-	ion_phys_addr_t phy_addr;
+	ion_phys_addr_t phy_addr = 0;
 
 	client = ion_client_create(g_ion_device, "disp_test");
 	buf_info->ion_client = client;
@@ -456,9 +456,11 @@ static int alloc_buffer_from_dma(size_t size, struct test_buf_info *buf_info)
 		goto out;
 	}
 
-	ion_display_handle = disp_ion_alloc(ion_display_client,
-					    ION_HEAP_MULTIMEDIA_PA2MVA_MASK,
-					    buf_info->buf_pa, size_align);
+	/*
+	 * TODO: legacy ion_handle allocate API phase out,
+	 *	need develop another method allocate MVA
+	 */
+
 	if (ret != 0) {
 		DISPWARN("primary capture:Fail to allocate buffer\n");
 		ret = -1;
@@ -990,7 +992,7 @@ static void process_dbg_opt(const char *opt)
 		}
 	} else if (strncmp(opt, "dst_switch:", 11) == 0) {
 		char *p = (char *)opt + 11;
-		UINT32 mode;
+		UINT32 mode = 0;
 
 		ret = kstrtouint(p, 0, &mode);
 		if (ret) {
@@ -1001,7 +1003,7 @@ static void process_dbg_opt(const char *opt)
 		return;
 	} else if (strncmp(opt, "cv_switch:", 10) == 0) {
 		char *p = (char *)opt + 10;
-		UINT32 mode;
+		UINT32 mode = 0;
 
 		ret = kstrtouint(p, 0, &mode);
 		if (ret) {
@@ -1054,7 +1056,7 @@ static void process_dbg_opt(const char *opt)
 		primary_display_esd_recovery();
 	} else if (strncmp(opt, "set_esd_mode:", 13) == 0) {
 		char *p = (char *)opt + 13;
-		unsigned int mode;
+		unsigned int mode = 0;
 
 		ret = kstrtouint(p, 0, &mode);
 		if (ret) {
