@@ -375,7 +375,7 @@ page_owner=on loop.max_part=7";
 			no-map;
 #if defined(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT) || \
 	defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
-			size = <0 0x2000000>;
+			size = <0 0x800000>;
 			alignment = <0 0x1000000>;
 #else
 			size = <0 0x200000>;
@@ -2319,7 +2319,7 @@ page_owner=on loop.max_part=7";
 
 	spi5: spi5@11019000 {
 		compatible = "mediatek,mt6765-spi";
-		mediatek,pad-select = <0>;
+		mediatek,pad-select = <1>;
 		reg = <0 0x11019000 0 0x1000>;
 		interrupts = <GIC_SPI 157 IRQ_TYPE_LEVEL_LOW>;
 		clocks = <&topckgen TOP_MAINPLL_D5_D2>,
@@ -2785,6 +2785,7 @@ page_owner=on loop.max_part=7";
 		mtk_dsp_a2dp = <0x0 0xffffffff 0xffffffff 0xffffffff>;
 		mtk_dsp_dataprovider = <0x0 0xffffffff 0xf 0xffffffff>;
 		mtk_dsp_call_final = <0x0 0x4 0xf 0x13>;
+		mtk_dsp_ktv = <0x1 0x8 0x11 0xffffffff>;
 		swdsp_smartpa_process_enable = <0x0>;
 	};
 
@@ -3311,6 +3312,7 @@ page_owner=on loop.max_part=7";
 	vdec_gcon: vdec_gcon@16000000 {
 		compatible = "mediatek,vdec_gcon", "syscon";
 		reg = <0 0x16000000 0 0x1000>,		/* VDEC_SYS */
+			 <0 0x16020000 0 0x400>,                /* VDEC_VLD */
 			 <0 0x16025000 0 0x1000>;		/* VDEC_MISC */
 #ifdef CONFIG_MTK_IOMMU_V2
 		iommus = <&iommu0 M4U_PORT_HW_VDEC_MC_EXT>;
@@ -4084,9 +4086,11 @@ page_owner=on loop.max_part=7";
 		interrupts = <GIC_SPI 285 IRQ_TYPE_LEVEL_LOW>;
 
 		clocks = <&camsys CAMSYS_CCU_CGPDN>,
-			 <&mmsys_config MMSYS_GALS_CCU2MM>;
+			<&mmsys_config MMSYS_GALS_CCU2MM>,
+			<&scpsys SCP_SYS_CAM>;
 		clock-names = "CCU_CLK_CAM_CCU",
-			      "CCU_CLK_MMSYS_CCU";
+			    "CCU_CLK_MMSYS_CCU",
+			    "CAM_PWR";
 #ifdef CONFIG_MTK_IOMMU_V2
 		iommus = <&iommu0 M4U_PORT_CCUG>;
 #endif
