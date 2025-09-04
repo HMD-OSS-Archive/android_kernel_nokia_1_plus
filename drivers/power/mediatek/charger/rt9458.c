@@ -688,11 +688,11 @@ static int rt9458_charger_dump_registers(struct charger_device *chg_dev)
 			dev_info(ri->dev, "[0x%02X] : 0x%02x\n", i, ret);
 		}
 	}
-	dev_info(ri->dev,
+	dev_dbg(ri->dev,
 		"%s: ICHG = %dmA, AICR = %dmA, MIVR = %dmV, IEOC = %dmA\n",
 		__func__, ichg / 1000, aicr / 1000, mivr / 1000, ieoc / 1000);
 
-	dev_info(ri->dev,
+	dev_dbg(ri->dev,
 		"%s: CV = %dmV, vmreg = %dmV, CHG_EN = %d, CHG_STATUS = %s\n",
 		 __func__, voreg / 1000, pdata->vmreg / 1000, chg_en, rt9458_chg_stat_name[chg_stat]);
 	return 0;

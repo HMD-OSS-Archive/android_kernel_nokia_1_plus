@@ -115,7 +115,7 @@ done:
 	if (ret != -ENOTSUPP && pdata->charging_current_limit < ichg1_min)
 		pdata->charging_current_limit = 0;
 
-	chr_err("force:%d thermal:%d setting:%d type:%d usb_unlimited:%d usbif:%d usbsm:%d\n",
+	chr_debug("force:%d thermal:%d setting:%d type:%d usb_unlimited:%d usbif:%d usbsm:%d\n",
 		pdata->force_charging_current,
 		pdata->thermal_charging_current_limit,
 		pdata->charging_current_limit,
@@ -409,7 +409,7 @@ static int mtk_linear_charging_run(struct charger_manager *info)
 	struct linear_charging_alg_data *algo_data = info->algorithm_data;
 	int ret = 0;
 
-	pr_info("%s [%d], timer=%d %d %d\n", __func__, algo_data->state,
+	pr_debug("%s [%d], timer=%d %d %d\n", __func__, algo_data->state,
 		algo_data->cc_charging_time, algo_data->topoff_charging_time,
 		algo_data->total_charging_time);
 

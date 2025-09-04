@@ -214,13 +214,13 @@
  * define your own fw_file, the sample one to be replaced is invalid
  * NOTE: if FTS_GET_VENDOR_ID_NUM > 1, it's the fw corresponding with FTS_VENDOR_ID
  */
-#define FTS_UPGRADE_FW_FILE                      "include/firmware/FIH_Antman_FT3327_VID0x82_Ver0x05_20181213_app.i"
+#define FTS_UPGRADE_FW_FILE                      "include/firmware/FIH_Antman_FT3327_VID0x82_Ver0x06_20190116_app.i"
 
 /*
  * if FTS_GET_VENDOR_ID_NUM >= 2, fw corrsponding with FTS_VENDOR_ID2
  * define your own fw_file, the sample one is invalid
  */
-#define FTS_UPGRADE_FW2_FILE                     "include/firmware/FIH_Antman_FT3327_VID0xA6_Ver0x04_20181207_app.i"
+#define FTS_UPGRADE_FW2_FILE                     "include/firmware/FIH_Antman_FT3327_VID0xA6_Ver0x05_20190116_app.i"
 
 /*
  * if FTS_GET_VENDOR_ID_NUM >= 3, fw corrsponding with FTS_VENDOR_ID3

@@ -302,7 +302,8 @@ int mmdvfs_internal_set_fine_step(const char *adaptor_name,
 		g_mmdvfs_cmd.camera_mode, g_mmdvfs_cmd.preview_size,
 		g_mmdvfs_info->video_record_size[0], g_mmdvfs_info->video_record_size[1], legacy_clk);
 	else
-		MMDVFSMSG("%s,set scen:(%d,0x%x) step:(%d,%d,0x%x,0x%x,0x%x,0x%x),C(%d,%d,0x%x,%d),I(%d,%d),CLK:%d\n",
+		MMDVFSDEBUG(3,
+		"%s,set scen:(%d,0x%x) step:(%d,%d,0x%x,0x%x,0x%x,0x%x),C(%d,%d,0x%x,%d),I(%d,%d),CLK:%d\n",
 		adaptor_name, smi_scenario, g_mmdvfs_concurrency, mmdvfs_step, final_step,
 		step_util->mmdvfs_concurrency_of_opps[0],
 		step_util->mmdvfs_concurrency_of_opps[1],

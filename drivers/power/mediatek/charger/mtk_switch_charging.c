@@ -252,7 +252,7 @@ done:
 	if (ret != -ENOTSUPP && pdata->input_current_limit < aicr1_min)
 		pdata->input_current_limit = 0;
 
-	chr_err("force:%d thermal:%d,%d pe4:%d,%d,%d setting:%d %d type:%d usb_unlimited:%d usbif:%d usbsm:%d aicl:%d\n",
+	chr_debug("force:%d thermal:%d,%d pe4:%d,%d,%d setting:%d %d type:%d usb_unlimited:%d usbif:%d usbsm:%d aicl:%d\n",
 		_uA_to_mA(pdata->force_charging_current),
 		_uA_to_mA(pdata->thermal_input_current_limit),
 		_uA_to_mA(pdata->thermal_charging_current_limit),
@@ -553,7 +553,7 @@ static int mtk_switch_charging_run(struct charger_manager *info)
 	struct switch_charging_alg_data *swchgalg = info->algorithm_data;
 	int ret = 0;
 
-	chr_err("%s [%d %d], timer=%d\n", __func__, swchgalg->state,
+	chr_debug("%s [%d %d], timer=%d\n", __func__, swchgalg->state,
 		info->pd_type,
 		swchgalg->total_charging_time);
 

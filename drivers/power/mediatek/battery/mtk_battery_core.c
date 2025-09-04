@@ -1697,7 +1697,7 @@ void fg_sw_bat_cycle_accu(void)
 	}
 
 	gauge_dev_get_hw_status(gm.gdev, &gm.hw_status, 0);
-	bm_err("[fg_sw_bat_cycle_accu]car[o:%d n:%d],diff_car:%d,ncar[o:%d n:%d hw:%d] thr %d\n",
+	bm_debug("[fg_sw_bat_cycle_accu]car[o:%d n:%d],diff_car:%d,ncar[o:%d n:%d hw:%d] thr %d\n",
 		tmp_car, fg_coulomb, diff_car,
 		tmp_ncar, gm.bat_cycle_ncar, gm.gdev->fg_hw_info.ncar,
 		gm.bat_cycle_thr);

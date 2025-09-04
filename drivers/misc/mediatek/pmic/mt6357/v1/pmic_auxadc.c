@@ -340,7 +340,7 @@ void mt6357_auxadc_monitor_mts_regs(void)
 		return;
 	mts_timestamp = mts_timestamp_cur;
 	mts_adc_tmp = pmic_get_register_value(PMIC_AUXADC_ADC_OUT_MDRT);
-	pr_notice("[MTS_ADC] OLD = 0x%x, NOW = 0x%x, CNT = %d\n", mts_adc, mts_adc_tmp, mts_count);
+	pr_debug("[MTS_ADC] OLD = 0x%x, NOW = 0x%x, CNT = %d\n", mts_adc, mts_adc_tmp, mts_count);
 
 	if (mts_adc ==  mts_adc_tmp)
 		mts_count++;
@@ -560,11 +560,11 @@ int mt6357_get_auxadc_value(u8 channel)
 #endif
 			if (is_charging == 0)
 				bat_cur = 0 - bat_cur;
-			pr_notice("[%s] ch_idx = %d, channel = %d, bat_cur = %d, reg_val = 0x%x, adc_result = %d\n",
+			pr_debug("[%s] ch_idx = %d, channel = %d, bat_cur = %d, reg_val = 0x%x, adc_result = %d\n",
 				__func__, channel, auxadc_channel->ch_num,
 				bat_cur, reg_val, adc_result);
 		} else {
-			pr_notice("[%s] ch_idx = %d, channel = %d, reg_val = 0x%x, adc_result = %d\n",
+			pr_debug("[%s] ch_idx = %d, channel = %d, reg_val = 0x%x, adc_result = %d\n",
 				__func__, channel, auxadc_channel->ch_num,
 				reg_val, adc_result);
 		}

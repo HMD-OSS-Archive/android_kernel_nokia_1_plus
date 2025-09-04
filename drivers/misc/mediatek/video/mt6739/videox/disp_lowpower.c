@@ -761,7 +761,7 @@ void _vdo_mode_leave_idle(void)
 {
 	int fps = 0;
 
-	DISPMSG("[disp_lowpower]%s\n", __func__);
+	DISPDBG("[disp_lowpower]%s\n", __func__);
 
 	/* set golden setting */
 	set_is_display_idle(0);

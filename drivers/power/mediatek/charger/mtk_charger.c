@@ -808,7 +808,7 @@ void do_sw_jeita_state_machine(struct charger_manager *info)
 			&& (info->battery_temperature <= info->data.temp_t2_thres_plus_x_degree))) {
 			chr_err("[SW_JEITA] Battery Temperature not recovery to normal temperature charging mode yet!!\n\r");
 		} else {
-			chr_err("[SW_JEITA] Battery Normal Temperature between %d and %d !!\n\r",
+			chr_debug("[SW_JEITA] Battery Normal Temperature between %d and %d !!\n\r",
 				    info->data.temp_t2_threshold, info->data.temp_t3_threshold);
 			sw_jeita->sm = TEMP_T2_TO_T3;
 		}
@@ -882,7 +882,7 @@ void do_sw_jeita_state_machine(struct charger_manager *info)
 		sw_jeita->ichg = info->data.usb_charger_current;
 	}
 
-	chr_err("[SW_JEITA]preState:%d newState:%d tmp:%d cv:%d ichg:%d\n\r",
+	chr_debug("[SW_JEITA]preState:%d newState:%d tmp:%d cv:%d ichg:%d\n\r",
 		sw_jeita->pre_sm, sw_jeita->sm, info->battery_temperature, sw_jeita->cv, sw_jeita->ichg);
 }
 
@@ -1390,7 +1390,7 @@ static void charger_check_status(struct charger_manager *info)
 stop_charging:
 	mtk_battery_notify_check(info);
 
-	chr_err("tmp:%d (jeita:%d sm:%d cv:%d ichg:%d en:%d) (sm:%d) en:%d c:%d s:%d ov:%d %d %d\n",
+	chr_debug("tmp:%d (jeita:%d sm:%d cv:%d ichg:%d en:%d) (sm:%d) en:%d c:%d s:%d ov:%d %d %d\n",
 		temperature, info->enable_sw_jeita, info->sw_jeita.sm,
 		info->sw_jeita.cv, info->sw_jeita.ichg, info->sw_jeita.charging, thermal->sm,
 		charging, info->cmd_discharging, info->safety_timeout,
@@ -1490,7 +1490,7 @@ static int charger_routine_thread(void *arg)
 		info->charger_thread_timeout = false;
 		bat_current = battery_get_bat_current();
 		chg_current = pmic_get_charging_current();
-		chr_err("Vbat=%d,Ibat=%d,I=%d,VChr=%d,T=%d,Soc=%d:%d,CT:%d:%d hv:%d pd:%d:%d g_fg_battery_id:%d\n",
+		chr_debug("Vbat=%d,Ibat=%d,I=%d,VChr=%d,T=%d,Soc=%d:%d,CT:%d:%d hv:%d pd:%d:%d g_fg_battery_id:%d\n",
 			battery_get_bat_voltage(), bat_current, chg_current,
 			battery_get_vbus(), battery_get_bat_temperature(),
 			battery_get_bat_soc(), battery_get_bat_uisoc(),

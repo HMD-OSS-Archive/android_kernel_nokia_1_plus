@@ -224,7 +224,7 @@ int ovl_roi(enum DISP_MODULE_ENUM module,
 
 	DISP_REG_SET(handle, ovl_base + DISP_REG_OVL_ROI_BGCLR, bg_color);
 
-	DDPMSG("%s:(%ux%u)\n", __func__, bg_w, bg_h);
+	DISPDBG("%s:(%ux%u)\n", __func__, bg_w, bg_h);
 	return 0;
 }
 int disable_ovl_layers(enum DISP_MODULE_ENUM module, void *handle)
