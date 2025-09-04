@@ -17,7 +17,7 @@
 #include <mt-plat/sync_write.h>
 #include <linux/io.h>
 
-#include "cmdq_core.h"
+#include "cmdq_helper_ext.h"
 #include "cmdq_device.h"
 
 #define GCE_BASE_PA			cmdq_dev_get_module_base_PA_GCE()
@@ -33,7 +33,8 @@
 #define CMDQ_BUS_CONTROL_TYPE	(GCE_BASE_VA + 0x040)
 #define CMDQ_H_SPEED_BUSY	(GCE_BASE_VA + 0x048)
 #define CMDQ_CURR_INST_ABORT	(GCE_BASE_VA + 0x020)
-#define CMDQ_CURR_REG_ABORT	(GCE_BASE_VA + 0x050)
+#define CMDQ_SECURITY_ABORT	(GCE_BASE_VA + 0x050)
+#define CMDQ_SECURITY_CTL	(GCE_BASE_VA + 0x054)
 
 #define CMDQ_SECURITY_STA(id)	(GCE_BASE_VA + (0x030 * id) + 0x024)
 #define CMDQ_SECURITY_SET(id)	(GCE_BASE_VA + (0x030 * id) + 0x028)
@@ -45,8 +46,23 @@
 
 #define CMDQ_PREFETCH_GSIZE	(GCE_BASE_VA + 0x0C0)
 #define CMDQ_TPR_MASK		(GCE_BASE_VA + 0x0D0)
+#define CMDQ_TPR_GPR_TIMER	(GCE_BASE_VA + 0x0DC)
 #define CMDQ_CTL_INT0		(GCE_BASE_VA + 0x0F0)
 #define CMDQ_CTL_INT1		(GCE_BASE_VA + 0x0F4)
+#define CMDQ_CACHE_0_EN_LO	(GCE_BASE_VA + 0x10D0)
+#define CMDQ_CACHE_0_EN_HI	(GCE_BASE_VA + 0x10D4)
+#define CMDQ_CACHE_1_EN_LO	(GCE_BASE_VA + 0x10D8)
+#define CMDQ_CACHE_1_EN_HI	(GCE_BASE_VA + 0x10DC)
+#define CMDQ_TOKEN_0_EN_LO	(GCE_BASE_VA + 0x10E0)
+#define CMDQ_TOKEN_0_EN_HI	(GCE_BASE_VA + 0x10E4)
+#define CMDQ_TOKEN_1_EN_LO	(GCE_BASE_VA + 0x10E8)
+#define CMDQ_TOKEN_1_EN_HI	(GCE_BASE_VA + 0x10EC)
+
+#define GCE_DBG_CTL		(GCE_BASE_VA + 0x3000)
+#define GCE_DBG0		(GCE_BASE_VA + 0x3004)
+#define GCE_DBG1		(GCE_BASE_VA + 0x3008)
+#define GCE_DBG2		(GCE_BASE_VA + 0x300C)
+#define GCE_DBG3		(GCE_BASE_VA + 0x3010)
 
 #define CMDQ_GPR_R32(id)		(GCE_BASE_VA + (0x004 * id) + 0x80)
 #define CMDQ_GPR_R32_PA(id)		(GCE_BASE_PA + (0x004 * id) + 0x80)
@@ -71,30 +87,44 @@
 #define CMDQ_THR_SPR2(id)		(GCE_BASE_VA + (0x080 * id) + 0x168)
 #define CMDQ_THR_SPR3(id)		(GCE_BASE_VA + (0x080 * id) + 0x16c)
 
+#define CMDQ_THR_SECURITY_PA(id)	(GCE_BASE_PA + (0x080 * id) + 0x118)
 #define CMDQ_THR_CURR_ADDR_PA(id)	(GCE_BASE_PA + (0x080 * id) + 0x120)
 #define CMDQ_THR_END_ADDR_PA(id)	(GCE_BASE_PA + (0x080 * id) + 0x124)
 #define CMDQ_THR_EXEC_CNT_PA(id)	(GCE_BASE_PA + (0x080 * id) + 0x128)
+#define CMDQ_THR_SPR0_PA(id)		(GCE_BASE_PA + (0x080 * id) + 0x160)
+#define CMDQ_THR_SPR1_PA(id)		(GCE_BASE_PA + (0x080 * id) + 0x164)
+#define CMDQ_THR_SPR2_PA(id)		(GCE_BASE_PA + (0x080 * id) + 0x168)
+#define CMDQ_THR_SPR3_PA(id)		(GCE_BASE_PA + (0x080 * id) + 0x16c)
 
+
+#define CMDQ_SECURITY_CTL_PA		(GCE_BASE_PA + 0x054)
 #define CMDQ_SYNC_TOKEN_ID_PA		(GCE_BASE_PA + 0x060)
 #define CMDQ_SYNC_TOKEN_VAL_PA		(GCE_BASE_PA + 0x064)
+#define CMDQ_PREFETCH_GSIZE_PA		(GCE_BASE_PA + 0x0C0)
 #define CMDQ_TPR_MASK_PA		(GCE_BASE_PA + 0x0D0)
 
 #define CMDQ_GCE_END_ADDR_PA		(GCE_BASE_PA + 0xC00)
 #define CMDQ_THR_FIX_END_ADDR(id)	(CMDQ_GCE_END_ADDR_PA | (id << 4))
 
-#ifdef CMDQ_APPEND_WITHOUT_SUSPEND
+#define CMDQ_CACHE_0_EN_LO_PA		(GCE_BASE_PA + 0x10D0)
+#define CMDQ_CACHE_0_EN_HI_PA		(GCE_BASE_PA + 0x10D4)
+#define CMDQ_CACHE_1_EN_LO_PA		(GCE_BASE_PA + 0x10D8)
+#define CMDQ_CACHE_1_EN_HI_PA		(GCE_BASE_PA + 0x10DC)
+#define CMDQ_TOKEN_0_EN_LO_PA		(GCE_BASE_PA + 0x10E0)
+#define CMDQ_TOKEN_0_EN_HI_PA		(GCE_BASE_PA + 0x10E4)
+#define CMDQ_TOKEN_1_EN_LO_PA		(GCE_BASE_PA + 0x10E8)
+#define CMDQ_TOKEN_1_EN_HI_PA		(GCE_BASE_PA + 0x10EC)
+
 #define CMDQ_IS_END_ADDR(addr)		(addr == 0)
-#define CMDQ_IS_END_INSTR(p_cmd_end)	(p_cmd_end[0] == 0 && p_cmd_end[-1] == 0)
-#else
-#define CMDQ_IS_END_ADDR(addr)		((addr & 0xFFFFFFC00) == CMDQ_GCE_END_ADDR_PA)
-#define CMDQ_IS_END_INSTR(p_cmd_end)	(p_cmd_end[0] == 0x10000001 && CMDQ_IS_END_ADDR(p_cmd_end[-1]))
-#endif
+#define CMDQ_IS_END_INSTR(p_cmd_end)	\
+	(p_cmd_end[0] == 0 && p_cmd_end[-1] == 0)
+#define CMDQ_IS_SRAM_ADDR(addr)		(((addr) & 0xFFFF) == (addr))
 
 #define CMDQ_REG_GET32(addr)		(readl((void *)addr) & 0xFFFFFFFF)
 #define CMDQ_REG_GET16(addr)		(readl((void *)addr) & 0x0000FFFF)
 
-#define CMDQ_REG_GET64_GPR_PX(id)	cmdq_core_get_GPR64(id)
-#define CMDQ_REG_SET64_GPR_PX(id, value)	cmdq_core_set_GPR64(id, value)
+#define CMDQ_REG_GET64_GPR_PX(id)	cmdq_core_get_gpr64(id)
+#define CMDQ_REG_SET64_GPR_PX(id, value)	cmdq_core_set_gpr64(id, value)
 
 #define CMDQ_GET_GPR_PX2RX_LOW(id)	((id & 0xf) * 2)
 #define CMDQ_GET_GPR_PX2RX_HIGH(id)	((id & 0xf) * 2 + 1)

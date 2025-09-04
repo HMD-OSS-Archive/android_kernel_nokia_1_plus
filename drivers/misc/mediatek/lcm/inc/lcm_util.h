@@ -19,17 +19,23 @@
 
 
 #if defined(MTK_LCM_DEVICE_TREE_SUPPORT)
-LCM_STATUS lcm_util_set_data(const LCM_UTIL_FUNCS *lcm_util, char type, LCM_DATA_T1 *t1);
-LCM_STATUS lcm_util_set_write_cmd_v1(const LCM_UTIL_FUNCS *lcm_util, LCM_DATA_T5 *t5,
-				     unsigned char force_update);
-LCM_STATUS lcm_util_set_write_cmd_v11(const LCM_UTIL_FUNCS *lcm_util, LCM_DATA_T5 *t5,
-					unsigned char force_update, void *cmdq);
-LCM_STATUS lcm_util_set_write_cmd_v2(const LCM_UTIL_FUNCS *lcm_util, LCM_DATA_T3 *t3,
-				     unsigned char force_update);
-LCM_STATUS lcm_util_set_write_cmd_v23(const LCM_UTIL_FUNCS *lcm_util, void *handle,
-				      LCM_DATA_T3 *t3, unsigned char force_update);
-LCM_STATUS lcm_util_set_read_cmd_v2(const LCM_UTIL_FUNCS *lcm_util, LCM_DATA_T4 *t4,
-				    unsigned int *compare);
+enum LCM_STATUS lcm_util_set_data(const struct LCM_UTIL_FUNCS *lcm_util,
+	char type, struct LCM_DATA_T1 *t1);
+enum LCM_STATUS lcm_util_set_write_cmd_v1(
+	const struct LCM_UTIL_FUNCS *lcm_util, struct LCM_DATA_T5 *t5,
+	unsigned char force_update);
+enum LCM_STATUS lcm_util_set_write_cmd_v11(
+	const struct LCM_UTIL_FUNCS *lcm_util, struct LCM_DATA_T5 *t5,
+	unsigned char force_update, void *cmdq);
+enum LCM_STATUS lcm_util_set_write_cmd_v2(
+	const struct LCM_UTIL_FUNCS *lcm_util, struct LCM_DATA_T3 *t3,
+	unsigned char force_update);
+enum LCM_STATUS lcm_util_set_write_cmd_v23(
+	const struct LCM_UTIL_FUNCS *lcm_util, void *handle,
+	struct LCM_DATA_T3 *t3, unsigned char force_update);
+enum LCM_STATUS lcm_util_set_read_cmd_v2(
+	const struct LCM_UTIL_FUNCS *lcm_util, struct LCM_DATA_T4 *t4,
+	unsigned int *compare);
 #endif
 
 #endif

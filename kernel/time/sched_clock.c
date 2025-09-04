@@ -13,6 +13,7 @@
 #include <linux/kernel.h>
 #include <linux/moduleparam.h>
 #include <linux/sched.h>
+#include <linux/sched/clock.h>
 #include <linux/syscore_ops.h>
 #include <linux/hrtimer.h>
 #include <linux/sched_clock.h>
@@ -307,9 +308,9 @@ static u64 notrace suspended_sched_clock_read(void)
 static int sched_clock_suspend(void)
 {
 	struct clock_read_data *rd = &cd.read_data[0];
+
 	update_sched_clock();
 	hrtimer_cancel(&sched_clock_timer);
-
 	rd->read_sched_clock = suspended_sched_clock_read;
 
 	/* snchronize new sched_clock base to co-processors */
@@ -322,13 +323,14 @@ static int sched_clock_suspend(void)
 static void sched_clock_resume(void)
 {
 	struct clock_read_data *rd = &cd.read_data[0];
-	rd->epoch_cyc = cd.actual_read_sched_clock();
 
+	rd->epoch_cyc = cd.actual_read_sched_clock();
 	hrtimer_start(&sched_clock_timer, cd.wrap_kt, HRTIMER_MODE_REL);
 	rd->read_sched_clock = cd.actual_read_sched_clock;
 
 	/* snchronize new sched_clock base to co-processors */
-	sys_timer_timesync_sync_base(SYS_TIMER_TIMESYNC_FLAG_SYNC);
+	sys_timer_timesync_sync_base(SYS_TIMER_TIMESYNC_FLAG_SYNC |
+		SYS_TIMER_TIMESYNC_FLAG_UNFREEZE);
 }
 
 static struct syscore_ops sched_clock_ops = {

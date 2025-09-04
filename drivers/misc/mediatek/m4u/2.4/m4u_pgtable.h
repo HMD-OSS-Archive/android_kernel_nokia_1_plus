@@ -41,8 +41,10 @@
 #define F_PTE_PA_SMALL_SET(val)       F_VAL(val, 31, 12)
 #define F_PTE_PA_SMALL_GET(regval)    F_MSK_SHIFT(regval, 31, 12)
 
-#define F_PTE_TYPE_IS_LARGE_PAGE(pte) ((imu_pte_val(pte)&0x3) == F_PTE_TYPE_LARGE)
-#define F_PTE_TYPE_IS_SMALL_PAGE(pte)   ((imu_pte_val(pte)&0x3) == F_PTE_TYPE_SMALL)
+#define F_PTE_TYPE_IS_LARGE_PAGE(pte) \
+	((imu_pte_val(pte)&0x3) == F_PTE_TYPE_LARGE)
+#define F_PTE_TYPE_IS_SMALL_PAGE(pte)   \
+	((imu_pte_val(pte)&0x3) == F_PTE_TYPE_SMALL)
 
 
 #define F_PGD_TYPE_PAGE         (0x1)
@@ -52,9 +54,13 @@
 #define F_PGD_TYPE_SECTION_MSK  (0x3|(1<<18))
 #define F_PGD_TYPE_IS_PAGE(pgd) ((imu_pgd_val(pgd)&3) == 1)
 #define F_PGD_TYPE_IS_SECTION(pgd) \
-	(F_PGD_TYPE_IS_PAGE(pgd) ? 0 : ((imu_pgd_val(pgd)&F_PGD_TYPE_SECTION_MSK) == F_PGD_TYPE_SECTION))
+	(F_PGD_TYPE_IS_PAGE(pgd) ? 0 : \
+	((imu_pgd_val(pgd)&F_PGD_TYPE_SECTION_MSK) == \
+		F_PGD_TYPE_SECTION))
 #define F_PGD_TYPE_IS_SUPERSECTION(pgd) \
-	(F_PGD_TYPE_IS_PAGE(pgd) ? 0 : ((imu_pgd_val(pgd)&F_PGD_TYPE_SECTION_MSK) == F_PGD_TYPE_SUPERSECTION))
+	(F_PGD_TYPE_IS_PAGE(pgd) ? \
+	0 : ((imu_pgd_val(pgd)&F_PGD_TYPE_SECTION_MSK) ==\
+	F_PGD_TYPE_SUPERSECTION))
 
 #define F_PGD_B_BIT             F_BIT_SET(2)
 #define F_PGD_C_BIT             F_BIT_SET(3)
@@ -84,7 +90,7 @@
 #define IMU_PAGE_SHIFT   12
 #define IMU_PTRS_PER_PGD 4096
 #define IMU_PTRS_PER_PTE 256
-#define IMU_BYTES_PER_PTE (IMU_PTRS_PER_PTE*sizeof(imu_pteval_t))
+#define IMU_BYTES_PER_PTE (IMU_PTRS_PER_PTE*sizeof(unsigned int))
 
 #define MMU_PT_TYPE_SUPERSECTION    (1<<4)
 #define MMU_PT_TYPE_SECTION         (1<<3)
@@ -96,15 +102,14 @@
 #define MMU_SECTION_SIZE        (SZ_1M)
 #define MMU_SUPERSECTION_SIZE  (SZ_16M)
 
-typedef unsigned int imu_pteval_t;
-typedef struct {imu_pteval_t imu_pte; } imu_pte_t;
-typedef struct {imu_pteval_t imu_pgd; } imu_pgd_t;
+struct imu_pte_t {unsigned int imu_pte; };
+struct imu_pgd_t {unsigned int imu_pgd; };
 
 #define imu_pte_val(x)      ((x).imu_pte)
 #define imu_pgd_val(x)      ((x).imu_pgd)
 
-#define __imu_pte(x)    ((imu_pte_t){(x)})
-#define __imu_pgd(x)    ((imu_pgd_t){(x)})
+#define __imu_pte(x)    ((struct imu_pte_t){(x)})
+#define __imu_pgd(x)    ((struct imu_pgd_t){(x)})
 
 #define imu_pte_none(pte)   (!imu_pte_val(pte))
 #define imu_pte_type(pte)   (imu_pte_val(pte)&0x3)
@@ -112,31 +117,35 @@ typedef struct {imu_pteval_t imu_pgd; } imu_pgd_t;
 #define imu_pgd_index(addr)		((addr) >> IMU_PGDIR_SHIFT)
 #define imu_pgd_offset(domain, addr) ((domain)->pgd + imu_pgd_index(addr))
 
-#define imu_pte_index(addr)		(((addr)>>IMU_PAGE_SHIFT)&(IMU_PTRS_PER_PTE - 1))
+#define imu_pte_index(addr)		\
+	(((addr)>>IMU_PAGE_SHIFT)&(IMU_PTRS_PER_PTE - 1))
 #define imu_pte_offset_map(pgd, addr) (imu_pte_map(pgd) + imu_pte_index(addr))
 
 extern int gM4U_4G_DRAM_Mode;
 
-static inline imu_pte_t *imu_pte_map(imu_pgd_t *pgd)
+static inline struct imu_pte_t *imu_pte_map(struct imu_pgd_t *pgd)
 {
-	imu_pteval_t pte_pa = imu_pgd_val(*pgd);
+	unsigned int pte_pa = imu_pgd_val(*pgd);
 
 	if (gM4U_4G_DRAM_Mode) {
 		if (pte_pa < 0x40000000)
-			return (imu_pte_t *)(__va((pte_pa & F_PGD_PA_PAGETABLE_MSK) + 0x100000000L));
+			return (struct imu_pte_t *)(
+			__va((pte_pa & F_PGD_PA_PAGETABLE_MSK) + 0x100000000L));
 		else
-			return (imu_pte_t *)(__va(pte_pa & F_PGD_PA_PAGETABLE_MSK));
+			return (struct imu_pte_t *)(
+			__va(pte_pa & F_PGD_PA_PAGETABLE_MSK));
 	} else
-		return (imu_pte_t *)(__va(pte_pa & F_PGD_PA_PAGETABLE_MSK));
+		return (struct imu_pte_t *)(
+			__va(pte_pa & F_PGD_PA_PAGETABLE_MSK));
 
 }
 
-static inline int imu_pte_unmap(imu_pte_t *pte)
+static inline int imu_pte_unmap(struct imu_pte_t *pte)
 {
 	return 0;
 }
 
-static inline unsigned int imu_pgd_entry_pa(imu_pgd_t pgd)
+static inline unsigned int imu_pgd_entry_pa(struct imu_pgd_t pgd)
 {
 	if (F_PGD_TYPE_IS_PAGE(pgd))
 		return imu_pgd_val(pgd) & F_PGD_PA_PAGETABLE_MSK;
@@ -148,19 +157,27 @@ static inline unsigned int imu_pgd_entry_pa(imu_pgd_t pgd)
 		return 0;
 }
 
-static inline imu_pgd_t *imu_supersection_start(imu_pgd_t *pgd)
+static inline struct imu_pgd_t *imu_supersection_start(
+	struct imu_pgd_t *pgd)
 {
-	return (imu_pgd_t *) (round_down((unsigned long)pgd, (16 * 4)));
+	return (struct imu_pgd_t *) (
+		round_down((unsigned long)pgd, (16 * 4)));
 }
-static inline imu_pte_t *imu_largepage_start(imu_pte_t *pte)
+static inline struct imu_pte_t *imu_largepage_start(
+		struct imu_pte_t *pte)
 {
-	return (imu_pte_t *) (round_down((unsigned long)pte, (16 * 4)));
+	return (struct imu_pte_t *) (
+			round_down((unsigned long)pte, (16 * 4)));
 }
 
-static inline unsigned long long m4u_calc_next_mva(unsigned long long addr, unsigned long long end, unsigned int size)
+static inline unsigned long long m4u_calc_next_mva(
+	unsigned long long addr,
+	unsigned long long end, unsigned int size)
 {
 	/* addr + size may equal 0x100000000*/
-	unsigned long long __boundary = (addr + (unsigned long long)size) & (~((unsigned long long)size-1));
+	unsigned long long __boundary =
+		(addr + (unsigned long long)size) &
+		(~((unsigned long long)size-1));
 	unsigned long long min = min_t(unsigned long long, __boundary, end);
 
 	return min;

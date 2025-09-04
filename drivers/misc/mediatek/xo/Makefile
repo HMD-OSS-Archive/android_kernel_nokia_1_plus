@@ -10,5 +10,8 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
-obj-$(CONFIG_MACH_MT8167) := xo.o
-ccflags-y += -I$(srctree)/include/linux/
+
+# Makefile for XO module which used by MT8167/MT8516/MT8511
+
+obj-$(CONFIG_MTK_XO) := xo.o
+

@@ -1,125 +1,24 @@
 /*
- *  mtk_auxadc_intf.c
- *  Mediatek PMIC AUXADC Interface Driver
- *
- *  Copyright (C) 2015 Richtek Technology Corp.
- *  Jeff Chang <jeff_chang@richtek.com>
- *
+ * Copyright (C) 2017 MediaTek Inc.
+
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
+ * published by the Free Software Foundation.
+
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/err.h>
 #include <linux/platform_device.h>
+#include <mach/mtk_pmic.h>
 #include <mt-plat/mtk_auxadc_intf.h>
 
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6336
-#include "include/mt6336/mt6336.h"
-
-struct mt6336_ctrl *auxadc_intf_ctrl;
-#endif
-
 static struct mtk_auxadc_intf *auxadc_intf;
-
-const char *pmic_auxadc_channel_name[] = {
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6335
-	/* mt6335 */
-	"BATADC",
-	"VCDT",
-	"BAT TEMP",
-	"BATID",
-	"VBIF",
-	"MT6335 CHIP TEMP",
-	"DCXO",
-	"TSX",
-#endif
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6336
-	/* mt6336 */
-	"BATSNS",
-	"VBUS",
-	"BAT TEMP",
-	"MT6336 CHIP TEMP",
-	"TYPEC CC DETECT",
-	"BATID",
-	"VLED1",
-	"VLED2",
-#endif
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6337
-	/* mt6337 */
-	"BATSNS",
-	"MT6337 CHIP TEMP",
-	"ACCDET",
-	"HPOPS_CAL",
-#endif
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6355
-	/* mt6355 */
-	"BATADC",
-	"VCDT",
-	"BAT TEMP",
-	"BATID",
-	"VBIF",
-	"MT6355 CHIP TEMP",
-	"DCXO",
-	"ACCDET",
-	"TSX",
-	"HP",
-#endif
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6356
-	/* mt6356 */
-	"BATADC",
-	"VCDT",
-	"BAT TEMP",
-	"BATID",
-	"VBIF",
-	"MT6356 CHIP TEMP",
-	"DCXO",
-	"ACCDET",
-	"TSX",
-	"HP",
-	"ISENSE",
-	"BUCK1_TEMP",
-	"BUCK2_TEMP",
-#endif
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6357
-	/* mt6357 */
-	"BATADC",
-	"VCDT",
-	"BAT TEMP",
-	"BATID",
-	"VBIF",
-	"MT6357 CHIP TEMP",
-	"DCXO",
-	"ACCDET",
-	"TSX",
-	"HP",
-	"ISENSE",
-	"BUCK1_TEMP",
-	"BUCK2_TEMP",
-#endif
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6358
-	/* mt6358 */
-	"BATADC",
-	"VCDT",
-	"BAT TEMP",
-	"BATID",
-	"VBIF",
-	"CHIP TEMP",
-	"DCXO",
-	"ACCDET",
-	"TSX",
-	"HP",
-	"ISENSE",
-	"VCORE_TEMP",
-	"VPROC_TEMP",
-	"VGPU_TEMP",
-	"DCXO voltage",
-#endif
-};
-#define PMIC_AUXADC_CHANNEL_MAX	ARRAY_SIZE(pmic_auxadc_channel_name)
 
 const char *pmic_get_auxadc_name(u8 list)
 {
@@ -130,82 +29,13 @@ EXPORT_SYMBOL(pmic_get_auxadc_name);
 int pmic_get_auxadc_value(u8 list)
 {
 	int value = 0;
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6335
-	if (list >= AUXADC_LIST_MT6335_START &&
-				list <= AUXADC_LIST_MT6335_END) {
-		value = mt6335_get_auxadc_value(list);
-		return value;
-	}
-#endif /* CONFIG_MTK_PMIC_CHIP_MT6335 */
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6336
-	if (list >= AUXADC_LIST_MT6336_START &&
-			list <= AUXADC_LIST_MT6336_END) {
-		mt6336_ctrl_enable(auxadc_intf_ctrl);
-		value = mt6336_get_auxadc_value(list);
-		mt6336_ctrl_disable(auxadc_intf_ctrl);
-		return value;
-	}
-#endif /* CONFIG_MTK_PMIC_CHIP_MT6336 */
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6337
-	if (list >= AUXADC_LIST_MT6337_START &&
-			list <= AUXADC_LIST_MT6337_END) {
-		value = mt6337_get_auxadc_value(list);
-		return value;
-	}
-#endif /* CONFIG_MTK_PMIC_CHIP_MT6337 */
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6355
-	if (list >= AUXADC_LIST_MT6355_START &&
-			list <= AUXADC_LIST_MT6355_END) {
-		value = mt6355_get_auxadc_value(list);
-		return value;
-	}
-#endif /* CONFIG_MTK_PMIC_CHIP_MT6355 */
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6356
-	if (list >= AUXADC_LIST_MT6356_START &&
-			list <= AUXADC_LIST_MT6356_END) {
-		value = mt6356_get_auxadc_value(list);
-		return value;
-	}
-#endif /* CONFIG_MTK_PMIC_CHIP_MT6356 */
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6357
-	if (list >= AUXADC_LIST_MT6357_START &&
-			list <= AUXADC_LIST_MT6357_END) {
-		value = mt6357_get_auxadc_value(list);
-		return value;
-	}
-#endif /* CONFIG_MTK_PMIC_CHIP_MT6357 */
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6358
-	if (list >= AUXADC_LIST_MT6358_START &&
-			list <= AUXADC_LIST_MT6358_END) {
-		value = mt6358_get_auxadc_value(list);
-		return value;
-	}
-#endif /* CONFIG_MTK_PMIC_CHIP_MT6358 */
-	pr_err("%s Invalid AUXADC LIST\n", __func__);
-	return -EINVAL;
-}
 
-void pmic_auxadc_dump_regs(char *buf)
-{
-	snprintf(buf+strlen(buf), 1024, "====%s====\n", __func__);
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6335
-	mt6335_auxadc_dump_regs(buf);
-#endif /* CONFIG_MTK_PMIC_CHIP_MT6335*/
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6336
-	mt6336_auxadc_dump_regs(buf);
-#endif /* CONFIG_MTK_PMIC_CHIP_MT6336 */
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6337
-	mt6337_auxadc_dump_regs(buf);
-#endif /* CONFIG_MTK_PMIC_CHIP_MT6337 */
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6355
-	mt6355_auxadc_dump_regs(buf);
-#endif /* CONFIG_MTK_PMIC_CHIP_MT6355 */
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6356
-	mt6356_auxadc_dump_regs(buf);
-#endif /* CONFIG_MTK_PMIC_CHIP_MT6356 */
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6357
-	mt6357_auxadc_dump_regs(buf);
-#endif /* CONFIG_MTK_PMIC_CHIP_MT6357 */
+	if (list >= AUXADC_LIST_START && list <= AUXADC_LIST_END) {
+		value = mt_get_auxadc_value(list);
+		return value;
+	}
+	pr_info("%s Invalid AUXADC LIST\n", __func__);
+	return -EINVAL;
 }
 
 static struct mtk_auxadc_ops pmic_auxadc_ops = {
@@ -216,7 +46,6 @@ static struct mtk_auxadc_ops pmic_auxadc_ops = {
 static struct mtk_auxadc_intf pmic_auxadc_intf = {
 	.ops = &pmic_auxadc_ops,
 	.name = "mtk_auxadc_intf",
-	.channel_num = PMIC_AUXADC_CHANNEL_MAX,
 	.channel_name = pmic_auxadc_channel_name,
 };
 
@@ -230,30 +59,14 @@ EXPORT_SYMBOL(register_mtk_auxadc_intf);
 
 void mtk_auxadc_init(void)
 {
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6335
-	mt6335_auxadc_init();
-#endif /* CONFIG_MTK_PMIC_CHIP_MT6335 */
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6336
-	mt6336_auxadc_init();
-#endif /* CONFIG_MTK_PMIC_CHIP_MT6336 */
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6337
-	mt6337_auxadc_init();
-#endif /* CONFIG_MTK_PMIC_CHIP_MT6337 */
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6355
-	mt6355_auxadc_init();
-#endif /* CONFIG_MTK_PMIC_CHIP_MT6355 */
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6356
-	mt6356_auxadc_init();
-#endif /* CONFIG_MTK_PMIC_CHIP_MT6356 */
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6357
-	mt6357_auxadc_init();
-#endif /* CONFIG_MTK_PMIC_CHIP_MT6357 */
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6358
-	mt6358_auxadc_init();
-#endif /* CONFIG_MTK_PMIC_CHIP_MT6358 */
+#if 0
+	pmic_auxadc_init();
+#endif
+
+	pmic_auxadc_intf.channel_num = pmic_get_auxadc_channel_max();
 
 	if (register_mtk_auxadc_intf(&pmic_auxadc_intf) < 0)
-		pr_err("[%s] register MTK Auxadc Intf Fail\n", __func__);
+		pr_notice("[%s] register MTK Auxadc Intf Fail\n", __func__);
 }
 
 static ssize_t mtk_auxadc_store(struct device *dev,
@@ -303,7 +116,7 @@ static ssize_t mtk_auxadc_store(struct device *dev,
 	case AUXADC_CHANNEL:
 		ret = get_parameters((char *)buf, &val, 1);
 		if (ret < 0) {
-			dev_err(dev, "get parameter fail\n");
+			pr_notice("get parameter fail\n");
 			return -EINVAL;
 		}
 		auxadc_intf->dbg_chl = val;
@@ -341,19 +154,17 @@ static ssize_t mtk_auxadc_show(struct device *dev,
 			256, "==== Channel Dump End ====\n");
 		break;
 	case AUXADC_CHANNEL:
-		snprintf(buf + strlen(buf), 256, "%d (%s)\n",
-				auxadc_intf->dbg_chl,
-				auxadc_intf->
-				channel_name[auxadc_intf->dbg_chl]);
+		snprintf(buf + strlen(buf), 256, "%d (%s)\n"
+			, auxadc_intf->dbg_chl
+			, auxadc_intf->channel_name[auxadc_intf->dbg_chl]);
 		break;
 	case AUXADC_VALUE:
-		value = auxadc_intf->ops->
-			get_channel_value(auxadc_intf->dbg_chl);
-		snprintf(buf + strlen(buf),
-			256, "Channel%d (%s) = 0x%x(%d)\n",
-			auxadc_intf->dbg_chl,
-			auxadc_intf->channel_name[auxadc_intf->dbg_chl],
-				value, value);
+		value = auxadc_intf->ops->get_channel_value(
+				auxadc_intf->dbg_chl);
+		snprintf(buf + strlen(buf), 256, "Channel%d (%s) = 0x%x(%d)\n"
+			 , auxadc_intf->dbg_chl
+			 , auxadc_intf->channel_name[auxadc_intf->dbg_chl]
+			 , value, value);
 		break;
 	case AUXADC_REGS:
 		auxadc_intf->ops->dump_regs(buf);
@@ -392,12 +203,9 @@ static int mtk_auxadc_intf_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, auxadc_intf);
 	ret = create_sysfs_interface(&pdev->dev);
 	if (ret < 0) {
-		pr_err("%s create sysfs fail\n", __func__);
+		pr_notice("%s create sysfs fail\n", __func__);
 		return -EINVAL;
 	}
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6336
-	auxadc_intf_ctrl = mt6336_ctrl_get("auxadc_intf");
-#endif /* CONFIG_MTK_PMIC_CHIP_MT6336 */
 
 	return 0;
 }

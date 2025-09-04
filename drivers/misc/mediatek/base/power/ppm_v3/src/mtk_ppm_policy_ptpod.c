@@ -75,8 +75,10 @@ void mt_ppm_ptpod_policy_deactivate(void)
 
 		/* restore to default setting */
 		for (i = 0; i < ptpod_policy.req.cluster_num; i++) {
-			ptpod_policy.req.limit[i].min_cpufreq_idx = get_cluster_min_cpufreq_idx(i);
-			ptpod_policy.req.limit[i].max_cpufreq_idx = get_cluster_max_cpufreq_idx(i);
+			ptpod_policy.req.limit[i].min_cpufreq_idx =
+				get_cluster_min_cpufreq_idx(i);
+			ptpod_policy.req.limit[i].max_cpufreq_idx =
+				get_cluster_max_cpufreq_idx(i);
 		}
 
 		ppm_unlock(&ptpod_policy.lock);
@@ -111,10 +113,10 @@ static int ppm_ptpod_test_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-static ssize_t ppm_ptpod_test_proc_write(struct file *file, const char __user *buffer,
-					size_t count, loff_t *pos)
+static ssize_t ppm_ptpod_test_proc_write(struct file *file,
+	const char __user *buffer, size_t count, loff_t *pos)
 {
-	unsigned int enabled;
+	unsigned int enabled = 0;
 
 	char *buf = ppm_copy_from_user_for_proc(buffer, count);
 
@@ -156,8 +158,10 @@ static int __init ppm_ptpod_policy_init(void)
 
 	/* create procfs */
 	for (i = 0; i < ARRAY_SIZE(entries); i++) {
-		if (!proc_create(entries[i].name, S_IRUGO | S_IWUSR | S_IWGRP, policy_dir, entries[i].fops)) {
-			ppm_err("%s(), create /proc/ppm/policy/%s failed\n", __func__, entries[i].name);
+		if (!proc_create(entries[i].name, 0644,
+			policy_dir, entries[i].fops)) {
+			ppm_err("%s(), create /proc/ppm/policy/%s failed\n",
+				__func__, entries[i].name);
 			ret = -EINVAL;
 			goto out;
 		}

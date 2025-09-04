@@ -1,15 +1,15 @@
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ * Copyright (C) 2016 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ */
 
 #include <linux/completion.h>
 
@@ -45,7 +45,8 @@ struct ring_ctrl {
 	unsigned int rcnt; /* deque */
 	unsigned int icnt; /* IRQ ringing counter w/o reset */
 	unsigned int gcnt; /* GCE */
-	unsigned int size; /* init MAX_REQUEST_SIZE_PER_ENGINE MAX_FRAMES_PER_REQUEST */
+	unsigned int size;
+	/* init MAX_REQUEST_SIZE_PER_ENGINE MAX_FRAMES_PER_REQUEST */
 };
 
 struct frame {
@@ -89,9 +90,10 @@ signed int request_handler(struct engine_requests *eng, spinlock_t *lock);
 /*TODO: APIs to manipulate requests  */
 int set_engine_ops(struct engine_requests *eng, const struct engine_ops *ops);
 
-signed int enque_request(struct engine_requests *eng, unsigned int fcnt, void *req, pid_t pid);
-signed int deque_request(struct engine_requests *eng, unsigned int *fcnt, void *req);
-
+signed int enque_request(struct engine_requests *eng, unsigned int fcnt,
+							void *req, pid_t pid);
+signed int deque_request(struct engine_requests *eng, unsigned int *fcnt,
+								void *req);
 int update_request(struct engine_requests *eng, pid_t *pid);
 bool request_running(struct engine_requests *eng);
 

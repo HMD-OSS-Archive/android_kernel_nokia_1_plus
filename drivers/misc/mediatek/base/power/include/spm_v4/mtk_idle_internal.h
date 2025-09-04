@@ -13,7 +13,7 @@
 
 #ifndef __MTK_IDLE_INTERNAL_H__
 #define __MTK_IDLE_INTERNAL_H__
-#include "mtk_idle_mcdi.h"
+#include "mtk_idle.h"
 
 /*
  * Chip specific declaratinos
@@ -75,13 +75,16 @@ extern unsigned int soidle3_pll_condition_mask[NR_PLLS];
  * Function Declarations
  */
 const char *mtk_get_idle_name(int id);
-const char *mtk_get_reason_name(int);
+const char *mtk_get_reason_name(int id);
 const char *mtk_get_cg_group_name(int id);
 const char *mtk_get_pll_group_name(int id);
 
-bool mtk_idle_check_cg(unsigned int block_mask[NR_TYPES][NF_CG_STA_RECORD]);
-bool mtk_idle_check_secure_cg(unsigned int block_mask[NR_TYPES][NF_CG_STA_RECORD]);
-bool mtk_idle_check_pll(unsigned int *condition_mask, unsigned int *block_mask);
+bool mtk_idle_check_cg(
+	unsigned int block_mask[NR_TYPES][NF_CG_STA_RECORD]);
+bool mtk_idle_check_secure_cg(
+	unsigned int block_mask[NR_TYPES][NF_CG_STA_RECORD]);
+bool mtk_idle_check_pll(
+	unsigned int *condition_mask, unsigned int *block_mask);
 bool mtk_idle_check_clkmux(int idle_type,
 		unsigned int block_mask[NR_TYPES][NF_CLK_CFG]);
 bool mtk_idle_check_vcore_cond(void);

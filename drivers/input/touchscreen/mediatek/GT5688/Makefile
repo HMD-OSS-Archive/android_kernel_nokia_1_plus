@@ -11,4 +11,3 @@ obj-y	+=  gt1x_generic.o
 obj-y	+=  gt1x_tools.o
 obj-y	+=  gt1x_tpd.o
 obj-y	+=  gt1x_update.o
-

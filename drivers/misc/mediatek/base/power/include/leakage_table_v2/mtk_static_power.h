@@ -33,12 +33,28 @@
 #include "mtk_static_power_mt6739.h"
 #endif
 
+#if defined(CONFIG_MACH_MT6765)
+#include "mtk_static_power_mt6765.h"
+#endif
+
 #if defined(CONFIG_MACH_MT6771)
 #include "mtk_static_power_mt6771.h"
 #endif
 
 #if defined(CONFIG_MACH_MT6775)
 #include "mtk_static_power_mt6775.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6768)
+#include "mtk_static_power_mt6768.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6785)
+#include "mtk_static_power_mt6785.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6885)
+#include "mtk_static_power_mt6885.h"
 #endif
 
 /*
@@ -54,7 +70,7 @@
  * @r:	Range in the form of MSB:LSB
  */
 #define BITMASK(r)	\
-	(((unsigned) -1 >> (31 - MSB(r))) & ~((1U << LSB(r)) - 1))
+	(((unsigned int) -1 >> (31 - MSB(r))) & ~((1U << LSB(r)) - 1))
 
 /**
  * Set value at MSB:LSB. For example, BITS(7:3, 0x5A)
@@ -64,7 +80,8 @@
 /* BITS(MSB:LSB, value) => Set value at MSB:LSB  */
 #define BITS(r, val)	((val << LSB(r)) & BITMASK(r))
 
-#define GET_BITS_VAL(_bits_, _val_)   (((_val_) & (BITMASK(_bits_))) >> ((0) ? _bits_))
+#define GET_BITS_VAL(_bits_, _val_) \
+	(((_val_) & (BITMASK(_bits_))) >> ((0) ? _bits_))
 
 extern u32 get_devinfo_with_index(u32 index);
 

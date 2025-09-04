@@ -12,17 +12,16 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
-
+/dts-v1/;
 #include <dt-bindings/clock/mt6739-clk.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/mmc/mt6739-msdc.h>
 #include <dt-bindings/pinctrl/mt6739-pinfunc.h>
+#include <dt-bindings/gce/mt6739-gce.h>
+#include <dt-bindings/iio/mt635x-auxadc.h>
+#include <dt-bindings/mfd/mt6357-irq.h>
 #include <generated/autoconf.h>
-
-#ifdef CONFIG_MTK_DTBO_FEATURE
-/dts-v1/;
-#endif
 
 / {
 	model = "mt6739";
@@ -33,10 +32,11 @@
 
 	/* chosen */
 	chosen: chosen {
-		bootargs = "console=tty0 console=ttyMT3,921600n1 \
-vmalloc=496M slub_max_order=0 slub_debug=OFZPU \
-androidboot.hardware=mt6739 maxcpus=8 \
-firmware_class.path=/vendor/firmware loop.max_part=7";
+		bootargs = "console=tty0 console=ttyMT3,921600n1 vmalloc=400M \
+			slub_debug=OFZPU page_owner=on swiotlb=noforce \
+			cgroup.memory=nosocket,nokmem \
+			androidboot.hardware=mt6739 maxcpus=8 \
+			firmware_class.path=/vendor/firmware loop.max_part=7";
 	};
 
 
@@ -229,18 +229,6 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		#size-cells = <2>;
 		ranges;
 		/*TODO: add reserved memory node here*/
-		pstore-reserved-memory@44410000 {
-			compatible = "mediatek,pstore";
-			reg = <0 0x44410000 0 0xe0000>;
-		};
-		ram_console-reserved-memory@44400000 {
-			compatible = "mediatek,ram_console";
-			reg = <0 0x44400000 0 0x10000>;
-		};
-		minirdump-reserved-memory@444f0000{
-			compatible = "mediatek,minirdump";
-			reg = <0 0x444f0000 0 0x10000>;
-		};
 		consys-reserve-memory {
 			compatible = "mediatek,consys-reserve-memory";
 			#address-cells = <2>;
@@ -255,6 +243,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 			compatible = "microtrust,shared_mem";
 			no-map;
 			size = <0 0x200000>;
+			alignment = <0 0x200000>;
 			alloc-ranges = <0 0x40000000 0 0x50000000>;
 		};
 #endif
@@ -336,7 +325,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		clock-frequency = <32000>;
 	};
 
-	io_cfg_lt@10002000 {
+	io_cfg_lt: io_cfg_lt@10002000 {
 		compatible = "mediatek,io_cfg_lt";
 		reg = <0 0x10002000 0 0x200>;
 	};
@@ -346,7 +335,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		reg = <0 0x10002000 0 0x1000>;
 	};
 
-	io_cfg_lm@10002200 {
+	io_cfg_lm: io_cfg_lm@10002200 {
 		compatible = "mediatek,io_cfg_lm";
 		reg = <0 0x10002200 0 0x200>;
 	};
@@ -356,7 +345,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		reg = <0 0x10002200 0 0x1000>;
 	};
 
-	io_cfg_lb@10002400 {
+	io_cfg_lb: io_cfg_lb@10002400 {
 		compatible = "mediatek,io_cfg_lb";
 		reg = <0 0x10002400 0 0x200>;
 	};
@@ -366,7 +355,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		reg = <0 0x10002400 0 0x1000>;
 	};
 
-	io_cfg_bl@10002600 {
+	io_cfg_bl: io_cfg_bl@10002600 {
 		compatible = "mediatek,io_cfg_bl";
 		reg = <0 0x10002600 0 0x200>;
 	};
@@ -376,7 +365,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		reg = <0 0x10002600 0 0x1000>;
 	};
 
-	io_cfg_bm@10002800 {
+	io_cfg_bm: io_cfg_bm@10002800 {
 		compatible = "mediatek,io_cfg_bm";
 		reg = <0 0x10002800 0 0x200>;
 	};
@@ -386,7 +375,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		reg = <0 0x10002800 0 0x1000>;
 	};
 
-	io_cfg_rb@10002a00 {
+	io_cfg_rb: io_cfg_rb@10002a00 {
 		compatible = "mediatek,io_cfg_rb";
 		reg = <0 0x10002a00 0 0x200>;
 	};
@@ -396,7 +385,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		reg = <0 0x10002a00 0 0x1000>;
 	};
 
-	io_cfg_rt@10002c00 {
+	io_cfg_rt: io_cfg_rt@10002c00 {
 		compatible = "mediatek,io_cfg_rt";
 		reg = <0 0x10002c00 0 0x200>;
 	};
@@ -433,21 +422,41 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 
 	accdet: accdet {
 		compatible = "mediatek,pmic-accdet";
+		/* ACCDET GPIO standardization for AP EINT */
+		/*
+		 * pinctrl-names = "default", "state_eint_as_int";
+		 * pinctrl-0 = <&accdet_pins_default>;
+		 * pinctrl-1 = <&accdet_pins_eint_as_int>;
+		 */
 	};
+	/*
+	 *&pio {
+	 *	accdet_pins_default: accdetdefault {
+	 *	};
+	 *	accdet_pins_eint_as_int: accdeteint@0 {
+	 *		pins_cmd_dat {
+	 *			pinmux = <PINMUX_GPIO9__FUNC_GPIO9>;
+	 *			slew-rate = <0>;
+	 *			bias-disable;
+	 *		};
+	 *	};
+	 *};
+	 */
 
-	pio: pinctrl@1000b000 {
-		compatible = "mediatek,pinctrl";
-		reg = <0 0x1000b000 0 0x1000>;
-		mediatek,pctl-regmap = <&syscfg_pctl_a>,
-				       <&syscfg_pctl_lt>,
-				       <&syscfg_pctl_lm>,
-				       <&syscfg_pctl_lb>,
-				       <&syscfg_pctl_bl>,
-				       <&syscfg_pctl_bm>,
-				       <&syscfg_pctl_rb>,
-				       <&syscfg_pctl_rt>;
+	pio: 1000b000.pinctrl {
+		compatible = "mediatek,mt6739-pinctrl";
+		reg_bases = <&gpio>,
+			    <&io_cfg_lt>,
+			    <&io_cfg_lm>,
+			    <&io_cfg_lb>,
+			    <&io_cfg_bl>,
+			    <&io_cfg_bm>,
+			    <&io_cfg_rb>,
+			    <&io_cfg_rt>;
+		reg_base_eint = <&eint>;
 		pins-are-numbered;
 		gpio-controller;
+		gpio-ranges = <&pio 0 0 168>;
 		#gpio-cells = <2>;
 		interrupt-controller;
 		#interrupt-cells = <4>;
@@ -481,6 +490,12 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		interrupts = <GIC_SPI 181 IRQ_TYPE_LEVEL_LOW>;
 	};
 
+	eint: apirq@1000b000 {
+		compatible = "mediatek,apirq";
+		reg = <0 0x1000b000 0 0x1000>;
+		interrupts = <GIC_SPI 167 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
 	apmixed: apmixed@1000c000 {
 		compatible = "mediatek,apmixed",
 			     "mediatek,apmixedsys", "syscon";
@@ -493,14 +508,24 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		reg = <0 0x1000ce00 0 0x100>;
 	};
 
-	pwrap@1000d000 {
-		compatible = "mediatek,pwrap";
+	pwrap: pwrap@1000d000 {
+		compatible = "mediatek,mt6739-pwrap";
 		reg = <0 0x1000d000 0 0x1000>;
+		reg-names = "pwrap";
 		interrupts = <GIC_SPI 175 IRQ_TYPE_LEVEL_HIGH>;
-		main_pmic: pmic_irq {
-			compatible = "mediatek,pmic-eint";
-			interrupt-controller;
+		clocks = <&clk26m>, <&clk26m>;
+		clock-names = "spi", "wrap";
+
+		main_pmic: mt6357-pmic {
+			interrupt-parent = <&pio>;
+			interrupts = <182 IRQ_TYPE_LEVEL_HIGH 182 0>;
+			status = "okay";
 		};
+	};
+
+	pwraph: pwraphal@ {
+		compatible = "mediatek,pwraph";
+		mediatek,pwrap-regmap = <&pwrap>;
 	};
 
 	sleep_reg_md@1000f000 {
@@ -600,36 +625,6 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		reg = <0 0x1001e000 0 0x1000>;
 	};
 
-	iocfg_0@10002000 {
-		compatible = "mediatek,iocfg_0";
-		reg = <0 0x10002000 0 0x200>;
-	};
-
-	iocfg_1@10002200 {
-		compatible = "mediatek,iocfg_1";
-		reg = <0 0x10002200 0 0x200>;
-	};
-
-	iocfg_2@10002400 {
-		compatible = "mediatek,iocfg_2";
-		reg = <0 0x10002400 0 0x200>;
-	};
-
-	iocfg_3@10002600 {
-		compatible = "mediatek,iocfg_3";
-		reg = <0 0x10002600 0 0x200>;
-	};
-
-	iocfg_4@10002800 {
-		compatible = "mediatek,iocfg_4";
-		reg = <0 0x10002800 0 0x200>;
-	};
-
-	iocfg_5@10002a00 {
-		compatible = "mediatek,iocfg_5";
-		reg = <0 0x10002a00 0 0x200>;
-	};
-
 	mdcldmain_ao@10015000 {
 		compatible = "mediatek,mdcldmain_ao";
 		reg = <0 0x10015000 0 0x400>;
@@ -715,10 +710,8 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		reg = <0 0x1020e000 0 0x1000>;
 	};
 
-	trng@1020f000 {
-		compatible = "mediatek,trng";
-		reg = <0 0x1020f000 0 0x1000>;
-		interrupts = <GIC_SPI 161 IRQ_TYPE_LEVEL_LOW>;
+	hwrng: hwrng {
+		compatible = "mediatek,mt67xx-rng";
 	};
 
 	dxcc_sec@10210000 {
@@ -877,6 +870,20 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		interrupts = <GIC_SPI 163 IRQ_TYPE_LEVEL_LOW>;
 	};
 
+	gce_mbox: gce_mbox@10228000 {
+		compatible = "mediatek,mailbox-gce";
+		reg = <0 0x10228000 0 0x4000>;
+		interrupts = <GIC_SPI 154 IRQ_TYPE_LEVEL_LOW>;
+		#mbox-cells = <3>;
+		#gce-event-cells = <1>;
+		#gce-subsys-cells = <2>;
+		max_prefetch_cnt = <1>;
+		prefetch_size = <96>;
+		clocks = <&infracfg_ao CLK_INFRA_GCE>,
+			<&infracfg_ao CLK_INFRA_GCE_26M>;
+		clock-names = "gce", "gce-timer";
+	};
+
 	gce@10228000 {
 		compatible = "mediatek,gce";
 		reg = <0 0x10228000 0 0x4000>;
@@ -995,6 +1002,23 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		sram_share_cnt = <1>;
 		sram_share_engine = <8>;
 		sram_share_event = <710>;
+		mediatek,mailbox-gce = <&gce_mbox>;
+		mboxes = <&gce_mbox 0 0 CMDQ_THR_PRIO_4>,
+			<&gce_mbox 1 0 CMDQ_THR_PRIO_4>,
+			<&gce_mbox 2 0 CMDQ_THR_PRIO_5>,
+			<&gce_mbox 3 0 CMDQ_THR_PRIO_4>,
+			<&gce_mbox 4 0 CMDQ_THR_PRIO_4>,
+			<&gce_mbox 5 0 CMDQ_THR_PRIO_4>,
+			<&gce_mbox 6 0 CMDQ_THR_PRIO_4>,
+			<&gce_mbox 7 CMDQ_NO_TIMEOUT CMDQ_THR_PRIO_2>,
+			<&gce_mbox 8 0 CMDQ_THR_PRIO_1>,
+			<&gce_mbox 9 0 CMDQ_THR_PRIO_1>,
+			<&gce_mbox 10 0 CMDQ_THR_PRIO_1>,
+			<&gce_mbox 11 0 CMDQ_THR_PRIO_1>,
+			<&gce_mbox 12 0 CMDQ_THR_PRIO_1>,
+			<&gce_mbox 13 0 CMDQ_THR_PRIO_1>,
+			<&gce_mbox 14 0 CMDQ_THR_PRIO_1>,
+			<&gce_mbox 15 0 CMDQ_THR_PRIO_1>;
 		clocks = <&infracfg_ao CLK_INFRA_GCE>, <&infracfg_ao CLK_INFRA_GCE_26M>;
 		clock-names = "GCE", "GCE_TIMER";
 	};
@@ -1252,8 +1276,19 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 			"PWM-main";
 	};
 
+	i2c_common: i2c_common {
+		compatible = "mediatek,i2c_common";
+		dma_support = /bits/ 8 <1>;
+		idvfs = /bits/ 8 <0>;
+		set_dt_div = /bits/ 8 <1>;
+		check_max_freq = /bits/ 8 <1>;
+		set_ltiming = /bits/ 8 <1>;
+		set_aed = /bits/ 8 <1>;
+		ext_time_config = /bits/ 16 <0x1801>;
+	};
+
 	i2c0: i2c@11007000 {
-		compatible = "mediatek,mt6739-i2c";
+		compatible = "mediatek,i2c";
 		id = <0>;
 		reg = <0 0x11007000 0 0x1000>,
 			<0 0x11000100 0 0x80>;
@@ -1266,7 +1301,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 	};
 
 	i2c1: i2c@11008000 {
-		compatible = "mediatek,mt6739-i2c";
+		compatible = "mediatek,i2c";
 		id = <1>;
 		reg = <0 0x11008000 0 0x1000>,
 			<0 0x11000180 0 0x80>;
@@ -1278,7 +1313,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 	};
 
 	i2c2: i2c@11009000 {
-		compatible = "mediatek,mt6739-i2c";
+		compatible = "mediatek,i2c";
 		id = <2>;
 		reg = <0 0x11009000 0 0x1000>,
 			<0 0x11000200 0 0x80>;
@@ -1290,7 +1325,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 	};
 
 	i2c3: i2c@1100f000 {
-		compatible = "mediatek,mt6739-i2c";
+		compatible = "mediatek,i2c";
 		id = <3>;
 		reg = <0 0x1100f000 0 0x1000>,
 			<0 0x11000280 0 0x80>;
@@ -1302,7 +1337,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 	};
 
 	i2c4: i2c@11011000 {
-		compatible = "mediatek,mt6739-i2c";
+		compatible = "mediatek,i2c";
 		id = <4>;
 		reg = <0 0x11011000 0 0x1000>,
 			<0 0x11000300 0 0x80>;
@@ -1314,7 +1349,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 	};
 
 	i2c5: i2c@11016000 {
-		compatible = "mediatek,mt6739-i2c";
+		compatible = "mediatek,i2c";
 		id = <5>;
 		reg = <0 0x11016000 0 0x1000>,
 			<0 0x11000380 0 0x80>;
@@ -1494,21 +1529,12 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 			"usb0_clk_univpll3_d4";
 	};
 
-	btcvsd@10001000 {
-		compatible = "mediatek,audio_bt_cvsd";
-		offset =<0xf00 0x800 0xfd0 0xfd4 0xfd8>;
-		/*INFRA MISC, conn_bt_cvsd_mask, cvsd_mcu_read, write, packet_indicator*/
-		reg=<0 0x10001000 0 0x1000>, /*AUDIO_INFRA_BASE_PHYSICAL*/
-		    <0 0x18000000 0 0x10000>, /*PKV_PHYSICAL_BASE*/
-		    <0 0x18080000 0 0x8000>; /*SRAM_BANK2*/
-		interrupts = <GIC_SPI 232 IRQ_TYPE_LEVEL_LOW>;
-	};
-
 	audio: audio@11220000 {
 		compatible = "mediatek,audio", "syscon";
 		reg = <0 0x11220000 0 0x1000>;
 		/*interrupts = <GIC_SPI 153 IRQ_TYPE_LEVEL_LOW>;*/
 		#clock-cells = <1>;
+		mediatek,btcvsd_snd = <&btcvsd_snd>;
 	};
 
 	audgpio: mt_soc_dl1_pcm@11220000 {
@@ -1558,12 +1584,15 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		reg = <0 0x11221000 0 0x9000>;
 	};
 
-	mt_soc_btcvsd_rx_pcm {
-		compatible = "mediatek,mt_soc_btcvsd_rx_pcm";
-	};
-
-	mt_soc_btcvsd_tx_pcm {
-		compatible = "mediatek,mt_soc_btcvsd_tx_pcm";
+	btcvsd_snd: mtk-btcvsd-snd@18000000 {
+		compatible = "mediatek,mtk-btcvsd-snd";
+		reg=<0 0x18000000 0 0x10000>, /*PKV_PHYSICAL_BASE*/
+		    <0 0x18080000 0 0x8000>; /*SRAM_BANK2*/
+		interrupts = <GIC_SPI 232 IRQ_TYPE_LEVEL_LOW>;
+		mediatek,infracfg = <&infracfg_ao>;
+		mediatek,offset =<0xf00 0x800 0xfd0 0xfd4 0xfd8>;
+		/*INFRA MISC, conn_bt_cvsd_mask*/
+		/*cvsd_mcu_read, write, packet_indicator*/
 	};
 
 	mt_soc_deep_buffer_dl_pcm {
@@ -1781,7 +1810,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 	};
 
 	touch: touch {
-		compatible = "mediatek,mt6739-touch";
+		compatible = "mediatek,touch";
 		/* VTOUCH-supply = <&mt_pmic_vgp1_ldo_reg>; */
 	};
 
@@ -1817,15 +1846,18 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 			"smi-common-gals1", "smi-common",
 			"MMDVFS_CLK_TOP_MMPLL_CK", "mmdvfs_clk_top_vencpll_ck",
 			"mmdvfs_clk_top_syspll2_d2";
+		mediatek,smi-id = <3>;
+		mmsys_config = <&mmsys_config>;
 	};
 
 	smi_larb0: smi_larb0@14003000 {
-		compatible = "mediatek,smi_larb0";
+		compatible = "mediatek,smi_larb0", "mediatek,smi_larb";
 		reg = <0 0x14003000 0 0x1000>;
 		interrupts = <GIC_SPI 223 IRQ_TYPE_LEVEL_LOW>;
 		clocks = <&scpsys SCP_SYS_MM0>,
 			<&mmsys_config CLK_MM_SMI_LARB0>;
 		clock-names = "mtcmos-mm", "mm-larb0";
+		mediatek,smi-id = <0>;
 	};
 
 	mdp_rdma0: mdp_rdma0@14004000 {
@@ -2030,12 +2062,13 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 	};
 
 	smi_larb2: smi_larb2@15001000 {
-		compatible = "mediatek,smi_larb2";
+		compatible = "mediatek,smi_larb2", "mediatek,smi_larb";
 		reg = <0 0x15001000 0 0x1000>;
 		interrupts = <GIC_SPI 222 IRQ_TYPE_LEVEL_LOW>;
 		clocks = <&scpsys SCP_SYS_ISP>,
 			<&imgsys_config CLK_IMG_LARB2_SMI>;
 		clock-names = "mtcmos-img", "img-larb2";
+		mediatek,smi-id = <2>;
 	};
 
 	cam_a@15004000 {
@@ -2137,13 +2170,14 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 	};
 
 	smi_larb1: smi_larb1@17010000 {
-		compatible = "mediatek,smi_larb1";
+		compatible = "mediatek,smi_larb1", "mediatek,smi_larb";
 		reg = <0 0x17010000 0 0x1000>;
 		interrupts = <GIC_SPI 213 IRQ_TYPE_LEVEL_LOW>;
 		clocks = <&scpsys SCP_SYS_VEN>,
 			<&venc_global_con CLK_VENC_SET0_LARB>,
 			<&venc_global_con CLK_VENC_SET1_VENC>;
 		clock-names = "mtcmos-ven", "venc-larb", "venc-venc";
+		mediatek,smi-id = <1>;
 	};
 
 	mt6357_gauge {
@@ -2179,6 +2213,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		/* common */
 		battery_cv = <4370000>;
 		max_charger_voltage = <6500000>;
+		min_charger_voltage = <4600000>;
 
 		/* charging current */
 		usb_charger_current_suspend = <0>;
@@ -2194,39 +2229,39 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		ta_ac_charger_current = <1200000>;
 
 		/* sw jeita */
-		jeita_temp_above_t4_cv_voltage = <4100000>;
-		jeita_temp_t3_to_t4_cv_voltage = <4100000>;
-		jeita_temp_t2_to_t3_cv_voltage = <4370000>;
-		jeita_temp_t1_to_t2_cv_voltage = <4370000>;
-		jeita_temp_t0_to_t1_cv_voltage = <4370000>;
-		jeita_temp_below_t0_cv_voltage = <4370000>;
+		jeita_temp_above_t4_cv = <4100000>;
+		jeita_temp_t3_to_t4_cv = <4100000>;
+		jeita_temp_t2_to_t3_cv = <4370000>;
+		jeita_temp_t1_to_t2_cv = <4370000>;
+		jeita_temp_t0_to_t1_cv = <4370000>;
+		jeita_temp_below_t0_cv = <4370000>;
 		jeita_temp_above_t4_ichg_current = <0>;
 		jeita_temp_t3_to_t4_ichg_current = <750000>;
 		jeita_temp_t2_to_t3_ichg_current = <1500000>;
 		jeita_temp_t1_to_t2_ichg_current = <500000>;
 		jeita_temp_t0_to_ichg_current = <0>;
 		jeita_temp_below_t0_ichg_current = <0>;
-		temp_t4_threshold = <55>;
+		temp_t4_thres = <55>;
 		temp_t4_thres_minus_x_degree = <53>;
-		temp_t3_threshold = <46>;
+		temp_t3_thres = <46>;
 		temp_t3_thres_minus_x_degree = <45>;
-		temp_t2_threshold = <15>;
+		temp_t2_thres = <15>;
 		temp_t2_thres_plus_x_degree = <16>;
-		temp_t1_threshold = <0>;
+		temp_t1_thres = <0>;
 		temp_t1_thres_plus_x_degree = <2>;
-		temp_t0_threshold = <0>;
+		temp_t0_thres = <0>;
 		temp_t0_thres_plus_x_degree = <0>;
-		temp_neg_10_threshold = <0>;
+		temp_neg_10_thres = <0>;
 
 		/* battery temperature protection */
-		enable_min_charge_temperature;
-		min_charge_temperature = <0>;
-		min_charge_temperature_plus_x_degree = <2>;
-		max_charge_temperature = <60>;
-		max_charge_temperature_minus_x_degree = <58>;
+		enable_min_charge_temp;
+		min_charge_temp = <0>;
+		min_charge_temp_plus_x_degree = <2>;
+		max_charge_temp = <60>;
+		max_charge_temp_minus_x_degree = <58>;
 
 		/* PE 2.0 */
-		pe20_ichg_level_threshold = <1000>;
+		pe20_ichg_level_threshold = <1000000>; /* uA */
 		ta_start_battery_soc = <0>;
 		ta_stop_battery_soc = <85>;
 
@@ -2236,7 +2271,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 
 		/* cable measurement impedance */
 		cable_imp_threshold = <699>;
-		vbat_cable_imp_threshold = <3900>;
+		vbat_cable_imp_threshold = <3900000>; /* uV */
 
 		/* bif */
 		bif_threshold1 = <4250000>;
@@ -2298,7 +2333,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 
 	mrdump_ext_rst: mrdump_ext_rst {
 		compatible = "mediatek, mrdump_ext_rst-eint";
-		source = "EINT";
+		force_mode = "EINT";
 		mode = "IRQ";
 		status = "okay";
 	};
@@ -2374,77 +2409,19 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		pwm_data_invert = <0>;
 	};
 
-	firmware {
-		android {
-			compatible = "android,firmware";
-			fstab {
-				compatible = "android,fstab";
-#if !defined(CONFIG_SYSTEM_AS_ROOT) && !defined(CONFIG_MTK_AB_OTA_UPDATER)
-				system {
-					compatible = "android,system";
-#ifdef CONFIG_MNTL_SUPPORT
-					dev = "/dev/block/mntlblk_d1";
-#else
-					dev = "/dev/block/platform/bootdevice/by-name/system";
-#endif
-					type = "ext4";
-					mnt_flags = "ro";
-					#ifndef CONFIG_MTK_DM_VERITY_OFF
-					fsmgr_flags = "wait,verify";
-					#else
-					fsmgr_flags = "wait";
-					#endif
-				};
-#endif
-#ifndef CONFIG_MTK_LATE_MOUNT
-				vendor {
-					compatible = "android,vendor";
-#ifdef CONFIG_MNTL_SUPPORT
-					dev = "/dev/block/mntlblk_d2";
-#else
-					dev = "/dev/block/platform/bootdevice/by-name/vendor";
-#endif
-					type = "ext4";
-					mnt_flags = "ro";
-#ifndef CONFIG_MTK_AB_OTA_UPDATER
-					#ifndef CONFIG_MTK_DM_VERITY_OFF
-					fsmgr_flags = "wait,verify";
-					#else
-					fsmgr_flags = "wait";
-					#endif
-#else
-					#ifndef CONFIG_MTK_DM_VERITY_OFF
-					fsmgr_flags = "wait,slotselect,verify";
-					#else
-					fsmgr_flags = "wait,slotselect";
-					#endif
-#endif
-				};
-#endif
-#ifdef CONFIG_TARGET_COPY_OUT_ODM
-				odm {
-					compatible = "android,odm";
-					dev = "/dev/block/platform/bootdevice/by-name/odm";
-					type = "ext4";
-					mnt_flags = "ro";
-#ifndef CONFIG_MTK_AB_OTA_UPDATER
-					fsmgr_flags = "wait";
-#else
-					#ifndef CONFIG_MTK_DM_VERITY_OFF
-					fsmgr_flags = "wait,slotselect,verify";
-					#else
-					fsmgr_flags = "wait,slotselect";
-					#endif
-#endif
-				};
-#endif
-			};
-		};
-	};
 	odm: odm{
 		compatible = "simple-bus";
 		/* reserved for overlay by odm */
 	};
+
+	radio_md_cfg: radio_md_cfg {
+		compatible = "mediatek,radio_md_cfg";
+	};
+
+	dynamic_options: dynamic_options {
+		compatible = "mediatek,dynamic_options";
+	};
+
 };
 
 #include "cust_mt6739_msdc.dtsi"

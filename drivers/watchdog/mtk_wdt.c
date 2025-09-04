@@ -31,6 +31,10 @@
 #include <linux/of.h>
 #include <linux/of_irq.h>
 #include <linux/platform_device.h>
+#ifdef CONFIG_FIQ_GLUE
+#include <linux/irqchip/mtk-gic-extend.h>
+#include <mt-plat/aee.h>
+#endif
 #include <linux/types.h>
 #include <linux/watchdog.h>
 #include <linux/notifier.h>
@@ -39,9 +43,11 @@
 #include <linux/reset-controller.h>
 #include <linux/reset.h>
 #include <linux/sched.h>
+#include <asm/system_misc.h>
 #ifdef CONFIG_MT6397_MISC
 #include <linux/mfd/mt6397/rtc_misc.h>
 #endif
+#include <linux/suspend.h>
 
 #define WDT_MAX_TIMEOUT		31
 #define WDT_MIN_TIMEOUT		1
@@ -54,15 +60,15 @@
 #define WDT_RST_RELOAD		0x1971
 
 #define WDT_MODE		0x00
-#define WDT_MODE_EN		(1 << 0)
-#define WDT_MODE_EXT_POL_LOW	(0 << 1)
-#define WDT_MODE_EXT_POL_HIGH	(1 << 1)
-#define WDT_MODE_EXRST_EN	(1 << 2)
-#define WDT_MODE_IRQ_EN		(1 << 3)
-#define WDT_MODE_AUTO_START	(1 << 4)
-#define WDT_MODE_IRQ_LVL	(1 << 5)
-#define WDT_MODE_DUAL_EN	(1 << 6)
-#define WDT_MODE_KEY		0x22000000
+#define WDT_MODE_EN		(1U << 0)
+#define WDT_MODE_EXT_POL_LOW	(0U << 1)
+#define WDT_MODE_EXT_POL_HIGH	(1U << 1)
+#define WDT_MODE_EXRST_EN	(1U << 2)
+#define WDT_MODE_IRQ_EN		(1U << 3)
+#define WDT_MODE_AUTO_START	(1U << 4)
+#define WDT_MODE_IRQ_LVL	(1U << 5)
+#define WDT_MODE_DUAL_EN	(1U << 6)
+#define WDT_MODE_KEY		0x22000000U
 
 #define WDT_STATUS		0x0c
 #define WDT_NONRST_REG		0x20
@@ -71,14 +77,14 @@
 #define WDT_SWRST		0x14
 #define WDT_SWRST_KEY		0x1209
 
-#define WDT_SWSYSRST		0x18
-#define WDT_SWSYSRST_KEY	0x88000000
+#define WDT_SWSYSRST		0x18U
+#define WDT_SWSYSRST_KEY	0x88000000U
 
-#define WDT_REQ_MODE 0x30
-#define WDT_REQ_MODE_KEY 0x33000000
-#define WDT_REQ_IRQ_EN 0x34
-#define WDT_REQ_IRQ_KEY 0x44000000
-#define WDT_REQ_MODE_DEBUG_EN 0x80000
+#define WDT_REQ_MODE 0x30U
+#define WDT_REQ_MODE_KEY 0x33000000U
+#define WDT_REQ_IRQ_EN 0x34U
+#define WDT_REQ_IRQ_KEY 0x44000000U
+#define WDT_REQ_MODE_DEBUG_EN 0x80000U
 
 
 #define DRV_NAME		"mtk-wdt"
@@ -97,8 +103,8 @@ struct toprgu_reset {
 struct mtk_wdt_dev {
 	struct watchdog_device wdt_dev;
 	void __iomem *wdt_base;
-	int wdt_irq_id;
-	struct notifier_block restart_handler;
+	unsigned int wdt_irq_id;
+	struct notifier_block restart_handler, pm_handler;
 	struct toprgu_reset reset_controller;
 };
 
@@ -110,7 +116,8 @@ static int toprgu_reset_assert(struct reset_controller_dev *rcdev,
 {
 	unsigned int tmp;
 	unsigned long flags;
-	struct toprgu_reset *data = container_of(rcdev, struct toprgu_reset, rcdev);
+	struct toprgu_reset *data = container_of
+				(rcdev, struct toprgu_reset, rcdev);
 
 	spin_lock_irqsave(&data->lock, flags);
 
@@ -129,7 +136,8 @@ static int toprgu_reset_deassert(struct reset_controller_dev *rcdev,
 {
 	unsigned int tmp;
 	unsigned long flags;
-	struct toprgu_reset *data = container_of(rcdev, struct toprgu_reset, rcdev);
+	struct toprgu_reset *data = container_of
+				(rcdev, struct toprgu_reset, rcdev);
 
 	spin_lock_irqsave(&data->lock, flags);
 
@@ -149,7 +157,7 @@ static int toprgu_reset(struct reset_controller_dev *rcdev,
 	int ret;
 
 	ret = toprgu_reset_assert(rcdev, id);
-	if (ret)
+	if (ret != 0)
 		return ret;
 
 	return toprgu_reset_deassert(rcdev, id);
@@ -161,7 +169,8 @@ static struct reset_control_ops toprgu_reset_ops = {
 	.reset = toprgu_reset,
 };
 
-static void toprgu_register_reset_controller(struct platform_device *pdev, int regofs)
+static void toprgu_register_reset_controller
+			(struct platform_device *pdev, int regofs)
 {
 	int ret;
 	struct mtk_wdt_dev *mtk_wdt = platform_get_drvdata(pdev);
@@ -176,8 +185,9 @@ static void toprgu_register_reset_controller(struct platform_device *pdev, int r
 	mtk_wdt->reset_controller.rcdev.of_node = pdev->dev.of_node;
 
 	ret = reset_controller_register(&mtk_wdt->reset_controller.rcdev);
-	if (ret)
-		pr_err("could not register toprgu reset controller: %d\n", ret);
+	if (ret != 0)
+		pr_err("could not register toprgu reset controller: %d\n",
+			ret);
 }
 
 static int mtk_reset_handler(struct notifier_block *this, unsigned long mode,
@@ -190,9 +200,11 @@ static int mtk_reset_handler(struct notifier_block *this, unsigned long mode,
 	mtk_wdt = container_of(this, struct mtk_wdt_dev, restart_handler);
 	wdt_base = mtk_wdt->wdt_base;
 
-	/* WDT_STATUS will be cleared to  zero after writing to WDT_MODE, so we backup it in WDT_NONRST_REG,
-	  * and then print it out in mtk_wdt_probe() after reset
-	  */
+/*
+ * WDT_STATUS will be cleared to  zero after writing to WDT_MODE,
+ * so we backup it in WDT_NONRST_REG,
+ * and then print it out in mtk_wdt_probe() after reset
+ */
 	writel(__raw_readl(wdt_base + WDT_STATUS), wdt_base + WDT_NONRST_REG);
 
 	reg = ioread32(wdt_base + WDT_MODE);
@@ -200,25 +212,31 @@ static int mtk_reset_handler(struct notifier_block *this, unsigned long mode,
 	reg |= WDT_MODE_KEY;
 	iowrite32(reg, wdt_base + WDT_MODE);
 
-	if (cmd && !strcmp(cmd, "rpmbpk")) {
-		iowrite32(ioread32(wdt_base + WDT_NONRST_REG2) | (1 << 0), wdt_base + WDT_NONRST_REG2);
-	} else if (cmd && !strcmp(cmd, "recovery")) {
-		iowrite32(ioread32(wdt_base + WDT_NONRST_REG2) | (1 << 1), wdt_base + WDT_NONRST_REG2);
+	if (cmd && (strcmp(cmd, "rpmbpk") == 0)) {
+		iowrite32(ioread32(wdt_base + WDT_NONRST_REG2) |
+			(1U << 0), wdt_base + WDT_NONRST_REG2);
+	} else if (cmd && (strcmp(cmd, "recovery") == 0)) {
+		iowrite32(ioread32(wdt_base + WDT_NONRST_REG2) |
+			(1U << 1), wdt_base + WDT_NONRST_REG2);
 		#ifdef CONFIG_MT6397_MISC
 		mtk_misc_mark_recovery();
 		#endif
-	} else if (cmd && !strcmp(cmd, "bootloader")) {
-		iowrite32(ioread32(wdt_base + WDT_NONRST_REG2) | (1 << 2), wdt_base + WDT_NONRST_REG2);
+	} else if (cmd && (strcmp(cmd, "bootloader") == 0)) {
+		iowrite32(ioread32(wdt_base + WDT_NONRST_REG2) |
+			(1U << 2), wdt_base + WDT_NONRST_REG2);
 		#ifdef CONFIG_MT6397_MISC
 		mtk_misc_mark_fast();
 		#endif
+	} else {
+		//do nothing
 	}
 
-	while (1) {
-		writel(WDT_SWRST_KEY, wdt_base + WDT_SWRST);
-		mdelay(5);
+	if (!arm_pm_restart) {
+		while (1) {
+			writel(WDT_SWRST_KEY, wdt_base + WDT_SWRST);
+			mdelay(5);
+		}
 	}
-
 	return NOTIFY_DONE;
 }
 
@@ -231,6 +249,22 @@ static int mtk_wdt_ping(struct watchdog_device *wdt_dev)
 	printk_deferred("[WDK]: kick Ex WDT\n");
 
 	return 0;
+}
+
+static int mtk_pm_handler(struct notifier_block *this, unsigned long pm_event,
+				void *unused)
+{
+	struct mtk_wdt_dev *mtk_wdt;
+
+	mtk_wdt = container_of(this, struct mtk_wdt_dev, pm_handler);
+	switch (pm_event) {
+	case PM_SUSPEND_PREPARE:
+		mtk_wdt_ping(&mtk_wdt->wdt_dev);
+		break;
+	default:
+		break;
+	}
+	return NOTIFY_DONE;
 }
 
 static int mtk_wdt_set_timeout(struct watchdog_device *wdt_dev,
@@ -303,36 +337,6 @@ static const struct watchdog_ops mtk_wdt_ops = {
 	.set_timeout	= mtk_wdt_set_timeout,
 };
 
-static void wdt_report_info(void)
-{
-	struct task_struct *task;
-
-	task = &init_task;
-	pr_debug("Qwdt: -- watchdog time out\n");
-
-	for_each_process(task) {
-		if (task->state == 0) {
-			pr_debug("PID: %d, name: %s\n backtrace:\n", task->pid, task->comm);
-			show_stack(task, NULL);
-			pr_debug("\n");
-		}
-	}
-
-	pr_debug("backtrace of current task:\n");
-	show_stack(NULL, NULL);
-	pr_debug("Qwdt: -- watchdog time out\n");
-}
-
-static irqreturn_t mtk_wdt_isr(int irq, void *dev_id)
-{
-	pr_err("fwq mtk_wdt_isr\n");
-
-	wdt_report_info();
-	WARN_ON(1);
-
-	return IRQ_HANDLED;
-}
-
 static int mtk_wdt_probe(struct platform_device *pdev)
 {
 	struct mtk_wdt_dev *mtk_wdt;
@@ -352,19 +356,8 @@ static int mtk_wdt_probe(struct platform_device *pdev)
 	if (IS_ERR(mtk_wdt->wdt_base))
 		return PTR_ERR(mtk_wdt->wdt_base);
 
-	pr_err("MTK_WDT_NONRST_REG(%x)\n", __raw_readl(mtk_wdt->wdt_base + WDT_NONRST_REG));
-
-	mtk_wdt->wdt_irq_id = irq_of_parse_and_map(pdev->dev.of_node, 0);
-	if (!mtk_wdt->wdt_irq_id) {
-		pr_err("RGU get IRQ ID failed\n");
-		return -ENODEV;
-	}
-
-	err = request_irq(mtk_wdt->wdt_irq_id, (irq_handler_t)mtk_wdt_isr, IRQF_TRIGGER_NONE, DRV_NAME, mtk_wdt);
-	if (err != 0) {
-		pr_err("mtk_wdt_probe : failed to request irq (%d)\n", err);
-		return err;
-	}
+	dev_info(&pdev->dev, "MTK_WDT_NONRST_REG(%x)\n",
+		__raw_readl(mtk_wdt->wdt_base + WDT_NONRST_REG));
 
 	toprgu_base = mtk_wdt->wdt_base;
 	wdt_dev = &mtk_wdt->wdt_dev;
@@ -389,26 +382,48 @@ static int mtk_wdt_probe(struct platform_device *pdev)
 
 	mtk_wdt->restart_handler.notifier_call = mtk_reset_handler;
 	mtk_wdt->restart_handler.priority = 128;
-	err = register_restart_handler(&mtk_wdt->restart_handler);
+	if (arm_pm_restart) {
+		dev_info(&pdev->dev,
+			"register restart_handler on reboot_notifier_list for psci reset\n");
+		err = register_reboot_notifier(&mtk_wdt->restart_handler);
+		if (err != 0)
+			dev_warn(&pdev->dev,
+				"cannot register reboot notifier (err=%d)\n",
+				 err);
+	} else {
+		err = register_restart_handler(&mtk_wdt->restart_handler);
+		if (err != 0)
+			dev_warn(&pdev->dev,
+				"cannot register restart handler (err=%d)\n",
+				err);
+	}
+	mtk_wdt->pm_handler.notifier_call = mtk_pm_handler;
+	mtk_wdt->pm_handler.priority = 128;
+	err = register_pm_notifier(&mtk_wdt->pm_handler);
 	if (err)
-		dev_warn(&pdev->dev,
-			"cannot register restart handler (err=%d)\n", err);
+		dev_warn(&pdev->dev, "[%s] failed to register WDT PM notifier %d\n",
+			__func__, err);
 
 	dev_info(&pdev->dev, "Watchdog enabled (timeout=%d sec, nowayout=%d)\n",
 			mtk_wdt->wdt_dev.timeout, nowayout);
 
-	writel(WDT_REQ_MODE_KEY | (__raw_readl(mtk_wdt->wdt_base + WDT_REQ_MODE) &
+	writel(WDT_REQ_MODE_KEY |
+		(__raw_readl(mtk_wdt->wdt_base + WDT_REQ_MODE) &
 		(~WDT_REQ_MODE_DEBUG_EN)), mtk_wdt->wdt_base + WDT_REQ_MODE);
 
 	toprgu_register_reset_controller(pdev, WDT_SWSYSRST);
 
-	/* enable scpsys thermal and thermal_controller request, and set to reset directly mode */
-	tmp = ioread32(mtk_wdt->wdt_base + WDT_REQ_MODE) | (1 << 18) | (1 << 0);
+	/*
+	 *enable scpsys thermal and thermal_controller request,
+	 *and set to reset directly mode
+	 */
+	tmp = ioread32(mtk_wdt->wdt_base + WDT_REQ_MODE) |
+				(1U << 18) | (1U << 0);
 	tmp |= WDT_REQ_MODE_KEY;
 	iowrite32(tmp, mtk_wdt->wdt_base + WDT_REQ_MODE);
 
 	tmp = ioread32(mtk_wdt->wdt_base + WDT_REQ_IRQ_EN);
-	tmp &= ~((1 << 18) | (1 << 0));
+	tmp &= ~((1U << 18) | (1U << 0));
 	tmp |= WDT_REQ_IRQ_KEY;
 	iowrite32(tmp, mtk_wdt->wdt_base + WDT_REQ_IRQ_EN);
 
@@ -425,9 +440,14 @@ static void mtk_wdt_shutdown(struct platform_device *pdev)
 
 static int mtk_wdt_remove(struct platform_device *pdev)
 {
+	int err;
+
 	struct mtk_wdt_dev *mtk_wdt = platform_get_drvdata(pdev);
 
-	unregister_restart_handler(&mtk_wdt->restart_handler);
+	err = unregister_restart_handler(&mtk_wdt->restart_handler);
+	if (err != 0)
+		dev_err(&pdev->dev,
+		"could not register toprgu reset controller: %d\n", err);
 
 	watchdog_unregister_device(&mtk_wdt->wdt_dev);
 
@@ -462,6 +482,9 @@ static int mtk_wdt_resume(struct device *dev)
 
 static const struct of_device_id mtk_wdt_dt_ids[] = {
 	{ .compatible = "mediatek,mt6589-wdt" },
+	{ .compatible = "mediatek,mt8163-rgu" },
+	{ .compatible = "mediatek,mt8173-wdt" },
+	{ .compatible = "mediatek,mt8167-wdt" },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, mtk_wdt_dt_ids);
@@ -488,10 +511,11 @@ static int wk_proc_cmd_read(struct seq_file *s, void *v)
 {
 	unsigned int enabled = 1;
 
-	if (!(ioread32(toprgu_base + WDT_MODE) & WDT_MODE_EN))
+	if (0 == (ioread32(toprgu_base + WDT_MODE) & WDT_MODE_EN))
 		enabled = 0;
 
-	seq_printf(s, "enabled timeout\n%-4d %-8d\n", enabled, wdt_dev->timeout);
+	seq_printf(s, "enabled timeout\n%-4d %-8d\n",
+			enabled, wdt_dev->timeout);
 
 	return 0;
 }
@@ -501,11 +525,12 @@ static int wk_proc_cmd_open(struct inode *inode, struct file *file)
 	return single_open(file, wk_proc_cmd_read, NULL);
 }
 
-static ssize_t wk_proc_cmd_write(struct file *file, const char *buf, size_t count, loff_t *data)
+static ssize_t wk_proc_cmd_write
+	(struct file *file, const char *buf, size_t count, loff_t *data)
 {
 	int ret;
 	int enable;
-	int timeout;
+	unsigned int timeout;
 	char wk_cmd_buf[256];
 
 	if (count == 0)
@@ -514,7 +539,7 @@ static ssize_t wk_proc_cmd_write(struct file *file, const char *buf, size_t coun
 	if (count > 255)
 		count = 255;
 
-	ret = copy_from_user(wk_cmd_buf, buf, count);
+	ret = (int)copy_from_user(wk_cmd_buf, buf, count);
 	if (ret < 0)
 		return -1;
 
@@ -530,7 +555,9 @@ static ssize_t wk_proc_cmd_write(struct file *file, const char *buf, size_t coun
 
 	if (timeout > 20 && timeout <= WDT_MAX_TIMEOUT) {
 		wdt_dev->timeout = timeout;
-		mtk_wdt_set_timeout(wdt_dev, wdt_dev->timeout);
+		ret = mtk_wdt_set_timeout(wdt_dev, wdt_dev->timeout);
+		if (ret < 0)
+			return ret;
 	} else {
 		pr_err("[WDK] The timeout(%d) should bigger than 20 and not bigger than %d\n",
 				timeout, WDT_MAX_TIMEOUT);
@@ -538,13 +565,15 @@ static ssize_t wk_proc_cmd_write(struct file *file, const char *buf, size_t coun
 	}
 
 	if (enable == 1) {
-		mtk_wdt_start(wdt_dev);
+		ret = mtk_wdt_start(wdt_dev);
+		if (ret < 0)
+			return ret;
 		set_bit(WDOG_ACTIVE, &wdt_dev->status);
-		pr_err("[WDK] enable wdt\n");
+		pr_info("[WDK] enable wdt\n");
 	} else if (enable == 0) {
 		mtk_wdt_stop(wdt_dev);
 		clear_bit(WDOG_ACTIVE, &wdt_dev->status);
-		pr_err("[WDK] disable wdt\n");
+		pr_info("[WDK] disable wdt\n");
 	}
 
 	return count;
@@ -561,10 +590,11 @@ static const struct file_operations wk_proc_cmd_fops = {
 
 static int __init wk_proc_init(void)
 {
-	struct proc_dir_entry *de = proc_create("wdk", 0660, NULL, &wk_proc_cmd_fops);
+	struct proc_dir_entry *de =
+			proc_create("wdk", 0660, NULL, &wk_proc_cmd_fops);
 
-	if (!de)
-		pr_err("[wk_proc_init]: create /proc/wdk failed\n");
+	if (de == 0)
+		pr_err("[%s]: create /proc/wdk failed\n", __func__);
 
 	pr_debug("[WDK] Initialize proc\n");
 

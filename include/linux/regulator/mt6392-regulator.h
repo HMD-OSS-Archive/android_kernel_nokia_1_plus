@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 MediaTek Inc.
+ * Copyright (c) 2019 MediaTek Inc.
  * Author: Chen Zhong <chen.zhong@mediatek.com>
  *
  * This program is free software; you can redistribute it and/or modify

@@ -1,15 +1,15 @@
-/* Mediatek STAR MAC network driver.
+/*
+ * Copyright (c) 2019 MediaTek Inc.
+ * Author: Zhiyong Tao <zhiyong.tao@mediatek.com>
  *
- * Copyright (c) 2016-2017 MediaTek Inc.
- *
- * program is free software; you can redistribute it and/or modify
+ * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #ifndef _STAR_MAC_H_
@@ -22,13 +22,6 @@
 #define desc_rx_dma(desc) ((((desc)->ctrl_len) & RX_COWN) ? 0 : 1)
 #define desc_tx_last(desc) ((((desc)->ctrl_len) & TX_EOR) ? 1 : 0)
 #define desc_rx_last(desc) ((((desc)->ctrl_len) & RX_EOR) ? 1 : 0)
-#define desc_tx_empty(desc) (((desc)->buffer == 0) && \
-		(((desc)->ctrl_len & ~TX_EOR) == TX_COWN) && \
-		((desc)->vtag == 0) && ((desc)->reserve == 0))
-
-#define desc_rx_empty(desc) (((desc)->buffer == 0) && \
-		(((desc)->ctrl_len & ~RX_EOR) == RX_COWN) && \
-		((desc)->vtag == 0) && ((desc)->reserve == 0))
 
 #ifndef STAR_POLLING_TIMEOUT
 #define STAR_TIMEOUT_COUNT 3000
@@ -265,7 +258,7 @@ do {\
 /**
  * @brief structure for Tx descriptor Ring
  */
-typedef struct tx_desc_s {
+struct tx_desc_s {
 	/* Tx control and length */
 	u32 ctrl_len;
 /* Tx descriptor Own bit; 1: CPU own */
@@ -310,7 +303,7 @@ typedef struct tx_desc_s {
 } tx_desc;
 
 /* Rx Ring */
-typedef struct rx_desc_s {
+struct rx_desc_s {
 	/* Rx control and length */
 	u32 ctrl_len;
 /* RX descriptor Own bit; 1: CPU own */
@@ -364,7 +357,7 @@ typedef struct rx_desc_s {
 	u32 reserve;	/* Rx pointer for external management usage */
 } rx_desc;
 
-typedef struct star_dev_s {
+struct star_dev_s {
 	void __iomem *base;               /* Base register of Star Ethernet */
 	void __iomem *pericfg_base;            /* Base register of PERICFG */
 	tx_desc *tx_desc;         /* Base Address of Tx descriptor Ring */
@@ -415,4 +408,6 @@ void star_config_wol(star_dev *star_dev, bool enable);
 void enable_eth_wol(star_dev *star_dev);
 void disable_eth_wol(star_dev *star_dev);
 void star_switch_to_rmii_mode(star_dev *star_dev);
+u32 desc_tx_empty(tx_desc *tx_desc);
+u32 desc_rx_empty(rx_desc *rx_desc);
 #endif

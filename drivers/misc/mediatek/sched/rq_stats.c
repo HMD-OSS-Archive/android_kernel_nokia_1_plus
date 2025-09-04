@@ -1,15 +1,16 @@
-/* Copyright (c) 2010-2013, The Linux Foundation. All rights reserved.
+/*
+ * Copyright (C) 2017 MediaTek Inc.
  *
  * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
+
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/module.h>
@@ -27,8 +28,11 @@
 #include <linux/tick.h>
 #include <linux/suspend.h>
 #include <linux/version.h>
+#include <linux/topology.h>
+#include <linux/arch_topology.h>
 #include <asm/smp_plat.h>
-#include <mt-plat/met_drv.h>
+// TODO: remove comment after met ready
+//#include <mt-plat/met_drv.h>
 
 #include <trace/events/sched.h>
 #include "rq_stats.h"
@@ -40,26 +44,29 @@
 
 #ifdef CONFIG_MTK_SCHED_RQAVG_US
 struct rq_data rq_info;
-spinlock_t rq_lock;
+spinlock_t rqavg_lock;
 #endif
-
-static int cpufreq_variant = 1; /* set to 1 if per cpu load is cpu freq. variant */
+/* set to 1 if per cpu load is cpu freq. variant */
+static int cpufreq_variant = 1;
 #ifdef CONFIG_CPU_FREQ
 struct notifier_block freq_transition;
 #endif /* CONFIG_CPU_FREQ */
 struct notifier_block cpu_hotplug;
-static unsigned int heavy_task_threshold = 920; /* max=1023, for last_poll, threshold */
-static unsigned int heavy_task_threshold2 = 920; /* max=1023 for AHT, threshold  */
-static unsigned int avg_heavy_task_threshold = 65; /* max=99 for AHT, admission control */
+/* max=1023, for last_poll, threshold */
+static unsigned int heavy_task_threshold = 920;
+/* max=1023 for AHT, threshold  */
+static unsigned int heavy_task_threshold2 = 920;
+/* max=99 for AHT, admission control */
+static unsigned int avg_heavy_task_threshold = 65;
 static int htask_cpucap_ctrl = 1;
 
 /* max = 100, threshold for capacity overutiled */
 static int overutil_threshold = 35;
 
 struct cpu_load_data {
-	cputime64_t prev_cpu_idle;
-	cputime64_t prev_cpu_wall;
-	cputime64_t prev_cpu_iowait;
+	u64 prev_cpu_idle;
+	u64 prev_cpu_wall;
+	u64 prev_cpu_iowait;
 	unsigned int avg_load_maxfreq_rel;
 	unsigned int avg_load_maxfreq_abs;
 	unsigned int samples;
@@ -72,7 +79,7 @@ struct cpu_load_data {
 };
 
 static DEFINE_PER_CPU(struct cpu_load_data, cpuload);
-static DEFINE_PER_CPU(struct cpufreq_policy, cpupolicy);
+//static DEFINE_PER_CPU(struct cpufreq_policy, cpupolicy);
 
 enum AVG_LOAD_ID {
 	AVG_LOAD_IGNORE,
@@ -85,7 +92,8 @@ int get_overutil_threshold(void)
 }
 
 #ifdef CONFIG_SCHED_HMP_PRIO_FILTER
-static unsigned int heavy_task_prio = NICE_TO_PRIO(CONFIG_SCHED_HMP_PRIO_FILTER_VAL);
+static unsigned int heavy_task_prio =
+			NICE_TO_PRIO(CONFIG_SCHED_HMP_PRIO_FILTER_VAL);
 #define task_low_priority(prio) ((prio >= heavy_task_prio)?1:0)
 #endif
 
@@ -114,7 +122,8 @@ static inline u64 get_cpu_idle_time_jiffy(unsigned int cpu, u64 *wall)
 	return cputime_to_usecs(idle_time);
 }
 
-static inline cputime64_t get_cpu_idle_time_internal(unsigned int cpu, cputime64_t *wall)
+static inline u64
+get_cpu_idle_time_internal(unsigned int cpu, u64 *wall)
 {
 	u64 idle_time = get_cpu_idle_time_us(cpu, NULL);
 
@@ -127,8 +136,8 @@ static inline cputime64_t get_cpu_idle_time_internal(unsigned int cpu, cputime64
 }
 #endif /* CONFIG_CPU_FREQ */
 
-static inline cputime64_t get_cpu_iowait_time(unsigned int cpu,
-							cputime64_t *wall)
+static inline u64 get_cpu_iowait_time(unsigned int cpu,
+							u64 *wall)
 {
 	u64 iowait_time = get_cpu_iowait_time_us(cpu, wall);
 
@@ -138,15 +147,16 @@ static inline cputime64_t get_cpu_iowait_time(unsigned int cpu,
 	return iowait_time;
 }
 
-static int update_average_load(enum AVG_LOAD_ID id, unsigned int freq, unsigned int cpu)
+static int
+update_average_load(enum AVG_LOAD_ID id, unsigned int freq, unsigned int cpu)
 {
 
 	struct cpu_load_data *pcpu = &per_cpu(cpuload, cpu);
-	cputime64_t cur_wall_time, cur_idle_time, cur_iowait_time;
+	u64 cur_wall_time, cur_idle_time, cur_iowait_time;
 	unsigned int idle_time, wall_time, iowait_time;
 	unsigned int cur_load, prev_avg_load_rel, prev_avg_load_abs;
 	unsigned int load_at_max_freq_rel, load_at_max_freq_abs;
-	cputime64_t prev_wall_time, prev_cpu_idle, prev_cpu_iowait;
+	u64 prev_wall_time, prev_cpu_idle, prev_cpu_iowait;
 
 #ifdef CONFIG_CPU_FREQ
 	cur_idle_time = get_cpu_idle_time(cpu, &cur_wall_time, 0);
@@ -219,46 +229,12 @@ static int update_average_load(enum AVG_LOAD_ID id, unsigned int freq, unsigned 
 	pcpu->avg_load_maxfreq_abs = load_at_max_freq_abs;
 	pcpu->window_size = wall_time;
 #endif
-
-	mt_sched_printf(sched_log, "[%s] cpu(%u) load: abs(%u/%u) rel(%u/%u) prev_load: abs(%u) rel(%u)",
-					__func__, cpu, pcpu->avg_load_maxfreq_abs, load_at_max_freq_abs,
-					pcpu->avg_load_maxfreq_rel, load_at_max_freq_rel,
-					prev_avg_load_abs, prev_avg_load_rel);
-	mt_sched_printf(sched_log, "[%s]  wdz:%u wall:%u(%llu/%llu) idle: %u(%llu/%llu) iowait: %u(%llu/%llu)",
-					__func__,
-					pcpu->window_size, wall_time, cur_wall_time, prev_wall_time,
-					idle_time, cur_idle_time, prev_cpu_idle,
-					iowait_time, cur_iowait_time, prev_cpu_iowait);
-
 	return 0;
 }
 
-#if 0
-static void report_load_at_max_freq(bool reset, unsigned int *rel_load, unsigned int *abs_load)
-{
-	int cpu;
-	struct cpu_load_data *pcpu;
-	unsigned long flags;
-
-	*rel_load = 0;
-	*abs_load = 0;
-	for_each_online_cpu(cpu) {
-		pcpu = &per_cpu(cpuload, cpu);
-		spin_lock_irqsave(&pcpu->cpu_load_lock, flags);
-		update_average_load(pcpu->cur_freq, cpu);
-		*rel_load += pcpu->avg_load_maxfreq_rel;
-		*abs_load += pcpu->avg_load_maxfreq_abs;
-		if (reset) {
-			pcpu->avg_load_maxfreq_rel = 0;
-			pcpu->avg_load_maxfreq_abs = 0;
-		}
-		spin_unlock_irqrestore(&pcpu->cpu_load_lock, flags);
-	}
-}
-#endif
-
 #ifdef CONFIG_MTK_SCHED_CPULOAD
-static void get_percpu_load(int cpu, bool reset, unsigned int *rel_load, unsigned int *abs_load)
+static void get_percpu_load
+	(int cpu, bool reset, unsigned int *rel_load, unsigned int *abs_load)
 {
 	struct cpu_load_data *pcpu;
 	unsigned long flags;
@@ -294,21 +270,8 @@ struct cpu_loading {
 
 static DEFINE_PER_CPU(struct cpu_loading, cpuloading);
 
+// TODO: patch back met_cpu_load after MET ready
 /* to calculate cpu loading */
-
-static char met_cpu_load[16][32] = {
-	"sched_load_tick0",
-	"sched_load_tick1",
-	"sched_load_tick2",
-	"sched_load_tick3",
-	"sched_load_tick4",
-	"sched_load_tick5",
-	"sched_load_tick6",
-	"sched_load_tick7",
-	"sched_load_tick8",
-	"sched_load_tick9",
-	"NULL"
-};
 
 void cal_cpu_load(int cpu)
 {
@@ -327,11 +290,13 @@ void cal_cpu_load(int cpu)
 	this_cpu->rel_load = rel_load;
 	this_cpu->abs_load = abs_load;
 
-	met_tag_oneshot(0, met_cpu_load[cpu], sched_get_cpu_load(cpu));
+	// TODO: remove comment after met ready
+	//met_tag_oneshot(0, met_cpu_load[cpu], sched_get_cpu_load(cpu));
 }
 
 /* Legacy interfaces to export */
-void sched_get_percpu_load2(int cpu, bool reset, unsigned int *rel_load, unsigned int *abs_load)
+void sched_get_percpu_load2(int cpu, bool reset, unsigned int *rel_load,
+				unsigned int *abs_load)
 {
 	struct cpu_loading *this_cpu = &per_cpu(cpuloading, cpu);
 	struct cpu_load_data *pcpu = &per_cpu(cpuload, cpu);
@@ -352,7 +317,8 @@ void sched_get_percpu_load2(int cpu, bool reset, unsigned int *rel_load, unsigne
 	 * If cpu loading was last updated long enough,
 	 * don't take care this loading into account.
 	 */
-	if (ktime_after(now, ktime_add_ms(pcpu->last_update, (CPU_LOAD_AVG_DEFAULT_MS*2)))) {
+	if (ktime_after(now, ktime_add_ms(pcpu->last_update,
+					(CPU_LOAD_AVG_DEFAULT_MS*2)))) {
 		*rel_load = 0;
 		*abs_load = 0;
 		return;
@@ -374,7 +340,8 @@ unsigned int sched_get_percpu_load(int cpu, bool reset, bool use_maxfreq)
 		return 90;
 
 	/* If cpu loading was last updated long enough, ignore it. */
-	if (ktime_after(now, ktime_add_ms(pcpu->last_update, (CPU_LOAD_AVG_DEFAULT_MS*2))))
+	if (ktime_after(now, ktime_add_ms(pcpu->last_update,
+					(CPU_LOAD_AVG_DEFAULT_MS*2))))
 		return 0;
 
 	return use_maxfreq ? this_cpu->abs_load : this_cpu->rel_load;
@@ -392,14 +359,16 @@ unsigned int sched_get_cpu_load(int cpu)
 		return 90;
 
 	/* If cpu loading was last updated long enough, ignore it. */
-	if (ktime_after(now, ktime_add_ms(pcpu->last_update, (CPU_LOAD_AVG_DEFAULT_MS*2))))
+	if (ktime_after(now, ktime_add_ms(pcpu->last_update,
+					(CPU_LOAD_AVG_DEFAULT_MS*2))))
 		return 0;
 
 	return this_cpu->rel_load;
 }
 EXPORT_SYMBOL(sched_get_cpu_load);
 #else
-void sched_get_percpu_load2(int cpu, bool reset, unsigned int *rel_load, unsigned int *abs_load)
+void sched_get_percpu_load2(int cpu, bool reset, unsigned int *rel_load,
+				unsigned int *abs_load)
 {
 	struct cpu_load_data *pcpu;
 	unsigned long flags;
@@ -447,7 +416,8 @@ static void __heat_refined(int *count)
 {
 	if (!arch_is_smp()) {
 		if (*count) {
-			htask_temperature += (htask_temperature < MAX_HTASK_TEMPERATURE) ? 1 : 0;
+			htask_temperature +=
+			(htask_temperature < MAX_HTASK_TEMPERATURE) ? 1 : 0;
 		} else {
 			*count = (htask_temperature > 0) ? 1 : 0;
 			htask_temperature -= (htask_temperature > 0) ? 1 : 0;
@@ -463,17 +433,16 @@ static void __trace_out(int heavy, int cpu, struct task_struct *p)
 #define TRACEBUF_LEN 128
 	char tracebuf[TRACEBUF_LEN];
 
-		snprintf(tracebuf, TRACEBUF_LEN, "[hvytask_poll] %s cpu=%d load=%4lu cpucap=%4lu/%4lu pid=%4d name=%s",
-				 heavy ? "Y" : "N",
-				 cpu, p->se.avg.load_avg,
-				 topology_cur_cpu_capacity(cpu), topology_max_cpu_capacity(cpu),
-				 p->pid,
-				 p->comm);
+		snprintf(tracebuf,
+			TRACEBUF_LEN,
+			"[hvytask_poll] %s cpu=%d load=%4lu cpucap=%4lu/%4lu pid=%4d name=%s",
+			heavy ? "Y" : "N",
+			cpu, p->se.avg.load_avg,
+			topology_cur_cpu_capacity(cpu),
+			arch_scale_cpu_capacity(NULL, cpu),
+			p->pid,
+			p->comm);
 		trace_sched_heavy_task(tracebuf);
-		trace_sched_heavy_task_draw(p);
-
-		if (unlikely(heavy))
-			trace_sched_task_entity_avg(5, p, &p->se.avg);
 }
 
 static int ack_by_curcap(int cpu, int cluster_id, int max_cluster_id)
@@ -493,7 +462,7 @@ static int ack_by_curcap(int cpu, int cluster_id, int max_cluster_id)
 	else
 		thrshld = SCHED_CAPACITY_SCALE*40/100;
 	cur_cap = topology_cur_cpu_capacity(cpu);
-	max_cap = topology_max_cpu_capacity(cpu);
+	max_cap = arch_scale_cpu_capacity(NULL, cpu);
 	if ((cur_cap * SCHED_CAPACITY_SCALE) >= max_cap * thrshld)
 		acked = 1;
 	else
@@ -532,10 +501,12 @@ int is_heavy_task(struct task_struct *p)
 }
 EXPORT_SYMBOL(is_heavy_task);
 
-int inc_nr_heavy_running(int invoker, struct task_struct *p, int inc, bool ack_cap)
+int inc_nr_heavy_running(int invoker, struct task_struct *p,
+			int inc, bool ack_cap)
 {
 #ifdef CONFIG_MTK_SCHED_RQAVG_KS
-	sched_update_nr_heavy_prod(invoker, p, cpu_of(task_rq(p)), inc, ack_cap);
+	sched_update_nr_heavy_prod(invoker, p,
+			cpu_of(task_rq(p)), inc, ack_cap);
 #endif
 
 	return 0;
@@ -543,7 +514,8 @@ int inc_nr_heavy_running(int invoker, struct task_struct *p, int inc, bool ack_c
 EXPORT_SYMBOL(inc_nr_heavy_running);
 
 static unsigned int htask_statistic;
-unsigned int sched_get_nr_heavy_task_by_threshold(int cluster_id, unsigned int threshold)
+unsigned int sched_get_nr_heavy_task_by_threshold(int cluster_id,
+			unsigned int threshold)
 {
 	int cpu;
 	struct task_struct *p;
@@ -557,7 +529,8 @@ unsigned int sched_get_nr_heavy_task_by_threshold(int cluster_id, unsigned int t
 		return 0;
 	clusters = arch_get_nr_clusters();
 	if (cluster_id < 0 || cluster_id >= clusters) {
-		pr_warn("[%s] invalid cluster id %d\n", __func__, cluster_id);
+		printk_deferred("[%s] invalid cluster id %d\n",
+		__func__, cluster_id);
 		return 0;
 	}
 
@@ -573,7 +546,8 @@ unsigned int sched_get_nr_heavy_task_by_threshold(int cluster_id, unsigned int t
 				continue;
 #endif
 			if (p->se.avg.loadwop_avg >= threshold) {
-				is_heavy = ack_by_curcap(cpu, cluster_id, clusters-1);
+				is_heavy = ack_by_curcap(cpu,
+							cluster_id, clusters-1);
 				count += is_heavy ? 1 : 0;
 				__trace_out(is_heavy, cpu, p);
 			}
@@ -594,14 +568,17 @@ unsigned int sched_get_nr_heavy_task(void)
 	int id, total_htask = 0;
 
 	for (id = 0; id < nr_clusters; id++)
-		total_htask += sched_get_nr_heavy_task_by_threshold(id, heavy_task_threshold);
+		total_htask +=
+		sched_get_nr_heavy_task_by_threshold(id, heavy_task_threshold);
 	return total_htask;
 }
 EXPORT_SYMBOL(sched_get_nr_heavy_task);
 
 /* sched_get_nr_heavy_task2:
- *	return max heavy tasks nr in the cluster between last_poll and average heavy task
- *	if CONFIG_MTK_SCHED_RQAVG_KS is defined.
+ * return max heavy tasks nr
+ * in the cluster between last_poll
+ * and average heavy task
+ * if CONFIG_MTK_SCHED_RQAVG_KS is defined.
  */
 unsigned int sched_get_nr_heavy_task2(int cluster_id)
 {
@@ -609,15 +586,19 @@ unsigned int sched_get_nr_heavy_task2(int cluster_id)
 	int avg_htask = 0, avg_htask_scal = 0;
 	int max;
 
-	lastpoll_htask1 = sched_get_nr_heavy_task_by_threshold(cluster_id, heavy_task_threshold);
+	lastpoll_htask1 =
+	sched_get_nr_heavy_task_by_threshold(cluster_id, heavy_task_threshold);
 #ifdef CONFIG_MTK_SCHED_RQAVG_KS
-	lastpoll_htask2 = sched_get_nr_heavy_running_avg(cluster_id, &avg_htask_scal);
+	lastpoll_htask2 =
+	sched_get_nr_heavy_running_avg(cluster_id, &avg_htask_scal);
 #endif
-	avg_htask = (avg_htask_scal%100 >= avg_heavy_task_threshold)?(avg_htask_scal/100+1):(avg_htask_scal/100);
+	avg_htask = (avg_htask_scal%100 >= avg_heavy_task_threshold) ?
+				(avg_htask_scal/100+1):(avg_htask_scal/100);
 
 	max =  max(max(lastpoll_htask1, lastpoll_htask2), avg_htask);
 
-	trace_sched_avg_heavy_task(lastpoll_htask1, lastpoll_htask2, avg_htask_scal, cluster_id, max);
+	trace_sched_avg_heavy_task(lastpoll_htask1, lastpoll_htask2,
+		avg_htask_scal, cluster_id, max);
 
 	return max;
 }
@@ -680,16 +661,22 @@ static int cpufreq_transition_handler(struct notifier_block *nb,
 				struct cpufreq_policy cpu_policy;
 
 				if (!cpufreq_get_policy(&cpu_policy, j)) {
-					spin_lock_irqsave(&pcpu->cpu_load_lock, flags);
-					pcpu->policy_max = cpu_policy.cpuinfo.max_freq;
-					spin_unlock_irqrestore(&pcpu->cpu_load_lock, flags);
+					spin_lock_irqsave(&pcpu->cpu_load_lock,
+					flags);
+					pcpu->policy_max =
+					cpu_policy.cpuinfo.max_freq;
+					spin_unlock_irqrestore
+					(&pcpu->cpu_load_lock, flags);
 				}
 			}
 
 			spin_lock_irqsave(&pcpu->cpu_load_lock, flags);
 				if (cpu_online(j))
-					update_average_load(AVG_LOAD_UPDATE, freqs->old, freqs->cpu);
-			pcpu->cur_freq = cpufreq_variant ? freqs->new : pcpu->policy_max;
+					update_average_load(AVG_LOAD_UPDATE,
+						freqs->old,
+						freqs->cpu);
+			pcpu->cur_freq = cpufreq_variant ? freqs->new :
+				pcpu->policy_max;
 			spin_unlock_irqrestore(&pcpu->cpu_load_lock, flags);
 		}
 		break;
@@ -697,55 +684,6 @@ static int cpufreq_transition_handler(struct notifier_block *nb,
 	return 0;
 }
 #endif /* CONFIG_CPU_FREQ */
-
-static int cpu_hotplug_handler(struct notifier_block *nb,
-			unsigned long val, void *data)
-{
-	unsigned int cpu = (unsigned long)data;
-	struct cpu_load_data *this_cpu = &per_cpu(cpuload, cpu);
-	unsigned long flags;
-	unsigned int i;
-
-	if (rq_info.init != 1)
-		return NOTIFY_OK;
-
-	switch (val) {
-	case CPU_ONLINE:
-		if (!this_cpu->cur_freq)
-			this_cpu->cur_freq = cpufreq_quick_get(cpu);
-		for_each_cpu(i, cpu_online_mask) {
-			struct cpu_load_data *cld = &per_cpu(cpuload, i);
-			struct cpufreq_policy *cpu_policy  = &per_cpu(cpupolicy, i);
-
-			cpufreq_get_policy(cpu_policy, i);
-			cpumask_copy(cld->related_cpus, cpu_policy->cpus);
-		}
-		/* cpu_online()=0 here, count cpu offline period as idle */
-		spin_lock_irqsave(&this_cpu->cpu_load_lock, flags);
-		update_average_load(AVG_LOAD_IGNORE, 0, cpu);
-		spin_unlock_irqrestore(&this_cpu->cpu_load_lock, flags);
-		break;
-	case CPU_ONLINE_FROZEN:
-	case CPU_UP_PREPARE:
-		/* cpu_online()=0 here, count cpu offline period as idle */
-		spin_lock_irqsave(&this_cpu->cpu_load_lock, flags);
-		update_average_load(AVG_LOAD_IGNORE, 0, cpu);
-		spin_unlock_irqrestore(&this_cpu->cpu_load_lock, flags);
-#ifdef CONFIG_MTK_SCHED_RQAVG_KS
-		/* clear per_cpu variables for heavy task if needed */
-		if (val == CPU_UP_PREPARE)
-			WARN_ON(reset_heavy_task_stats(cpu));
-#endif
-		break;
-	case CPU_DOWN_PREPARE:
-		/* cpu_online()=1 here, flush previous load */
-		spin_lock_irqsave(&this_cpu->cpu_load_lock, flags);
-		update_average_load(AVG_LOAD_UPDATE, this_cpu->cur_freq, cpu);
-		spin_unlock_irqrestore(&this_cpu->cpu_load_lock, flags);
-		break;
-	}
-	return NOTIFY_OK;
-}
 
 static int system_suspend_handler(struct notifier_block *nb,
 				unsigned long val, void *data)
@@ -807,11 +745,11 @@ static ssize_t run_queue_avg_show(struct kobject *kobj,
 	unsigned int val = 0;
 	unsigned long flags = 0;
 
-	spin_lock_irqsave(&rq_lock, flags);
+	spin_lock_irqsave(&rqavg_lock, flags);
 	/* rq avg currently available only on one core */
 	val = rq_info.rq_avg;
 	rq_info.rq_avg = 0;
-	spin_unlock_irqrestore(&rq_lock, flags);
+	spin_unlock_irqrestore(&rqavg_lock, flags);
 
 	return snprintf(buf, PAGE_SIZE, "%d.%d\n", val/10, val%10);
 }
@@ -824,10 +762,10 @@ static ssize_t show_run_queue_poll_ms(struct kobject *kobj,
 	int ret = 0;
 	unsigned long flags = 0;
 
-	spin_lock_irqsave(&rq_lock, flags);
+	spin_lock_irqsave(&rqavg_lock, flags);
 	ret = snprintf(buf, MAX_LONG_SIZE, "%u\n",
 		       jiffies_to_msecs(rq_info.rq_poll_jiffies));
-	spin_unlock_irqrestore(&rq_lock, flags);
+	spin_unlock_irqrestore(&rqavg_lock, flags);
 
 	return ret;
 }
@@ -842,10 +780,10 @@ static ssize_t store_run_queue_poll_ms(struct kobject *kobj,
 
 	mutex_lock(&lock_poll_ms);
 
-	spin_lock_irqsave(&rq_lock, flags);
+	spin_lock_irqsave(&rqavg_lock, flags);
 	if (sscanf(buf, "%iu", &val) != 0)
 		rq_info.rq_poll_jiffies = msecs_to_jiffies(val);
-	spin_unlock_irqrestore(&rq_lock, flags);
+	spin_unlock_irqrestore(&rqavg_lock, flags);
 
 	mutex_unlock(&lock_poll_ms);
 
@@ -853,8 +791,9 @@ static ssize_t store_run_queue_poll_ms(struct kobject *kobj,
 }
 
 static struct kobj_attribute run_queue_poll_ms_attr =
-	__ATTR(run_queue_poll_ms, S_IWUSR | S_IRUSR, show_run_queue_poll_ms,
-	store_run_queue_poll_ms);
+	__ATTR(run_queue_poll_ms, 0600 /* S_IWUSR | S_IRUSR */,
+		show_run_queue_poll_ms,
+		store_run_queue_poll_ms);
 
 static ssize_t show_def_timer_ms(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
@@ -863,7 +802,8 @@ static ssize_t show_def_timer_ms(struct kobject *kobj,
 }
 
 static ssize_t store_def_timer_ms(struct kobject *kobj,
-				  struct kobj_attribute *attr, const char *buf, size_t count)
+				  struct kobj_attribute *attr,
+				  const char *buf, size_t count)
 {
 	unsigned int val = 0;
 
@@ -875,7 +815,7 @@ static ssize_t store_def_timer_ms(struct kobject *kobj,
 }
 
 static struct kobj_attribute def_timer_ms_attr =
-	__ATTR(def_timer_ms, S_IWUSR | S_IRUSR, show_def_timer_ms,
+	__ATTR(def_timer_ms, 0600 /* S_IWUSR | S_IRUSR */, show_def_timer_ms,
 	store_def_timer_ms);
 
 static ssize_t cpu_normalized_load_show(struct kobject *kobj,
@@ -889,38 +829,22 @@ static ssize_t cpu_normalized_load_show(struct kobject *kobj,
 
 	for_each_possible_cpu(cpu) {
 		sched_get_percpu_load2(cpu, 0, &load_rel, &load_abs);
-		len += snprintf(buf+len, max_len-len, "cpu(%d): load(rel/abs) = %u/%u\n", cpu, load_rel, load_abs);
-#if 0
-		unsigned int idle_time, wall_time, iowait_time;
-		struct cpu_load_data *pcpu = &per_cpu(cpuload, cpu);
-
-		idle_time = get_cpu_idle_time(cpu, &wall_time, 0);
-		iowait_time = get_cpu_iowait_time(cpu, &wall_time);
-		len += snprintf(buf+len, max_len-len, "curr idle=%u, io=%u, wall=%u\n",
-			(unsigned int)idle_time,
-			(unsigned int)iowait_time,
-			(unsigned int)wall_time);
 		len += snprintf(buf+len, max_len-len,
-						"prev idle=%u, io=%u, wall=%u, l(rel/abs)=%u/%u, w=%u, f=%u m=%u, %s\n",
-			(unsigned int)pcpu->prev_cpu_idle,
-			(unsigned int)pcpu->prev_cpu_iowait,
-			(unsigned int)pcpu->prev_cpu_wall,
-			pcpu->avg_load_maxfreq_rel,
-			pcpu->avg_load_maxfreq_abs,
-			pcpu->window_size,
-			pcpu->cur_freq,
-			pcpu->policy_max,
-			(unsigned int)(cpu_online(cpu))?"on":"off");
-#endif
+					"cpu(%d): load(rel/abs) = %u/%u\n",
+					cpu, load_rel, load_abs);
 	}
-	len += snprintf(buf+len, max_len-len, "htask_threshold=%d, total_htask#=%d\n",
-		heavy_task_threshold, htask_statistic);
+	len += snprintf(buf+len, max_len-len,
+			"htask_threshold=%d, total_htask#=%d\n",
+			heavy_task_threshold, htask_statistic);
 	for (i = 0; i < arch_get_nr_clusters(); i++)
-		len += snprintf(buf+len, max_len-len, "cluster%d: current_htask#=%u\n", i, sched_get_nr_heavy_task2(i));
+		len += snprintf(buf+len, max_len-len,
+				"cluster%d: current_htask#=%u\n",
+				i, sched_get_nr_heavy_task2(i));
 
 	return len;
 }
-static struct kobj_attribute cpu_normalized_load_attr = __ATTR_RO(cpu_normalized_load);
+static struct kobj_attribute cpu_normalized_load_attr =
+			__ATTR_RO(cpu_normalized_load);
 
 /* For htasks statistics */
 static ssize_t show_heavy_tasks(struct kobject *kobj,
@@ -930,16 +854,22 @@ static ssize_t show_heavy_tasks(struct kobject *kobj,
 	unsigned int max_len = 4096;
 	int i;
 
-	len += snprintf(buf+len, max_len-len, "htask_cpucap_ctrl=%d, htask_threshold=%d, total_htask#=%d\n",
-					htask_cpucap_ctrl, heavy_task_threshold, htask_statistic);
+	len += snprintf(buf+len,
+			max_len-len,
+			"htask_cpucap_ctrl=%d, htask_threshold=%d, total_htask#=%d\n",
+			htask_cpucap_ctrl,
+			heavy_task_threshold,
+			htask_statistic);
 	for (i = 0; i < arch_get_nr_clusters(); i++)
-		len += snprintf(buf+len, max_len-len, "cluster%d: current_htask#=%u\n", i, sched_get_nr_heavy_task2(i));
+		len += snprintf(buf+len, max_len-len,
+					"cluster%d: current_htask#=%u\n", i,
+					sched_get_nr_heavy_task2(i));
 
 	return len;
 }
 
 static struct kobj_attribute htasks_attr =
-	__ATTR(htasks, S_IRUSR, show_heavy_tasks,
+	__ATTR(htasks, 0400 /* S_IRUSR */, show_heavy_tasks,
 			NULL);
 
 /* For cpu capacity control */
@@ -953,7 +883,8 @@ static ssize_t htask_cpucap_ctrl_store(struct kobject *kobj,
 
 	return count;
 }
-static struct kobj_attribute htask_cpucap_ctrl_attr = __ATTR_WO(htask_cpucap_ctrl);
+static struct kobj_attribute htask_cpucap_ctrl_attr =
+			__ATTR_WO(htask_cpucap_ctrl);
 
 /* For read/write heavy_task_threshold */
 static ssize_t store_heavy_task_threshold(struct kobject *kobj,
@@ -978,7 +909,7 @@ static ssize_t show_heavy_task_threshold(struct kobject *kobj,
 }
 
 static struct kobj_attribute htasks_thresh_attr =
-__ATTR(htasks_thresh, S_IWUSR | S_IRUSR, show_heavy_task_threshold,
+__ATTR(htasks_thresh, 0600 /* S_IWUSR | S_IRUSR */, show_heavy_task_threshold,
 		store_heavy_task_threshold);
 
 /* For read/write admission control for average heavy task */
@@ -1010,7 +941,7 @@ static ssize_t show_avg_heavy_task_ac(struct kobject *kobj,
 }
 
 static struct kobj_attribute avg_htasks_ac_attr =
-__ATTR(avg_htasks_ac, S_IWUSR | S_IRUSR, show_avg_heavy_task_ac,
+__ATTR(avg_htasks_ac, 0600 /* S_IWUSR | S_IRUSR */, show_avg_heavy_task_ac,
 		store_avg_heavy_task_ac);
 
 void set_overutil_threshold(int val)
@@ -1041,7 +972,9 @@ static ssize_t show_overutil(struct kobject *kobj,
 	unsigned int len = 0;
 	unsigned int max_len = 4096;
 
-	len += snprintf(buf, max_len, "overutilization threshold=%d max=100\n\n", overutil_threshold);
+	len += snprintf(buf,
+		max_len, "overutilization threshold=%d max=100\n\n",
+		overutil_threshold);
 #ifdef CONFIG_MTK_SCHED_RQAVG_KS
 	len += get_overutil_stats(buf+len, max_len-len);
 #endif
@@ -1050,7 +983,7 @@ static ssize_t show_overutil(struct kobject *kobj,
 }
 
 static struct kobj_attribute over_util_attr =
-__ATTR(over_util, S_IWUSR | S_IRUSR, show_overutil,
+__ATTR(over_util, 0600 /* S_IWUSR | S_IRUSR*/, show_overutil,
 		store_overutil);
 
 /* For read/write threshold for average heavy task */
@@ -1082,7 +1015,8 @@ static ssize_t show_avg_heavy_task_thresh(struct kobject *kobj,
 }
 
 static struct kobj_attribute avg_htasks_thresh_attr =
-__ATTR(avg_htasks_thresh, S_IWUSR | S_IRUSR, show_avg_heavy_task_thresh,
+__ATTR(avg_htasks_thresh, 0600 /* S_IWUSR | S_IRUSR */,
+		show_avg_heavy_task_thresh,
 		store_avg_heavy_task_thresh);
 
 /* big task */
@@ -1095,7 +1029,7 @@ static ssize_t show_big_task(struct kobject *kobj,
 }
 
 static struct kobj_attribute big_task_attr =
-__ATTR(big_task, S_IRUSR, show_big_task,
+__ATTR(big_task, 0400 /* S_IRUSR */, show_big_task,
 		NULL);
 
 static struct attribute *rq_attrs[] = {
@@ -1126,7 +1060,8 @@ static int init_rq_attribs(void)
 	rq_info.attr_group = &rq_attr_group;
 
 	/* Create /sys/devices/system/cpu/rq-stats/... */
-	rq_info.kobj = kobject_create_and_add("rq-stats", &cpu_subsys.dev_root->kobj);
+	rq_info.kobj = kobject_create_and_add("rq-stats",
+						&cpu_subsys.dev_root->kobj);
 	if (!rq_info.kobj)
 		return -ENOMEM;
 
@@ -1170,7 +1105,7 @@ static int __init rq_stats_init(void)
 	INIT_WORK(&rq_info.def_timer_work, def_work_fn);
 #endif
 
-	spin_lock_init(&rq_lock);
+	spin_lock_init(&rqavg_lock);
 	rq_info.rq_poll_jiffies = DEFAULT_RQ_POLL_JIFFIES;
 	rq_info.def_timer_jiffies = DEFAULT_DEF_TIMER_JIFFIES;
 	rq_info.rq_poll_last_jiffy = 0;
@@ -1196,10 +1131,9 @@ static int __init rq_stats_init(void)
 	}
 #ifdef CONFIG_CPU_FREQ
 	freq_transition.notifier_call = cpufreq_transition_handler;
-	cpufreq_register_notifier(&freq_transition, CPUFREQ_TRANSITION_NOTIFIER);
+	cpufreq_register_notifier(&freq_transition,
+		CPUFREQ_TRANSITION_NOTIFIER);
 #endif /* CONFIG_CPU_FREQ */
-	cpu_hotplug.notifier_call = cpu_hotplug_handler;
-	register_hotcpu_notifier(&cpu_hotplug);
 
 	rq_info.init = 1;
 #ifdef CONFIG_CPU_FREQ

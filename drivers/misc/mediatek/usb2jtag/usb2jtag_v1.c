@@ -22,8 +22,8 @@ static int __init setup_usb2jtag_mode(char *str)
 
 	if (*str++ != '=' || !*str)
 		/*
-		* No options specified. Switch on full debugging.
-		*/
+		 * No options specified. Switch on full debugging.
+		 */
 		goto out;
 
 	switch (*str) {

@@ -12,7 +12,6 @@
  */
 
 #include <linux/cpu_pm.h>
-#include <linux/irqchip/mtk-gic.h>
 #include <linux/of_irq.h>
 #include <linux/of.h>
 #include <linux/psci.h>
@@ -62,7 +61,7 @@ static void cpuidle_ts_init(void)
 	p = dma_zalloc_coherent(cpu_dev, PAGE_SIZE, &atf_addr, GFP_KERNEL);
 	WARN_ON(!p);
 
-	rc = kernel_smc_msg(0, 1, atf_addr);
+	rc = mt_secure_call(MTK_SIP_POWER_FLOW_DEBUG, 0, 1, atf_addr, 0);
 	WARN_ON(rc);
 
 	ts_pool = p;
@@ -75,7 +74,7 @@ static inline void cpuidle_ts(int cpu, int hotspot)
 	p[hotspot] = arch_counter_get_cntvct();
 }
 
-static unsigned cpu_get_freq(int cpu)
+static unsigned int cpu_get_freq(int cpu)
 {
 	/* there is only one cluster in mt6739 */
 	return mt_cpufreq_get_cur_freq(0);
@@ -84,7 +83,7 @@ static unsigned cpu_get_freq(int cpu)
 static void cpuidle_perf_print(int cpu, int mode)
 {
 	struct cpuidle_perf_time *percpu_perf;
-	unsigned cpufreq, count;
+	unsigned int cpufreq, count;
 	u64 *cpu_ts = percpu_ts(cpu);
 
 	if (mode == MTK_MCDI_CLUSTER_MODE &&
@@ -97,36 +96,56 @@ static void cpuidle_perf_print(int cpu, int mode)
 	percpu_perf = &cpuidle_perf[cpu][mode];
 	percpu_perf->count++;
 
-	__time(kernel_plat_backup, CPUIDLE_TS_ENTER_CPUIDLE, CPUIDLE_TS_BEFORE_ATF);
-	__time(kernel_to_atf, CPUIDLE_TS_BEFORE_ATF, CPUIDLE_TS_ENTER_ATF);
-	__time(atf_l2_flush, CPUIDLE_TS_BEFORE_L2_FLUSH, CPUIDLE_TS_AFTER_L2_FLUSH);
-	__time(atf_spm_suspend, CPUIDLE_TS_ENTER_SPM_SUSPEND, CPUIDLE_TS_LEAVE_SPM_SUSPEND);
-	__time(atf_gic_backup, CPUIDLE_TS_GIC_P1, CPUIDLE_TS_GIC_P2);
-	__time(atf_plat_backup, CPUIDLE_TS_LEAVE_SPM_SUSPEND, CPUIDLE_TS_GIC_P1);
+	__time(kernel_plat_backup,
+		CPUIDLE_TS_ENTER_CPUIDLE, CPUIDLE_TS_BEFORE_ATF);
+	__time(kernel_to_atf,
+		CPUIDLE_TS_BEFORE_ATF, CPUIDLE_TS_ENTER_ATF);
+	__time(atf_l2_flush,
+		CPUIDLE_TS_BEFORE_L2_FLUSH, CPUIDLE_TS_AFTER_L2_FLUSH);
+	__time(atf_spm_suspend,
+		CPUIDLE_TS_ENTER_SPM_SUSPEND, CPUIDLE_TS_LEAVE_SPM_SUSPEND);
+	__time(atf_gic_backup,
+		CPUIDLE_TS_GIC_P1, CPUIDLE_TS_GIC_P2);
+	__time(atf_plat_backup,
+		CPUIDLE_TS_LEAVE_SPM_SUSPEND, CPUIDLE_TS_GIC_P1);
 
-	 /* the time spent by atf_setup was accumulated with multiple sectuion */
-	__time(atf_setup, CPUIDLE_TS_ENTER_ATF, CPUIDLE_TS_BEFORE_L2_FLUSH);
-	__time(atf_setup, CPUIDLE_TS_AFTER_L2_FLUSH, CPUIDLE_TS_ENTER_SPM_SUSPEND);
-	__time(atf_setup, CPUIDLE_TS_GIC_P2, CPUIDLE_TS_BEFORE_WFI);
+	 /* time spent by atf_setup was accumulated with multiple sectuion */
+	__time(atf_setup,
+		CPUIDLE_TS_ENTER_ATF, CPUIDLE_TS_BEFORE_L2_FLUSH);
+	__time(atf_setup,
+		CPUIDLE_TS_AFTER_L2_FLUSH, CPUIDLE_TS_ENTER_SPM_SUSPEND);
+	__time(atf_setup,
+		CPUIDLE_TS_GIC_P2, CPUIDLE_TS_BEFORE_WFI);
 
-	__time(atf_cpu_init, CPUIDLE_TS_AFTER_WFI, CPUIDLE_TS_GIC_P3);
-	__time(atf_gic_restore, CPUIDLE_TS_GIC_P3, CPUIDLE_TS_GIC_P4);
-	__time(atf_spm_suspend_finish, CPUIDLE_TS_ENTER_SPM_SUSPEND_FINISH,
-	       CPUIDLE_TS_LEAVE_SPM_SUSPEND_FINISH);
+	__time(atf_cpu_init,
+		CPUIDLE_TS_AFTER_WFI, CPUIDLE_TS_GIC_P3);
+	__time(atf_gic_restore,
+		CPUIDLE_TS_GIC_P3, CPUIDLE_TS_GIC_P4);
+	__time(atf_spm_suspend_finish,
+		CPUIDLE_TS_ENTER_SPM_SUSPEND_FINISH,
+		CPUIDLE_TS_LEAVE_SPM_SUSPEND_FINISH);
 
-	__time(atf_plat_restore, CPUIDLE_TS_GIC_P4, CPUIDLE_TS_ENTER_SPM_SUSPEND_FINISH);
-	__time(atf_to_kernel, CPUIDLE_TS_LEAVE_SPM_SUSPEND_FINISH, CPUIDLE_TS_AFTER_ATF);
-	__time(kernel_plat_restore, CPUIDLE_TS_AFTER_ATF, CPUIDLE_TS_LEAVE_CPUIDLE);
+	__time(atf_plat_restore,
+		CPUIDLE_TS_GIC_P4, CPUIDLE_TS_ENTER_SPM_SUSPEND_FINISH);
+	__time(atf_to_kernel,
+		CPUIDLE_TS_LEAVE_SPM_SUSPEND_FINISH, CPUIDLE_TS_AFTER_ATF);
+	__time(kernel_plat_restore,
+		CPUIDLE_TS_AFTER_ATF, CPUIDLE_TS_LEAVE_CPUIDLE);
 
-	__time(k2atf, CPUIDLE_TS_ENTER_CPUIDLE, CPUIDLE_TS_BEFORE_ATF);
-	__time(atf2wfi, CPUIDLE_TS_ENTER_ATF, CPUIDLE_TS_BEFORE_WFI);
-	__time(wfi2k, CPUIDLE_TS_AFTER_WFI, CPUIDLE_TS_LEAVE_ATF);
-	__time(k2leave, CPUIDLE_TS_AFTER_ATF, CPUIDLE_TS_LEAVE_CPUIDLE);
+	__time(k2atf,
+		CPUIDLE_TS_ENTER_CPUIDLE, CPUIDLE_TS_BEFORE_ATF);
+	__time(atf2wfi,
+		CPUIDLE_TS_ENTER_ATF, CPUIDLE_TS_BEFORE_WFI);
+	__time(wfi2k,
+		CPUIDLE_TS_AFTER_WFI, CPUIDLE_TS_LEAVE_ATF);
+	__time(k2leave,
+		CPUIDLE_TS_AFTER_ATF, CPUIDLE_TS_LEAVE_CPUIDLE);
 
 #undef __time
 
 	/*
-	 * if the numbers of this idle mode executed by this core were over 1000,
+	 * if the numbers of this idle mode executed by
+	 * this core were over 1000,
 	 * print out the result then reset it.
 	 */
 
@@ -150,22 +169,27 @@ static void cpuidle_perf_print(int cpu, int mode)
 	request_uart_to_wakeup();
 
 	pr_debug("======== MTK_CPUIDLE Time Profiling Start ========\n");
-	pr_debug(",CPU,%d,CPU Freq,%d, idlemode:%d\n", cpu, cpufreq, mode);
-
-	pr_debug(",Kernel Platform Backup,%u\n", percpu_perf->kernel_plat_backup / count);
+	pr_debug(",CPU,%d,CPU Freq,%d, idlemode:%d\n",
+		cpu, cpufreq, mode);
+	pr_debug(",Kernel Platform Backup,%u\n",
+		percpu_perf->kernel_plat_backup / count);
 	pr_debug(",Kernel to ATF,%u\n", percpu_perf->kernel_to_atf / count);
 	pr_debug(",ATF Setup,%u\n", percpu_perf->atf_setup / count);
 	pr_debug(",ATF L2 Flush,%u\n", percpu_perf->atf_l2_flush / count);
 	pr_debug(",ATF SPM Suspend,%u\n", percpu_perf->atf_spm_suspend / count);
 	pr_debug(",ATF GIC Backup,%u\n", percpu_perf->atf_gic_backup / count);
-	pr_debug(",ATF Platform Backup,%u\n", percpu_perf->atf_plat_backup / count);
+	pr_debug(",ATF Platform Backup,%u\n",
+		percpu_perf->atf_plat_backup / count);
 
 	pr_debug("ATF CPU Init,%u\n", percpu_perf->atf_cpu_init / count);
 	pr_debug("ATF GIC Restore,%u\n", percpu_perf->atf_gic_restore / count);
-	pr_debug("ATF SPM Suspend Finish,%u\n", percpu_perf->atf_spm_suspend_finish / count);
-	pr_debug("ATF Platform Restore,%u\n", percpu_perf->atf_plat_restore / count);
+	pr_debug("ATF SPM Suspend Finish,%u\n",
+		percpu_perf->atf_spm_suspend_finish / count);
+	pr_debug("ATF Platform Restore,%u\n",
+		percpu_perf->atf_plat_restore / count);
 	pr_debug("ATF to Kernel,%u\n", percpu_perf->atf_to_kernel / count);
-	pr_debug("Kernel Platform Restore,%u\n", percpu_perf->kernel_plat_restore / count);
+	pr_debug("Kernel Platform Restore,%u\n",
+		percpu_perf->kernel_plat_restore / count);
 
 	pr_debug("Kernel to ATF before,%u\n", percpu_perf->k2atf / count);
 	pr_debug("ATF to wfi before,%u\n", percpu_perf->atf2wfi / count);
@@ -198,11 +222,13 @@ static void cpuidle_fp_init(void)
 	cpuidle_fp_pa = (u32 *) aee_rr_rec_mtk_cpuidle_footprint_pa();
 
 	if (cpuidle_fp_va && cpuidle_fp_pa) {
-		kernel_smc_msg(0, 2, (ulong) cpuidle_fp_pa);
+		mt_secure_call(MTK_SIP_POWER_FLOW_DEBUG,
+				0, 2, (ulong) cpuidle_fp_pa, 0);
 		return;
 	}
 
-	WARN(1, "Invalid footprint address va(%p), pa(%p)\n", cpuidle_fp_va, cpuidle_fp_pa);
+	WARN(1, "Invalid footprint address va(%p), pa(%p)\n",
+		cpuidle_fp_va, cpuidle_fp_pa);
 }
 
 static inline void cpuidle_fp(int cpu, int checkpoint)
@@ -222,20 +248,6 @@ static inline void cpuidle_fp_reset(int cpu)
 #define cpuidle_fp_reset(cpu)
 
 #endif /* CONFIG_MTK_RAM_CONSOLE */
-
-
-static void mtk_spm_wakeup_src_restore(void)
-{
-	int i;
-
-	for (i = 0; i < MAX_SPM_WAKEUP_SRC; i++) {
-		if (!spm_wakeup_src[i].irq_nr)
-			return;
-
-		if (readl_relaxed(SPM_SW_RSV_0) & spm_wakeup_src[i].irq_pending)
-			mt_irq_set_pending(spm_wakeup_src[i].irq_nr);
-	}
-}
 
 /*
  * Look up the wake up source wired to the SPM. These wake up sources
@@ -259,12 +271,13 @@ static int wakeup_source_lookup(void)
 	 * get the wake up source connected to spm device.
 	 *
 	 * the format of property value "wakeup-source" is
-	 * <phandle-to-wakeup-device the-interrupt-index its-spm-irq-state-index>
+	 * <phandle-to-wakeup-device interrupt-index its-spm-irq-state-index>
 	 * e.g.
 	 * <keypad 0 (1 << 2)>
 	 */
 	for (i = 0; i < MAX_SPM_WAKEUP_SRC; i++) {
-		rc = of_parse_phandle_with_fixed_args(np, "wakeup-source", 2, i, &of_args);
+		rc = of_parse_phandle_with_fixed_args(np, "wakeup-source",
+							2, i, &of_args);
 		if (rc)
 			break;
 
@@ -273,7 +286,8 @@ static int wakeup_source_lookup(void)
 
 		irq_nr = of_irq_get(of_args.np, of_args.args[0]);
 		if (irq_nr <= 0) {
-			pr_notice("cpuidle: wake up IRQ not found: %d\n", irq_nr);
+			pr_notice("cpuidle: wake up IRQ not found: %d\n",
+				irq_nr);
 			goto fail;
 		}
 
@@ -330,9 +344,6 @@ int mtk_enter_idle_state(int mode)
 		cpuidle_ts(cpu, CPUIDLE_TS_AFTER_ATF);
 
 		mtk_platform_restore(cpu);
-
-		if (mode > MTK_MCDI_CLUSTER_MODE)
-			mtk_spm_wakeup_src_restore();
 
 		cpu_pm_exit();
 

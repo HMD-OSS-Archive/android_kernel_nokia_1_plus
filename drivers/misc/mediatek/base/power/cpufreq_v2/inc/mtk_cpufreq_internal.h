@@ -91,28 +91,31 @@ do {						\
 
 #define FUNC_LV_MODULE         BIT(0)  /* module, platform driver interface */
 #define FUNC_LV_CPUFREQ        BIT(1)  /* cpufreq driver interface          */
-#define FUNC_LV_API                BIT(2)  /* mt_cpufreq driver global function */
+#define FUNC_LV_API                BIT(2)/* mt_cpufreq driver global function*/
 #define FUNC_LV_LOCAL            BIT(3)  /* mt_cpufreq driver local function  */
-#define FUNC_LV_HELP              BIT(4)  /* mt_cpufreq driver help function   */
+#define FUNC_LV_HELP              BIT(4)  /* mt_cpufreq driver help function */
 
 /* #define CONFIG_CPU_DVFS_SHOWLOG 1 */
 /*
-*  unsigned int func_lv_mask =
-* (FUNC_LV_MODULE | FUNC_LV_CPUFREQ | FUNC_LV_API | FUNC_LV_LOCAL | FUNC_LV_HELP);
-*/
+ *  unsigned int func_lv_mask =
+ * (FUNC_LV_MODULE | FUNC_LV_CPUFREQ | \
+ * FUNC_LV_API | FUNC_LV_LOCAL | FUNC_LV_HELP);
+ */
 #ifdef CONFIG_CPU_DVFS_SHOWLOG
 #define FUNC_ENTER(lv) \
-	do { if ((lv) & func_lv_mask) tag_pr_debug(">> %s()\n", __func__); } while (0)
+	do { if ((lv) & func_lv_mask) tag_pr_debug(">> %s()\n", \
+		__func__); } while (0)
 #define FUNC_EXIT(lv) \
-	do { if ((lv) & func_lv_mask) tag_pr_debug("<< %s():%d\n", __func__, __LINE__); } while (0)
+	do { if ((lv) & func_lv_mask) tag_pr_debug("<< %s():%d\n", \
+		__func__, __LINE__); } while (0)
 #else
 #define FUNC_ENTER(lv)
 #define FUNC_EXIT(lv)
 #endif				/* CONFIG_CPU_DVFS_SHOWLOG */
 
 /* PROCFS */
-#define PROC_FOPS_RW(name)							\
-	static int name ## _proc_open(struct inode *inode, struct file *file)	\
+#define PROC_FOPS_RW(name)						\
+	static int name ## _proc_open(struct inode *inode, struct file *file)\
 {									\
 	return single_open(file, name ## _proc_show, PDE_DATA(inode));	\
 }									\
@@ -125,8 +128,8 @@ static const struct file_operations name ## _proc_fops = {		\
 	.write          = name ## _proc_write,				\
 }
 
-#define PROC_FOPS_RO(name)							\
-	static int name ## _proc_open(struct inode *inode, struct file *file)	\
+#define PROC_FOPS_RO(name)						\
+	static int name ## _proc_open(struct inode *inode, struct file *file)\
 {									\
 	return single_open(file, name ## _proc_show, PDE_DATA(inode));	\
 }									\
@@ -139,42 +142,58 @@ static const struct file_operations name ## _proc_fops = {		\
 }
 
 #define PROC_ENTRY(name)	{__stringify(name), &name ## _proc_fops}
-#define PROC_ENTRY_DATA(name)	{__stringify(name), &name ## _proc_fops, g_ ## name}
+#define PROC_ENTRY_DATA(name)	\
+	{__stringify(name), &name ## _proc_fops, g_ ## name}
 
 /*
  * BIT Operation
  */
-#define _BIT_(_bit_)                    (unsigned)(1 << (_bit_))
+#define _BIT_(_bit_)                    (unsigned int)(1 << (_bit_))
 #define _BITS_(_bits_, _val_) \
-	((((unsigned) -1 >> (31 - ((1) ? _bits_))) & ~((1U << ((0) ? _bits_)) - 1)) & ((_val_)<<((0) ? _bits_)))
-#define _BITMASK_(_bits_)               (((unsigned) -1 >> (31 - ((1) ? _bits_))) & ~((1U << ((0) ? _bits_)) - 1))
-#define _GET_BITS_VAL_(_bits_, _val_)   (((_val_) & (_BITMASK_(_bits_))) >> ((0) ? _bits_))
+	((((unsigned int) -1 >> (31 - ((1) ? _bits_))) & \
+	~((1U << ((0) ? _bits_)) - 1)) & ((_val_)<<((0) ? _bits_)))
+#define _BITMASK_(_bits_)               \
+	(((unsigned int) -1 >> (31 - ((1) ? _bits_))) & \
+	~((1U << ((0) ? _bits_)) - 1))
+#define _GET_BITS_VAL_(_bits_, _val_)   \
+	(((_val_) & (_BITMASK_(_bits_))) >> ((0) ? _bits_))
 
 /*
  * REG ACCESS
  */
 #define cpufreq_read(addr)                  __raw_readl(IOMEM(addr))
-#define cpufreq_write(addr, val)            mt_reg_sync_writel((val), ((void *)addr))
+#define cpufreq_write(addr, val)            \
+	mt_reg_sync_writel((val), ((void *)addr))
 #define cpufreq_write_mask(addr, mask, val) \
-cpufreq_write(addr, (cpufreq_read(addr) & ~(_BITMASK_(mask))) | _BITS_(mask, val))
+	cpufreq_write(addr, \
+	(cpufreq_read(addr) & ~(_BITMASK_(mask))) | _BITS_(mask, val))
 
 extern struct mt_cpu_dvfs cpu_dvfs[NR_MT_CPU_DVFS];
 
-#define for_each_cpu_dvfs(i, p)			for (i = 0, p = cpu_dvfs; i < NR_MT_CPU_DVFS; i++, p = &cpu_dvfs[i])
+#define for_each_cpu_dvfs(i, p)			\
+	for (i = 0, p = cpu_dvfs; i < NR_MT_CPU_DVFS; i++, p = &cpu_dvfs[i])
 #define cpu_dvfs_is(p, id)				(p == &cpu_dvfs[id])
 #define cpu_dvfs_is_available(p)		(p->opp_tbl)
 #define cpu_dvfs_get_name(p)			(p->name)
 
-#define cpu_dvfs_get_cur_freq(p)		(p->opp_tbl[p->idx_opp_tbl].cpufreq_khz)
-#define cpu_dvfs_get_freq_by_idx(p, idx)		(p->opp_tbl[idx].cpufreq_khz)
+#define cpu_dvfs_get_cur_freq(p)		\
+	(p->opp_tbl[p->idx_opp_tbl].cpufreq_khz)
+#define cpu_dvfs_get_freq_by_idx(p, idx)		\
+	(p->opp_tbl[idx].cpufreq_khz)
 
-#define cpu_dvfs_get_max_freq(p)				(p->opp_tbl[0].cpufreq_khz)
-#define cpu_dvfs_get_max_volt(p)				(p->opp_tbl[0].cpufreq_volt)
-#define cpu_dvfs_get_normal_max_freq(p)			(p->opp_tbl[p->idx_normal_max_opp].cpufreq_khz)
-#define cpu_dvfs_get_min_freq(p)				(p->opp_tbl[p->nr_opp_tbl - 1].cpufreq_khz)
+#define cpu_dvfs_get_max_freq(p)				\
+	(p->opp_tbl[0].cpufreq_khz)
+#define cpu_dvfs_get_max_volt(p)				\
+	(p->opp_tbl[0].cpufreq_volt)
+#define cpu_dvfs_get_normal_max_freq(p)			\
+	(p->opp_tbl[p->idx_normal_max_opp].cpufreq_khz)
+#define cpu_dvfs_get_min_freq(p)				\
+	(p->opp_tbl[p->nr_opp_tbl - 1].cpufreq_khz)
 
-#define cpu_dvfs_get_cur_volt(p)				(p->opp_tbl[p->idx_opp_tbl].cpufreq_volt)
-#define cpu_dvfs_get_volt_by_idx(p, idx)		(p->opp_tbl[idx].cpufreq_volt)
+#define cpu_dvfs_get_cur_volt(p)				\
+	(p->opp_tbl[p->idx_opp_tbl].cpufreq_volt)
+#define cpu_dvfs_get_volt_by_idx(p, idx)		\
+	(p->opp_tbl[idx].cpufreq_volt)
 
 struct opp_idx_tbl {
 	struct mt_cpu_dvfs *p;
@@ -197,7 +216,13 @@ enum mt_cpu_dvfs_action_id {
 
 	NR_MT_CPU_DVFS_ACTION,
 };
+enum hp_action {
+	CPUFREQ_CPU_ONLINE,
+	CPUFREQ_CPU_DOWN_PREPARE,
+	CPUFREQ_CPU_DOWN_FAIED,
 
+	NR_HP_ACTION,
+};
 enum hp_action_type {
 	FREQ_NONE,
 	FREQ_HIGH,
@@ -229,12 +254,15 @@ enum dvfs_time_profile {
 	NR_SET_V_F,
 };
 
-extern int _search_available_freq_idx(struct mt_cpu_dvfs *p, unsigned int target_khz,
+extern int _search_available_freq_idx(struct mt_cpu_dvfs *p,
+	unsigned int target_khz,
 	unsigned int relation);
-extern void _mt_cpufreq_dvfs_request_wrapper(struct mt_cpu_dvfs *p, int new_opp_idx,
+extern void _mt_cpufreq_dvfs_request_wrapper(struct mt_cpu_dvfs *p,
+	int new_opp_idx,
 	enum mt_cpu_dvfs_action_id action, void *data);
 extern int set_cur_volt_wrapper(struct mt_cpu_dvfs *p, unsigned int volt);
-extern void set_cur_freq_wrapper(struct mt_cpu_dvfs *p, unsigned int cur_khz, unsigned int target_khz);
+extern void set_cur_freq_wrapper(struct mt_cpu_dvfs *p,
+	unsigned int cur_khz, unsigned int target_khz);
 
 extern struct mt_cpu_dvfs *id_to_cpu_dvfs(enum mt_cpu_dvfs_id id);
 extern struct buck_ctrl_t *id_to_buck_ctrl(enum mt_cpu_dvfs_buck_id id);

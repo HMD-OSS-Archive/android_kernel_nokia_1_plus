@@ -324,7 +324,7 @@ static unsigned int g_log_def_constraint;
 #define ISP_REG_ADDR_TG_RRZ_CROP_IN	(ISP_IMGSYS_BASE + 0x75E0)
 #define ISP_REG_ADDR_TG_RRZ_CROP_IN_D    (ISP_IMGSYS_BASE + 0x75E8)
 
-/* Zion top registers */
+/* MT6739 top registers */
 #define IMGSYS_REG_CG_SET        (ISP_IMGSYS_BASE + 0x4)
 #define IMGSYS_REG_CG_CLR        (ISP_IMGSYS_BASE + 0x8)
 
@@ -3298,7 +3298,7 @@ static inline void Prepare_Enable_ccf_clock(void)
 	int ret;
 	/* must keep this clk open order: CG_SCP_SYS_MM0-> CG_SCP_SYS_ISP -> ISP clk */
 	/* enable through smi API : CG_IMG_LARB2_SMI, CG_MM_SMI_COMMON*/
-	smi_bus_enable(SMI_LARB2, ISP_DEV_NAME);
+	smi_bus_prepare_enable(SMI_LARB2, ISP_DEV_NAME);
 
 	ret = clk_prepare_enable(isp_clk.CG_SCP_SYS_MM0);
 	if (ret)
@@ -3342,7 +3342,7 @@ static inline void Disable_Unprepare_ccf_clock(void)
 	clk_disable_unprepare(isp_clk.CG_SCP_SYS_ISP);
 	clk_disable_unprepare(isp_clk.CG_SCP_SYS_MM0);
 	/* disable through smi API : CG_IMG_LARB2_SMI, CG_MM_SMI_COMMON*/
-	smi_bus_disable(SMI_LARB2, ISP_DEV_NAME);
+	smi_bus_disable_unprepare(SMI_LARB2, ISP_DEV_NAME);
 }
 
 
@@ -4165,9 +4165,12 @@ static signed int ISP_EnableHoldReg(bool En)
 										    (IspInfo.
 										     SpinLockHold))),
 							   ISP_MsToJiffies(500));
+		if (Timeout == 0)
+			LOG_DBG("[%s] wait timeout 500", __func__);
 		/*      */
-		if (IspInfo.DebugMask & ISP_DBG_TASKLET)
+		if (IspInfo.DebugMask & ISP_DBG_TASKLET) {
 			LOG_DBG("End wait ");
+		}
 
 		/*      */
 		if (IsLock == 0) {
@@ -7634,6 +7637,7 @@ static signed int ISP_ED_BufQue_CTRL_FUNC(struct ISP_ED_BUFQUE_STRUCT param)
 			/* [3] add new buffer package in manager list */
 			if (param.p2burstQIdx == 0) {
 				if (P2_EDBUF_MList_FirstBufIdx == P2_EDBUF_MList_LastBufIdx
+				    && P2_EDBUF_MList_FirstBufIdx != -1
 				    && P2_EDBUF_MgrList[P2_EDBUF_MList_FirstBufIdx].p2dupCQIdx ==
 				    -1) {
 					/* all managed buffer node is empty */
@@ -8003,7 +8007,7 @@ static signed int ISP_MARK_IRQ(struct ISP_WAIT_IRQ_STRUCT irqinfo)
 	/* 2. record mark time */
 	idx = my_get_pow_idx(irqinfo.UserInfo.Status);
 
-	sec = cpu_clock(0);     /* ns */
+	sec = ktime_get();;     /* ns */
 	do_div(sec, 1000);      /*     usec */
 	usec = do_div(sec, 1000000);    /* sec and usec */
 
@@ -8044,7 +8048,7 @@ static signed int ISP_GET_MARKtoQEURY_TIME(struct ISP_WAIT_IRQ_STRUCT *irqinfo)
 	enum eISPIrq eIrq = _IRQ;
 
 	/* do_gettimeofday(&time_ready2return);*/
-	sec = cpu_clock(0);     /* ns */
+	sec = ktime_get();     /* ns */
 	do_div(sec, 1000);      /*     usec */
 	usec = do_div(sec, 1000000);    /* sec and usec */
 	time_ready2return.tv_usec = usec;
@@ -8474,7 +8478,7 @@ static signed int ISP_WaitIrq_v3(struct ISP_WAIT_IRQ_STRUCT *WaitIrq)
 
 
 	/* do_gettimeofday(&time_getrequest); */
-	sec = cpu_clock(0);     /* ns */
+	sec = ktime_get();     /* ns */
 	do_div(sec, 1000);      /*     usec */
 	usec = do_div(sec, 1000000);    /* sec and usec */
 	time_getrequest.tv_usec = usec;
@@ -8640,7 +8644,7 @@ static signed int ISP_WaitIrq_v3(struct ISP_WAIT_IRQ_STRUCT *WaitIrq)
 
 	/* 3. get interrupt     and     update time     related information     that would be return to user */
 	/* do_gettimeofday(&time_ready2return); */
-	sec = cpu_clock(0);     /* ns */
+	sec = ktime_get();     /* ns */
 	do_div(sec, 1000);      /*     usec */
 	usec = do_div(sec, 1000000);    /* sec and usec */
 	time_ready2return.tv_usec = usec;
@@ -8918,7 +8922,7 @@ static __tcmfunc irqreturn_t ISP_Irq_CAMSV(signed int Irq, void *DeviceId)
 	unsigned long usec = 0;
 
 	/* do_gettimeofday(&time_frmb);*/
-	sec = cpu_clock(0);     /* ns */
+	sec = ktime_get();     /* ns */
 	do_div(sec, 1000);      /*     usec */
 	usec = do_div(sec, 1000000);    /* sec and usec */
 	time_frmb.tv_usec = usec;
@@ -8989,7 +8993,7 @@ static __tcmfunc irqreturn_t ISP_Irq_CAMSV(signed int Irq, void *DeviceId)
 		unsigned long usec = 0;
 
 		if (IspInfo.DebugMask & ISP_DBG_INT) {
-			sec = cpu_clock(0);     /* ns */
+			sec = ktime_get();     /* ns */
 			do_div(sec, 1000);      /*     usec */
 			usec = do_div(sec, 1000000);    /* sec and usec */
 		}
@@ -9003,7 +9007,6 @@ static __tcmfunc irqreturn_t ISP_Irq_CAMSV(signed int Irq, void *DeviceId)
 		unsigned int rt_dma = 0;
 		unsigned long long sec;
 		unsigned long usec;
-		ktime_t time;
 		unsigned int z, buf_idx;
 
 		if (pstRTBuf->ring_buf[_camsv_imgo_].active)
@@ -9111,8 +9114,7 @@ static __tcmfunc irqreturn_t ISP_Irq_CAMSV(signed int Irq, void *DeviceId)
 		/*		unsigned long long sec;*/
 		/*		unsigned long usec;*/
 		/*		ktime_t time;*/
-		time = ktime_get();     /* ns */
-		sec = time.tv64;
+		sec = ktime_get();	/* ns */
 		do_div(sec, 1000);      /*     usec */
 		usec = do_div(sec, 1000000);    /* sec and usec */
 		curr_pa = ISP_RD32(ISP_REG_ADDR_IMGO_SV_BASE_ADDR);
@@ -9152,7 +9154,7 @@ static __tcmfunc irqreturn_t ISP_Irq_CAMSV2(signed int Irq, void *DeviceId)
 	unsigned long usec = 0;
 
 	/* do_gettimeofday(&time_frmb);*/
-	sec = cpu_clock(0);     /* ns */
+	sec = ktime_get();     /* ns */
 	do_div(sec, 1000);      /*     usec */
 	usec = do_div(sec, 1000000);    /* sec and usec */
 	time_frmb.tv_usec = usec;
@@ -9226,7 +9228,7 @@ static __tcmfunc irqreturn_t ISP_Irq_CAMSV2(signed int Irq, void *DeviceId)
 		unsigned long long sec;
 		unsigned long usec;
 
-		sec = cpu_clock(0);     /* ns */
+		sec = ktime_get();     /* ns */
 		do_div(sec, 1000);      /*     usec */
 		usec = do_div(sec, 1000000);    /* sec and usec */
 
@@ -9241,7 +9243,6 @@ static __tcmfunc irqreturn_t ISP_Irq_CAMSV2(signed int Irq, void *DeviceId)
 
 		unsigned long long sec;
 		unsigned long usec;
-		ktime_t time;
 		unsigned int z, buf_idx;
 
 		if (pstRTBuf->ring_buf[_camsv2_imgo_].active)
@@ -9352,8 +9353,7 @@ static __tcmfunc irqreturn_t ISP_Irq_CAMSV2(signed int Irq, void *DeviceId)
 		/*              unsigned long usec;*/
 		/*              ktime_t time;*/
 
-		time = ktime_get();     /* ns */
-		sec = time.tv64;
+		sec = ktime_get();	/* ns */
 		do_div(sec, 1000);      /*     usec */
 		usec = do_div(sec, 1000000);    /* sec and usec */
 		curr_pa = ISP_RD32(ISP_REG_ADDR_IMGO_SV_D_BASE_ADDR);
@@ -9414,7 +9414,7 @@ static __tcmfunc irqreturn_t ISP_Irq_CAM(signed int Irq, void *DeviceId)
 #endif
 	/*      */
 	/* do_gettimeofday(&time_frmb);*/
-	sec = cpu_clock(0);     /* ns */
+	sec = ktime_get();     /* ns */
 	do_div(sec, 1000);      /*     usec */
 	usec = do_div(sec, 1000000);    /* sec and usec */
 	time_frmb.tv_usec = usec;
@@ -9568,7 +9568,7 @@ static __tcmfunc irqreturn_t ISP_Irq_CAM(signed int Irq, void *DeviceId)
 		unsigned long long sec;
 		unsigned long usec;
 
-		sec = cpu_clock(0);     /* ns */
+		sec = ktime_get();     /* ns */
 		do_div(sec, 1000);      /*     usec */
 		usec = do_div(sec, 1000000);    /* sec and usec */
 		/* update pass1 done time stamp for eis user(need match with the time stamp in image header) */
@@ -9600,7 +9600,7 @@ static __tcmfunc irqreturn_t ISP_Irq_CAM(signed int Irq, void *DeviceId)
 		unsigned long long sec;
 		unsigned long usec;
 
-		sec = cpu_clock(0);     /* ns */
+		sec = ktime_get();     /* ns */
 		do_div(sec, 1000);      /*     usec */
 		usec = do_div(sec, 1000000);    /* sec and usec */
 		/* update pass1 done time stamp for     eis     user(need match with the time stamp in image header) */
@@ -9624,7 +9624,6 @@ static __tcmfunc irqreturn_t ISP_Irq_CAM(signed int Irq, void *DeviceId)
 		unsigned int rt_dma = 0;
 		unsigned long long sec;
 		unsigned long usec;
-		ktime_t time;
 		unsigned int z;
 
 		if (pstRTBuf->ring_buf[_imgo_].active) {
@@ -9751,8 +9750,7 @@ static __tcmfunc irqreturn_t ISP_Irq_CAM(signed int Irq, void *DeviceId)
 		/*              unsigned long usec;*/
 		/*              ktime_t time;*/
 
-		time = ktime_get();     /* ns */
-		sec = time.tv64;
+		sec = ktime_get();	/* ns */
 #ifdef T_STAMP_2_0
 		if (g1stSof[_IRQ] == MTRUE)
 			m_T_STAMP.T_ns = sec;
@@ -9825,7 +9823,7 @@ static __tcmfunc irqreturn_t ISP_Irq_CAM(signed int Irq, void *DeviceId)
 		}
 #ifdef _rtbc_buf_que_2_0_
 
-		sec = cpu_clock(0);     /* ns */
+		sec = ktime_get();     /* ns */
 		do_div(sec, 1000);      /*     usec */
 		usec = do_div(sec, 1000000);    /* sec and usec */
 		/* update pass1 done time stamp for eis user(need match with the time stamp in image header) */
@@ -12776,7 +12774,8 @@ int32_t ISP_EndGCECallback(uint32_t taskID, uint32_t regCount, uint32_t *regValu
 	return 0;
 }
 
-m4u_callback_ret_t ISP_M4U_TranslationFault_callback(int port, unsigned int mva, void *data)
+enum m4u_callback_ret_t ISP_M4U_TranslationFault_callback(
+			int port, unsigned int mva, void *data)
 {
 	LOG_DBG("[ISP_M4U]fault	call port=%d, mva=0x%x", port, mva);
 

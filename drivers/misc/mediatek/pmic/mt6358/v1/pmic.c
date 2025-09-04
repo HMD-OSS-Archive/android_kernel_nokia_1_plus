@@ -1,10 +1,10 @@
 /*
- * Copyright (C) 2017 MediaTek Inc.
-
+ * Copyright (C) 2018 MediaTek Inc.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
-
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -29,15 +29,6 @@ void record_md_vosel(void)
 /* [Export API] */
 void vmd1_pmic_setting_on(void)
 {
-#if 0 /*TBD*/
-	unsigned int segment = get_devinfo_with_index(28);
-	unsigned char vmodem_segment = (unsigned char)((segment & 0x08000000) >> 27);
-
-	if (!vmodem_segment)
-		g_vmodem_vosel = 0x6F;/* VMODEM 1.19375V: 0x6F */
-	else
-		g_vmodem_vosel = 0x68;/* VMODEM 1.15V: 0x68 */
-#endif
 	/* 1.Call PMIC driver API configure VMODEM voltage */
 	if (g_vmodem_vosel != 0) {
 		pmic_set_register_value(PMIC_RG_BUCK_VMODEM_VOSEL,
@@ -58,12 +49,15 @@ void vmd1_pmic_setting_on(void)
 
 void vmd1_pmic_setting_off(void)
 {
-	PMICLOG("vmd1_pmic_setting_off\n");
+	PMICLOG("%s\n", __func__);
 }
 
 void pmic_enable_smart_reset(unsigned char smart_en,
 	unsigned char smart_sdn_en)
 {
+	pr_notice("[%s] pwrkey %s, JUST_SMART_RST:%d\n", __func__,
+		pmic_get_register_value(PMIC_PWRKEY_DEB)?"released":"pressed",
+		pmic_get_register_value(PMIC_JUST_SMART_RST));
 	pmic_set_register_value(PMIC_RG_SMART_RST_MODE, smart_en);
 	pmic_set_register_value(PMIC_RG_SMART_RST_SDN_EN, smart_sdn_en);
 	pr_info("[%s] smart_en:%d, smart_sdn_en:%d\n",
@@ -88,9 +82,12 @@ static unsigned int pmic_scp_set_regulator(struct mtk_regulator mt_reg,
 
 	set_step = (voltage - min_uV) / uV_step;
 	if (voltage < min_uV || set_step >= n_voltages) {
-		pr_notice("[%s] SSHUB_%s Set Wrong voltage=%duV is unsupportable range %d-%duV\n",
-			__func__, mt_reg.desc.name, voltage,
-			min_uV, (n_voltages * uV_step + min_uV));
+		pr_notice("[%s] SSHUB_%s Set Wrong voltage=%duV is unsupportable range %d-%duV\n"
+			  , __func__
+			  , mt_reg.desc.name
+			  , voltage
+			  , min_uV
+			  , (n_voltages * uV_step + min_uV));
 		return voltage;
 	}
 	pr_info("SSHUB_%s Expected %svolt step = %d\n",
@@ -99,9 +96,9 @@ static unsigned int pmic_scp_set_regulator(struct mtk_regulator mt_reg,
 	udelay(220);
 	get_step = pmic_get_register_value(vosel_reg);
 	if (get_step != set_step) {
-		pr_notice("[%s] Set SSHUB_%s Voltage fail with step = %d, read voltage = %duV\n",
-			__func__, mt_reg.desc.name, set_step,
-			(get_step * uV_step + min_uV));
+		pr_notice("[%s] Set SSHUB_%s Voltage fail with step = %d, read voltage = %duV\n"
+			  , __func__, mt_reg.desc.name, set_step
+			  , (get_step * uV_step + min_uV));
 		return voltage;
 	}
 	pr_info("Set SSHUB_%s %sVoltage to %duV pass\n",
@@ -153,7 +150,7 @@ unsigned int upmu_get_rgs_chrdet(void)
 	unsigned int val = 0;
 
 	val = pmic_get_register_value(PMIC_RGS_CHRDET);
-	PMICLOG("[upmu_get_rgs_chrdet] CHRDET status = %d\n", val);
+	PMICLOG("[%s] CHRDET status = %d\n", __func__, val);
 
 	return val;
 }

@@ -1,15 +1,15 @@
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ * Copyright (C) 2016 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ */
 
 #ifndef AUDIO_SPKPROTECT_MSG_ID_H
 #define AUDIO_SPKPROTECT_MSG_ID_H
@@ -51,6 +51,7 @@ enum {
 	SPK_PROTECT_CONFIGURE,
 	SPK_PROTECT_CALIB,
 	SPK_PROTECT_VAR,
+	SPK_PROTECT_GET_TCM_BUF,
 	/* volume */
 	SPK_MSG_A2D_UL_GAIN = SPK_IPI_MSG_A2D_BASE + 0x00,
 	SPK_MSG_A2D_DL_GAIN,
@@ -75,7 +76,6 @@ enum {
 	/* debug */
 	SPK_IPI_MSG_A2D_PCM_DUMP_ON = SPK_IPI_MSG_A2D_BASE + 0xA0,
 	SPK_IPI_MSG_A2D_LIB_LOG_ON,
-
 };
 
 #endif /* end of AUDIO_SPKPROTECT_MSG_ID_H */

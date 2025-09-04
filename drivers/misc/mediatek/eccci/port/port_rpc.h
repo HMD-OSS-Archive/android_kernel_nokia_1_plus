@@ -1,22 +1,22 @@
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ * Copyright (C) 2016 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ */
 
 #ifndef __PORT_RPC_H__
 #define __PORT_RPC_H__
 
 #include "ccci_core.h"
 #include "port_t.h"
-typedef enum {
+enum RPC_OP_ID {
 	IPC_RPC_CPSVC_SECURE_ALGO_OP = 0x2001,
 	IPC_RPC_GET_SECRO_OP = 0x2002,
 #ifdef CONFIG_MTK_TC1_FEATURE
@@ -58,7 +58,7 @@ typedef enum {
 	IPC_RPC_QUERY_AP_SYS_PROPERTY = 0x400F,
 
 	IPC_RPC_IT_OP = 0x4321,
-} RPC_OP_ID;
+};
 
 struct rpc_pkt {
 	unsigned int len;
@@ -72,14 +72,19 @@ struct rpc_buffer {
 	u8 buffer[0];
 } __packed;
 
-/* hardcode, becarefull with data size, should not exceed tmp_data[] in ccci_rpc_work_helper() */
+/* hardcode, becarefull with data size, should not exceed tmp_data[]
+ * in ccci_rpc_work_helper()
+ */
 #define CLKBUF_MAX_COUNT 4
 struct ccci_rpc_clkbuf_result {
 	u16 CLKBuf_Count;
 	u8 CLKBuf_Status[CLKBUF_MAX_COUNT];
 	u8 CLKBuf_SWCtrl_Status[CLKBUF_MAX_COUNT];
 	u16 ClkBuf_Driving[CLKBUF_MAX_COUNT];
-} __packed;	/* the total size should sync with tmp_data[] using in ccci_rpc_work_helper() */
+} __packed;
+/* the total size should sync with tmp_data[] using
+ * in ccci_rpc_work_helper()
+ */
 
 struct ccci_rpc_clkbuf_input {
 	u16 CLKBuf_Num;
@@ -102,10 +107,14 @@ struct ccci_rpc_queue_mapping {
 };
 
 #ifdef CONFIG_MTK_TC1_FEATURE
-/* hardcode, becarefull with data size, should not exceed tmp_data[] in ccci_rpc_work_helper() */
+/* hardcode, becarefull with data size, should not exceed tmp_data[]
+ * in ccci_rpc_work_helper()
+ */
 #define GPIO_MAX_COUNT 6
 #else
-/* hardcode, becarefull with data size, should not exceed tmp_data[] in ccci_rpc_work_helper() */
+/* hardcode, becarefull with data size, should not exceed tmp_data[]
+ * in ccci_rpc_work_helper()
+ */
 #define GPIO_MAX_COUNT 3
 #endif
 #define GPIO_MAX_COUNT_V2 10
@@ -133,7 +142,10 @@ struct ccci_rpc_gpio_adc_output {
 	u32 gpioPinValue[GPIO_MAX_COUNT];
 	u32 adcChNum;
 	u32 adcChMeasSum;
-} __packed;	/* the total size should sync with tmp_data[] using in ccci_rpc_work_helper() */
+} __packed;
+/* the total size should sync with tmp_data[] using
+ * in ccci_rpc_work_helper()
+ */
 
 struct ccci_rpc_gpio_adc_intput_v2 { /* 10 pin GPIO support */
 	u16 reqMask;
@@ -150,7 +162,10 @@ struct ccci_rpc_gpio_adc_output_v2 { /* 10 pin GPIO support */
 	u32 gpioPinValue[GPIO_MAX_COUNT_V2];
 	u32 adcChNum;
 	u32 adcChMeasSum;
-} __packed;	/* the total size should sync with tmp_data[] using in ccci_rpc_work_helper() */
+} __packed;
+/* the total size should sync with tmp_data[] using
+ * in ccci_rpc_work_helper()
+ */
 
 struct ccci_rpc_dsp_emi_mpu_input {
 	u32 request;
@@ -180,45 +195,47 @@ enum {
 #define RPC_MAX_BUF_SIZE         2048
 #define RPC_API_RESP_ID          0xFFFF0000
 
-#define FS_NO_ERROR										 0
-#define FS_NO_OP										-1
-#define	FS_PARAM_ERROR									-2
-#define FS_NO_FEATURE									-3
-#define FS_NO_MATCH									    -4
-#define FS_FUNC_FAIL								    -5
-#define FS_ERROR_RESERVED								-6
-#define FS_MEM_OVERFLOW									-7
+#define FS_NO_ERROR				0
+#define FS_NO_OP				-1
+#define	FS_PARAM_ERROR			-2
+#define FS_NO_FEATURE			-3
+#define FS_NO_MATCH				-4
+#define FS_FUNC_FAIL			-5
+#define FS_ERROR_RESERVED		-6
+#define FS_MEM_OVERFLOW			-7
 
 #define CCCI_SED_LEN_BYTES   16
-typedef struct {
+struct sed_t {
 	unsigned char sed[CCCI_SED_LEN_BYTES];
-} sed_t;
+};
 #define SED_INITIALIZER { {[0 ... CCCI_SED_LEN_BYTES-1] = 0} }
 #define MD_SIM_MAX (16)		/*(MD number * SIM number EACH MD) */
 
-typedef enum {
-	SIM_HOT_PLUG_EINT_NUMBER,
-	SIM_HOT_PLUG_EINT_DEBOUNCETIME,
-	SIM_HOT_PLUG_EINT_POLARITY,
-	SIM_HOT_PLUG_EINT_SENSITIVITY,
-	SIM_HOT_PLUG_EINT_SOCKETTYPE,
-	SIM_HOT_PLUG_EINT_DEDICATEDEN,
-	SIM_HOT_PLUG_EINT_SRCPIN,
+enum sim_hot_plug_eint_queryType {
+	SIM_EINT_NUM,
+	SIM_EINT_DEBOUNCE,
+	SIM_EINT_POLA,
+	SIM_EINT_SENS,
+	SIM_EINT_SOCKE,
+	SIM_EINT_DEDICATEDEN,
+	SIM_EINT_SRCPIN,
 
 	SIM_HOT_PLUG_EINT_MAX,
-} sim_hot_plug_eint_queryType;
+};
 
-typedef enum {
+enum sim_hot_plug_eint_queryErr {
 	ERR_SIM_HOT_PLUG_NULL_POINTER = -13,
 	ERR_SIM_HOT_PLUG_QUERY_TYPE,
 	ERR_SIM_HOT_PLUG_QUERY_STRING,
-} sim_hot_plug_eint_queryErr;
+};
 
 struct eint_struct {
-	int type;		/* sync with MD: value type of MD want to get */
+	/* sync with MD: value type of MD want to get */
+	int type;
 	char *property;		/* property name in the node of dtsi */
 	int index;		/* cell index in property */
-	int value_sim[MD_SIM_MAX];	/* value of each node of current type from property */
+	/* value of each node of current type from property */
+	int value_sim[MD_SIM_MAX];
 };
 struct eint_node_name {
 	char *node_name;	/*node name in dtsi */

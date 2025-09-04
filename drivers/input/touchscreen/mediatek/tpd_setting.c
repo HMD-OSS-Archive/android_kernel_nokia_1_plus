@@ -1,15 +1,15 @@
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ * Copyright (C) 2016 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ */
 
 #include "tpd.h"
 
@@ -43,14 +43,14 @@ int tpd_mode = TPD_MODE_NORMAL;
 int tpd_mode_axis;
 int tpd_mode_min = 400;		/* TPD_RES_Y/2; */
 int tpd_mode_max = 800;		/* TPD_RES_Y; */
-int tpd_mode_keypad_tolerance = 480 * 480 / 1600;	/* TPD_RES_X*TPD_RES_X/1600; */
+/* TPD_RES_X*TPD_RES_X/1600; */
+int tpd_mode_keypad_tolerance = 480 * 480 / 1600;
 module_param(tpd_mode, int, 0664);
 module_param(tpd_mode_axis, int, 0664);
 module_param(tpd_mode_min, int, 0664);
 module_param(tpd_mode_max, int, 0664);
 module_param(tpd_mode_keypad_tolerance, int, 0664);
 
-/* ATTENTION! all the default values should sync with tpd_adc_init()@tpd_adc.c */
 int tpd_em_debounce_time0 = 1;
 int tpd_em_debounce_time;	/* =0 */
 int tpd_em_debounce_time1 = 4;

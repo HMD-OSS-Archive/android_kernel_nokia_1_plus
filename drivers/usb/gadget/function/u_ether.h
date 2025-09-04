@@ -29,15 +29,15 @@
  */
 #define USB_ETHERNET_MODULE_PARAMETERS() \
 	static unsigned qmult = QMULT_DEFAULT;				\
-	module_param(qmult, uint, S_IRUGO|S_IWUSR);			\
+	module_param(qmult, uint, 0644);			\
 	MODULE_PARM_DESC(qmult, "queue length multiplier at high/super speed");\
 									\
 	static char *dev_addr;						\
-	module_param(dev_addr, charp, S_IRUGO|S_IWUSR);				\
+	module_param(dev_addr, charp, 0644);				\
 	MODULE_PARM_DESC(dev_addr, "Device Ethernet Address");		\
 									\
 	static char *host_addr;						\
-	module_param(host_addr, charp, S_IRUGO|S_IWUSR);			\
+	module_param(host_addr, charp, 0644);			\
 	MODULE_PARM_DESC(host_addr, "Host Ethernet Address")
 
 struct eth_dev {
@@ -61,15 +61,17 @@ struct eth_dev {
 
 	struct sk_buff_head	rx_frames;
 
-	unsigned		qmult;
+	unsigned int		qmult;
 
-	unsigned		header_len;
+	unsigned int		header_len;
 	unsigned int		ul_max_pkts_per_xfer;
 	unsigned int		dl_max_pkts_per_xfer;
+
 	uint32_t		dl_max_xfer_size;
 
-	struct sk_buff		*(*wrap)(struct gether *, struct sk_buff *skb);
-	int			(*unwrap)(struct gether *,
+	struct sk_buff		*(*wrap)(struct gether *link,
+			struct sk_buff *skb);
+	int			(*unwrap)(struct gether *link,
 						struct sk_buff *skb,
 						struct sk_buff_head *list);
 
@@ -115,9 +117,9 @@ struct gether {
 	bool				is_fixed;
 	u32				fixed_out_len;
 	u32				fixed_in_len;
-	unsigned		ul_max_pkts_per_xfer;
-	unsigned		dl_max_pkts_per_xfer;
-	unsigned		dl_max_transfer_len;
+	unsigned int		ul_max_pkts_per_xfer;
+	unsigned int		dl_max_pkts_per_xfer;
+	unsigned int		dl_max_transfer_len;
 	bool				multi_pkt_xfer;
 	bool				supports_multi_frame;
 	struct sk_buff			*(*wrap)(struct gether *port,

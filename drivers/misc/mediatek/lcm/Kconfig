@@ -1,5 +1,5 @@
 config MTK_LCM
-	bool "Enble LCM driver"
+	bool "Enable LCM driver"
 	default n
 	help
 	  define LCM driver config to enable LCM driver.

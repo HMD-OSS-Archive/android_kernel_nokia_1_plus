@@ -63,7 +63,7 @@ static int rpmb_request_verify(struct rpmb_dev *rdev, struct rpmb_data *rpmbd)
 	wc = be32_to_cpu(in_cmd->frames[0].write_counter);
 
 	if (rpmbd->req_type != req_type) {
-		dev_err(&rdev->dev, "rpmb req type doesn't match 0x%04X = 0x%04X\n",
+		dev_notice(&rdev->dev, "rpmb req type doesn't match 0x%04X = 0x%04X\n",
 			req_type, rpmbd->req_type);
 		return -EINVAL;
 	}
@@ -84,13 +84,13 @@ static int rpmb_request_verify(struct rpmb_dev *rdev, struct rpmb_data *rpmbd)
 
 		if (rdev->ops->reliable_wr_cnt &&
 		    block_count > rdev->ops->reliable_wr_cnt) {
-			dev_err(&rdev->dev, "rpmb write data: block count %u > reliable wr count %u\n",
+			dev_notice(&rdev->dev, "rpmb write data: block count %u > reliable wr count %u\n",
 				block_count, rdev->ops->reliable_wr_cnt);
 			return -EINVAL;
 		}
 
 		if (block_count > in_cmd->nframes) {
-			dev_err(&rdev->dev, "rpmb write data: block count %u > in frame count %u\n",
+			dev_notice(&rdev->dev, "rpmb write data: block count %u > in frame count %u\n",
 				block_count, in_cmd->nframes);
 			return -EINVAL;
 		}
@@ -100,19 +100,19 @@ static int rpmb_request_verify(struct rpmb_dev *rdev, struct rpmb_data *rpmbd)
 			req_type, block_count, addr);
 
 		if (block_count > out_cmd->nframes) {
-			dev_err(&rdev->dev, "rpmb read data: block count %u > out frame count %u\n",
+			dev_notice(&rdev->dev, "rpmb read data: block count %u > out frame count %u\n",
 				block_count, out_cmd->nframes);
 			return -EINVAL;
 		}
 		break;
 	case RPMB_RESULT_READ:
 		/* Internal command not supported */
-		dev_err(&rdev->dev, "NOTSUPPORTED rpmb resut read = 0x%1x blk = %d\n",
+		dev_notice(&rdev->dev, "NOTSUPPORTED rpmb resut read = 0x%1x blk = %d\n",
 			req_type, block_count);
 		return -EOPNOTSUPP;
 
 	default:
-		dev_err(&rdev->dev, "Error rpmb invalid command = 0x%1x blk = %d\n",
+		dev_notice(&rdev->dev, "Error rpmb invalid command = 0x%1x blk = %d\n",
 			req_type, block_count);
 		return -EINVAL;
 	}
@@ -189,27 +189,27 @@ static void rpmb_cmd_set(struct rpmb_cmd *cmd, u32 flags,
 #ifdef RPMB_DEBUG
 static void rpmb_dump_frame(u8 *data_frame)
 {
-	pr_err("mac, frame[196] = 0x%x\n", data_frame[196]);
-	pr_err("mac, frame[197] = 0x%x\n", data_frame[197]);
-	pr_err("mac, frame[198] = 0x%x\n", data_frame[198]);
-	pr_err("data,frame[228] = 0x%x\n", data_frame[228]);
-	pr_err("data,frame[229] = 0x%x\n", data_frame[229]);
-	pr_err("nonce, frame[484] = 0x%x\n", data_frame[484]);
-	pr_err("nonce, frame[485] = 0x%x\n", data_frame[485]);
-	pr_err("nonce, frame[486] = 0x%x\n", data_frame[486]);
-	pr_err("nonce, frame[487] = 0x%x\n", data_frame[487]);
-	pr_err("wc, frame[500] = 0x%x\n", data_frame[500]);
-	pr_err("wc, frame[501] = 0x%x\n", data_frame[501]);
-	pr_err("wc, frame[502] = 0x%x\n", data_frame[502]);
-	pr_err("wc, frame[503] = 0x%x\n", data_frame[503]);
-	pr_err("addr, frame[504] = 0x%x\n", data_frame[504]);
-	pr_err("addr, frame[505] = 0x%x\n", data_frame[505]);
-	pr_err("blkcnt,frame[506] = 0x%x\n", data_frame[506]);
-	pr_err("blkcnt,frame[507] = 0x%x\n", data_frame[507]);
-	pr_err("result, frame[508] = 0x%x\n", data_frame[508]);
-	pr_err("result, frame[509] = 0x%x\n", data_frame[509]);
-	pr_err("type, frame[510] = 0x%x\n", data_frame[510]);
-	pr_err("type, frame[511] = 0x%x\n", data_frame[511]);
+	pr_notice("mac, frame[196] = 0x%x\n", data_frame[196]);
+	pr_notice("mac, frame[197] = 0x%x\n", data_frame[197]);
+	pr_notice("mac, frame[198] = 0x%x\n", data_frame[198]);
+	pr_notice("data,frame[228] = 0x%x\n", data_frame[228]);
+	pr_notice("data,frame[229] = 0x%x\n", data_frame[229]);
+	pr_notice("nonce, frame[484] = 0x%x\n", data_frame[484]);
+	pr_notice("nonce, frame[485] = 0x%x\n", data_frame[485]);
+	pr_notice("nonce, frame[486] = 0x%x\n", data_frame[486]);
+	pr_notice("nonce, frame[487] = 0x%x\n", data_frame[487]);
+	pr_notice("wc, frame[500] = 0x%x\n", data_frame[500]);
+	pr_notice("wc, frame[501] = 0x%x\n", data_frame[501]);
+	pr_notice("wc, frame[502] = 0x%x\n", data_frame[502]);
+	pr_notice("wc, frame[503] = 0x%x\n", data_frame[503]);
+	pr_notice("addr, frame[504] = 0x%x\n", data_frame[504]);
+	pr_notice("addr, frame[505] = 0x%x\n", data_frame[505]);
+	pr_notice("blkcnt,frame[506] = 0x%x\n", data_frame[506]);
+	pr_notice("blkcnt,frame[507] = 0x%x\n", data_frame[507]);
+	pr_notice("result, frame[508] = 0x%x\n", data_frame[508]);
+	pr_notice("result, frame[509] = 0x%x\n", data_frame[509]);
+	pr_notice("type, frame[510] = 0x%x\n", data_frame[510]);
+	pr_notice("type, frame[511] = 0x%x\n", data_frame[511]);
 }
 #endif
 /**
@@ -233,7 +233,8 @@ int rpmb_cmd_req(struct rpmb_dev *rdev, struct rpmb_data *rpmbd)
 	int ret;
 
 	if (!rdev || !rpmbd) {
-		pr_err("[RPMB] %s, -EINVAL in line %d!\n", __func__, __LINE__);
+		pr_notice("[RPMB] %s, -EINVAL in line %d!\n",
+				__func__, __LINE__);
 		return -EINVAL;
 	}
 
@@ -276,7 +277,8 @@ int rpmb_cmd_req(struct rpmb_dev *rdev, struct rpmb_data *rpmbd)
 		ncmds = 2;
 		break;
 	default:
-		pr_err("[RPMB] %s, -EINVAL in line %d!\n", __func__, __LINE__);
+		pr_notice("[RPMB] %s, -EINVAL in line %d!\n",
+				__func__, __LINE__);
 		return -EINVAL;
 	}
 
@@ -468,7 +470,7 @@ int rpmb_dev_unregister(struct device *dev)
 
 	rdev = rpmb_dev_find_by_device(dev);
 	if (!rdev) {
-		dev_warn(dev, "no disk found %s\n", dev_name(dev->parent));
+		dev_notice(dev, "no disk found %s\n", dev_name(dev->parent));
 		return -ENODEV;
 	}
 

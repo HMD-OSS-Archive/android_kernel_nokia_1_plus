@@ -35,6 +35,9 @@ struct bst_tid_struct {
 #define BST_TASK_FILE_PATH  "/dev/stune/io/tasks"
 #define BST_MAX_TID         (20)
 
+#define boost_print(fmt, arg...) \
+	pr_debug(BOOST_PRINT_PREFIX fmt, ##arg)
+#define boost_print_no_prefix(fmt, arg...)  pr_debug(fmt, ##arg)
 DEFINE_SPINLOCK(bst_lock);
 
 static struct bst_tid_struct bst_tid[BST_MAX_TID];

@@ -1,15 +1,15 @@
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ * Copyright (C) 2016 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ */
 
 #include <linux/init.h>
 #include <linux/module.h>
@@ -147,8 +147,10 @@ static int msleep_test(int length, int times)
 		msleep(length);
 
 	t2 = sched_clock();
-	pr_debug("msleep_test,  msleep(%d) test %d times\n", length, times);
-	pr_debug("msleep_test: t1 =%lld, t2=%lld, delta=%lld\n", t1, t2, t2-t1);
+	pr_debug("%s,  msleep(%d) test %d times\n",
+		  __func__, length, times);
+	pr_debug("%s: t1 =%lld, t2=%lld, delta=%lld\n",
+		  __func__, t1, t2, t2-t1);
 
 }
 
@@ -163,8 +165,10 @@ static int udelay_test(int length, int times)
 		udelay(length);
 
 	t2 = sched_clock();
-	pr_debug("udelay_test,  udelay_test(%d) test %d times\n", length, times);
-	pr_debug("udelay_test :t1 =%lld, t2=%lld, delta=%lld\n", t1, t2, t2-t1);
+	pr_debug("%s,  %s(%d) test %d times\n",
+		  __func__, __func__, length, times);
+	pr_debug("%s :t1 =%lld, t2=%lld, delta=%lld\n",
+		  __func__, t1, t2, t2-t1);
 
 }
 
@@ -179,8 +183,10 @@ static int mdelay_test(int length, int times)
 		mdelay(length);
 
 	t2 = sched_clock();
-	pr_debug("mdelay_test,  mdelay_test(%d) test %d times\n", length, times);
-	pr_debug("mdelay_test:t1 =%lld, t2=%lld, delta=%lld\n", t1, t2, t2-t1);
+	pr_debug("%s,  %s(%d) test %d times\n",
+		  __func__, __func__, length, times);
+	pr_debug("%s:t1 =%lld, t2=%lld, delta=%lld\n",
+		  __func__, t1, t2, t2-t1);
 }
 
 
@@ -199,7 +205,7 @@ static int phycical_count_test(void)
 	unsigned int cntpct_lo2 = 0;
 	unsigned int cntpct_hi2 = 0;
 
-	pr_debug("phycical_count_test start\n");
+	pr_debug("%s start\n", __func__);
 
 	while (1) {
 		read_cntpct(cntpct_lo1, cntpct_hi1);
@@ -208,21 +214,24 @@ static int phycical_count_test(void)
 			if (cntpct_lo2 < cntpct_lo1) {
 				if (cntpct_lo1 == 0xffff) {
 					pr_debug("fwq 0 by pass bug cntpct_hi1=%u,cntpct_lo1=%u, cntpct_hi2=%u,cntpct_lo2=%u\n",
-						cntpct_hi1, cntpct_lo1, cntpct_hi2, cntpct_lo2);
+						  cntpct_hi1, cntpct_lo1,
+						  cntpct_hi2, cntpct_lo2);
 					continue;
 				}
 				pr_debug("fwq 1 cntpct_hi1=%d,cntpct_lo1=%d, cntpct_hi2=%d,cntpct_lo2=%d\n",
-					cntpct_hi1, cntpct_lo1, cntpct_hi2, cntpct_lo2);
+					  cntpct_hi1, cntpct_lo1,
+					  cntpct_hi2, cntpct_lo2);
 				/* break; */
 			}
 		}
 		if (cntpct_hi2 < cntpct_hi1) {
 			pr_debug("fwq 2 cntpct_hi1=%d,cntpct_lo1=%d, cntpct_hi2=%d,cntpct_lo2=%d\n",
-				cntpct_hi1, cntpct_lo1, cntpct_hi2, cntpct_lo2);
+				  cntpct_hi1, cntpct_lo1,
+				  cntpct_hi2, cntpct_lo2);
 		/* break; */
 		}
 	}
-	pr_debug("phycical_count_test end\n");
+	pr_debug("%s end\n", __func__);
 
 }
 #define GPT_IRQEN           (APXGPT_BASE + 0x0000)
@@ -261,7 +270,8 @@ static irqreturn_t cpuxgpt_test_irq_handler(int irq, void *dev_id)
 	cpuxgpt_t2 = sched_clock();
 	g_cpuxgpt0_called = 1;
 	pr_debug("cpuxgpt irq:%d called\n", irq);
-	pr_debug("cpuxgpt t2(%lld),t1(%lld),delta(%lld)\n", cpuxgpt_t2, cpuxgpt_t1, cpuxgpt_t2-cpuxgpt_t1);
+	pr_debug("cpuxgpt t2(%lld),t1(%lld),delta(%lld)\n",
+		  cpuxgpt_t2, cpuxgpt_t1, cpuxgpt_t2-cpuxgpt_t1);
 	return IRQ_HANDLED;
 }
 
@@ -336,7 +346,8 @@ static cpuxgpt_X_interrupt_test(int cpu)
 	cpu_xgpt_set_cmp_HL(cpu, 0x80000001, 0x00000100);
 	cpuxgpt_t1 = sched_clock();
 	enable_cpuxgpt();
-	/*wait for interrupt trigger, timeout:(0,0x80000001,0x00000100) - (0x80000000,0xffffff00)*/
+	/* wait for interrupt trigger, */
+	/* timeout:(0,0x80000001,0x00000100) - (0x80000000,0xffffff00) */
 	msleep(20);
 }
 
@@ -371,7 +382,8 @@ static void cpuxgpt_frequency_test(void)
 		pr_debug("busy wait\n");
 	}
 	g_cpuxgpt0_called = 0;
-	pr_debug("cpuxgpt0-div1 t2(%lld),t1(%lld),delta(%lld)\n", cpuxgpt_t2, cpuxgpt_t1, cpuxgpt_t2-cpuxgpt_t1);
+	pr_debug("cpuxgpt0-div1 t2(%lld),t1(%lld),delta(%lld)\n", cpuxgpt_t2,
+		  cpuxgpt_t1, cpuxgpt_t2-cpuxgpt_t1);
 
 #if 1
 	msleep(1000);
@@ -388,7 +400,8 @@ static void cpuxgpt_frequency_test(void)
 		pr_debug("busy wait\n");
 	}
 	g_cpuxgpt0_called = 0;
-	pr_debug("cpuxgpt0-div2 t2(%lld),t1(%lld),delta(%lld)\n", cpuxgpt_t2, cpuxgpt_t1, cpuxgpt_t2-cpuxgpt_t1);
+	pr_debug("cpuxgpt0-div2 t2(%lld),t1(%lld),delta(%lld)\n", cpuxgpt_t2,
+		  cpuxgpt_t1, cpuxgpt_t2-cpuxgpt_t1);
 
 	msleep(1000);
 	/* div3 */
@@ -404,7 +417,8 @@ static void cpuxgpt_frequency_test(void)
 		pr_debug("busy wait\n");
 	}
 	g_cpuxgpt0_called = 0;
-	pr_debug("cpuxgpt0-div4 t2(%lld),t1(%lld),delta(%lld)\n", cpuxgpt_t2, cpuxgpt_t1, cpuxgpt_t2-cpuxgpt_t1);
+	pr_debug("cpuxgpt0-div4 t2(%lld),t1(%lld),delta(%lld)\n", cpuxgpt_t2,
+		  cpuxgpt_t1, cpuxgpt_t2-cpuxgpt_t1);
 #endif
 }
 
@@ -424,16 +438,20 @@ void cpuxgpt_halt_on_debug_test(void)
  *	localtimer_get_phy_count();
  *	read_cntpct(cntpct_lo1, cntpct_hi1);
  *	localtimer_get_phy_count();
- *	pr_debug("11111 ca7 counter(%u,%u) == %lld\n", cntpct_hi1,cntpct_lo1,localtimer_get_phy_count() );
+ *	pr_debug("11111 ca7 counter(%u,%u) == %lld\n", cntpct_hi1,cntpct_lo1,
+ *		  localtimer_get_phy_count() );
  *
  *
  *	read_cntpct(cntpct_lo1, cntpct_hi1);
- *	pr_debug("22222 ca7 counter(%u,%u) == %lld\n", cntpct_hi1,cntpct_lo1,localtimer_get_phy_count() );
+ *	pr_debug("22222 ca7 counter(%u,%u) == %lld\n", cntpct_hi1,cntpct_lo1,
+ *		  localtimer_get_phy_count() );
  *	read_cntpct(cntpct_lo1, cntpct_hi1);
- *	pr_debug("33333 ca7 counter(%u,%u) == %lld\n", cntpct_hi1,cntpct_lo1,localtimer_get_phy_count() );
+ *	pr_debug("33333 ca7 counter(%u,%u) == %lld\n", cntpct_hi1,cntpct_lo1,
+ *		  localtimer_get_phy_count() );
  *	read_cntpct(cntpct_lo1, cntpct_hi1);
- *	pr_debug("44444 ca7 counter(%u,%u) == %lld\n", cntpct_hi1,cntpct_lo1,localtimer_get_phy_count() );
-*/
+ *	pr_debug("44444 ca7 counter(%u,%u) == %lld\n", cntpct_hi1,cntpct_lo1,
+ *		  localtimer_get_phy_count() );
+ */
 
 }
 
@@ -523,7 +541,8 @@ static int ktimer_thread_test(void *arg)
 	msleep(5*1000);/* 5s */
 
 	read_cntpct(cntpct_lo1, cntpct_hi1);
-	pr_debug("ca7 counter(%u,%u) == %lld\n", cntpct_hi1, cntpct_lo1, localtimer_get_phy_count());
+	pr_debug("ca7 counter(%u,%u) == %lld\n", cntpct_hi1, cntpct_lo1,
+		  localtimer_get_phy_count());
 
 	/* pr_debug("cpuxgpt(%d) set 100ms timer,idx=%d\n" ,idx%8,idx); */
 	/* cpu_xgpt_set_timer(idx%8,100000000); */
@@ -559,8 +578,8 @@ static int ktimer_thread_test(void *arg)
 static enum hrtimer_restart hrtimer_test_func(struct hrtimer *timer)
 {
 	hr_t2 = sched_clock();
-	pr_debug("[hrtimer_test_func] t1=%lld,t2 =%lld\n", hr_t1, hr_t2);
-	pr_debug("[hrtimer_test_func] delta=%lld\n", hr_t2-hr_t1);
+	pr_debug("[%s] t1=%lld,t2 =%lld\n", __func__, hr_t1, hr_t2);
+	pr_debug("[%s] delta=%lld\n", __func__, hr_t2-hr_t1);
 	return HRTIMER_NORESTART;
 }
 
@@ -569,9 +588,12 @@ static int hrtimer_test_case(void)
 	int ret = 0;
 	int value = 0;
 
-	pr_debug("hrtimer_test_case:ts_hrtimer_sec=%ld, ts_hrtimer_nsecs=%ld\n", ts_hrtimer_sec, ts_hrtimer_nsecs);
+	pr_debug("%s:ts_hrtimer_sec=%ld, ts_hrtimer_nsecs=%ld\n",
+		  __func__, ts_hrtimer_sec, ts_hrtimer_nsecs);
 	hr_t1 = sched_clock();
-	hrtimer_start(&hrtimer_test, ktime_set(ts_hrtimer_sec, ts_hrtimer_nsecs), HRTIMER_MODE_REL);
+	hrtimer_start(&hrtimer_test,
+			ktime_set(ts_hrtimer_sec, ts_hrtimer_nsecs),
+			HRTIMER_MODE_REL);
 
 }
 static int start_kicker(void)

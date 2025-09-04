@@ -46,7 +46,7 @@ static const char * const TZ_ErrorStrings[] = {
 		(ARRAY_SIZE(TZ_ErrorStrings))
 
 
-static const char *_TZ_GetErrorString(TZ_RESULT res)
+static const char *_TZ_GetErrorString(int res)
 {
 	unsigned int num;
 

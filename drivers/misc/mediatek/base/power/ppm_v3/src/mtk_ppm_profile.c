@@ -46,7 +46,8 @@ static void ppm_profile_dump_client_exec_time(struct seq_file *m)
 
 	seq_printf(m, "%-10s%-10s%-10s\n", "Client", "Avg Time", "Max Time");
 	for_each_ppm_clients(i) {
-		seq_printf(m, "%-10s%-10lld%-10lld\n", ppm_main_info.client_info[i].name,
+		seq_printf(m, "%-10s%-10lld%-10lld\n",
+			ppm_main_info.client_info[i].name,
 			ppm_profile_data.avg_client_exec_time_us[i],
 			ppm_profile_data.max_client_exec_time_us[i]);
 	}
@@ -61,7 +62,8 @@ static void ppm_profile_dump_ipi_exec_time(struct seq_file *m)
 	seq_puts(m, "PPM IPI Execution Time (us)");
 	seq_puts(m, "\n==========================================\n");
 
-	seq_printf(m, "%-10s%-10s%-10s\n", "IPI type", "Avg Time", "Max Time");
+	seq_printf(m, "%-10s%-10s%-10s\n", "IPI type",
+		"Avg Time", "Max Time");
 	for (i = 0; i < NR_PPM_IPI; i++) {
 		seq_printf(m, "%-10d%-10lld%-10lld\n", i,
 			ppm_profile_data.avg_ipi_exec_time_us[i],
@@ -70,7 +72,8 @@ static void ppm_profile_dump_ipi_exec_time(struct seq_file *m)
 }
 #endif
 
-void ppm_profile_update_client_exec_time(enum ppm_client client, unsigned long long time)
+void ppm_profile_update_client_exec_time(enum ppm_client client,
+	unsigned long long time)
 {
 	ppm_lock(&ppm_profile_data.lock);
 
@@ -93,7 +96,8 @@ end:
 }
 
 #ifdef PPM_SSPM_SUPPORT
-void ppm_profile_update_ipi_exec_time(int id, unsigned long long time)
+void ppm_profile_update_ipi_exec_time(int id,
+	unsigned long long time)
 {
 	ppm_lock(&ppm_profile_data.lock);
 
@@ -155,10 +159,11 @@ static int ppm_profile_on_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-static ssize_t ppm_profile_on_proc_write(struct file *file, const char __user *buffer,
-					size_t count, loff_t *pos)
+static ssize_t ppm_profile_on_proc_write(struct file *file,
+	const char __user *buffer, size_t count, loff_t *pos)
 {
 	int enable;
+	struct ppm_profile *p = &ppm_profile_data;
 
 	char *buf = ppm_copy_from_user_for_proc(buffer, count);
 
@@ -166,17 +171,17 @@ static ssize_t ppm_profile_on_proc_write(struct file *file, const char __user *b
 		return -EINVAL;
 
 	if (!kstrtoint(buf, 10, &enable)) {
-		ppm_lock(&ppm_profile_data.lock);
+		ppm_lock(&(p->lock));
 
-		if ((ppm_profile_data.is_profiling && enable)
-			|| (!ppm_profile_data.is_profiling && !enable))
+		if ((p->is_profiling && enable)
+			|| (!p->is_profiling && !enable))
 			goto end;
 
 		/* on: record current time and clear all data */
 		/* off: update time_in_state */
 		if (!enable) {
 			ppm_info("profiling stop!\n");
-			ppm_profile_data.is_profiling = false;
+			p->is_profiling = false;
 		} else {
 			int i;
 
@@ -184,20 +189,20 @@ static ssize_t ppm_profile_on_proc_write(struct file *file, const char __user *b
 
 			/* clear data */
 			for_each_ppm_clients(i) {
-				ppm_profile_data.max_client_exec_time_us[i] = 0;
-				ppm_profile_data.avg_client_exec_time_us[i] = 0;
+				p->max_client_exec_time_us[i] = 0;
+				p->avg_client_exec_time_us[i] = 0;
 #ifdef PPM_SSPM_SUPPORT
-				ppm_profile_data.max_ipi_exec_time_us[i] = 0;
-				ppm_profile_data.avg_ipi_exec_time_us[i] = 0;
+				p->max_ipi_exec_time_us[i] = 0;
+				p->avg_ipi_exec_time_us[i] = 0;
 #endif
 			}
 
 			/* start profiling */
-			ppm_profile_data.is_profiling = true;
+			p->is_profiling = true;
 		}
 
 end:
-		ppm_unlock(&ppm_profile_data.lock);
+		ppm_unlock(&(p->lock));
 	} else
 		ppm_err("echo [0/1] > /proc/ppm/profile/profile_on\n");
 
@@ -232,8 +237,10 @@ int ppm_profile_init(void)
 
 	/* create procfs */
 	for (i = 0; i < ARRAY_SIZE(entries); i++) {
-		if (!proc_create(entries[i].name, S_IRUGO | S_IWUSR | S_IWGRP, profile_dir, entries[i].fops)) {
-			ppm_err("%s(), create /proc/ppm/profile/%s failed\n", __func__, entries[i].name);
+		if (!proc_create(entries[i].name, 0644,
+			profile_dir, entries[i].fops)) {
+			ppm_err("%s(), create /proc/ppm/profile/%s failed\n",
+				__func__, entries[i].name);
 			ret = -EINVAL;
 			goto out;
 		}

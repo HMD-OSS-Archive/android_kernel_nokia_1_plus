@@ -28,8 +28,11 @@
 #include <linux/of_address.h>
 #include <linux/of_fdt.h>
 #include <asm/setup.h>
+#include <mt-plat/upmu_common.h>
+#include <mach/upmu_sw.h>
+#include <mach/upmu_hw.h>
 #include <mt-plat/mtk_io.h>
-#include <mt-plat/dma.h>
+/* #include <mt-plat/dma.h> */
 #include <mt-plat/sync_write.h>
 #include <mt-plat/mtk_meminfo.h>
 #include <mt-plat/mtk_chip.h>
@@ -45,7 +48,13 @@
 
 #ifdef LAST_DRAMC_IP_BASED
 static void __iomem *(*get_emi_base)(void);
-__weak unsigned int mt_dramc_ta_addr_set(unsigned int rank, unsigned int temp_addr)
+__weak unsigned int mt_dramc_ta_addr_set(unsigned int rank,
+		unsigned int temp_addr)
+{
+	return 0;
+}
+
+__weak unsigned int platform_support_dram_type(void)
 {
 	return 0;
 }
@@ -80,14 +89,16 @@ static int __init set_single_channel_test_angent(int channel)
 	dramc_ao_base = mt_dramc_chn_base_get(channel);
 
 	if (!dramc_ao_base) {
-		pr_err("[LastDRAMC] can not find dramc_ao_base, skip channel %d\n", channel);
+		pr_err("[LastDRAMC] no dramc_ao_base, skip channel %d\n",
+			channel);
 		return -1;
 	}
 
 	rank_max = mt_dramc_ta_support_ranks();
 
 	if (rank_max > 2) {
-		pr_err("[LastDRAMC] invalid rank num (rank_max = 0x%x)\n", rank_max);
+		pr_err("[LastDRAMC] invalid rank num, rank_max %u\n",
+			rank_max);
 		return -1;
 	}
 
@@ -97,49 +108,60 @@ static int __init set_single_channel_test_angent(int channel)
 		rank_base = mt_dramc_rankbase_get(rank);
 
 		if (!rank_base) {
-			pr_err("[LastDRAMC] invalid rank base (rank 0x%x)\n", rank);
+			pr_err("[LastDRAMC] invalid base, rank %u\n",
+				rank);
 			return -1;
 		}
 
 		test_agent_base = mt_dramc_ta_reserve_addr(rank);
 
 		if (!test_agent_base) {
-			pr_err("[LastDRAMC] invalid reserve addr, rank: %u\n", rank);
+			pr_err("[LastDRAMC] invalid addr, rank %u\n",
+				rank);
 			return -1;
 		}
 
 		test_agent_base = (test_agent_base - rank_base) & 0xFFFFFFFF;
 
 		/* calculate DRAM base address (test_agent_base) */
-		/* pr_err("[LastDRAMC] reserved address before emi: %llx\n", test_agent_base); */
+		/* pr_err("[LastDRAMC] reserved address before emi: */
+		/* %llx\n", test_agent_base); */
 		for (bit_scramble = 11; bit_scramble < 17; bit_scramble++) {
 			bit_xor = (emi_conf >> (4*(bit_scramble-11))) & 0xf;
 			bit_xor &= test_agent_base >> 16;
 			for (bit_shift = 0; bit_shift < 4; bit_shift++)
-				test_agent_base ^= ((bit_xor>>bit_shift)&0x1) << bit_scramble;
+				test_agent_base ^= ((bit_xor>>bit_shift)&0x1)
+					<< bit_scramble;
 		}
 
-		/* pr_err("[LastDRAMC] reserved address after emi: %llx\n", test_agent_base); */
+		/* pr_err("[LastDRAMC] reserved address after emi: %llx\n", */
+		/* test_agent_base); */
 
 		if (channel_num > 1) {
 			channel_position = mt_dramc_chp_get(emi_cona);
 
-			for (channel_width = bit_shift = 0; bit_shift < 4; bit_shift++) {
+			for (channel_width = bit_shift = 0; bit_shift < 4;
+			bit_shift++) {
 				if ((1 << bit_shift) >= channel_num)
 					break;
 				channel_width++;
 			}
 
-			temp = ((test_agent_base & ~(((0x1<<channel_width)-1)<<channel_position)) >> channel_width);
-			test_agent_base = temp | (test_agent_base & ((0x1<<channel_position)-1));
+			temp = ((test_agent_base &
+				~(((0x1<<channel_width)-1)<<channel_position))
+				>> channel_width);
+			test_agent_base = temp |
+				(test_agent_base & ((0x1<<channel_position)-1));
 		}
-		/* pr_err("[LastDRAMC] reserved address after emi: %llx\n", test_agent_base); */
+		/* pr_err("[LastDRAMC] reserved address after emi: %llx\n", */
+		/* test_agent_base); */
 
 		/* set base address for test agent */
 		temp = Reg_Readl(dramc_ao_base+base_reg[rank]) & 0xF;
 		if ((ddr_type == TYPE_LPDDR4) || (ddr_type == TYPE_LPDDR4X))
 			temp |= (test_agent_base>>1) & 0xFFFFFFF0;
-		else if (ddr_type == TYPE_LPDDR3)
+		else if ((ddr_type == TYPE_LPDDR3) ||
+				platform_support_dram_type())
 			temp |= (test_agent_base) & 0xFFFFFFF0;
 		else {
 			pr_err("[LastDRAMC] undefined DRAM type\n");
@@ -147,14 +169,15 @@ static int __init set_single_channel_test_angent(int channel)
 		}
 
 		if (!mt_dramc_ta_addr_set(rank, temp))
-		Reg_Sync_Writel(dramc_ao_base+base_reg[rank], temp);
+			Reg_Sync_Writel(dramc_ao_base+base_reg[rank], temp);
 
 	}
 
 	if (rank_max > 1)
-		Reg_Sync_Writel(dramc_ao_base+0x9c, Reg_Readl(dramc_ao_base+0x9c) | (rank_max - 1));
+		Reg_Sync_Writel(dramc_ao_base+0x9c,
+			Reg_Readl(dramc_ao_base+0x9c) | (rank_max - 1));
 
-	/* write test pattern trigger test agent*/
+	/* write test pattern */
 
 	return 0;
 }
@@ -206,8 +229,10 @@ static int dram_calib_perf_check_probe(struct platform_device *pdev)
 	last_dramc_ofs = 0;
 
 #ifdef LAST_DRAMC_SRAM_MGR
-	for (last_dramc_ofs = 0; last_dramc_ofs < DBG_INFO_TYPE_MAX; last_dramc_ofs++) {
-		val = Reg_Readl(DRAMC_SRAM_DEBUG_BASE_ADDR + (last_dramc_ofs * 4));
+	for (last_dramc_ofs = 0; last_dramc_ofs < DBG_INFO_TYPE_MAX;
+	last_dramc_ofs++) {
+		val = Reg_Readl(DRAMC_SRAM_DEBUG_BASE_ADDR +
+			(last_dramc_ofs * 4));
 
 		if ((val >> 16) == LASTDRAMC_KEY)
 			break;
@@ -223,15 +248,17 @@ static int dram_calib_perf_check_probe(struct platform_device *pdev)
 	last_dramc_ofs = LAST_DRAMC_SRAM_SIZE;
 #endif
 
-	val = Reg_Readl(DRAMC_SRAM_DEBUG_BASE_ADDR + last_dramc_ofs + DRAMC_STORAGE_API_ERR_OFFSET);
+	val = Reg_Readl(DRAMC_SRAM_DEBUG_BASE_ADDR +
+		last_dramc_ofs + DRAMC_STORAGE_API_ERR_OFFSET);
 	if ((val & STORAGE_READ_API_MASK) == ERR_PL_UPDATED) {
-		pr_err("[DRAMC] calibration time too long: PL version updated (0x%08lx)\n", val);
+		pr_err("[DRAMC] k time too long: PL updated (0x%08lx)\n", val);
 	} else if (val != 0) {
-		aee_kernel_warning_api(__FILE__, __LINE__, DB_OPT_DUMMY_DUMP, "DRAM Calibration Time",
-				"calibration time too long: storage api error (0x%08lx)\n", val);
-		pr_err("[DRAMC] calibration time too long: storage api error (0x%08lx)\n", val);
+		aee_kernel_warning_api(__FILE__, __LINE__,
+			DB_OPT_DUMMY_DUMP, "DRAM Calibration Time",
+			"k time too long: api error (0x%08lx)\n", val);
+		pr_err("[DRAMC] k time too long: api error (0x%08lx)\n", val);
 	} else {
-		pr_err("[DRAMC] calibration time optimized\n");
+		pr_err("[DRAMC] k time optimized\n");
 	}
 
 	return 0;
@@ -258,13 +285,16 @@ static int __init dram_calib_perf_check(void)
 
 	ret = platform_driver_register(&dramc_sram_debug_drv);
 	if (ret) {
-		pr_err("%s:%d: platform_driver_register failed\n", __func__, __LINE__);
+		pr_err("%s:%d: platform_driver_register failed\n",
+			__func__, __LINE__);
 		return -ENODEV;
 	}
 
 	return 0;
 }
 
-/* NOTE: must be called after aed driver initialized (i.e. must be later than arch_initcall) */
+/* NOTE: must be called after aed driver initialized
+ *(i.e. must be later than arch_initcall)
+ */
 late_initcall(dram_calib_perf_check);
 #endif

@@ -30,18 +30,18 @@
 
 
 #define SIG_ERESTARTSYS 512 /* ERESTARTSYS */
-/*******************************************************************************
-*
-********************************************************************************/
-#define DPE_DEV_MAJOR_NUMBER	251
-#define DPE_MAGIC			   'd'
+/*****************************************************************************
+ *
+ *****************************************************************************/
+#define DPE_DEV_MAJOR_NUMBER		251
+#define DPE_MAGIC			'd'
 
-#define DPE_REG_RANGE		   (0x1000)
-#define DPE_BASE_HW				0x15028000
+#define DPE_REG_RANGE			(0x1000)
+#define DPE_BASE_HW			0x15028000
 
 
-#define DPE_DVE_INT_ST				((unsigned int)1<<1)
-#define DPE_WMFE_INT_ST				((unsigned int)1<<2)
+#define DPE_DVE_INT_ST			(1<<1)
+#define DPE_WMFE_INT_ST			(1<<2)
 
 #define WMFE_CTRL_SIZE 5
 
@@ -58,11 +58,13 @@ struct DPE_REG_IO_STRUCT {
 
 /* interrupt clear type */
 enum DPE_IRQ_CLEAR_ENUM {
-	DPE_IRQ_CLEAR_NONE,		/*non-clear wait, clear after wait */
-	DPE_IRQ_CLEAR_WAIT,		/*clear wait, clear before and after wait */
-	DPE_IRQ_WAIT_CLEAR,		/*wait the signal and clear it, avoid the hw executime is too s hort.  */
-	DPE_IRQ_CLEAR_STATUS,	/*clear specific status only */
-	DPE_IRQ_CLEAR_ALL		/*clear all status */
+	DPE_IRQ_CLEAR_NONE,	/* non-clear wait, clear after wait */
+	DPE_IRQ_CLEAR_WAIT,	/* clear wait, clear before and after wait */
+	DPE_IRQ_WAIT_CLEAR,	/* wait the signal and clear it,
+				 * avoid the hw executime is too s hort.
+				 */
+	DPE_IRQ_CLEAR_STATUS,	/* clear specific status only */
+	DPE_IRQ_CLEAR_ALL	/* clear all status */
 };
 
 
@@ -80,15 +82,19 @@ struct DPE_WAIT_IRQ_STRUCT {
 	enum DPE_IRQ_TYPE_ENUM   Type;
 	unsigned int		Status;		/* IRQ Status */
 	unsigned int		Timeout;
-	int				 UserKey;		/* user key for doing interrupt operation */
-	int				 ProcessID;		/* user ProcessID (will filled in kernel) */
-	unsigned int		bDumpReg;	/* check dump register or not*/
+	/* user key for doing interrupt operation */
+	int			UserKey;
+	/* user ProcessID (will filled in kernel) */
+	int			ProcessID;
+	/* check dump register or not*/
+	unsigned int		bDumpReg;
 };
 
 struct DPE_CLEAR_IRQ_STRUCT {
 	enum DPE_IRQ_TYPE_ENUM	 Type;
-	int					UserKey;		/* user key for doing interrupt operation */
-	unsigned int		   Status;			/* Input */
+	/* user key for doing interrupt operation */
+	int			UserKey;
+	unsigned int		Status;	 /* Input */
 };
 
 
@@ -176,7 +182,21 @@ struct DPE_DVEConfig {
 	unsigned int	DPE_DVE_RESPO_L_STRIDE;
 	unsigned int	DPE_DVE_RESPO_R_BASE_ADDR;
 	unsigned int	DPE_DVE_RESPO_R_STRIDE;
-	unsigned int	DPE_DVE_STA_0;	/* ReadOnly, DVE Statistic Result 0 */
+	/* ReadOnly, DVE Statistic Result 0 */
+	unsigned int	DPE_DVE_STA_0;
+	unsigned int	DPE_DVE_IS_SECURE;
+	unsigned int	DPE_DVE_IMGI_L_BUFSIZE;
+	unsigned int	DPE_DVE_IMGI_R_BUFSIZE;
+	unsigned int	DPE_DVE_DVI_L_BUFSIZE;
+	unsigned int	DPE_DVE_DVI_R_BUFSIZE;
+	unsigned int	DPE_DVE_MASKI_L_BUFSIZE;
+	unsigned int	DPE_DVE_MASKI_R_BUFSIZE;
+	unsigned int	DPE_DVE_DVO_L_BUFSIZE;
+	unsigned int	DPE_DVE_DVO_R_BUFSIZE;
+	unsigned int	DPE_DVE_CONFO_L_BUFSIZE;
+	unsigned int	DPE_DVE_CONFO_R_BUFSIZE;
+	unsigned int	DPE_DVE_RESPO_L_BUFSIZE;
+	unsigned int	DPE_DVE_RESPO_R_BUFSIZE;
 };
 
 
@@ -204,17 +224,17 @@ struct DPE_WMFEConfig {
 };
 
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ *****************************************************************************/
 enum DPE_CMD_ENUM {
-	DPE_CMD_RESET,				/* Reset */
-	DPE_CMD_DUMP_REG,			/* Dump DPE Register */
+	DPE_CMD_RESET,			/* Reset */
+	DPE_CMD_DUMP_REG,		/* Dump DPE Register */
 	DPE_CMD_DUMP_ISR_LOG,		/* Dump DPE ISR log */
-	DPE_CMD_READ_REG,			/* Read register from driver */
-	DPE_CMD_WRITE_REG,			/* Write register to driver */
-	DPE_CMD_WAIT_IRQ,			/* Wait IRQ */
-	DPE_CMD_CLEAR_IRQ,			/* Clear IRQ */
+	DPE_CMD_READ_REG,		/* Read register from driver */
+	DPE_CMD_WRITE_REG,		/* Write register to driver */
+	DPE_CMD_WAIT_IRQ,		/* Wait IRQ */
+	DPE_CMD_CLEAR_IRQ,		/* Clear IRQ */
 	DPE_CMD_DVE_ENQUE_REQ,		/* DVE Enque Request */
 	DPE_CMD_DVE_DEQUE_REQ,		/* DVE Deque Request */
 	DPE_CMD_WMFE_ENQUE_REQ,		/* WMFE Enque Request */
@@ -253,31 +273,45 @@ struct compat_DPE_WMFERequest {
 
 #endif
 
-#define DPE_RESET			_IO(DPE_MAGIC, DPE_CMD_RESET)
+#define DPE_RESET		_IO(DPE_MAGIC, DPE_CMD_RESET)
 #define DPE_DUMP_REG		_IO(DPE_MAGIC, DPE_CMD_DUMP_REG)
 #define DPE_DUMP_ISR_LOG	_IO(DPE_MAGIC, DPE_CMD_DUMP_ISR_LOG)
 
 
-#define DPE_READ_REGISTER	_IOWR(DPE_MAGIC, DPE_CMD_READ_REG, struct DPE_REG_IO_STRUCT)
-#define DPE_WRITE_REGISTER	_IOWR(DPE_MAGIC, DPE_CMD_WRITE_REG, struct DPE_REG_IO_STRUCT)
-#define DPE_WAIT_IRQ		_IOW(DPE_MAGIC, DPE_CMD_WAIT_IRQ, struct DPE_WAIT_IRQ_STRUCT)
-#define DPE_CLEAR_IRQ		_IOW(DPE_MAGIC, DPE_CMD_CLEAR_IRQ, struct DPE_CLEAR_IRQ_STRUCT)
+#define DPE_READ_REGISTER \
+	_IOWR(DPE_MAGIC, DPE_CMD_READ_REG, struct DPE_REG_IO_STRUCT)
+#define DPE_WRITE_REGISTER \
+	_IOWR(DPE_MAGIC, DPE_CMD_WRITE_REG, struct DPE_REG_IO_STRUCT)
+#define DPE_WAIT_IRQ \
+	_IOW(DPE_MAGIC, DPE_CMD_WAIT_IRQ, struct DPE_WAIT_IRQ_STRUCT)
+#define DPE_CLEAR_IRQ \
+	_IOW(DPE_MAGIC, DPE_CMD_CLEAR_IRQ, struct DPE_CLEAR_IRQ_STRUCT)
 
-#define DPE_DVE_ENQUE_REQ	_IOWR(DPE_MAGIC, DPE_CMD_DVE_ENQUE_REQ, struct DPE_DVERequest)
-#define DPE_DVE_DEQUE_REQ	_IOWR(DPE_MAGIC, DPE_CMD_DVE_DEQUE_REQ, struct DPE_DVERequest)
-#define DPE_WMFE_ENQUE_REQ	_IOWR(DPE_MAGIC, DPE_CMD_WMFE_ENQUE_REQ, struct DPE_WMFERequest)
-#define DPE_WMFE_DEQUE_REQ	_IOWR(DPE_MAGIC, DPE_CMD_WMFE_DEQUE_REQ, struct DPE_WMFERequest)
+#define DPE_DVE_ENQUE_REQ \
+	_IOWR(DPE_MAGIC, DPE_CMD_DVE_ENQUE_REQ, struct DPE_DVERequest)
+#define DPE_DVE_DEQUE_REQ \
+	_IOWR(DPE_MAGIC, DPE_CMD_DVE_DEQUE_REQ, struct DPE_DVERequest)
+#define DPE_WMFE_ENQUE_REQ \
+	_IOWR(DPE_MAGIC, DPE_CMD_WMFE_ENQUE_REQ, struct DPE_WMFERequest)
+#define DPE_WMFE_DEQUE_REQ \
+	_IOWR(DPE_MAGIC, DPE_CMD_WMFE_DEQUE_REQ, struct DPE_WMFERequest)
 
 
 #ifdef CONFIG_COMPAT
-#define COMPAT_DPE_WRITE_REGISTER	_IOWR(DPE_MAGIC, DPE_CMD_WRITE_REG, struct compat_DPE_REG_IO_STRUCT)
-#define COMPAT_DPE_READ_REGISTER	_IOWR(DPE_MAGIC, DPE_CMD_READ_REG, struct compat_DPE_REG_IO_STRUCT)
+#define COMPAT_DPE_WRITE_REGISTER \
+	_IOWR(DPE_MAGIC, DPE_CMD_WRITE_REG, struct compat_DPE_REG_IO_STRUCT)
+#define COMPAT_DPE_READ_REGISTER \
+	_IOWR(DPE_MAGIC, DPE_CMD_READ_REG, struct compat_DPE_REG_IO_STRUCT)
 
-#define COMPAT_DPE_DVE_ENQUE_REQ	_IOWR(DPE_MAGIC, DPE_CMD_DVE_ENQUE_REQ, struct compat_DPE_DVERequest)
-#define COMPAT_DPE_DVE_DEQUE_REQ	_IOWR(DPE_MAGIC, DPE_CMD_DVE_DEQUE_REQ, struct compat_DPE_DVERequest)
+#define COMPAT_DPE_DVE_ENQUE_REQ \
+	_IOWR(DPE_MAGIC, DPE_CMD_DVE_ENQUE_REQ, struct compat_DPE_DVERequest)
+#define COMPAT_DPE_DVE_DEQUE_REQ \
+	_IOWR(DPE_MAGIC, DPE_CMD_DVE_DEQUE_REQ, struct compat_DPE_DVERequest)
 
-#define COMPAT_DPE_WMFE_ENQUE_REQ	_IOWR(DPE_MAGIC, DPE_CMD_WMFE_ENQUE_REQ, struct compat_DPE_WMFERequest)
-#define COMPAT_DPE_WMFE_DEQUE_REQ	_IOWR(DPE_MAGIC, DPE_CMD_WMFE_DEQUE_REQ, struct compat_DPE_WMFERequest)
+#define COMPAT_DPE_WMFE_ENQUE_REQ \
+	_IOWR(DPE_MAGIC, DPE_CMD_WMFE_ENQUE_REQ, struct compat_DPE_WMFERequest)
+#define COMPAT_DPE_WMFE_DEQUE_REQ \
+	_IOWR(DPE_MAGIC, DPE_CMD_WMFE_DEQUE_REQ, struct compat_DPE_WMFERequest)
 
 #endif
 

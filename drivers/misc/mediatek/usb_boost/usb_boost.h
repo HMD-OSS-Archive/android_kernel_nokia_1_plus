@@ -32,16 +32,23 @@ struct act_arg_obj {
 	int arg3;
 };
 
-void usb_boost_set_para_and_arg(int id, int *para, int para_range, struct act_arg_obj *act_arg);
+void usb_boost_set_para_and_arg(int id, int *para, int para_range,
+	struct act_arg_obj *act_arg);
+
 void usb_boost_by_id(int id);
 void usb_boost(void);
 int usb_boost_init(void);
-void register_usb_boost_act(int type_id, int action_id, int (*func) (struct act_arg_obj *arg));
+
+void register_usb_boost_act(int type_id, int action_id,
+	int (*func)(struct act_arg_obj *arg));
 
 /* #define USB_BOOST_DBG_ENABLE */
-#define USB_BOOST_NOTICE(fmt, args...) pr_warn("USB_BOOST, <%s(), %d> " fmt, __func__, __LINE__, ## args)
+#define USB_BOOST_NOTICE(fmt, args...) \
+	pr_notice("USB_BOOST, <%s(), %d> " fmt, __func__, __LINE__, ## args)
+
 #ifdef USB_BOOST_DBG_ENABLE
-#define USB_BOOST_DBG(fmt, args...) pr_warn("USB_BOOST, <%s(), %d> " fmt, __func__, __LINE__, ## args)
+#define USB_BOOST_DBG(fmt, args...) \
+	pr_notice("USB_BOOST, <%s(), %d> " fmt, __func__, __LINE__, ## args)
 #else
 #define USB_BOOST_DBG(fmt, args...) do {} while (0)
 #endif

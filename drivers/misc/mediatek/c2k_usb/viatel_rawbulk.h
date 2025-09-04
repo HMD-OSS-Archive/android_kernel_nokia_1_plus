@@ -1,18 +1,14 @@
 /*
- * Rawbulk Driver from VIA Telecom
+ * Copyright (C) 2017 MediaTek Inc.
  *
- * Copyright (C) 2011 VIA Telecom, Inc.
- * Author: Karfield Chen (kfchen@via-telecom.com)
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 #ifndef __RAWBULK_H__
@@ -22,7 +18,6 @@
 #include <linux/usb/ch9.h>
 #include <linux/usb/composite.h>
 #include <linux/usb/gadget.h>
-#include <linux/wakelock.h>
 #include <linux/workqueue.h>
 #include <linux/device.h>
 #include <linux/tty.h>
@@ -88,7 +83,7 @@ struct rawbulk_function {
 	int initialized:1;	/* init-flag for activator worker */
 	struct work_struct activator;	/* asynic transaction starter */
 
-	struct wake_lock keep_awake;
+	struct wakeup_source keep_awake;
 
 	/* USB Gadget related */
 	struct usb_function function;
@@ -164,21 +159,23 @@ void rawbulk_tty_free_request(struct rawbulk_function *fn);
 int rawbulk_bind_function(int transfer_id, struct usb_function *function,
 			  struct usb_ep *bulk_out, struct usb_ep *bulk_in,
 			  rawbulk_autoreconn_callback_t autoreconn_callback);
-void rawbulk_unbind_function(int trasfer_id);
+void rawbulk_unbind_function(int transfer_id);
 int rawbulk_check_enable(struct rawbulk_function *fn);
 void rawbulk_disable_function(struct rawbulk_function *fn);
 
 /* operations for transactions */
-int rawbulk_start_transactions(int transfer_id, int nups, int ndowns, int upsz, int downsz);
+int rawbulk_start_transactions(int transfer_id, int nups, int ndowns, int upsz,
+				int downsz);
 void rawbulk_stop_transactions(int transfer_id);
 
-int rawbulk_push_upstream_buffer(int transfer_id, const void *buffer, unsigned int length);
+int rawbulk_push_upstream_buffer(int transfer_id, const void *buffer,
+				unsigned int length);
 int rawbulk_transfer_statistics(int transfer_id, char *buf);
 int rawbulk_transfer_state(int transfer_id);
 
 /* debug mechanism */
 extern unsigned int c2k_usb_dbg_level;	/* refer to rawbulk_transfer.c */
-static inline int c2k_dbg_level(unsigned level)
+static inline int c2k_dbg_level(unsigned int level)
 {
 	return c2k_usb_dbg_level >= level;
 }
@@ -195,19 +192,24 @@ static inline int c2k_dbg_level(unsigned level)
 #define C2K_USB_DBG_ON
 #ifdef C2K_USB_DBG_ON
 #define C2K_ERR(format, args...) do {if (c2k_dbg_level(C2K_LOG_ERR)) \
-	pr_notice("C2K_USB_ERR,<%s %d>, " format, __func__, __LINE__, ## args);  } \
+	pr_notice("C2K_USB_ERR,<%s %d>, " format, __func__, __LINE__, \
+	## args);  } \
 while (0)
 #define C2K_WARN(format, args...) do {if (c2k_dbg_level(C2K_LOG_WARN)) \
-	pr_notice("C2K_USB_WARN,<%s %d>, " format, __func__, __LINE__, ## args);  } \
+	pr_notice("C2K_USB_WARN,<%s %d>, " format, __func__, __LINE__, \
+	## args);  } \
 while (0)
 #define C2K_NOTE(format, args...) do {if (c2k_dbg_level(C2K_LOG_NOTICE)) \
-	pr_notice("C2K_USB_NOTE,<%s %d>, " format, __func__, __LINE__, ## args);  } \
+	pr_notice("C2K_USB_NOTE,<%s %d>, " format, __func__, __LINE__, \
+	## args);  } \
 while (0)
 #define C2K_INFO(format, args...) do {if (c2k_dbg_level(C2K_LOG_INFO)) \
-	pr_notice("C2K_USB_INFO,<%s %d>, " format, __func__, __LINE__, ## args);  } \
+	pr_notice("C2K_USB_INFO,<%s %d>, " format, __func__, __LINE__, \
+	## args);  } \
 while (0)
 #define C2K_DBG(format, args...) do {if (c2k_dbg_level(C2K_LOG_DBG)) \
-	pr_notice("C2K_USB_DBG,<%s %d>, " format, __func__, __LINE__, ## args);  } \
+	pr_notice("C2K_USB_DBG,<%s %d>, " format, __func__, __LINE__, \
+	## args);  } \
 while (0)
 #else
 #define C2K_ERR(format, args...) do {} while (0)
@@ -242,7 +244,8 @@ static inline int ccci_c2k_buffer_push(int port_num, void *buf, int count)
 	return 0;
 }
 
-static inline int ccci_c2k_rawbulk_intercept(int port_num, unsigned int inception)
+static inline int ccci_c2k_rawbulk_intercept(int port_num,
+					unsigned int inception)
 {
 	return 0;
 }
@@ -252,6 +255,7 @@ extern int modem_dcd_state(void);
 #endif
 
 extern int rawbulk_bind_config(struct usb_configuration *c, int transfer_id);
-extern int rawbulk_function_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl);
+extern int rawbulk_function_setup(struct usb_function *f,
+				const struct usb_ctrlrequest *ctrl);
 
 #endif				/* __RAWBULK_HEADER_FILE__ */

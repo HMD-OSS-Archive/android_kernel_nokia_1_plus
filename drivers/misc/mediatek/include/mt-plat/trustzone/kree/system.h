@@ -37,7 +37,7 @@ typedef uint32_t KREE_SHAREDMEM_HANDLE;
  *	  Return KREE_SESSION_HANDLE_FAIL if fail.
  * @return return code
  */
-TZ_RESULT KREE_CreateSession(const char *ta_uuid, KREE_SESSION_HANDLE *pHandle);
+int KREE_CreateSession(const char *ta_uuid, KREE_SESSION_HANDLE *pHandle);
 
 /**
  *  Create a new TEE sesssion with tag for debug purpose
@@ -48,7 +48,7 @@ TZ_RESULT KREE_CreateSession(const char *ta_uuid, KREE_SESSION_HANDLE *pHandle);
  * @param tag string can be printed when querying memory usage.
  * @return return code
  */
-TZ_RESULT KREE_CreateSessionWithTag(const char *ta_uuid,
+int KREE_CreateSessionWithTag(const char *ta_uuid,
 				KREE_SESSION_HANDLE *pHandle, const char *tag);
 
 /**
@@ -57,7 +57,7 @@ TZ_RESULT KREE_CreateSessionWithTag(const char *ta_uuid,
  * @param handle Handle for session to close.
  * @return return code
  */
-TZ_RESULT KREE_CloseSession(KREE_SESSION_HANDLE handle);
+int KREE_CloseSession(KREE_SESSION_HANDLE handle);
 
 
 /**
@@ -69,7 +69,7 @@ TZ_RESULT KREE_CloseSession(KREE_SESSION_HANDLE handle);
  * @param param       The parameters to pass to TEE. Maximum 4 params.
  * @return            Return value from TEE service.
  */
-TZ_RESULT KREE_TeeServiceCall(KREE_SESSION_HANDLE handle, uint32_t command,
+int KREE_TeeServiceCall(KREE_SESSION_HANDLE handle, uint32_t command,
 			      uint32_t paramTypes, union MTEEC_PARAM param[4]);
 
 #endif	/* CONFIG_MTK_IN_HOUSE_TEE_SUPPORT || CONFIG_TRUSTY */

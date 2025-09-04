@@ -35,15 +35,6 @@ enum DPI_EXT_STATUS {
 
 
 /*************************for DPI DVT***************************/
-/*
-*
-typedef enum {
-	acsRGB         = 0
-	, acsYCbCr422    = 1
-	, acsYCbCr444    = 2
-	, acsFuture      = 3
-} AviColorSpace_e;
-*/
 
 enum DPI_EXT_STATUS DPI_EnableColorBar(unsigned int pattern);
 enum DPI_EXT_STATUS DPI_DisableColorBar(void);
@@ -62,12 +53,9 @@ unsigned int ClearDPIIntrStatus(void);
 unsigned int enableRGB2YUV(enum AviColorSpace_e format);
 unsigned int enableSingleEdge(void);
 int enableAndGetChecksum(void);
-/* int enableAndGetChecksumCmdq(struct cmdqRecStruct *cmdq_handle); */
 unsigned int configDpiRepetition(void);
 unsigned int configDpiEmbsync(void);
-/* unsigned int configDpiColorTransformToBT709(void); */
-/* unsigned int configDpiRGB888ToLimitRange(void); */
-/************************************************************/
+/****************************************/
 
 #ifdef __cplusplus
 }

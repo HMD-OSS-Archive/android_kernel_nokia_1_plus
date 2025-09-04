@@ -107,9 +107,11 @@ struct opp_profile {
 
 /* target OPP when feature enable */
 #if defined(CONFIG_MACH_MT6759)
-#define LATE_INIT_OPP           (NUM_OPP - 2) /* for hwc enabled display temp-fix */
+/* for hwc enabled display temp-fix */
+#define LATE_INIT_OPP           (NUM_OPP - 2)
 #elif defined(CONFIG_MACH_MT6758)
-#define LATE_INIT_OPP           (NUM_OPP - 1) /* note it is 3 OPP only */
+/* note it is 3 OPP only */
+#define LATE_INIT_OPP           (NUM_OPP - 1)
 #elif defined(CONFIG_MACH_MT6763)
 #define LATE_INIT_OPP           (NUM_OPP - 1)
 #elif defined(CONFIG_MACH_MT6739)
@@ -119,8 +121,8 @@ struct opp_profile {
 #endif
 
 /* need autok in MSDC group */
-#define AUTOK_KIR_GROUP         ((1U << KIR_AUTOK_EMMC) | (1U << KIR_AUTOK_SDIO) | (1U << KIR_AUTOK_SD))
-
+#define AUTOK_KIR_GROUP \
+	((1U << KIR_AUTOK_EMMC) | (1U << KIR_AUTOK_SDIO) | (1U << KIR_AUTOK_SD))
 /*
  * VOUT selection in normal mode (SW mode)
  * VOUT = 0.40000V + 6.25mV * VOSEL for PMIC MT6335
@@ -136,7 +138,8 @@ struct opp_profile {
 #define VCORE_BASE_UV           500000
 #elif defined(CONFIG_MACH_MT6739)        /* PMIC MT6357 */
 #define VCORE_BASE_UV           518750
-#elif defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || defined(CONFIG_MACH_MT6775)
+#elif defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758)
+	|| defined(CONFIG_MACH_MT6775)
 #define VCORE_BASE_UV           406250
 #elif defined(CONFIG_MACH_MT6771)        /* PMIC MT6358 */
 #define VCORE_BASE_UV           500000
@@ -174,7 +177,7 @@ extern void vcorefs_update_opp_table(void);
 extern char *governor_get_kicker_name(int id);
 extern char *vcorefs_get_opp_table_info(char *p);
 extern int vcorefs_output_kicker_id(char *name);
-extern int governor_debug_store(const char *);
+extern int governor_debug_store(const char *buf);
 extern int vcorefs_late_init_dvfs(void);
 extern int kick_dvfs_by_opp_index(struct kicker_config *krconf);
 extern char *governor_get_dvfs_info(char *p);

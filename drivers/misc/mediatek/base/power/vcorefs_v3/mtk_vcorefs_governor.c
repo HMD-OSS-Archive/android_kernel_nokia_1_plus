@@ -26,24 +26,35 @@
 #include <mt-plat/upmu_common.h>
 #endif
 #include <mtk_vcorefs_manager.h>
+#include <mt-plat/mtk_boot.h>
 
 #include <mtk_spm_vcore_dvfs.h>
 #if defined(CONFIG_MTK_DRAMC)
 #include <mtk_dramc.h>
 #endif
-#include <mtk_eem.h>
-#include "mmdvfs_mgr.h"
+#include <mtk_spm.h>
+/* #include <mtk_eem.h> */
+#include "mmdvfs_pmqos.h"
 
 #if defined(CONFIG_MACH_MT6775) || defined(CONFIG_MACH_MT6771)
 #include <mtk_dvfsrc_reg.h>
 #include <helio-dvfsrc-opp.h>
 #include <mtk_spm_vcore_dvfs_ipi.h>
 #ifdef CONFIG_MTK_TINYSYS_SSPM_SUPPORT
-#include <sspm_ipi.h>
+#include <v1/sspm_ipi.h>
 #include <sspm_ipi_pin.h>
 #endif
 
 #endif
+
+__weak void __iomem *dvfsrc_base;
+__weak void __iomem *qos_sram_base;
+
+
+__weak int spm_load_firmware_status(void)
+{
+	return 0;
+}
 
 __weak unsigned int get_dram_data_rate(void)
 {
@@ -116,16 +127,21 @@ __weak unsigned int mt_eem_vcorefs_set_volt(void)
 #endif
 }
 
-__weak void mmdvfs_notify_prepare_action(struct mmdvfs_prepare_action_event *event)
-{
-	vcorefs_crit("NOT SUPPORT MM DVFS NOTIFY\n");
-}
-
 __weak unsigned short pmic_get_register_value(PMU_FLAGS_LIST_ENUM flagname)
 {
 	vcorefs_crit("PMIC FUNCTION IS NOT SUPPORTED\n");
 	return 0;
 }
+
+__weak void spm_go_to_vcorefs(int spm_flags) { }
+__weak int spm_vcorefs_get_opp(void) { return 0; }
+__weak void dvfsrc_hw_policy_mask(bool mask) { }
+__weak int spm_set_vcore_dvfs(struct kicker_config *krconf) { return 0; }
+
+__weak void vcorefs_set_lt_opp_feature(int en) { }
+__weak void vcorefs_set_lt_opp_enter_temp(int val) { }
+__weak void vcorefs_set_lt_opp_leave_temp(int val) { }
+
 /*
  * __nosavedata will not be restored after IPO-H boot
  */
@@ -214,21 +230,25 @@ void vcorefs_update_opp_table(void)
  */
 bool is_vcorefs_feature_enable(void)
 {
-#if !defined(CONFIG_MACH_MT6759) && !defined(CONFIG_MACH_MT6758)  && !defined(CONFIG_MACH_MT6775)
 	if (!dram_can_support_fh()) {
 		vcorefs_err("DISABLE DVFS DUE TO NOT SUPPORT DRAM FH\n");
 		return false;
 	}
-#endif
+
 	if (!spm_load_firmware_status()) {
-		vcorefs_err("SPM FIRMWARE IS NOT READY\n");
+		if (get_boot_mode() != RECOVERY_BOOT)
+			vcorefs_err("SPM FIRMWARE IS NOT READY\n");
 		return false;
 	}
-
-	if (!vcorefs_vcore_dvs_en() && !vcorefs_dram_dfs_en()) {
-#if !defined(CONFIG_MACH_MT6771)
-		vcorefs_err("DISABLE DVFS DUE TO BOTH DVS & DFS DISABLE\n");
+#if defined(CONFIG_MACH_MT6771)
+	if (__spm_get_dram_type() == SPMFW_LP4_2CH_2400 &&
+		spm_load_firmware_status() == 2) {
+		vcorefs_err("LP4 2400 SPM FIRMWARE IS NOT READY\n");
+		return false;
+	}
 #endif
+	if (!vcorefs_vcore_dvs_en() && !vcorefs_dram_dfs_en()) {
+		vcorefs_err("DISABLE DVFS DUE TO BOTH DVS & DFS DISABLE\n");
 		return false;
 	}
 	if (0) {
@@ -393,14 +413,19 @@ char *vcorefs_get_opp_table_info(char *p)
 	char *buff_end = p + PAGE_SIZE;
 
 	for (i = 0; i < NUM_OPP; i++) {
-		p += snprintf(p, buff_end - p, "[OPP%d] vcore_uv: %d (0x%x)\n", i, opp_ctrl_table[i].vcore_uv,
+		p += snprintf(p, buff_end - p,
+				"[OPP%d] vcore_uv: %d (0x%x)\n",
+				i, opp_ctrl_table[i].vcore_uv,
 			     vcore_uv_to_pmic(opp_ctrl_table[i].vcore_uv));
-		p += snprintf(p, buff_end - p, "[OPP%d] ddr_khz : %d\n", i, opp_ctrl_table[i].ddr_khz);
+		p += snprintf(p, buff_end - p,
+				"[OPP%d] ddr_khz : %d\n",
+				i, opp_ctrl_table[i].ddr_khz);
 		p += snprintf(p, buff_end - p, "\n");
 	}
 
 	for (i = 0; i < NUM_OPP; i++)
-		p += snprintf(p, buff_end - p, "OPP%d  : %u\n", i, opp_ctrl_table[i].vcore_uv);
+		p += snprintf(p, buff_end - p,
+				"OPP%d  : %u\n", i, opp_ctrl_table[i].vcore_uv);
 
 	return p;
 }
@@ -433,14 +458,16 @@ static void set_vcorefs_en(void)
 	flag = spm_dvfs_flag_init();
 	spm_go_to_vcorefs(flag);
 	mutex_unlock(&governor_mutex);
-#if defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || defined(CONFIG_MACH_MT6771)
+#if defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758)
+|| defined(CONFIG_MACH_MT6771)
 	vcorefs_late_init_dvfs();
 #endif
 #if defined(CONFIG_MACH_MT6771)
 #if defined(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
-	dvfsrc_update_sspm_qos_enable(is_vcorefs_feature_enable(), __spm_get_dram_type());
+	dvfsrc_update_sspm_qos_enable(is_vcorefs_feature_enable(),
+					__spm_get_dram_type());
 	vcorefs_crit("[%s] dvfsrc_update_sspm_qos_enable(%d, %d)\n",
-			__func__, is_vcorefs_feature_enable(), __spm_get_dram_type());
+		__func__, is_vcorefs_feature_enable(), __spm_get_dram_type());
 #endif
 #endif
 }
@@ -460,7 +487,9 @@ int governor_debug_store(const char *buf)
 	    sscanf(buf, "%31s %d %d", cmd, &val, &val2) == 3) {
 
 		if ((log_mask() & 0xFFFF) != 65535)
-			vcorefs_crit("vcore_debug: cmd: %s, val: %d val2: %d\n", cmd, val, val2);
+			vcorefs_crit
+			("vcore_debug: cmd: %s, val: %d val2: %d\n",
+			cmd, val, val2);
 
 		if (!strcmp(cmd, "emibw"))
 			r = vcorefs_set_emi_bw_ctrl(val, val2);
@@ -478,7 +507,8 @@ int governor_debug_store(const char *buf)
 		sscanf(buf, "%31s %d", cmd, &val) == 2) {
 
 		if ((log_mask() & 0xFFFF) != 65535)
-			vcorefs_crit("vcore_debug: cmd: %s, val: %d\n", cmd, val);
+			vcorefs_crit("vcore_debug: cmd: %s, val: %d\n",
+					cmd, val);
 
 		if (!strcmp(cmd, "vcore_dvs")) {
 			gvrctrl->vcore_dvs = val;
@@ -532,8 +562,10 @@ char *governor_get_dvfs_info(char *p)
 	p += snprintf(p, buff_end - p, "[i_hwpath] : %d\n", gvrctrl->i_hwpath);
 	p += snprintf(p, buff_end - p, "\n");
 
-	p += snprintf(p, buff_end - p, "[vcore] uv : %u (0x%x)\n", uv, vcore_uv_to_pmic(uv));
-	p += snprintf(p, buff_end - p, "[ddr  ] khz: %u\n", vcorefs_get_curr_ddr());
+	p += snprintf(p, buff_end - p, "[vcore] uv : %u (0x%x)\n",
+			uv, vcore_uv_to_pmic(uv));
+	p += snprintf(p, buff_end - p, "[ddr  ] khz: %u\n",
+			vcorefs_get_curr_ddr());
 
 	return p;
 }
@@ -551,7 +583,8 @@ static int set_dvfs_with_opp(struct kicker_config *krconf)
 	if (idx < OPP_0)
 		idx = gvrctrl->late_init_opp;
 
-	vcorefs_crit_mask(log_mask(), krconf->kicker, "opp: %d, vcore: %u <= %u, fddr: %u <= %u %s%s\n",
+	vcorefs_crit_mask(log_mask(), krconf->kicker,
+			"opp: %d, vcore: %u <= %u, fddr: %u <= %u %s%s\n",
 			krconf->dvfs_opp,
 			opp_ctrl_table[idx].vcore_uv, gvrctrl->curr_vcore_uv,
 			opp_ctrl_table[idx].ddr_khz, gvrctrl->curr_ddr_khz,
@@ -603,7 +636,7 @@ int vcorefs_late_init_dvfs(void)
 	mutex_unlock(&governor_mutex);
 
 	vcorefs_crit("[%s] late_init_opp: %d, sw_opp: %d (%d)\n", __func__,
-				gvrctrl->late_init_opp, vcorefs_sw_opp, NUM_OPP);
+			gvrctrl->late_init_opp, vcorefs_sw_opp, NUM_OPP);
 
 	vcorefs_drv_init(gvrctrl->late_init_opp);
 
@@ -616,12 +649,15 @@ void dvfsrc_force_opp(int opp)
 	int level;
 
 	if (opp >= VCORE_DVFS_OPP_NUM || opp < 0) {
-		writel(readl(DVFSRC_BASIC_CONTROL) & ~(1 << 15), DVFSRC_BASIC_CONTROL);
+		writel(readl(DVFSRC_BASIC_CONTROL) & ~(1 << 15),
+			DVFSRC_BASIC_CONTROL);
 		writel(readl(DVFSRC_FORCE) & 0xFFFF0000, DVFSRC_FORCE);
 	} else {
 		level = 1 << (VCORE_DVFS_OPP_NUM - opp - 1);
-		writel((readl(DVFSRC_FORCE) & 0xFFFF0000) | level, DVFSRC_FORCE);
-		writel(readl(DVFSRC_BASIC_CONTROL) | (1 << 15), DVFSRC_BASIC_CONTROL);
+		writel((readl(DVFSRC_FORCE) & 0xFFFF0000) | level,
+			DVFSRC_FORCE);
+		writel(readl(DVFSRC_BASIC_CONTROL) | (1 << 15),
+			DVFSRC_BASIC_CONTROL);
 		writel(readl(DVFSRC_FORCE) & 0xFFFF0000, DVFSRC_FORCE);
 	}
 }
@@ -633,7 +669,8 @@ int qos_ipi_to_sspm_command(void *buffer, int slot)
 {
 	int ack_data;
 
-	return sspm_ipi_send_sync(IPI_ID_QOS, IPI_OPT_POLLING, buffer, slot, &ack_data, 1);
+	return sspm_ipi_send_sync(IPI_ID_QOS, IPI_OPT_POLLING,
+				buffer, slot, &ack_data, 1);
 }
 
 void dvfsrc_update_sspm_vcore_opp_table(int opp, unsigned int vcore_uv)
@@ -714,7 +751,8 @@ int get_cur_vcore_dvfs_opp(void)
 	int dvfsrc_level_bit = readl(DVFSRC_LEVEL) >> 16;
 	int dvfsrc_level = 0;
 
-	for (dvfsrc_level = 0; dvfsrc_level < VCORE_DVFS_OPP_NUM - 1; dvfsrc_level++)
+	for (dvfsrc_level = 0;
+		dvfsrc_level < VCORE_DVFS_OPP_NUM - 1; dvfsrc_level++)
 		if ((dvfsrc_level_bit & (1 << dvfsrc_level)) > 0)
 			break;
 
@@ -782,10 +820,9 @@ int vcorefs_module_init(void)
 void governor_autok_manager(void)
 {
 	int r;
-	struct mmdvfs_prepare_action_event evt_from_vcore = {MMDVFS_EVENT_PREPARE_CALIBRATION_START};
 
 	/* notify MM DVFS for msdc autok start */
-	mmdvfs_notify_prepare_action(&evt_from_vcore);
+	mmdvfs_prepare_action(MMDVFS_PREPARE_CALIBRATION_START);
 
 	r = emmc_autok();
 	vcorefs_crit("EMMC autok done: %s\n", (r == 0) ? "Yes" : "No");
@@ -805,9 +842,10 @@ bool governor_autok_check(int kicker)
 	mutex_lock(&governor_mutex);
 	if (!((1U << kicker) & gvrctrl->autok_kir_group)) {
 		is_autok = false;
-	} else if (gvrctrl->active_autok_kir != 0 && gvrctrl->active_autok_kir != kicker) {
-		vcorefs_err("Not allow kir:%d autok (other kir: %d on-going)\n", kicker,
-							gvrctrl->active_autok_kir);
+	} else if (gvrctrl->active_autok_kir != 0
+			&& gvrctrl->active_autok_kir != kicker) {
+		vcorefs_err("Not allow kir:%d autok (other kir: %d on-going)\n",
+			kicker,	gvrctrl->active_autok_kir);
 		is_autok = false;
 	} else {
 		is_autok = true;

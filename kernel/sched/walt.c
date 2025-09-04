@@ -19,6 +19,7 @@
  *             and Todd Kjos
  */
 
+#include <linux/acpi.h>
 #include <linux/syscore_ops.h>
 #include <trace/events/sched.h>
 #include "sched.h"
@@ -55,7 +56,7 @@ __read_mostly unsigned int walt_ravg_window =
 
 static unsigned int sync_cpu;
 static ktime_t ktime_last;
-static bool walt_ktime_suspended;
+static __read_mostly bool walt_ktime_suspended;
 
 static unsigned int task_load(struct task_struct *p)
 {
@@ -147,6 +148,7 @@ static int __init walt_init_ops(void)
 }
 late_initcall(walt_init_ops);
 
+#ifdef CONFIG_CFS_BANDWIDTH
 void walt_inc_cfs_cumulative_runnable_avg(struct cfs_rq *cfs_rq,
 		struct task_struct *p)
 {
@@ -158,6 +160,7 @@ void walt_dec_cfs_cumulative_runnable_avg(struct cfs_rq *cfs_rq,
 {
 	cfs_rq->cumulative_runnable_avg -= p->ravg.demand;
 }
+#endif
 
 static int exiting_task(struct task_struct *p)
 {
@@ -209,7 +212,7 @@ update_window_start(struct rq *rq, u64 wallclock)
 	/* If the MPM global timer is cleared, set delta as 0 to avoid kernel BUG happening */
 	if (delta < 0) {
 		delta = 0;
-		/* printk_deferred("WALT wallclock appears to have gone backwards or reset\n"); */
+		WARN_ONCE(1, "WALT wallclock appears to have gone backwards or reset\n");
 	}
 
 	if (delta < walt_ravg_window)
@@ -221,6 +224,7 @@ update_window_start(struct rq *rq, u64 wallclock)
 	rq->cum_window_demand = rq->cumulative_runnable_avg;
 }
 
+extern unsigned long capacity_curr_of(int cpu);
 /*
  * Translate absolute delta time accounted on a CPU
  * to a scale where 1024 is the capacity of the most
@@ -228,26 +232,9 @@ update_window_start(struct rq *rq, u64 wallclock)
  */
 static u64 scale_exec_time(u64 delta, struct rq *rq)
 {
-	unsigned int cur_freq = rq->cur_freq;
-	int sf;
+	unsigned long capcurr = capacity_curr_of(cpu_of(rq));
 
-	if (unlikely(cur_freq > rq->max_possible_freq))
-		cur_freq = rq->max_possible_freq;
-
-	/* platform driver may be not ready */
-	if (!rq->max_possible_freq)
-		return 0;
-
-	/* round up div64 */
-	delta = div64_u64(delta * cur_freq + rq->max_possible_freq - 1,
-			  rq->max_possible_freq);
-
-	sf = DIV_ROUND_UP(rq->efficiency * 1024, max_possible_efficiency);
-
-	delta *= sf;
-	delta >>= 10;
-
-	return delta;
+	return (delta * capcurr) >> SCHED_CAPACITY_SHIFT;
 }
 
 static int cpu_is_waiting_on_io(struct rq *rq)
@@ -301,28 +288,25 @@ void walt_account_irqtime(int cpu, struct task_struct *curr,
 
 #define WALT_HIGH_IRQ_TIMEOUT 3
 
-u64 walt_irqload(int cpu)
-{
+u64 walt_irqload(int cpu) {
 	struct rq *rq = cpu_rq(cpu);
 	s64 delta;
-
 	delta = get_jiffies_64() - rq->irqload_ts;
 
-	/*
+        /*
 	 * Current context can be preempted by irq and rq->irqload_ts can be
 	 * updated by irq context so that delta can be negative.
 	 * But this is okay and we can safely return as this means there
 	 * was recent irq occurrence.
 	 */
 
-	if (delta < WALT_HIGH_IRQ_TIMEOUT)
+        if (delta < WALT_HIGH_IRQ_TIMEOUT)
 		return rq->avg_irqload;
-	else
+        else
 		return 0;
 }
 
-int walt_cpu_high_irqload(int cpu)
-{
+int walt_cpu_high_irqload(int cpu) {
 	return walt_irqload(cpu) >= sysctl_sched_walt_cpu_high_irqload;
 }
 
@@ -767,7 +751,16 @@ void walt_update_task_ravg(struct task_struct *p, struct rq *rq,
 	if (walt_disabled || !rq->window_start)
 		return;
 
-	/* lockdep_assert_held(&rq->lock); */
+	/* there's a bug here - there are many cases where
+	 * we enter here without holding this lock, coming from
+	 * walt_fixup_busy_time - looks like in 4.14 we don't
+	 * hold the dest_rq at time of migration, but I haven't
+	 * yet worked out if it is safe to always lock dest_rq there.
+	 *
+	 * temporarily disable this assert to continue checking the
+	 * rest of the locking here.
+	 */
+	//lockdep_assert_held(&rq->lock);
 
 	update_window_start(rq, wallclock);
 
@@ -781,43 +774,6 @@ done:
 	trace_walt_update_task_ravg(p, rq, event, wallclock, irqtime);
 
 	p->ravg.mark_start = wallclock;
-}
-
-unsigned long __weak arch_get_cpu_efficiency(int cpu)
-{
-	unsigned long capacity;
-
-	if (cpu_core_energy(cpu)) {
-		/* if power table is found, get capacity of CPU from it */
-		int max_cap_idx = cpu_core_energy(cpu)->nr_cap_states - 1;
-
-		capacity = cpu_core_energy(cpu)->cap_states[max_cap_idx].cap;
-
-		return capacity;
-	} else
-		return SCHED_LOAD_SCALE;
-}
-
-void walt_init_cpu_efficiency(void)
-{
-	int i, efficiency;
-	unsigned int max = 0, min = UINT_MAX;
-
-	for_each_possible_cpu(i) {
-		efficiency = arch_get_cpu_efficiency(i);
-		cpu_rq(i)->efficiency = efficiency;
-
-		if (efficiency > max)
-			max = efficiency;
-		if (efficiency < min)
-			min = efficiency;
-	}
-
-	if (max)
-		max_possible_efficiency = max;
-
-	if (min)
-		min_possible_efficiency = min;
 }
 
 static void reset_task_stats(struct task_struct *p)
@@ -846,22 +802,21 @@ void walt_mark_task_starting(struct task_struct *p)
 	p->ravg.mark_start = wallclock;
 }
 
-void walt_set_window_start(struct rq *rq)
+void walt_set_window_start(struct rq *rq, struct rq_flags *rf)
 {
-	int cpu = cpu_of(rq);
-	struct rq *sync_rq = cpu_rq(sync_cpu);
-
 	if (likely(rq->window_start))
 		return;
 
-	if (cpu == sync_cpu) {
+	if (cpu_of(rq) == sync_cpu) {
 		rq->window_start = 1;
 	} else {
-		raw_spin_unlock(&rq->lock);
-		double_rq_lock(rq, sync_rq);
-		rq->window_start = cpu_rq(sync_cpu)->window_start;
+		struct rq *sync_rq = cpu_rq(sync_cpu);
+		rq_unpin_lock(rq, rf);
+		double_lock_balance(rq, sync_rq);
+		rq->window_start = sync_rq->window_start;
 		rq->curr_runnable_sum = rq->prev_runnable_sum = 0;
 		raw_spin_unlock(&sync_rq->lock);
+		rq_repin_lock(rq, rf);
 	}
 
 	rq->curr->ravg.mark_start = rq->window_start;
@@ -878,7 +833,6 @@ void walt_fixup_busy_time(struct task_struct *p, int new_cpu)
 	struct rq *src_rq = task_rq(p);
 	struct rq *dest_rq = cpu_rq(new_cpu);
 	u64 wallclock;
-	int lock_needed = 0;
 
 	if (!p->on_rq && p->state != TASK_WAKING)
 		return;
@@ -888,18 +842,26 @@ void walt_fixup_busy_time(struct task_struct *p, int new_cpu)
 	}
 
 	if (p->state == TASK_WAKING)
-		lock_needed = 1;
-
-	if (lock_needed)
 		double_rq_lock(src_rq, dest_rq);
 
 	wallclock = walt_ktime_clock();
 
+//#define LOCK_CONDITION(rq) (debug_locks && !lockdep_is_held(&rq->lock))
+//	WARN(LOCK_CONDITION(task_rq(p)), "task_rq(p) not held. p->state=%08lx new_cpu=%d task_cpu=%d", p->state, new_cpu, p->cpu);
+//	WARN(LOCK_CONDITION(dest_rq), "dest_rq not held. p->state=%08lx new_cpu=%d task_cpu=%d", p->state, new_cpu, p->cpu);
+
+	/*
+	 * It seems that in lots of cases we don't have
+	 * dest_rq locked when we get here, which means
+	 * we can't be sure to the WALT stats - someone
+	 * needs to fix this.
+	 */
 	walt_update_task_ravg(task_rq(p)->curr, task_rq(p),
 			TASK_UPDATE, wallclock, 0);
 	walt_update_task_ravg(dest_rq->curr, dest_rq,
 			TASK_UPDATE, wallclock, 0);
 
+//	WARN(LOCK_CONDITION(task_rq(p)), "task_rq(p) not held after rq update. p->state=%08lx new_cpu=%d task_cpu=%d", p->state, new_cpu, p->cpu);
 	walt_update_task_ravg(p, task_rq(p), TASK_MIGRATE, wallclock, 0);
 
 	/*
@@ -925,284 +887,19 @@ void walt_fixup_busy_time(struct task_struct *p, int new_cpu)
 
 	if ((s64)src_rq->prev_runnable_sum < 0) {
 		src_rq->prev_runnable_sum = 0;
-		/* WARN_ON(1); */
+		WARN_ON(1);
 	}
 	if ((s64)src_rq->curr_runnable_sum < 0) {
 		src_rq->curr_runnable_sum = 0;
-		/* WARN_ON(1); */
+		WARN_ON(1);
 	}
 
 	trace_walt_migration_update_sum(src_rq, p);
 	trace_walt_migration_update_sum(dest_rq, p);
 
-	if (lock_needed)
+	if (p->state == TASK_WAKING)
 		double_rq_unlock(src_rq, dest_rq);
 }
-
-/*
- * Return 'capacity' of a cpu in reference to "least" efficient cpu, such that
- * least efficient cpu gets capacity of 1024
- */
-static unsigned long capacity_scale_cpu_efficiency(int cpu)
-{
-	return (1024 * cpu_rq(cpu)->efficiency) / min_possible_efficiency;
-}
-
-/*
- * Return 'capacity' of a cpu in reference to cpu with lowest max_freq
- * (min_max_freq), such that one with lowest max_freq gets capacity of 1024.
- */
-static unsigned long capacity_scale_cpu_freq(int cpu)
-{
-	return (1024 * cpu_rq(cpu)->max_freq) / min_max_freq;
-}
-
-/*
- * Return load_scale_factor of a cpu in reference to "most" efficient cpu, so
- * that "most" efficient cpu gets a load_scale_factor of 1
- */
-static unsigned long load_scale_cpu_efficiency(int cpu)
-{
-	return DIV_ROUND_UP(1024 * max_possible_efficiency,
-			    cpu_rq(cpu)->efficiency);
-}
-
-/*
- * Return load_scale_factor of a cpu in reference to cpu with best max_freq
- * (max_possible_freq), so that one with best max_freq gets a load_scale_factor
- * of 1.
- */
-static unsigned long load_scale_cpu_freq(int cpu)
-{
-	if (cpu_rq(cpu)->max_freq)
-		return DIV_ROUND_UP(1024 * max_possible_freq, cpu_rq(cpu)->max_freq);
-	else
-		return 1024;
-}
-
-static int compute_capacity(int cpu)
-{
-	int capacity = 1024;
-
-	capacity *= capacity_scale_cpu_efficiency(cpu);
-	capacity >>= 10;
-
-	capacity *= capacity_scale_cpu_freq(cpu);
-	capacity >>= 10;
-
-	return capacity;
-}
-
-static int compute_load_scale_factor(int cpu)
-{
-	int load_scale = 1024;
-
-	/*
-	 * load_scale_factor accounts for the fact that task load
-	 * is in reference to "best" performing cpu. Task's load will need to be
-	 * scaled (up) by a factor to determine suitability to be placed on a
-	 * (little) cpu.
-	 */
-	load_scale *= load_scale_cpu_efficiency(cpu);
-	load_scale >>= 10;
-
-	load_scale *= load_scale_cpu_freq(cpu);
-	load_scale >>= 10;
-
-	return load_scale;
-}
-
-static int cpufreq_notifier_policy(struct notifier_block *nb,
-		unsigned long val, void *data)
-{
-	struct cpufreq_policy *policy = (struct cpufreq_policy *)data;
-	int i, update_max = 0;
-	u64 highest_mpc = 0, highest_mplsf = 0;
-	const struct cpumask *cpus = policy->related_cpus;
-	unsigned int orig_min_max_freq = min_max_freq;
-	unsigned int orig_max_possible_freq = max_possible_freq;
-	/* Initialized to policy->max in case policy->related_cpus is empty! */
-	unsigned int orig_max_freq = policy->max;
-
-	if (val != CPUFREQ_NOTIFY)
-		return 0;
-
-	for_each_cpu(i, policy->related_cpus) {
-		cpumask_copy(&cpu_rq(i)->freq_domain_cpumask,
-			     policy->related_cpus);
-		orig_max_freq = cpu_rq(i)->max_freq;
-		cpu_rq(i)->min_freq = policy->min;
-		cpu_rq(i)->max_freq = policy->max;
-#ifndef CONFIG_CPU_FREQ_SCHED_ASSIST
-		cpu_rq(i)->cur_freq = policy->cur;
-#endif
-		cpu_rq(i)->max_possible_freq = policy->cpuinfo.max_freq;
-	}
-
-	max_possible_freq = max(max_possible_freq, policy->cpuinfo.max_freq);
-	if (min_max_freq == 1)
-		min_max_freq = UINT_MAX;
-	min_max_freq = min(min_max_freq, policy->cpuinfo.max_freq);
-	BUG_ON(!min_max_freq);
-	BUG_ON(!policy->max);
-
-	/* Changes to policy other than max_freq don't require any updates */
-	if (orig_max_freq == policy->max)
-		return 0;
-
-	/*
-	 * A changed min_max_freq or max_possible_freq (possible during bootup)
-	 * needs to trigger re-computation of load_scale_factor and capacity for
-	 * all possible cpus (even those offline). It also needs to trigger
-	 * re-computation of nr_big_task count on all online cpus.
-	 *
-	 * A changed rq->max_freq otoh needs to trigger re-computation of
-	 * load_scale_factor and capacity for just the cluster of cpus involved.
-	 * Since small task definition depends on max_load_scale_factor, a
-	 * changed load_scale_factor of one cluster could influence
-	 * classification of tasks in another cluster. Hence a changed
-	 * rq->max_freq will need to trigger re-computation of nr_big_task
-	 * count on all online cpus.
-	 *
-	 * While it should be sufficient for nr_big_tasks to be
-	 * re-computed for only online cpus, we have inadequate context
-	 * information here (in policy notifier) with regard to hotplug-safety
-	 * context in which notification is issued. As a result, we can't use
-	 * get_online_cpus() here, as it can lead to deadlock. Until cpufreq is
-	 * fixed up to issue notification always in hotplug-safe context,
-	 * re-compute nr_big_task for all possible cpus.
-	 */
-
-	if (orig_min_max_freq != min_max_freq ||
-		orig_max_possible_freq != max_possible_freq) {
-			cpus = cpu_possible_mask;
-			update_max = 1;
-	}
-
-	/*
-	 * Changed load_scale_factor can trigger reclassification of tasks as
-	 * big or small. Make this change "atomic" so that tasks are accounted
-	 * properly due to changed load_scale_factor
-	 */
-	for_each_cpu(i, cpus) {
-		struct rq *rq = cpu_rq(i);
-
-		rq->capacity = compute_capacity(i);
-		rq->load_scale_factor = compute_load_scale_factor(i);
-
-		if (update_max) {
-			u64 mpc, mplsf;
-
-			/* paltform driver may be delayed */
-			if (!rq->max_freq)
-				return 0;
-
-			mpc = div_u64(((u64) rq->capacity) *
-				rq->max_possible_freq, rq->max_freq);
-			rq->max_possible_capacity = (int) mpc;
-
-			mplsf = div_u64(((u64) rq->load_scale_factor) *
-				rq->max_possible_freq, rq->max_freq);
-
-			if (mpc > highest_mpc) {
-				highest_mpc = mpc;
-				cpumask_clear(&mpc_mask);
-				cpumask_set_cpu(i, &mpc_mask);
-			} else if (mpc == highest_mpc) {
-				cpumask_set_cpu(i, &mpc_mask);
-			}
-
-			if (mplsf > highest_mplsf)
-				highest_mplsf = mplsf;
-		}
-	}
-
-	if (update_max) {
-		max_possible_capacity = highest_mpc;
-		max_load_scale_factor = highest_mplsf;
-	}
-
-	return 0;
-}
-
-#ifndef CONFIG_CPU_FREQ_SCHED_ASSIST
-static int cpufreq_notifier_trans(struct notifier_block *nb,
-		unsigned long val, void *data)
-{
-	struct cpufreq_freqs *freq = (struct cpufreq_freqs *)data;
-	unsigned int cpu = freq->cpu, new_freq = freq->new;
-	unsigned long flags;
-	int i;
-
-	if (val != CPUFREQ_POSTCHANGE)
-		return 0;
-
-	BUG_ON(!new_freq);
-
-	if (cpu_rq(cpu)->cur_freq == new_freq)
-		return 0;
-
-	for_each_cpu(i, &cpu_rq(cpu)->freq_domain_cpumask) {
-		struct rq *rq = cpu_rq(i);
-
-		raw_spin_lock_irqsave(&rq->lock, flags);
-		walt_update_task_ravg(rq->curr, rq, TASK_UPDATE,
-				      walt_ktime_clock(), 0);
-		rq->cur_freq = new_freq;
-		raw_spin_unlock_irqrestore(&rq->lock, flags);
-	}
-
-	return 0;
-}
-#endif
-
-int walt_cpufreq_notifier_trans(unsigned int cpu, unsigned int new_freq)
-{
-	struct rq *rq = cpu_rq(cpu);
-
-	if (rq->cur_freq == new_freq)
-		return 0;
-
-	walt_update_task_ravg(rq->curr, rq, TASK_UPDATE,
-			walt_ktime_clock(), 0);
-	rq->cur_freq = new_freq;
-
-	return 0;
-}
-
-static struct notifier_block notifier_policy_block = {
-	.notifier_call = cpufreq_notifier_policy
-};
-
-#ifndef CONFIG_CPU_FREQ_SCHED_ASSIST
-static struct notifier_block notifier_trans_block = {
-	.notifier_call = cpufreq_notifier_trans
-};
-#endif
-
-static int register_sched_callback(void)
-{
-	int ret;
-
-	ret = cpufreq_register_notifier(&notifier_policy_block,
-						CPUFREQ_POLICY_NOTIFIER);
-
-#ifndef CONFIG_CPU_FREQ_SCHED_ASSIST
-	if (!ret)
-		ret = cpufreq_register_notifier(&notifier_trans_block,
-						CPUFREQ_TRANSITION_NOTIFIER);
-#endif
-
-	return 0;
-}
-
-/*
- * cpufreq callbacks can be registered at core_initcall or later time.
- * Any registration done prior to that is "forgotten" by cpufreq. See
- * initialization of variable init_cpufreq_transition_notifier_list_called
- * for further information.
- */
-core_initcall(register_sched_callback);
 
 void walt_init_new_task_load(struct task_struct *p)
 {
@@ -1224,14 +921,3 @@ void walt_init_new_task_load(struct task_struct *p)
 	for (i = 0; i < RAVG_HIST_SIZE_MAX; ++i)
 		p->ravg.sum_history[i] = init_load_windows;
 }
-
-#ifdef CONFIG_MTK_UNIFY_POWER
-static int
-walt_late_init(void) {
-	/* unify power table is updated after late init. */
-	walt_init_cpu_efficiency();
-
-	return 0;
-}
-late_initcall_sync(walt_late_init);
-#endif

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 MediaTek Inc.
+ * Copyright (C) 2018 MediaTek Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -68,6 +68,7 @@ struct rpmb_ioc_param {
 #define RPMB_SZ_MAC   32
 #define RPMB_SZ_DATA  256
 #define RPMB_SZ_NONCE 16
+#define RPMB_IOC_MAX_BYTES (512L * 256) /* sync from linux/mmc/ioctl.h */
 
 struct s_rpmb {
 	unsigned char stuff[RPMB_SZ_STUFF];

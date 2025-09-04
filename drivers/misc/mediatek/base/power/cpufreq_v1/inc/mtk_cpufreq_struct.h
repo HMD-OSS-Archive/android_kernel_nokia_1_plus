@@ -16,6 +16,9 @@
 
 #include <linux/cpufreq.h>
 #include "mtk_cpufreq_config.h"
+#define NR_FREQ		16
+#define IMAX_EN_RATIO_TBL_NUM 2
+#define ARRAY_COL_SIZE	4
 
 /* Table Define */
 #define OP(khz, volt) {		\
@@ -24,7 +27,7 @@
 }
 
 struct mt_cpu_freq_info {
-	const unsigned int cpufreq_khz;
+	unsigned int cpufreq_khz;
 	unsigned int cpufreq_volt;
 };
 
@@ -39,12 +42,24 @@ struct opp_tbl_info {
 }
 
 struct mt_cpu_freq_method {
-	const char pos_div;
-	const char clk_div;
+	char pos_div;
+	char clk_div;
 };
 
 struct opp_tbl_m_info {
 	struct mt_cpu_freq_method *const opp_tbl_m;
+};
+
+struct cpudvfs_doe {
+	u32 dts_opp_tbl[NR_MT_CPU_DVFS][NR_FREQ * ARRAY_COL_SIZE];
+	unsigned int doe_flag;
+	unsigned int state;
+	unsigned int change_flag;
+	unsigned int lt_rs_t;
+	unsigned int lt_dw_t;
+	unsigned int bg_rs_t;
+	unsigned int bg_dw_t;
+	char *dtsn[NR_MT_CPU_DVFS];
 };
 
 struct mt_cpu_dvfs {
@@ -64,7 +79,8 @@ struct mt_cpu_dvfs {
 	int idx_opp_ppm_limit;	/* ppm update limit */
 	int armpll_is_available;	/* For CCI clock switch flag */
 	int idx_normal_max_opp;	/* idx for normal max OPP */
-	struct cpufreq_frequency_table *freq_tbl_for_cpufreq;	/* freq table for cpufreq */
+	/* freq table for cpufreq */
+	struct cpufreq_frequency_table *freq_tbl_for_cpufreq;
 
 	/* enable/disable DVFS function */
 	bool dvfs_disable_by_suspend;
@@ -83,8 +99,10 @@ struct buck_ctrl_t {
 };
 
 struct buck_ctrl_ops {
-	unsigned int (*get_cur_volt)(struct buck_ctrl_t *buck_p);	/* return volt (mV * 100) */
-	int (*set_cur_volt)(struct buck_ctrl_t *buck_p, unsigned int volt);	/* set volt (mv * 100) */
+	/* return volt (mV * 100) */
+	unsigned int (*get_cur_volt)(struct buck_ctrl_t *buck_p);
+	/* set volt (mv * 100) */
+	int (*set_cur_volt)(struct buck_ctrl_t *buck_p, unsigned int volt);
 	unsigned int (*transfer2pmicval)(unsigned int volt);
 	unsigned int (*transfer2volt)(unsigned int val);
 	unsigned int (*settletime)(unsigned int ori, unsigned int target);
@@ -104,11 +122,15 @@ struct pll_ctrl_t {
 };
 
 struct pll_ctrl_ops {
-	unsigned int (*get_cur_freq)(struct pll_ctrl_t *pll_p);	/* return khz */
+	/* return khz */
+	unsigned int (*get_cur_freq)(struct pll_ctrl_t *pll_p);
 	/* int (*set_cur_freq)(struct pll_ctrl_t *pll_p, unsigned int freq); */
-	void (*set_armpll_dds)(struct pll_ctrl_t *pll_p, unsigned int vco, unsigned int pos_div);
-	void (*set_armpll_posdiv)(struct pll_ctrl_t *pll_p, unsigned int pos_div);
-	void (*set_armpll_clkdiv)(struct pll_ctrl_t *pll_p, unsigned int clk_div);
+	void (*set_armpll_dds)(struct pll_ctrl_t *pll_p, unsigned int vco,
+							unsigned int pos_div);
+	void (*set_armpll_posdiv)(struct pll_ctrl_t *pll_p,
+							unsigned int pos_div);
+	void (*set_armpll_clkdiv)(struct pll_ctrl_t *pll_p,
+							unsigned int clk_div);
 	void (*set_freq_hopping)(struct pll_ctrl_t *pll_p, unsigned int dds);
 	void (*clksrc_switch)(struct pll_ctrl_t *pll_p, enum top_ckmuxsel sel);
 	enum top_ckmuxsel (*get_clksrc)(struct pll_ctrl_t *pll_p);

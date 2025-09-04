@@ -23,13 +23,11 @@
 #include <linux/if_vlan.h>
 
 #include "u_ether.h"
-#include "usb_boost.h"
-
-#ifdef CONFIG_MTK_MD_DIRECT_TETHERING_SUPPORT
-#include "mtk_gadget.h"
-#endif
-
 #include "rndis.h"
+
+#ifdef CONFIG_MEDIATEK_SOLUTION
+#include "usb_boost.h"
+#endif
 
 /*
  * This component encapsulates the Ethernet link glue needed to provide
@@ -68,13 +66,13 @@ static struct workqueue_struct	*uether_wq1;
 
 #define DEFAULT_QLEN	2	/* double buffering by default */
 
-static unsigned tx_wakeup_threshold = 13;
-module_param(tx_wakeup_threshold, uint, S_IRUGO|S_IWUSR);
+static unsigned int tx_wakeup_threshold = 13;
+module_param(tx_wakeup_threshold, uint, 0644);
 MODULE_PARM_DESC(tx_wakeup_threshold, "tx wakeup threshold value");
 
 #define U_ETHER_RX_PENDING_TSHOLD 100
 static unsigned int u_ether_rx_pending_thld = U_ETHER_RX_PENDING_TSHOLD;
-module_param(u_ether_rx_pending_thld, uint, S_IRUGO | S_IWUSR);
+module_param(u_ether_rx_pending_thld, uint, 0644);
 
 /* for dual-speed hardware, use deeper queues at high/super speed */
 static inline int qlen(struct usb_gadget *gadget, unsigned qmult)
@@ -124,8 +122,10 @@ static inline int qlen(struct usb_gadget *gadget, unsigned qmult)
 /*-------------------------------------------------------------------------*/
 unsigned int rndis_test_last_resp_id;
 unsigned int rndis_test_last_msg_id;
+EXPORT_SYMBOL_GPL(rndis_test_last_msg_id);
 
 unsigned long rndis_test_reset_msg_cnt;
+EXPORT_SYMBOL_GPL(rndis_test_reset_msg_cnt);
 
 unsigned long rndis_test_rx_usb_in;
 unsigned long rndis_test_rx_net_out;
@@ -138,7 +138,9 @@ unsigned long rndis_test_tx_stop;
 
 unsigned long rndis_test_tx_usb_out;
 unsigned long rndis_test_tx_complete;
-#define U_ETHER_DBG(fmt, args...) pr_debug("U_ETHER,%s, " fmt, __func__, ## args)
+#define U_ETHER_DBG(fmt, args...) \
+		pr_debug("U_ETHER,%s, " fmt, __func__, ## args)
+
 
 /* NETWORK DRIVER HOOKUP (to the layer above this driver) */
 
@@ -210,11 +212,12 @@ rx_submit(struct eth_dev *dev, struct usb_request *req, gfp_t gfp_flags)
 		out = dev->port_usb->out_ep;
 	else
 		out = NULL;
-	spin_unlock_irqrestore(&dev->lock, flags);
 
 	if (!out)
+	{
+		spin_unlock_irqrestore(&dev->lock, flags);
 		return -ENOTCONN;
-
+	}
 
 	/* Padding up to RX_EXTRA handles minor disagreements with host.
 	 * Normally we use the USB "terminate on short read" convention;
@@ -238,9 +241,7 @@ rx_submit(struct eth_dev *dev, struct usb_request *req, gfp_t gfp_flags)
 
 	if (dev->port_usb->is_fixed)
 		size = max_t(size_t, size, dev->port_usb->fixed_out_len);
-
-	U_ETHER_DBG("size:%d, mtu:%d, hdr_len:%d, maxpacket:%d, ul_max_pkts_per_xfer:%d",
-			(int)size, dev->net->mtu, dev->port_usb->header_len, out->maxpacket, dev->ul_max_pkts_per_xfer);
+	spin_unlock_irqrestore(&dev->lock, flags);
 
 	skb = alloc_skb(size + NET_IP_ALIGN, gfp_flags);
 	if (skb == NULL) {
@@ -253,7 +254,7 @@ rx_submit(struct eth_dev *dev, struct usb_request *req, gfp_t gfp_flags)
 	 * but on at least one, checksumming fails otherwise.  Note:
 	 * RNDIS headers involve variable numbers of LE32 values.
 	 */
-	skb_reserve(skb, NET_IP_ALIGN);
+		skb_reserve(skb, NET_IP_ALIGN);
 
 	req->buf = skb->data;
 	req->length = size;
@@ -341,9 +342,9 @@ clean:
 	if (queue && dev->rx_frames.qlen <= u_ether_rx_pending_thld) {
 		if (rx_submit(dev, req, GFP_ATOMIC) < 0) {
 			spin_lock(&dev->reqrx_lock);
-			list_add(&req->list, &dev->rx_reqs);
+		list_add(&req->list, &dev->rx_reqs);
 			spin_unlock(&dev->reqrx_lock);
-		}
+	}
 	} else {
 		spin_lock(&dev->reqrx_lock);
 	list_add(&req->list, &dev->rx_reqs);
@@ -412,9 +413,9 @@ extra:
 #define MAX_ROW 8192
 static int chksum_table[MAX_ROW];
 static int chksum_windex;
-static unsigned chksum_wvalue;
+static unsigned int chksum_wvalue;
 static int chksum_rindex;
-static unsigned chksum_rvalue;
+static unsigned int chksum_rvalue;
 static bool tx_out_of_order_audit;
 module_param(tx_out_of_order_audit, bool, 0644);
 static bool tx_out_of_order;
@@ -460,20 +461,6 @@ void rx_fill(struct eth_dev *dev, gfp_t gfp_flags)
 	struct usb_request	*req;
 	unsigned long		flags;
 	int			req_cnt = 0;
-
-#ifdef CONFIG_MTK_MD_DIRECT_TETHERING_SUPPORT
-	static DEFINE_RATELIMIT_STATE(ratelimit1, 1 * HZ, 2);
-
-	int direct_state = rndis_get_direct_tethering_state(&dev->port_usb->func);
-
-	if (__ratelimit(&ratelimit1))
-		pr_info("%s (%d)\n", __func__, direct_state);
-	if (direct_state == DIRECT_STATE_ACTIVATING ||
-		direct_state == DIRECT_STATE_ACTIVATED ||
-		direct_state == DIRECT_STATE_DEACTIVATING) {
-		return;
-	}
-#endif
 
 	/* fill unused rxq slots with some skb */
 	spin_lock_irqsave(&dev->reqrx_lock, flags);
@@ -611,7 +598,8 @@ static void tx_complete(struct usb_ep *ep, struct usb_request *req)
 		chksum_rindex %= MAX_ROW;
 		chksum_rvalue += req->num_mapped_sgs;
 		req->num_sgs = req->num_mapped_sgs = 0;
-		tx_out_of_order = (chksum_rvalue != chksum_table[chksum_rindex]) ? true : false;
+		tx_out_of_order = (chksum_rvalue !=
+			chksum_table[chksum_rindex]) ? true : false;
 	}
 
 	if (dev->port_usb->multi_pkt_xfer && !req->context) {
@@ -663,32 +651,28 @@ static void tx_complete(struct usb_ep *ep, struct usb_request *req)
 			retval = usb_ep_queue(in, new_req, GFP_ATOMIC);
 			sending_aggregation = false;
 			switch (retval) {
-				default:
-					DBG(dev, "tx queue err %d\n", retval);
-					new_req->length = 0;
-					spin_lock(&dev->req_lock);
-					/* TX OUT OF ORDER FIX */
-					dev->no_tx_req_used--;
-					list_add_tail(&new_req->list, &dev->tx_reqs);
-					spin_unlock(&dev->req_lock);
-					break;
-				case 0:
-
-					/* TX OUT OF ORDER FIX */
-					/*
-					spin_lock(&dev->req_lock);
-					dev->no_tx_req_used++;
-					spin_unlock(&dev->req_lock);
-					*/
-					net->trans_start = jiffies;
+			default:
+				DBG(dev, "tx queue err %d\n", retval);
+				new_req->length = 0;
+				spin_lock(&dev->req_lock);
+				/* TX OUT OF ORDER FIX */
+				dev->no_tx_req_used--;
+				list_add_tail(&new_req->list,
+						&dev->tx_reqs);
+				spin_unlock(&dev->req_lock);
+				break;
+			case 0:
+				/* TX OUT OF ORDER FIX */
+				break;
 			}
 		}
 	} else {
-					skb = req->context;
+		skb = req->context;
 		/* Is aggregation already enabled and buffers allocated ? */
 		if (dev->port_usb->multi_pkt_xfer && dev->tx_req_bufsize) {
 #if defined(CONFIG_64BIT) && defined(CONFIG_MTK_LM_MODE)
-			req->buf = kzalloc(dev->tx_req_bufsize, GFP_ATOMIC | GFP_DMA);
+			req->buf = kzalloc(dev->tx_req_bufsize,
+						GFP_ATOMIC | GFP_DMA);
 #else
 			req->buf = kzalloc(dev->tx_req_bufsize, GFP_ATOMIC);
 #endif
@@ -774,21 +758,6 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 	static DEFINE_RATELIMIT_STATE(ratelimit1, 1 * HZ, 2);
 	static DEFINE_RATELIMIT_STATE(ratelimit2, 1 * HZ, 2);
 
-#ifdef CONFIG_MTK_MD_DIRECT_TETHERING_SUPPORT
-	static DEFINE_RATELIMIT_STATE(ratelimit3, 1 * HZ, 2);
-	int direct_state = rndis_get_direct_tethering_state(&dev->port_usb->func);
-
-	if (__ratelimit(&ratelimit3))
-		pr_info("%s (%d)\n", __func__, direct_state);
-
-	if (direct_state == DIRECT_STATE_ACTIVATING ||
-		direct_state == DIRECT_STATE_ACTIVATED ||
-		direct_state == DIRECT_STATE_DEACTIVATING) {
-		dev_kfree_skb_any(skb);
-		return NETDEV_TX_OK;
-	}
-#endif
-
 	spin_lock_irqsave(&dev->lock, flags);
 	if (dev->port_usb) {
 		in = dev->port_usb->in_ep;
@@ -820,15 +789,13 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 				type = USB_CDC_PACKET_TYPE_ALL_MULTICAST;
 			if (!(cdc_filter & type)) {
 				dev_kfree_skb_any(skb);
-				U_ETHER_DBG("cdc_filter error, cdc_filter is 0x%x , type is 0x%x\n",
-						cdc_filter, type);
 				return NETDEV_TX_OK;
 			}
 		}
 		/* ignores USB_CDC_PACKET_TYPE_DIRECTED */
 	}
 
-    /*
+	/*
 	 * No buffer copies needed, unless the network stack did it
 	 * or the hardware can't use skb buffers or there's not enough
 	 * enough space for extra headers we need.
@@ -856,14 +823,19 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 		}
 	}
 	if (__ratelimit(&ratelimit1)) {
+#ifdef CONFIG_MEDIATEK_SOLUTION
 		usb_boost();
-		U_ETHER_DBG("spd %d, ms %d, rin %lu, rout %lu, rxmem %lu, rxerr %lu\n"
-				"tin %lu, tout %lu, tb %lu, ts %lu, tx_com %lu, lmsg: 0x%x,lrsp:0x%x, rst:%lu\n",
-				dev->gadget->speed, max_size, rndis_test_rx_usb_in, rndis_test_rx_net_out,
-				rndis_test_rx_nomem, rndis_test_rx_error, rndis_test_tx_net_in,
-				rndis_test_tx_usb_out, rndis_test_tx_busy, rndis_test_tx_stop,
-				rndis_test_tx_complete, rndis_test_last_msg_id, rndis_test_last_resp_id,
-				rndis_test_reset_msg_cnt);
+#endif
+		U_ETHER_DBG("COM[%d,%d,%x,%x,%lu]\n",
+			dev->gadget->speed, max_size, rndis_test_last_msg_id,
+			rndis_test_last_resp_id, rndis_test_reset_msg_cnt);
+
+		U_ETHER_DBG("RX[%lu,%lu,%lu,%lu] TX[%lu,%lu,%lu,%lu,%lu]\n",
+			rndis_test_rx_usb_in, rndis_test_rx_net_out,
+			rndis_test_rx_nomem, rndis_test_rx_error,
+			rndis_test_tx_net_in, rndis_test_tx_usb_out,
+			rndis_test_tx_busy, rndis_test_tx_stop,
+			rndis_test_tx_complete);
 	}
 	rndis_test_tx_net_in++;
 	/*
@@ -892,12 +864,12 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 	}
 
 	if (tx_out_of_order_audit) {
-		chksum_wvalue += (unsigned)(uintptr_t)skb;
+		chksum_wvalue += (unsigned int)(uintptr_t)skb;
 		chksum_windex++;
 		chksum_windex %= MAX_ROW;
 		chksum_table[chksum_windex] = chksum_wvalue;
 		req->num_sgs++;
-		req->num_mapped_sgs += (unsigned)(uintptr_t)skb;
+		req->num_mapped_sgs += (unsigned int)(uintptr_t)skb;
 	}
 	spin_unlock_irqrestore(&dev->req_lock, flags);
 
@@ -935,8 +907,8 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 				list_add(&req->list, &dev->tx_reqs);
 				spin_unlock_irqrestore(&dev->req_lock, flags);
 				goto success;
-			}
 		}
+	}
 
 		dev->no_tx_req_used++;
 		dev->tx_skb_hold_count = 0;
@@ -950,7 +922,8 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 			sending_aggregation_cnt++;
 			while (sending_aggregation) {
 				do_gettimeofday(&tv_after);
-				diff_ns = timeval_to_ns(&tv_after) - timeval_to_ns(&tv_before);
+				diff_ns = timeval_to_ns(&tv_after)
+					- timeval_to_ns(&tv_before);
 				/* 3us for timeout */
 				if (diff_ns >= (3000))
 					break;
@@ -990,8 +963,8 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 	/* throttle high/super speed IRQ rate back slightly */
 	if (gadget_is_dualspeed(dev->gadget))
 		req->no_interrupt = (((dev->gadget->speed == USB_SPEED_HIGH ||
-				       dev->gadget->speed == USB_SPEED_SUPER)) &&
-					!list_empty(&dev->tx_reqs))
+					dev->gadget->speed == USB_SPEED_SUPER))
+					&& !list_empty(&dev->tx_reqs))
 			? ((atomic_read(&dev->tx_qlen) % dev->qmult) != 0)
 			: 0;
 
@@ -1002,14 +975,13 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 		break;
 	case 0:
 		rndis_test_tx_usb_out++;
-		net->trans_start = jiffies;
 		atomic_inc(&dev->tx_qlen);
 	}
 
 	if (retval) {
 		if (!multi_pkt_xfer)
 			dev_kfree_skb_any(skb);
-	else
+		else
 			req->length = 0;
 
 		dev->net->stats.tx_dropped++;
@@ -1215,10 +1187,10 @@ struct eth_dev *gether_setup_name(struct usb_gadget *g,
 
 #if 0
 	if (get_ether_addr(dev_addr, net->dev_addr))
-		dev_warn(&g->dev, "using random %s ethernet address\n", "self");
+		dev_info(&g->dev, "using random %s ethernet address\n", "self");
 
 	if (get_ether_addr(host_addr, dev->host_mac))
-		dev_warn(&g->dev, "using random %s ethernet address\n", "host");
+		dev_info(&g->dev, "using random %s ethernet address\n", "host");
 #else
 	if (get_ether_addr(dev_addr, net->dev_addr))
 		dev_warn(&g->dev,
@@ -1454,6 +1426,7 @@ void gether_update_dl_max_xfer_size(struct gether *link, uint32_t s)
 	dev->dl_max_xfer_size = s;
 	spin_unlock_irqrestore(&dev->lock, flags);
 }
+EXPORT_SYMBOL_GPL(gether_update_dl_max_xfer_size);
 
 /**
  * gether_cleanup - remove Ethernet-over-USB device
@@ -1668,13 +1641,13 @@ static int __init gether_init(void)
 {
 	uether_wq  = create_singlethread_workqueue("uether");
 	if (!uether_wq) {
-		pr_err("%s: Unable to create workqueue: uether\n", __func__);
+		pr_info("%s: Unable to create workqueue: uether\n", __func__);
 		return -ENOMEM;
 	}
 	uether_wq1  = create_singlethread_workqueue("uether_rx1");
 	if (!uether_wq1) {
 		destroy_workqueue(uether_wq);
-		pr_err("%s: Unable to create workqueue: uether\n", __func__);
+		pr_info("%s: Unable to create workqueue: uether\n", __func__);
 		return -ENOMEM;
 	}
 	return 0;

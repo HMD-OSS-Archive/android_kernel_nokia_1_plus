@@ -15,27 +15,34 @@
 #define __CMDQ_CORE_VIRTUAL_H__
 
 #include "cmdq_def.h"
+#include "cmdq_helper_ext.h"
 
 /* get subsys LSB in arg_a */
-typedef uint32_t(*CmdqGetSubsysLSBArgA) (void);
+typedef u32(*CmdqGetSubsysLSBArgA) (void);
 
 /* is a secure thread */
-typedef bool(*CmdqIsSecureThread) (const int32_t thread);
+typedef bool(*CmdqIsSecureThread) (const s32 thread);
 
 /* is display scenario */
 typedef bool(*CmdqIsDispScenario) (const enum CMDQ_SCENARIO_ENUM scenario);
 
+/* is exclusive thread scenario */
+typedef bool(*CmdqIsDynamic) (const enum CMDQ_SCENARIO_ENUM scenario);
+
 /* should enable prefetch */
-typedef bool(*CmdqShouldEnablePrefetch) (const enum CMDQ_SCENARIO_ENUM scenario);
+typedef bool(*CmdqShouldEnablePrefetch) (
+	const enum CMDQ_SCENARIO_ENUM scenario);
 
 /* display thread index from scenario */
 typedef int (*CmdqDispThread) (enum CMDQ_SCENARIO_ENUM scenario);
 
 /* get thread index from scenario and secure */
-typedef int (*CmdqGetThreadID) (enum CMDQ_SCENARIO_ENUM scenario, const bool secure);
+typedef int (*CmdqGetThreadID) (enum CMDQ_SCENARIO_ENUM scenario,
+	const bool secure);
 
-/*  priority from scenario */
-typedef enum CMDQ_HW_THREAD_PRIORITY_ENUM(*CmdqPriority) (enum CMDQ_SCENARIO_ENUM scenario);
+/* priority from scenario */
+typedef enum CMDQ_HW_THREAD_PRIORITY_ENUM(*CmdqPriority) (
+	enum CMDQ_SCENARIO_ENUM scenario);
 
 /*  force loop IRQ from scenario */
 typedef bool(*cmdq_force_loop_irq) (enum CMDQ_SCENARIO_ENUM scenario);
@@ -44,19 +51,20 @@ typedef bool(*cmdq_force_loop_irq) (enum CMDQ_SCENARIO_ENUM scenario);
 typedef bool(*cmdq_is_disp_loop) (enum CMDQ_SCENARIO_ENUM scenario);
 
 /* get register index from hwflag */
-typedef void(*CmdqGetRegID) (uint64_t hwflag,
-			     enum CMDQ_DATA_REGISTER_ENUM *valueRegId,
-			     enum CMDQ_DATA_REGISTER_ENUM *destRegId, enum CMDQ_EVENT_ENUM *regAccessToken);
+typedef void(*CmdqGetRegID) (u64 hwflag,
+	enum cmdq_gpr_reg *valueRegId,
+	enum cmdq_gpr_reg *destRegId,
+	enum cmdq_event *regAccessToken);
 
 /*  module from event index */
-typedef const char *(*CmdqModuleFromEvent) (const int32_t event,
-	struct CmdqCBkStruct *groupCallback, uint64_t engineFlag);
+typedef const char *(*CmdqModuleFromEvent) (const s32 event,
+	struct CmdqCBkStruct *groupCallback, u64 engineFlag);
 
 /* parse module from register addr */
-typedef const char *(*CmdqParseModule) (uint32_t reg_addr);
+typedef const char *(*CmdqParseModule) (u32 reg_addr);
 
 /* can module entry suspend */
-typedef int32_t(*CmdqModuleEntrySuspend) (struct EngineStruct *engineList);
+typedef s32(*CmdqModuleEntrySuspend) (struct EngineStruct *engineList);
 
 /* print status clock */
 typedef ssize_t(*CmdqPrintStatusClock) (char *buf);
@@ -68,7 +76,11 @@ typedef void (*CmdqPrintStatusSeqClock) (struct seq_file *m);
 typedef void (*CmdqEnableGCEClockLocked) (bool enable);
 
 /* parse error module by hwflag */
-typedef const char *(*CmdqParseErrorModule) (const struct TaskStruct *pTask);
+typedef const char *(*CmdqParseErrorModule) (const struct cmdqRecStruct *pTask);
+
+/* parse error module by hwflag */
+typedef const char *(*CmdqParseHandleErrorModule) (
+const struct cmdqRecStruct *pHandle);
 
 /* dump SMI */
 typedef int (*CmdqDumpSMI) (const int showSmiDump);
@@ -77,7 +89,7 @@ typedef int (*CmdqDumpSMI) (const int showSmiDump);
 typedef void (*CmdqDumpGPR) (void);
 
 /* flag from scenario */
-typedef uint64_t(*CmdqFlagFromScenario) (enum CMDQ_SCENARIO_ENUM scenario);
+typedef u64(*CmdqFlagFromScenario) (enum CMDQ_SCENARIO_ENUM scenario);
 
 /* evet backup */
 typedef void (*CmdqEventBackup) (void);
@@ -98,6 +110,7 @@ struct cmdqCoreFuncStruct {
 	CmdqGetSubsysLSBArgA getSubsysLSBArgA;
 	CmdqIsSecureThread isSecureThread;
 	CmdqIsDispScenario isDispScenario;
+	CmdqIsDynamic isDynamic;
 	CmdqShouldEnablePrefetch shouldEnablePrefetch;
 	CmdqDispThread dispThread;
 	CmdqGetThreadID getThreadID;
@@ -112,6 +125,7 @@ struct cmdqCoreFuncStruct {
 	CmdqPrintStatusSeqClock printStatusSeqClock;
 	CmdqEnableGCEClockLocked enableGCEClockLocked;
 	CmdqParseErrorModule parseErrorModule;
+	CmdqParseHandleErrorModule parseHandleErrorModule;
 	CmdqDumpSMI dumpSMI;
 	CmdqDumpGPR dumpGPR;
 	CmdqFlagFromScenario flagFromScenario;

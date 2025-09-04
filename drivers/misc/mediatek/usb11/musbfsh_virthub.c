@@ -402,7 +402,7 @@ int musbfsh_hub_status_data(struct usb_hcd *hcd, char *buf)
 	struct musbfsh *musbfsh = hcd_to_musbfsh(hcd);
 	int retval = 0;
 
-	INFO("musbfsh_hub_status_data++\r\n");
+	INFO("called++\r\n");
 	/* called in_irq() via usb_hcd_poll_rh_status() */
 	if (musbfsh->port1_status & 0xffff0000) {
 		*buf = 0x02;

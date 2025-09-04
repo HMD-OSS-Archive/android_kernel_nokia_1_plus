@@ -1,15 +1,15 @@
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ * Copyright (C) 2016 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ */
 
 #ifndef __MT_CCCI_COMMON_H__
 #define __MT_CCCI_COMMON_H__
@@ -21,7 +21,10 @@
  * all code owned by CCCI should use modem index starts from ZERO
  */
 enum MD_SYS {
-	MD_SYS1 = 0, /* MD SYS name counts from 1, but internal index counts from 0 */
+	/* MD SYS name counts from 1,
+	 * but internal index counts from 0
+	 */
+	MD_SYS1 = 0,
 	MD_SYS2,
 	MD_SYS3,
 	MD_SYS4,
@@ -75,7 +78,8 @@ enum MD_LOAD_TYPE {
 #define INVALID_STR		"INVALID"
 
 struct ccci_header {
-	u32 data[2]; /* do NOT assume data[1] is data length in Rx */
+	/* do NOT assume data[1] is data length in Rx */
+	u32 data[2];
 	u16 channel:16;
 	u16 seq_num:15;
 	u16 assert_bit:1;
@@ -94,17 +98,22 @@ struct lhif_header {
 struct md_check_header {
 	unsigned char check_header[12];	/* magic number is "CHECK_HEADER"*/
 	unsigned int  header_verno;	/* header structure version number */
-	unsigned int  product_ver;	/* 0x0:invalid; 0x1:debug version; 0x2:release version */
-	unsigned int  image_type;	/* 0x0:invalid; 0x1:2G modem; 0x2: 3G modem */
+	/* 0x0:invalid; 0x1:debug version; 0x2:release version */
+	unsigned int  product_ver;
+
+	/* 0x0:invalid; 0x1:2G modem; 0x2: 3G modem */
+	unsigned int  image_type;
 	unsigned char platform[16];	/* MT6573_S01 or MT6573_S02 */
 	unsigned char build_time[64];	/* build time string */
 	unsigned char build_ver[64];	/* project version, ex:11A_MD.W11.28 */
 
-	unsigned char bind_sys_id;	/* bind to md sys id, MD SYS1: 1, MD SYS2: 2 */
+	/* bind to md sys id, MD SYS1: 1, MD SYS2: 2 */
+	unsigned char bind_sys_id;
 	unsigned char ext_attr;		/* no shrink: 0, shrink: 1*/
 	unsigned char reserved[2];	/* for reserved */
 
-	unsigned int  mem_size;		/* md ROM/RAM image size requested by md */
+	/* md ROM/RAM image size requested by md */
+	unsigned int  mem_size;
 	unsigned int  md_img_size;	/* md image size, exclude head size*/
 	unsigned int  reserved_info;	/* for reserved */
 	unsigned int  size;		/* the size of this structure */
@@ -150,9 +159,9 @@ enum{
 	MPU_DOMAIN_INFO_ID_TOTAL_NUM,
 };
 
-/* ================================================================================= */
+/* ============================================================= */
 /* CCCI Error number defination */
-/* ================================================================================= */
+/* ============================================================= */
 /* CCCI error number region */
 #define CCCI_ERR_MODULE_INIT_START_ID   (0)
 #define CCCI_ERR_COMMON_REGION_START_ID	(100)
@@ -161,87 +170,159 @@ enum{
 #define CCCI_ERR_LOAD_IMG_START_ID	(400)
 
 /* CCCI error number */
-#define CCCI_ERR_MODULE_INIT_O				(CCCI_ERR_MODULE_INIT_START_ID+0)
-#define CCCI_ERR_INIT_DEV_NODE_FAIL			(CCCI_ERR_MODULE_INIT_START_ID+1)
-#define CCCI_ERR_INIT_PLATFORM_FAIL			(CCCI_ERR_MODULE_INIT_START_ID+2)
-#define CCCI_ERR_MK_DEV_NODE_FAIL			(CCCI_ERR_MODULE_INIT_START_ID+3)
-#define CCCI_ERR_INIT_LOGIC_LAYER_FAIL			(CCCI_ERR_MODULE_INIT_START_ID+4)
-#define CCCI_ERR_INIT_MD_CTRL_FAIL			(CCCI_ERR_MODULE_INIT_START_ID+5)
-#define CCCI_ERR_INIT_CHAR_DEV_FAIL			(CCCI_ERR_MODULE_INIT_START_ID+6)
-#define CCCI_ERR_INIT_TTY_FAIL				(CCCI_ERR_MODULE_INIT_START_ID+7)
-#define CCCI_ERR_INIT_IPC_FAIL				(CCCI_ERR_MODULE_INIT_START_ID+8)
-#define CCCI_ERR_INIT_RPC_FAIL				(CCCI_ERR_MODULE_INIT_START_ID+9)
-#define CCCI_ERR_INIT_FS_FAIL				(CCCI_ERR_MODULE_INIT_START_ID+10)
-#define CCCI_ERR_INIT_CCMNI_FAIL			(CCCI_ERR_MODULE_INIT_START_ID+11)
-#define CCCI_ERR_INIT_VIR_CHAR_FAIL			(CCCI_ERR_MODULE_INIT_START_ID+12)
+#define CCCI_ERR_MODULE_INIT_O \
+	(CCCI_ERR_MODULE_INIT_START_ID+0)
+#define CCCI_ERR_INIT_DEV_NODE_FAIL \
+	(CCCI_ERR_MODULE_INIT_START_ID+1)
+#define CCCI_ERR_INIT_PLATFORM_FAIL \
+	(CCCI_ERR_MODULE_INIT_START_ID+2)
+#define CCCI_ERR_MK_DEV_NODE_FAIL \
+	(CCCI_ERR_MODULE_INIT_START_ID+3)
+#define CCCI_ERR_INIT_LOGIC_LAYER_FAIL \
+	(CCCI_ERR_MODULE_INIT_START_ID+4)
+#define CCCI_ERR_INIT_MD_CTRL_FAIL \
+	(CCCI_ERR_MODULE_INIT_START_ID+5)
+#define CCCI_ERR_INIT_CHAR_DEV_FAIL \
+	(CCCI_ERR_MODULE_INIT_START_ID+6)
+#define CCCI_ERR_INIT_TTY_FAIL \
+	(CCCI_ERR_MODULE_INIT_START_ID+7)
+#define CCCI_ERR_INIT_IPC_FAIL \
+	(CCCI_ERR_MODULE_INIT_START_ID+8)
+#define CCCI_ERR_INIT_RPC_FAIL \
+	(CCCI_ERR_MODULE_INIT_START_ID+9)
+#define CCCI_ERR_INIT_FS_FAIL \
+	(CCCI_ERR_MODULE_INIT_START_ID+10)
+#define CCCI_ERR_INIT_CCMNI_FAIL \
+	(CCCI_ERR_MODULE_INIT_START_ID+11)
+#define CCCI_ERR_INIT_VIR_CHAR_FAIL \
+	(CCCI_ERR_MODULE_INIT_START_ID+12)
 
 /* ---- Common */
-#define CCCI_ERR_FATAL_ERR				(CCCI_ERR_COMMON_REGION_START_ID+0)
-#define CCCI_ERR_ASSERT_ERR				(CCCI_ERR_COMMON_REGION_START_ID+1)
-#define CCCI_ERR_MD_IN_RESET				(CCCI_ERR_COMMON_REGION_START_ID+2)
-#define CCCI_ERR_RESET_NOT_READY			(CCCI_ERR_COMMON_REGION_START_ID+3)
-#define CCCI_ERR_GET_MEM_FAIL				(CCCI_ERR_COMMON_REGION_START_ID+4)
-#define CCCI_ERR_GET_SMEM_SETTING_FAIL			(CCCI_ERR_COMMON_REGION_START_ID+5)
-#define CCCI_ERR_INVALID_PARAM				(CCCI_ERR_COMMON_REGION_START_ID+6)
-#define CCCI_ERR_LARGE_THAN_BUF_SIZE			(CCCI_ERR_COMMON_REGION_START_ID+7)
-#define CCCI_ERR_GET_MEM_LAYOUT_FAIL			(CCCI_ERR_COMMON_REGION_START_ID+8)
-#define CCCI_ERR_MEM_CHECK_FAIL				(CCCI_ERR_COMMON_REGION_START_ID+9)
-#define CCCI_IPO_H_RESTORE_FAIL				(CCCI_ERR_COMMON_REGION_START_ID+10)
+#define CCCI_ERR_FATAL_ERR \
+	(CCCI_ERR_COMMON_REGION_START_ID+0)
+#define CCCI_ERR_ASSERT_ERR \
+	(CCCI_ERR_COMMON_REGION_START_ID+1)
+#define CCCI_ERR_MD_IN_RESET \
+	(CCCI_ERR_COMMON_REGION_START_ID+2)
+#define CCCI_ERR_RESET_NOT_READY \
+	(CCCI_ERR_COMMON_REGION_START_ID+3)
+#define CCCI_ERR_GET_MEM_FAIL \
+	(CCCI_ERR_COMMON_REGION_START_ID+4)
+#define CCCI_ERR_GET_SMEM_SETTING_FAIL \
+	(CCCI_ERR_COMMON_REGION_START_ID+5)
+#define CCCI_ERR_INVALID_PARAM \
+	(CCCI_ERR_COMMON_REGION_START_ID+6)
+#define CCCI_ERR_LARGE_THAN_BUF_SIZE \
+	(CCCI_ERR_COMMON_REGION_START_ID+7)
+#define CCCI_ERR_GET_MEM_LAYOUT_FAIL \
+	(CCCI_ERR_COMMON_REGION_START_ID+8)
+#define CCCI_ERR_MEM_CHECK_FAIL \
+	(CCCI_ERR_COMMON_REGION_START_ID+9)
+#define CCCI_IPO_H_RESTORE_FAIL \
+	(CCCI_ERR_COMMON_REGION_START_ID+10)
 
 /* ---- CCIF */
-#define CCCI_ERR_CCIF_NOT_READY				(CCCI_ERR_CCIF_REGION_START_ID+0)
-#define CCCI_ERR_CCIF_CALL_BACK_HAS_REGISTERED		(CCCI_ERR_CCIF_REGION_START_ID+1)
-#define CCCI_ERR_CCIF_GET_NULL_POINTER			(CCCI_ERR_CCIF_REGION_START_ID+2)
-#define CCCI_ERR_CCIF_UN_SUPPORT			(CCCI_ERR_CCIF_REGION_START_ID+3)
-#define CCCI_ERR_CCIF_NO_PHYSICAL_CHANNEL		(CCCI_ERR_CCIF_REGION_START_ID+4)
-#define CCCI_ERR_CCIF_INVALID_RUNTIME_LEN		(CCCI_ERR_CCIF_REGION_START_ID+5)
-#define CCCI_ERR_CCIF_INVALID_MD_SYS_ID			(CCCI_ERR_CCIF_REGION_START_ID+6)
-#define CCCI_ERR_CCIF_GET_HW_INFO_FAIL			(CCCI_ERR_CCIF_REGION_START_ID+9)
+#define CCCI_ERR_CCIF_NOT_READY \
+	(CCCI_ERR_CCIF_REGION_START_ID+0)
+#define CCCI_ERR_CCIF_CALL_BACK_HAS_REGISTERED \
+	(CCCI_ERR_CCIF_REGION_START_ID+1)
+#define CCCI_ERR_CCIF_GET_NULL_POINTER \
+	(CCCI_ERR_CCIF_REGION_START_ID+2)
+#define CCCI_ERR_CCIF_UN_SUPPORT \
+	(CCCI_ERR_CCIF_REGION_START_ID+3)
+#define CCCI_ERR_CCIF_NO_PHYSICAL_CHANNEL \
+	(CCCI_ERR_CCIF_REGION_START_ID+4)
+#define CCCI_ERR_CCIF_INVALID_RUNTIME_LEN \
+	(CCCI_ERR_CCIF_REGION_START_ID+5)
+#define CCCI_ERR_CCIF_INVALID_MD_SYS_ID \
+	(CCCI_ERR_CCIF_REGION_START_ID+6)
+#define CCCI_ERR_CCIF_GET_HW_INFO_FAIL \
+	(CCCI_ERR_CCIF_REGION_START_ID+9)
 
 /* ---- CCCI */
-#define CCCI_ERR_INVALID_LOGIC_CHANNEL_ID		(CCCI_ERR_CCCI_REGION_START_ID+0)
-#define CCCI_ERR_PUSH_RX_DATA_TO_TX_CHANNEL		(CCCI_ERR_CCCI_REGION_START_ID+1)
-#define CCCI_ERR_REG_CALL_BACK_FOR_TX_CHANNEL		(CCCI_ERR_CCCI_REGION_START_ID+2)
-#define CCCI_ERR_LOGIC_CH_HAS_REGISTERED		(CCCI_ERR_CCCI_REGION_START_ID+3)
-#define CCCI_ERR_MD_NOT_READY				(CCCI_ERR_CCCI_REGION_START_ID+4)
-#define CCCI_ERR_ALLOCATE_MEMORY_FAIL			(CCCI_ERR_CCCI_REGION_START_ID+5)
-#define CCCI_ERR_CREATE_CCIF_INSTANCE_FAIL		(CCCI_ERR_CCCI_REGION_START_ID+6)
-#define CCCI_ERR_REPEAT_CHANNEL_ID			(CCCI_ERR_CCCI_REGION_START_ID+7)
-#define CCCI_ERR_KFIFO_IS_NOT_READY			(CCCI_ERR_CCCI_REGION_START_ID+8)
-#define CCCI_ERR_GET_NULL_POINTER			(CCCI_ERR_CCCI_REGION_START_ID+9)
-#define CCCI_ERR_GET_RX_DATA_FROM_TX_CHANNEL		(CCCI_ERR_CCCI_REGION_START_ID+10)
-#define CCCI_ERR_CHANNEL_NUM_MIS_MATCH			(CCCI_ERR_CCCI_REGION_START_ID+11)
-#define CCCI_ERR_START_ADDR_NOT_4BYTES_ALIGN		(CCCI_ERR_CCCI_REGION_START_ID+12)
-#define CCCI_ERR_NOT_DIVISIBLE_BY_4			(CCCI_ERR_CCCI_REGION_START_ID+13)
-#define CCCI_ERR_MD_AT_EXCEPTION			(CCCI_ERR_CCCI_REGION_START_ID+14)
-#define CCCI_ERR_MD_CB_HAS_REGISTER			(CCCI_ERR_CCCI_REGION_START_ID+15)
-#define CCCI_ERR_MD_INDEX_NOT_FOUND			(CCCI_ERR_CCCI_REGION_START_ID+16)
-#define CCCI_ERR_DROP_PACKET				(CCCI_ERR_CCCI_REGION_START_ID+17)
-#define CCCI_ERR_PORT_RX_FULL				(CCCI_ERR_CCCI_REGION_START_ID+18)
-#define CCCI_ERR_SYSFS_NOT_READY			(CCCI_ERR_CCCI_REGION_START_ID+19)
-#define CCCI_ERR_IPC_ID_ERROR				(CCCI_ERR_CCCI_REGION_START_ID+20)
-#define CCCI_ERR_FUNC_ID_ERROR				(CCCI_ERR_CCCI_REGION_START_ID+21)
-#define CCCI_ERR_INVALID_QUEUE_INDEX			(CCCI_ERR_CCCI_REGION_START_ID+21)
-#define CCCI_ERR_HIF_NOT_POWER_ON			(CCCI_ERR_CCCI_REGION_START_ID+22)
+#define CCCI_ERR_INVALID_LOGIC_CHANNEL_ID \
+	(CCCI_ERR_CCCI_REGION_START_ID+0)
+#define CCCI_ERR_PUSH_RX_DATA_TO_TX_CHANNEL \
+	(CCCI_ERR_CCCI_REGION_START_ID+1)
+#define CCCI_ERR_REG_CALL_BACK_FOR_TX_CHANNEL \
+	(CCCI_ERR_CCCI_REGION_START_ID+2)
+#define CCCI_ERR_LOGIC_CH_HAS_REGISTERED \
+	(CCCI_ERR_CCCI_REGION_START_ID+3)
+#define CCCI_ERR_MD_NOT_READY \
+	(CCCI_ERR_CCCI_REGION_START_ID+4)
+#define CCCI_ERR_ALLOCATE_MEMORY_FAIL \
+	(CCCI_ERR_CCCI_REGION_START_ID+5)
+#define CCCI_ERR_CREATE_CCIF_INSTANCE_FAIL \
+	(CCCI_ERR_CCCI_REGION_START_ID+6)
+#define CCCI_ERR_REPEAT_CHANNEL_ID \
+	(CCCI_ERR_CCCI_REGION_START_ID+7)
+#define CCCI_ERR_KFIFO_IS_NOT_READY \
+	(CCCI_ERR_CCCI_REGION_START_ID+8)
+#define CCCI_ERR_GET_NULL_POINTER \
+	(CCCI_ERR_CCCI_REGION_START_ID+9)
+#define CCCI_ERR_GET_RX_DATA_FROM_TX_CHANNEL \
+	(CCCI_ERR_CCCI_REGION_START_ID+10)
+#define CCCI_ERR_CHANNEL_NUM_MIS_MATCH \
+	(CCCI_ERR_CCCI_REGION_START_ID+11)
+#define CCCI_ERR_START_ADDR_NOT_4BYTES_ALIGN \
+	(CCCI_ERR_CCCI_REGION_START_ID+12)
+#define CCCI_ERR_NOT_DIVISIBLE_BY_4 \
+	(CCCI_ERR_CCCI_REGION_START_ID+13)
+#define CCCI_ERR_MD_AT_EXCEPTION \
+	(CCCI_ERR_CCCI_REGION_START_ID+14)
+#define CCCI_ERR_MD_CB_HAS_REGISTER \
+	(CCCI_ERR_CCCI_REGION_START_ID+15)
+#define CCCI_ERR_MD_INDEX_NOT_FOUND \
+	(CCCI_ERR_CCCI_REGION_START_ID+16)
+#define CCCI_ERR_DROP_PACKET \
+	(CCCI_ERR_CCCI_REGION_START_ID+17)
+#define CCCI_ERR_PORT_RX_FULL \
+	(CCCI_ERR_CCCI_REGION_START_ID+18)
+#define CCCI_ERR_SYSFS_NOT_READY \
+	(CCCI_ERR_CCCI_REGION_START_ID+19)
+#define CCCI_ERR_IPC_ID_ERROR \
+	(CCCI_ERR_CCCI_REGION_START_ID+20)
+#define CCCI_ERR_FUNC_ID_ERROR \
+	(CCCI_ERR_CCCI_REGION_START_ID+21)
+#define CCCI_ERR_INVALID_QUEUE_INDEX \
+	(CCCI_ERR_CCCI_REGION_START_ID+21)
+#define CCCI_ERR_HIF_NOT_POWER_ON \
+	(CCCI_ERR_CCCI_REGION_START_ID+22)
 
 /* ---- Load image error */
-#define CCCI_ERR_LOAD_IMG_NOMEM				(CCCI_ERR_LOAD_IMG_START_ID+0)
-#define CCCI_ERR_LOAD_IMG_FILE_OPEN			(CCCI_ERR_LOAD_IMG_START_ID+1)
-#define CCCI_ERR_LOAD_IMG_FILE_READ			(CCCI_ERR_LOAD_IMG_START_ID+2)
-#define CCCI_ERR_LOAD_IMG_KERN_READ			(CCCI_ERR_LOAD_IMG_START_ID+3)
-#define CCCI_ERR_LOAD_IMG_NO_ADDR			(CCCI_ERR_LOAD_IMG_START_ID+4)
-#define CCCI_ERR_LOAD_IMG_NO_FIRST_BOOT			(CCCI_ERR_LOAD_IMG_START_ID+5)
-#define CCCI_ERR_LOAD_IMG_LOAD_FIRM			(CCCI_ERR_LOAD_IMG_START_ID+6)
-#define CCCI_ERR_LOAD_IMG_FIRM_NULL			(CCCI_ERR_LOAD_IMG_START_ID+7)
-#define CCCI_ERR_LOAD_IMG_CHECK_HEAD			(CCCI_ERR_LOAD_IMG_START_ID+8)
-#define CCCI_ERR_LOAD_IMG_SIGN_FAIL			(CCCI_ERR_LOAD_IMG_START_ID+9)
-#define CCCI_ERR_LOAD_IMG_CIPHER_FAIL			(CCCI_ERR_LOAD_IMG_START_ID+10)
-#define CCCI_ERR_LOAD_IMG_MD_CHECK			(CCCI_ERR_LOAD_IMG_START_ID+11)
-#define CCCI_ERR_LOAD_IMG_DSP_CHECK			(CCCI_ERR_LOAD_IMG_START_ID+12)
-#define CCCI_ERR_LOAD_IMG_ABNORAL_SIZE			(CCCI_ERR_LOAD_IMG_START_ID+13)
-#define CCCI_ERR_LOAD_IMG_NOT_FOUND			(CCCI_ERR_LOAD_IMG_START_ID+13)
+#define CCCI_ERR_LOAD_IMG_NOMEM \
+	(CCCI_ERR_LOAD_IMG_START_ID+0)
+#define CCCI_ERR_LOAD_IMG_FILE_OPEN \
+	(CCCI_ERR_LOAD_IMG_START_ID+1)
+#define CCCI_ERR_LOAD_IMG_FILE_READ \
+	(CCCI_ERR_LOAD_IMG_START_ID+2)
+#define CCCI_ERR_LOAD_IMG_KERN_READ \
+	(CCCI_ERR_LOAD_IMG_START_ID+3)
+#define CCCI_ERR_LOAD_IMG_NO_ADDR \
+	(CCCI_ERR_LOAD_IMG_START_ID+4)
+#define CCCI_ERR_LOAD_IMG_NO_FIRST_BOOT \
+	(CCCI_ERR_LOAD_IMG_START_ID+5)
+#define CCCI_ERR_LOAD_IMG_LOAD_FIRM \
+	(CCCI_ERR_LOAD_IMG_START_ID+6)
+#define CCCI_ERR_LOAD_IMG_FIRM_NULL \
+	(CCCI_ERR_LOAD_IMG_START_ID+7)
+#define CCCI_ERR_LOAD_IMG_CHECK_HEAD \
+	(CCCI_ERR_LOAD_IMG_START_ID+8)
+#define CCCI_ERR_LOAD_IMG_SIGN_FAIL \
+	(CCCI_ERR_LOAD_IMG_START_ID+9)
+#define CCCI_ERR_LOAD_IMG_CIPHER_FAIL \
+	(CCCI_ERR_LOAD_IMG_START_ID+10)
+#define CCCI_ERR_LOAD_IMG_MD_CHECK \
+	(CCCI_ERR_LOAD_IMG_START_ID+11)
+#define CCCI_ERR_LOAD_IMG_DSP_CHECK \
+	(CCCI_ERR_LOAD_IMG_START_ID+12)
+#define CCCI_ERR_LOAD_IMG_ABNORAL_SIZE \
+	(CCCI_ERR_LOAD_IMG_START_ID+13)
+#define CCCI_ERR_LOAD_IMG_NOT_FOUND \
+	(CCCI_ERR_LOAD_IMG_START_ID+13)
 
-/* export to other kernel modules, better not let other module include ECCCI header directly (except IPC...) */
+/* export to other kernel modules, */
+/*better not let other module include ECCCI header directly (except IPC...) */
 enum MD_STATE_FOR_USER {
 	MD_STATE_INVALID = 0,
 	MD_STATE_BOOTING = 1,
@@ -255,8 +336,11 @@ enum KERN_FUNC_ID {
 	ID_PAUSE_LTE,		/* for DVFS */
 	ID_GET_MD_STATE,	/* for DVFS */
 	ID_THROTTLING_CFG,	/* For MD SW throughput throttling */
-	ID_DUMP_MD_SLEEP_MODE,	/* for dump MD debug info from SMEM when AP sleep */
-	ID_PMIC_INTR,		/* for PMIC to notify MD buck over current, called from kernel thread context */
+	/* for dump MD debug info from SMEM when AP sleep */
+	ID_DUMP_MD_SLEEP_MODE,
+	/* for PMIC to notify MD buck over current, */
+	/*called from kernel thread context */
+	ID_PMIC_INTR,
 	ID_FORCE_MD_ASSERT,	/* for EMI MPU */
 	ID_MD_MPU_ASSERT,	/* for EMI MPU */
 	ID_LWA_CONTROL_MSG,	/* for Wi-Fi driver */
@@ -316,6 +400,7 @@ enum {
 	LWA_CONTROL_MSG = 0x11E,
 	C2K_PPP_LINE_STATUS = 0x11F,	/*usb bypass for 93 and later*/
 	MD_DISPLAY_DYNAMIC_MIPI = 0x120, /* MIPI for TC16 */
+	MD_RF_HOPPING_NOTIFY = 0x121,
 
 	/*c2k ctrl msg start from 0x200*/
 	C2K_STATUS_IND_MSG = 0x201, /* for usb bypass */
@@ -333,17 +418,24 @@ enum {
 };
 
 enum {
-	/*bit0-bit15: for modem capability related with ccci or ccci&ccmni driver*/
+	/*bit0-bit15:
+	 *for modem capability related
+	 *with ccci or ccci&ccmni driver
+	 */
 	MODEM_CAP_NAPI = (1<<0),
 	MODEM_CAP_TXBUSY_STOP = (1<<1),
 	MODEM_CAP_SGIO = (1<<2),
-	/*bit16-bit31: for modem capability only related with ccmni driver*/
+	/*bit16-bit31:
+	 *for modem capability only
+	 *related with ccmni driver
+	 */
 	MODEM_CAP_CCMNI_DISABLE = (1<<16),
 	MODEM_CAP_DATA_ACK_DVD = (1<<17),
 	MODEM_CAP_CCMNI_SEQNO = (1<<18),
 	MODEM_CAP_CCMNI_IRAT = (1<<19),
 	MODEM_CAP_WORLD_PHONE = (1<<20),
-	MODEM_CAP_CCMNI_MQ = (1<<21), /* it must depend on DATA ACK DEVIDE feature */
+	/* it must depend on DATA ACK DEVIDE feature */
+	MODEM_CAP_CCMNI_MQ = (1<<21),
 	MODEM_CAP_DIRECT_TETHERING = (1<<22),
 };
 
@@ -365,9 +457,9 @@ enum HIF_STATE {
 	TX_FULL, /* broadcast by HIF, only for network! */
 };
 
-/* ================================================================================= */
+/* ============================================================== */
 /* Image type and header defination part */
-/* ================================================================================= */
+/* ============================================================== */
 enum MD_IMG_TYPE {
 	IMG_MD = 0,
 	IMG_DSP,
@@ -388,7 +480,8 @@ enum PRODUCT_VER_TYPE {
 struct IMG_CHECK_INFO {
 	char *product_ver;	/* debug/release/invalid */
 	char *image_type;	/*2G/3G/invalid*/
-	char *platform;		/* MT6573_S00(MT6573E1) or MT6573_S01(MT6573E2) */
+	/* MT6573_S00(MT6573E1) or MT6573_S01(MT6573E2) */
+	char *platform;
 	char *build_time;	/* build time string */
 	char *build_ver;	/* project version, ex:11A_MD.W11.28 */
 	unsigned int mem_size; /*md rom+ram mem size*/
@@ -400,14 +493,17 @@ struct IMG_CHECK_INFO {
 struct IMG_REGION_INFO {
 	unsigned int  region_num;        /* total region number */
 	struct _md_regin_info region_info[8];    /* max support 8 regions */
-	unsigned int  domain_attr[4];    /* max support 4 domain settings, each region has 4 control bits*/
+	/* max support 4 domain settings, each region has 4 control bits*/
+	unsigned int  domain_attr[4];
 };
 
 struct ccci_image_info {
 	enum MD_IMG_TYPE type;
 	char file_name[IMG_PATH_LEN];
 	phys_addr_t address; /* phy memory address to load this image */
-	unsigned int size; /* image size without signature, cipher and check header, read form check header */
+	/* image size without signature, */
+	/*cipher and check header, read form check header */
+	unsigned int size;
 	unsigned int offset; /* signature and cipher header */
 	unsigned int tail_length; /* signature tail */
 	unsigned int dsp_offset;
@@ -424,7 +520,8 @@ typedef int (*get_status_func_t)(int, char*, int);
 typedef int (*boot_md_func_t)(int);
 
 enum SMEM_USER_ID {
-	SMEM_USER_RAW_DBM = 0, /* this should remain to be 0 for backward compatibility */
+	/* this should remain to be 0 for backward compatibility */
+	SMEM_USER_RAW_DBM = 0,
 
 	/* sequence in CCB users matters, must align with ccb_configs[]  */
 	SMEM_USER_CCB_START,
@@ -440,6 +537,7 @@ enum SMEM_USER_ID {
 	SMEM_USER_RAW_NETD,
 	SMEM_USER_RAW_USB,
 	SMEM_USER_RAW_AUDIO,
+	SMEM_USER_RAW_DFD,
 	SMEM_USER_RAW_LWA,
 	SMEM_USER_RAW_MDCCCI_DBG,
 	SMEM_USER_RAW_MDSS_DBG,
@@ -453,6 +551,11 @@ enum SMEM_USER_ID {
 	SMEM_USER_SMART_LOGGING,
 	SMEM_USER_RAW_MD_CONSYS,
 	SMEM_USER_RAW_PHY_CAP,
+	SMEM_USER_RAW_USIP,
+	SMEM_USER_RAW_UDC_DATA,
+	SMEM_USER_RAW_UDC_DESCTAB,
+	SMEM_USER_RAW_AMMS_POS,
+	SMEM_USER_RAW_ALIGN_PADDING,
 	SMEM_USER_MAX,
 };
 
@@ -469,34 +572,58 @@ struct ccci_sys_cb_func_info {
 
 #define MAX_KERN_API 64
 
-/* ============================================================================================== */
+enum MD_WAKEUP_SOURCE {
+	WAKE_SRC_MD_WDT = 0,
+	WAKE_SRC_HIF_CCIF0 = 1,
+	WAKE_SRC_HIF_CCIF1 = 2,
+	WAKE_SRC_HIF_CLDMA = 3,
+	WAKE_SRC_HIF_DPMAIF = 4,
+	WAKE_SRC_MD_MAX,
+};
+
+/* ========================================================================== */
 /* Export API */
-/* ============================================================================================== */
+/* ========================================================================== */
 /* for getting modem info, Export by ccci util */
 int ccci_get_fo_setting(char item[], unsigned int *val);
 void ccci_md_mem_reserve(void);
 unsigned int get_modem_is_enabled(int md_id);
 unsigned int ccci_get_modem_nr(void);
 int ccci_init_security(void);
-int ccci_sysfs_add_modem(int md_id, void *kobj, void *ktype, get_status_func_t, boot_md_func_t);
+int ccci_sysfs_add_modem(int md_id, void *kobj, void *ktype,
+	get_status_func_t get_sta_func, boot_md_func_t boot_func);
 int get_modem_support_cap(int md_id); /* Export by ccci util */
 int set_modem_support_cap(int md_id, int new_val);
 char *ccci_get_md_info_str(int md_id);
 void get_md_postfix(int md_id, char k[], char buf[], char buf_ex[]);
 void update_ccci_port_ver(unsigned int new_ver);
-int ccci_load_firmware(int md_id, void *img_inf, char img_err_str[], char post_fix[], struct device *dev);
-int get_md_resv_mem_info(int md_id, phys_addr_t *r_rw_base, unsigned int *r_rw_size,
-					phys_addr_t *srw_base, unsigned int *srw_size);
-int get_md_resv_ccb_info(int md_id, phys_addr_t *ccb_data_base, unsigned int *ccb_data_size);
-int get_md1_md3_resv_smem_info(int md_id, phys_addr_t *rw_base, unsigned int *rw_size);
+int ccci_load_firmware(int md_id, void *img_inf, char img_err_str[],
+	char post_fix[], struct device *dev);
+int get_md_resv_mem_info(int md_id, phys_addr_t *r_rw_base,
+	unsigned int *r_rw_size, phys_addr_t *srw_base, unsigned int *srw_size);
+int get_md_resv_ccb_info(int md_id, phys_addr_t *ccb_data_base,
+	unsigned int *ccb_data_size);
+int get_md_resv_udc_info(int md_id, unsigned int *udc_noncache_size,
+	unsigned int *udc_cache_size);
+int get_md1_md3_resv_smem_info(int md_id, phys_addr_t *rw_base,
+	unsigned int *rw_size);
 unsigned int get_md_resv_phy_cap_size(int md_id);
+int get_smem_amms_pos_size(int md_id);
+int get_smem_align_padding_size(int md_id);
+int get_md_smem_dfd_size(int md_id);
 unsigned int get_md_smem_cachable_offset(int md_id);
+phys_addr_t get_smem_phy_start_addr(int md_id,
+	enum SMEM_USER_ID user_id, int *size_o);
 
 unsigned long ccci_get_md_boot_count(int md_id); /* Export by ccci fsm */
-int exec_ccci_kern_func_by_md_id(int md_id, unsigned int id, char *buf, unsigned int len); /* Export by ccci core */
-int register_ccci_sys_call_back(int md_id, unsigned int id, ccci_sys_cb_func_t func); /* Export by ccci port */
-void __iomem *get_smem_start_addr(int md_id, enum SMEM_USER_ID user_id, int *size_o); /* Export by ccci port */
-int switch_sim_mode(int id, char *buf, unsigned int len); /* Export by SIM switch */
+int exec_ccci_kern_func_by_md_id(int md_id, unsigned int id, char *buf,
+	unsigned int len); /* Export by ccci core */
+int register_ccci_sys_call_back(int md_id, unsigned int id,
+	ccci_sys_cb_func_t func); /* Export by ccci port */
+void __iomem *get_smem_start_addr(int md_id, enum SMEM_USER_ID user_id,
+	int *size_o); /* Export by ccci port */
+int switch_sim_mode(int id, char *buf,
+	unsigned int len); /* Export by SIM switch */
 unsigned int get_sim_switch_type(void); /* Export by SIM switch */
 
 #ifdef CONFIG_MTK_ECCCI_C2K
@@ -531,11 +658,14 @@ enum {
 	CCCI_DUMP_REPEAT,
 	CCCI_DUMP_MEM_DUMP,
 	CCCI_DUMP_HISTORY,
+	CCCI_DUMP_REGISTER,
 	CCCI_DUMP_MAX,
 };
 void ccci_util_mem_dump(int md_id, int buf_type, void *start_addr, int len);
-void ccci_util_cmpt_mem_dump(int md_id, int buf_type, void *start_addr, int len);
-int ccci_dump_write(int md_id, int buf_type, unsigned int flag, const char *fmt, ...);
+void ccci_util_cmpt_mem_dump(int md_id, int buf_type, void *start_addr,
+	int len);
+int ccci_dump_write(int md_id, int buf_type, unsigned int flag,
+	const char *fmt, ...);
 int ccci_log_write(const char *fmt, ...);
 int ccci_log_write_raw(unsigned int flags, const char *fmt, ...);
 int ccci_event_log_cpy(char buf[], int size);
@@ -544,23 +674,27 @@ int ccmni_send_mbim_skb(int md_id, struct sk_buff *skb);
 void ccmni_update_mbim_interface(int md_id, int id);
 
 /* MPU setting */
-typedef struct _mpu_cfg {
+struct _mpu_cfg {
 	unsigned int start;
 	unsigned int end;
 	int region;
 	unsigned int permission;
 	int relate_region; /* Using same behavior and setting */
-} mpu_cfg_t;
-mpu_cfg_t *get_mpu_region_cfg_info(int region_id);
+};
+struct _mpu_cfg *get_mpu_region_cfg_info(int region_id);
 int ccci_get_opt_val(char *opt_name);
 
 /* RAT configure relate */
-int ccci_get_rat_str_from_drv(int md_id, char rat_str[], int size);
-void ccci_set_rat_str_to_drv(int md_id, char rat_str[]);
 unsigned int get_wm_bitmap_for_ubin(void); /* Universal bin */
 void update_rat_bit_map_to_drv(int md_id, unsigned int val);
 int get_md_img_type(int md_id);
 int get_legacy_md_type(int md_id);
 int check_md_type(int data);
 
+int get_md_resv_csmem_info(int md_id, phys_addr_t *buf_base,
+	unsigned int *buf_size);
+int get_md_cache_region_info(int region_id, unsigned int *buf_base,
+	unsigned int *buf_size);
+void __iomem *ccci_map_phy_addr(phys_addr_t phy_addr, unsigned int size);
+unsigned int get_mtee_is_enabled(void);
 #endif

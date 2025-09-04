@@ -32,8 +32,11 @@
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
 
+#ifdef CONFIG_MTK_M4U
 #include <m4u.h>
-
+#else
+#include "mach/mt_iommu.h"
+#endif
 #include <ion.h>
 #include <mtk/ion_drv.h>
 #include <mtk/mtk_ion.h>
@@ -48,14 +51,14 @@
 #include <linux/compat.h>
 #endif
 
-/*******************************************************************************
-*
-********************************************************************************/
-
 #define VPU_DEV_NAME            "vpu"
 
 static struct vpu_device *vpu_device;
 static struct wakeup_source vpu_wake_lock;
+static struct list_head device_debug_list;
+static struct mutex debug_list_mutex;
+static bool sdsp_locked;
+
 struct ion_client *my_ion_client;
 unsigned int efuse_data;
 
@@ -115,11 +118,6 @@ static const struct dev_pm_ops vpu_pm_ops = {
 /*---------------------------------------------------------------------------*/
 
 static const struct of_device_id vpu_of_ids[] = {
-#ifdef MTK_VPU_FPGA_PORTING
-	{.compatible = "mediatek,ipu_conn",},
-	{.compatible = "mediatek,ipu_adl",},
-	{.compatible = "mediatek,ipu_vcore",},
-#endif
 	{.compatible = "mediatek,vpu_core0",},
 	{.compatible = "mediatek,vpu_core1",},
 	{.compatible = "mediatek,vpu_core2",},
@@ -150,9 +148,12 @@ static int vpu_open(struct inode *inode, struct file *flip);
 static int vpu_release(struct inode *inode, struct file *flip);
 
 static int vpu_mmap(struct file *flip, struct vm_area_struct *vma);
+
 #ifdef CONFIG_COMPAT
-static long vpu_compat_ioctl(struct file *flip, unsigned int cmd, unsigned long arg);
+static long vpu_compat_ioctl(struct file *flip, unsigned int cmd,
+	unsigned long arg);
 #endif
+
 static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg);
 
 static const struct file_operations vpu_fops = {
@@ -170,12 +171,21 @@ static const struct file_operations vpu_fops = {
 /*---------------------------------------------------------------------------*/
 /* M4U: fault callback                                                       */
 /*---------------------------------------------------------------------------*/
-m4u_callback_ret_t vpu_m4u_fault_callback(int port, unsigned int mva, void *data)
+#ifdef CONFIG_MTK_M4U
+enum m4u_callback_ret_t vpu_m4u_fault_callback(int port,
+	unsigned int mva, void *data)
 {
 	LOG_DBG("[m4u] fault callback: port=%d, mva=0x%x", port, mva);
 	return M4U_CALLBACK_HANDLED;
 }
-
+#else
+enum mtk_iommu_callback_ret_t vpu_m4u_fault_callback(int port, unsigned int mva,
+	void *data)
+{
+	LOG_DBG("[m4u] fault callback: port=%d, mva=0x%x", port, mva);
+	return MTK_IOMMU_CALLBACK_HANDLED;
+}
+#endif
 /*---------------------------------------------------------------------------*/
 /*                                                                           */
 /*---------------------------------------------------------------------------*/
@@ -191,7 +201,9 @@ int vpu_create_user(struct vpu_user **user)
 		return -ENOMEM;
 
 	mutex_init(&u->data_mutex);
+	mutex_lock(&debug_list_mutex);
 	vpu_num_users++;
+	mutex_unlock(&debug_list_mutex);
 	u->id = NULL;
 	u->open_pid = current->pid;
 	u->open_tgid = current->tgid;
@@ -233,14 +245,14 @@ struct ion_handle *vpu_hw_ion_import_handle(struct ion_client *client, int fd)
 		return handle;
 	}
 	LOG_DBG("[vpu] ion_import_handle +\n");
-	handle = ion_import_dma_buf(client, fd);
+	handle = ion_import_dma_buf_fd(client, fd);
 
 	if (IS_ERR(handle)) {
 		LOG_WRN("[vpu] import ion handle failed!\n");
 		return NULL;
 	}
 
-	if (g_vpu_log_level > VpuLogThre_STATE_MACHINE)
+	if (g_vpu_log_level > Log_STATE_MACHINE)
 		LOG_INF("[vpu] ion_import_handle(0x%p)\n", handle);
 
 	return handle;
@@ -287,15 +299,25 @@ int vpu_put_request_to_pool(struct vpu_user *user, struct vpu_request *req)
 	for (i = 0 ; i < req->buffer_count; i++) {
 		for (j = 0 ; j < req->buffers[i].plane_count; j++) {
 			handle = NULL;
-			LOG_DBG("[vpu] (%d) FD.0x%lx\n", cnt, (unsigned long)(uintptr_t)(req->buf_ion_infos[cnt]));
-			handle = ion_import_dma_buf(my_ion_client, req->buf_ion_infos[cnt]);
+
+			LOG_DBG("[vpu] (%d) FD.0x%lx\n", cnt,
+			  (unsigned long)(uintptr_t)(req->buf_ion_infos[cnt]));
+
+			handle = ion_import_dma_buf_fd(my_ion_client,
+						req->buf_ion_infos[cnt]);
 			if (IS_ERR(handle)) {
-				LOG_WRN("[vpu_drv] import ion handle(0x%p) failed!\n", handle);
+				LOG_WRN("[vpu_drv] %s=0x%p failed!\n",
+					"import ion handle", handle);
+				return -EINVAL;
 			} else {
-				if (g_vpu_log_level > VpuLogThre_STATE_MACHINE)
-					LOG_INF("[vpu_drv] (cnt_%d) ion_import_dma_buf handle(0x%p)!\n", cnt, handle);
-				/* import fd to handle for buffer ref count + 1 */
-				req->buf_ion_infos[cnt] = (uint64_t)(uintptr_t)handle;
+				if (g_vpu_log_level > Log_STATE_MACHINE)
+					LOG_INF("[vpu_drv]cnt_%d,%s=0x%p\n",
+						cnt,
+						"ion_import_dma_buf handle",
+						handle);
+				/* import fd to handle for buffer ref count+1*/
+				req->buf_ion_infos[cnt] =
+						(uint64_t)(uintptr_t)handle;
 			}
 			cnt++;
 		}
@@ -307,7 +329,9 @@ int vpu_put_request_to_pool(struct vpu_user *user, struct vpu_request *req)
 		if (req->requested_core == (0x1 << i)) {
 			request_core_index = i;
 			if (!vpu_device->vpu_hw_support[request_core_index]) {
-				LOG_ERR("[vpu_%d] not support. push to common queue\n", request_core_index);
+				LOG_ERR("[vpu_%d] not support. %s\n",
+					request_core_index,
+					"push to common queue");
 				request_core_index = -1;
 			}
 			break;
@@ -319,21 +343,39 @@ int vpu_put_request_to_pool(struct vpu_user *user, struct vpu_request *req)
 		req->requested_core, request_core_index);
 	#endif
 
-	if (request_core_index >= MTK_VPU_CORE)
-		LOG_ERR("wrong core index (0x%x/%d/%d)", req->requested_core, request_core_index, MTK_VPU_CORE);
+	if (request_core_index >= MTK_VPU_CORE) {
+		LOG_ERR("wrong core index (0x%x/%d/%d)",
+				req->requested_core,
+				request_core_index,
+				MTK_VPU_CORE);
+	}
 
 	if (request_core_index > -1 && request_core_index < MTK_VPU_CORE) {
-		/*LOG_DBG("[vpu] push self pool, index(%d/0x%x)\n", request_core_index, req->requested_core);*/
+		/* LOG_DBG("[vpu] push self pool, index(%d/0x%x)\n",
+		 * request_core_index, req->requested_core);
+		 */
 		mutex_lock(&vpu_device->servicepool_mutex[request_core_index]);
-		list_add_tail(vlist_link(req, struct vpu_request), &vpu_device->servicepool_list[request_core_index]);
+
+		list_add_tail(vlist_link(req, struct vpu_request),
+			&vpu_device->pool_list[request_core_index]);
+
 		vpu_device->servicepool_list_size[request_core_index] += 1;
-		mutex_unlock(&vpu_device->servicepool_mutex[request_core_index]);
+
+		mutex_unlock(
+			&vpu_device->servicepool_mutex[request_core_index]);
 	} else {
-		/*LOG_DBG("[vpu] push common pool, index(%d,0x%x)\n", request_core_index, req->requested_core);*/
+		/* LOG_DBG("[vpu] push common pool, index(%d,0x%x)\n",
+		 * request_core_index, req->requested_core);
+		 */
 		mutex_lock(&vpu_device->commonpool_mutex);
-		list_add_tail(vlist_link(req, struct vpu_request), &vpu_device->commonpool_list);
+
+		list_add_tail(vlist_link(req, struct vpu_request),
+				&vpu_device->cmnpool_list);
+
 		vpu_device->commonpool_list_size += 1;
-		/*LOG_DBG("[vpu] push common pool size (%d)\n", vpu_device->commonpool_list_size);*/
+		/* LOG_DBG("[vpu] push common pool size (%d)\n",
+		 * vpu_device->commonpool_list_size);
+		 */
 		mutex_unlock(&vpu_device->commonpool_mutex);
 	}
 
@@ -399,7 +441,8 @@ int vpu_flush_requests_from_queue(struct vpu_user *user)
 	return 0;
 }
 
-int vpu_pop_request_from_queue(struct vpu_user *user, struct vpu_request **rreq)
+int vpu_pop_request_from_queue(struct vpu_user *user,
+	struct vpu_request **rreq)
 {
 	int ret;
 	struct vpu_request *req;
@@ -411,7 +454,8 @@ int vpu_pop_request_from_queue(struct vpu_user *user, struct vpu_request **rreq)
 
 	/* ret == -ERESTARTSYS, if signal interrupt */
 	if (ret < 0) {
-		LOG_ERR("interrupt by signal, while pop a request, ret=%d\n", ret);
+		LOG_ERR("interrupt by signal, %s, ret=%d\n",
+			"while pop a request", ret);
 		*rreq = NULL;
 		return -EINTR;
 	}
@@ -435,7 +479,8 @@ int vpu_pop_request_from_queue(struct vpu_user *user, struct vpu_request **rreq)
 	return 0;
 }
 
-int vpu_get_request_from_queue(struct vpu_user *user, uint64_t request_id, struct vpu_request **rreq)
+int vpu_get_request_from_queue(struct vpu_user *user,
+	uint64_t request_id, struct vpu_request **rreq)
 {
 	int ret;
 	struct list_head *head = NULL;
@@ -451,14 +496,16 @@ int vpu_get_request_from_queue(struct vpu_user *user, uint64_t request_id, struc
 
 		/* ret == -ERESTARTSYS, if signal interrupt */
 		if (ret < 0) {
-			LOG_ERR("interrupt by signal, while pop a request, ret=%d\n", ret);
+			LOG_ERR("interrupt by signal, %s, ret=%d\n",
+				"while pop a request", ret);
 			if (retry < 5) {
 				LOG_ERR("retry=%d\n", retry);
 				retry += 1;
 				get = false;
 				continue;
 			} else {
-				LOG_ERR("retry %d times fail, return FAIL\n", retry);
+				LOG_ERR("retry %d times fail, return FAIL\n",
+						retry);
 				*rreq = NULL;
 				return -EINTR;
 			}
@@ -468,7 +515,8 @@ int vpu_get_request_from_queue(struct vpu_user *user, uint64_t request_id, struc
 		/* This part should not be happened */
 		if (list_empty(&user->deque_list)) {
 			mutex_unlock(&user->data_mutex);
-			LOG_ERR("pop a request from empty queue! ret=%d\n", ret);
+			LOG_ERR("pop a request from empty queue! ret=%d\n",
+					ret);
 			*rreq = NULL;
 			return -ENODATA;
 		};
@@ -477,9 +525,11 @@ int vpu_get_request_from_queue(struct vpu_user *user, uint64_t request_id, struc
 		list_for_each(head, &user->deque_list)
 		{
 			req = vlist_node_of(head, struct vpu_request);
-			LOG_DBG("[vpu] req->request_id = 0x%lx, 0x%lx\n", (unsigned long)req->request_id,
-				(unsigned long)request_id);
-			if ((unsigned long)req->request_id == (unsigned long)request_id) {
+			LOG_DBG("[vpu] req->request_id = 0x%lx, 0x%lx\n",
+					(unsigned long)req->request_id,
+					(unsigned long)request_id);
+			if ((unsigned long)req->request_id ==
+					(unsigned long)request_id) {
 				get = true;
 				LOG_DBG("[vpu] get = true\n");
 				break;
@@ -487,7 +537,7 @@ int vpu_get_request_from_queue(struct vpu_user *user, uint64_t request_id, struc
 		}
 
 		if (g_vpu_log_level > VpuLogThre_PERFORMANCE)
-			LOG_INF("[vpu] vpu_get_request_from_queue (%d)\n", get);
+			LOG_INF("[vpu] %s (%d)\n", __func__, get);
 		if (get)
 			list_del_init(vlist_link(req, struct vpu_request));
 
@@ -503,14 +553,20 @@ int vpu_get_core_status(struct vpu_status *status)
 	int index = status->vpu_core_index; /* - 1;*/
 
 	if (index > -1 && index < MTK_VPU_CORE) {
-		LOG_DBG("vpu_%d, support(%d/0x%x)\n", index, vpu_device->vpu_hw_support[index], efuse_data);
+		LOG_DBG("vpu_%d, support(%d/0x%x)\n",
+			index, vpu_device->vpu_hw_support[index], efuse_data);
 		if (vpu_device->vpu_hw_support[index]) {
 			mutex_lock(&vpu_device->servicepool_mutex[index]);
-			status->vpu_core_available = vpu_device->service_core_available[index];
-			status->pool_list_size = vpu_device->servicepool_list_size[index];
+
+			status->vpu_core_available =
+				vpu_device->service_core_available[index];
+
+			status->pool_list_size =
+				vpu_device->servicepool_list_size[index];
 			mutex_unlock(&vpu_device->servicepool_mutex[index]);
 		} else {
-			LOG_ERR("core_%d not support (0x%x).\n", index, efuse_data);
+			LOG_ERR("core_%d not support (0x%x).\n",
+					index, efuse_data);
 			return -EINVAL;
 		}
 	} else {
@@ -520,10 +576,49 @@ int vpu_get_core_status(struct vpu_status *status)
 		mutex_unlock(&vpu_device->commonpool_mutex);
 	}
 
-	LOG_DBG("[vpu]vpu_get_core_status idx(%d), available(%d), size(%d)\n", status->vpu_core_index,
-			status->vpu_core_available, status->pool_list_size);
+	LOG_DBG("[vpu]%s idx(%d), available(%d), size(%d)\n", __func__,
+			status->vpu_core_index,
+			status->vpu_core_available,
+			status->pool_list_size);
 
 	return 0;
+}
+
+bool vpu_is_available(void)
+{
+	int i = 0;
+	int pool_wait_size = 0;
+
+	mutex_lock(&vpu_device->commonpool_mutex);
+	pool_wait_size = vpu_device->commonpool_list_size;
+	mutex_unlock(&vpu_device->commonpool_mutex);
+
+
+	if (pool_wait_size != 0) {
+		LOG_INF("common pool size = %d, no empty vpu \r\n",
+			pool_wait_size);
+
+		return false;
+	}
+
+	for (i = 0; i < MTK_VPU_CORE; i++) {
+		mutex_lock(&vpu_device->servicepool_mutex[i]);
+
+		if (vpu_device->service_core_available[i])
+			pool_wait_size = vpu_device->servicepool_list_size[i];
+
+		mutex_unlock(&vpu_device->servicepool_mutex[i]);
+
+		LOG_INF("vpu_%d, pool size = %d\r\n", i, pool_wait_size);
+		if ((pool_wait_size == 0) && vpu_is_idle(i)) {
+			LOG_INF("vpu_%d, is available !!\r\n", i);
+			return true;
+		}
+	}
+	LOG_INF("GG, no vpu available !!\r\n");
+
+	return false;
+
 }
 
 int vpu_delete_user(struct vpu_user *user)
@@ -546,7 +641,8 @@ int vpu_delete_user(struct vpu_user *user)
 			user->delete_wait,
 			!vpu_user_is_running(user));
 	if (ret < 0) {
-		LOG_WRN("[vpu]interrupt by signal, ret=%d, wait delete user again\n", ret);
+		LOG_WRN("[vpu]%s, ret=%d, wait delete user again\n",
+			"interrupt by signal", ret);
 		wait_event_interruptible(user->delete_wait,
 			!vpu_user_is_running(user));
 	}
@@ -615,6 +711,57 @@ int vpu_dump_user(struct seq_file *s)
 }
 
 
+int vpu_alloc_debug_info(struct vpu_dev_debug_info **rdbginfo)
+{
+	struct vpu_dev_debug_info *dbginfo;
+
+	dbginfo = kzalloc(sizeof(vlist_type(struct vpu_dev_debug_info)),
+				GFP_KERNEL);
+	if (dbginfo == NULL) {
+		LOG_ERR("%s, node=0x%p\n", __func__, dbginfo);
+		return -ENOMEM;
+	}
+
+	*rdbginfo = dbginfo;
+
+	return 0;
+}
+
+int vpu_free_debug_info(struct vpu_dev_debug_info *dbginfo)
+{
+	if (dbginfo != NULL)
+		kfree(dbginfo);
+	return 0;
+}
+
+int vpu_dump_device_dbg(struct seq_file *s)
+{
+	struct list_head *head = NULL;
+	struct vpu_dev_debug_info *dbg_info;
+
+#define LINE_BAR "  +-------+-------+-------+------------------------------+\n"
+
+	vpu_print_seq(s, "========== vpu device debug info dump ==========\n");
+	vpu_print_seq(s, LINE_BAR);
+	vpu_print_seq(s, "  |%-7s|%-7s|%-7s|%-32s|\n",
+				  "PID", "TGID", "OPENFD", "USER");
+	vpu_print_seq(s, LINE_BAR);
+
+	mutex_lock(&debug_list_mutex);
+	list_for_each(head, &device_debug_list)
+	{
+		dbg_info = vlist_node_of(head, struct vpu_dev_debug_info);
+		vpu_print_seq(s, "  |%-7d|%-7d|%-7d|%-32s|\n",
+				  dbg_info->open_pid,
+				  dbg_info->open_tgid,
+				  dbg_info->dev_fd,
+				  dbg_info->callername);
+	}
+	mutex_unlock(&debug_list_mutex);
+	vpu_print_seq(s, LINE_BAR);
+#undef LINE_BAR
+	return 0;
+}
 
 
 /*---------------------------------------------------------------------------*/
@@ -634,7 +781,8 @@ static int vpu_open(struct inode *inode, struct file *flip)
 		}
 	}
 	if (not_support_vpu) {
-		LOG_ERR("not support vpu...(%d/0x%x)\n", not_support_vpu, efuse_data);
+		LOG_ERR("not support vpu...(%d/0x%x)\n",
+				not_support_vpu, efuse_data);
 		return -ENODEV;
 	}
 
@@ -647,13 +795,18 @@ static int vpu_open(struct inode *inode, struct file *flip)
 	}
 
 	user->id = (unsigned long *)user;
-	LOG_INF("vpu_open user->id : 0x%lx\n", (unsigned long)(user->id));
+	LOG_INF("%s cnt(%d) user->id : 0x%lx, tids(%d/%d)\n", __func__,
+		vpu_num_users,
+		(unsigned long)(user->id),
+		user->open_pid, user->open_tgid);
 	flip->private_data = user;
 
 	return ret;
 }
+
 #ifdef CONFIG_COMPAT
-static long vpu_compat_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
+static long vpu_compat_ioctl(struct file *flip, unsigned int cmd,
+	unsigned long arg)
 {
 	switch (cmd) {
 	case VPU_IOCTL_SET_POWER:
@@ -664,11 +817,14 @@ static long vpu_compat_ioctl(struct file *flip, unsigned int cmd, unsigned long 
 	case VPU_IOCTL_REG_READ:
 	case VPU_IOCTL_LOAD_ALG_TO_POOL:
 	case VPU_IOCTL_GET_CORE_STATUS:
+	case VPU_IOCTL_OPEN_DEV_NOTICE:
+	case VPU_IOCTL_CLOSE_DEV_NOTICE:
 	{
 		/*void *ptr = compat_ptr(arg);*/
 
 		/*return vpu_ioctl(flip, cmd, (unsigned long) ptr);*/
-		return flip->f_op->unlocked_ioctl(flip, cmd, (unsigned long)compat_ptr(arg));
+		return flip->f_op->unlocked_ioctl(flip, cmd,
+					(unsigned long)compat_ptr(arg));
 	}
 	case VPU_IOCTL_LOCK:
 	case VPU_IOCTL_UNLOCK:
@@ -678,6 +834,7 @@ static long vpu_compat_ioctl(struct file *flip, unsigned int cmd, unsigned long 
 	}
 }
 #endif
+
 static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
@@ -689,11 +846,19 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 	{
 		struct vpu_power power;
 
-		ret = copy_from_user(&power, (void *) arg, sizeof(struct vpu_power));
-		CHECK_RET("[SET_POWER] copy 'struct power' failed, ret=%d\n", ret);
+		ret = copy_from_user(&power, (void *) arg,
+					sizeof(struct vpu_power));
+		if (ret) {
+			LOG_ERR("[SET_POWER] %s, ret=%d\n",
+					"copy 'struct power' failed", ret);
+			goto out;
+		}
 
 		ret = vpu_set_power(user, &power);
-		CHECK_RET("[SET_POWER] set power failed, ret=%d\n", ret);
+		if (ret) {
+			LOG_ERR("[SET_POWER] set power failed, ret=%d\n", ret);
+			goto out;
+		}
 
 		break;
 	}
@@ -706,7 +871,10 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 		LOG_INF("[vpu] VPU_IOCTL_ENQUE_REQUEST +\n");
 
 		ret = vpu_alloc_request(&req);
-		CHECK_RET("[ENQUE alloc request failed, ret=%d\n", ret);
+		if (ret) {
+			LOG_ERR("[ENQUE alloc request failed, ret=%d\n", ret);
+			goto out;
+		}
 
 		u_req = (struct vpu_request *) arg;
 		ret = get_user(req->user_id, &u_req->user_id);
@@ -720,19 +888,22 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 		ret |= get_user(req->sett_ptr, &u_req->sett_ptr);
 		ret |= get_user(req->sett_length, &u_req->sett_length);
 		ret |= get_user(req->priv, &u_req->priv);
-		ret |= get_user(req->power_param.bw, &u_req->power_param.bw);
-		ret |= get_user(req->power_param.freq_step, &u_req->power_param.freq_step);
-		ret |= get_user(req->power_param.opp_step, &u_req->power_param.opp_step);
-		ret |= get_user(req->power_param.core, &u_req->power_param.core);
+		ret |= get_user(req->power_param.bw,
+					&u_req->power_param.bw);
+
+		ret |= get_user(req->power_param.freq_step,
+					&u_req->power_param.freq_step);
+
+		ret |= get_user(req->power_param.opp_step,
+					&u_req->power_param.opp_step);
+
+		ret |= get_user(req->power_param.core,
+					&u_req->power_param.core);
 		req->user_id = (unsigned long *)user;
-		#if 0
-		LOG_DBG("[vpu] enque test: user_id_0x%lx/0x%lx", (unsigned long)user, (unsigned long)(req->user_id));
-		LOG_DBG("[vpu] enque test: request_id_0x%lx\n", (unsigned long)req->request_id);
-		LOG_DBG("[vpu] enque test: core_index_0x%x\n", req->requested_core);
-		#endif
 
 		if (req->request_id == 0x0) {
-			LOG_ERR("wrong request_id (0x%lx)\n", (unsigned long)req->request_id);
+			LOG_ERR("wrong request_id (0x%lx)\n",
+					(unsigned long)req->request_id);
 			vpu_free_request(req);
 			ret = -EFAULT;
 			goto out;
@@ -740,17 +911,22 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 
 		if (ret)
 			LOG_ERR("[ENQUE] get params failed, ret=%d\n", ret);
-		else if (req->buffer_count > VPU_MAX_NUM_PORTS)
-			LOG_ERR("[ENQUE] wrong buffer count, count=%d\n", req->buffer_count);
-		else if (copy_from_user(req->buffers, u_req->buffers,
-				req->buffer_count * sizeof(struct vpu_buffer)))
-			LOG_ERR("[ENQUE] copy 'struct buffer' failed, ret=%d\n", ret);
-		else if (copy_from_user(req->buf_ion_infos, u_req->buf_ion_infos,
-				req->buffer_count * 3 * sizeof(uint64_t)))
-			LOG_ERR("[ENQUE] copy 'buf_share_fds' failed, ret=%d\n", ret);
-		else if (vpu_put_request_to_pool(user, req))
-			LOG_ERR("[ENQUE] push to user's queue failed, ret=%d\n", ret);
-		else
+		else if (req->buffer_count > VPU_MAX_NUM_PORTS) {
+			LOG_ERR("[ENQUE] %s, count=%d\n",
+				"wrong buffer count", req->buffer_count);
+		} else if (copy_from_user(req->buffers, u_req->buffers,
+			    req->buffer_count * sizeof(struct vpu_buffer))) {
+			LOG_ERR("[ENQUE] %s, ret=%d\n",
+				"copy 'struct buffer' failed", ret);
+		} else if (copy_from_user(req->buf_ion_infos,
+				u_req->buf_ion_infos,
+				req->buffer_count * 3 * sizeof(uint64_t))) {
+			LOG_ERR("[ENQUE] %s, ret=%d\n",
+				"copy 'buf_share_fds' failed", ret);
+		} else if (vpu_put_request_to_pool(user, req)) {
+			LOG_ERR("[ENQUE] %s, ret=%d\n",
+				"push to user's queue failed", ret);
+		} else
 			break;
 
 		/* free the request, error happened here*/
@@ -772,19 +948,27 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 		u_req = (struct vpu_request *) arg;
 		#if 1
 		ret = get_user(kernel_request_id, &u_req->request_id);
-		CHECK_RET("[REG] get 'req id' failed,%d\n", ret);
+		if (ret) {
+			LOG_ERR("[REG] get 'req id' failed,%d\n", ret);
+			goto out;
+		}
 
-		LOG_DBG("[vpu] deque test: user_id_0x%lx, request_id_0x%lx", (unsigned long)user,
+		LOG_DBG("[vpu] deque test: user_id_0x%lx, request_id_0x%lx",
+			(unsigned long)user,
 			(unsigned long)(kernel_request_id));
 
 		ret = vpu_get_request_from_queue(user, kernel_request_id, &req);
 		#else
-		LOG_DBG("[vpu] dequee test: user_id_0x%lx, request_id_0x%lx", (unsigned long)user,
-			(unsigned long)(u_req->request_id));
+		LOG_DBG("[vpu] dequee test: user_id_0x%lx, request_id_0x%lx",
+				(unsigned long)user,
+				(unsigned long)(u_req->request_id));
 
 		ret = vpu_get_request_from_queue(user, u_req->request_id, &req);
 		#endif
-		CHECK_RET("[DEQUE] pop request failed, ret=%d\n", ret);
+		if (ret) {
+			LOG_ERR("[DEQUE] pop request failed, ret=%d\n", ret);
+			goto out;
+		}
 
 		ret = put_user(req->status, &u_req->status);
 		ret |= put_user(req->occupied_core, &u_req->occupied_core);
@@ -793,7 +977,10 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 			LOG_ERR("[DEQUE] update status failed, ret=%d\n", ret);
 
 		ret = vpu_free_request(req);
-		CHECK_RET("[DEQUE] free request, ret=%d\n", ret);
+		if (ret) {
+			LOG_ERR("[DEQUE] free request, ret=%d\n", ret);
+			goto out;
+		}
 		if (g_vpu_log_level > VpuLogThre_PERFORMANCE)
 			LOG_INF("[vpu] VPU_IOCTL_DEQUE_REQUEST - ");
 		break;
@@ -801,70 +988,14 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 	case VPU_IOCTL_FLUSH_REQUEST:
 	{
 		ret = vpu_flush_requests_from_queue(user);
-		CHECK_RET("[FLUSH] flush request failed, ret=%d\n", ret);
-
+		if (ret) {
+			LOG_ERR("[FLUSH] flush request failed, ret=%d\n", ret);
+			goto out;
+		}
 		break;
 	}
 	case VPU_IOCTL_GET_ALGO_INFO:
 	{
-		#if 0 /* do not support */
-		vpu_name_t name;
-		struct vpu_algo *algo;
-		struct vpu_algo *u_algo;
-		uint64_t u_info_ptr;
-		uint32_t u_info_length;
-
-		LOG_INF("[vpu] VPU_IOCTL_GET_ALGO_INFO");
-		u_algo = (struct vpu_algo *) arg;
-		ret = copy_from_user(name, u_algo->name, sizeof(vpu_name_t));
-		CHECK_RET("[GET_ALGO] copy 'name' failed, ret=%d\n", ret);
-		name[sizeof(vpu_name_t) - 1] = '\0';
-
-		/* 1. find algo by name */
-		/* CHRISTODO */
-		ret = vpu_find_algo_by_name(TEMP_CORE, name, &algo, true);
-		CHECK_RET("[GET_ALGO] can not find algo, name=%s\n", u_algo->name);
-
-		/* 2. write data to user */
-		/* 2-1. write port */
-		LOG_INF("algo->port_count (%d)\n", algo->port_count);
-		ret = put_user(algo->port_count, &u_algo->port_count);
-		ret |= copy_to_user(u_algo->ports, algo->ports,
-				sizeof(struct vpu_port) * algo->port_count);
-		CHECK_RET("[GET_ALGO] update ports failed, ret=%d\n", ret);
-
-		/* 2-2. write id */
-		LOG_INF("algo->id (%d)\n", algo->id);
-		ret = put_user(algo->id, &u_algo->id);
-		CHECK_RET("[GET_ALGO] update id failed, ret=%d\n", ret);
-
-		/* 2-3. write setting desc */
-		LOG_INF("sett_desc_count (%d)\n", algo->sett_desc_count);
-		ret = put_user(algo->sett_desc_count, &u_algo->sett_desc_count);
-		ret |= copy_to_user(u_algo->sett_descs, algo->sett_descs,
-				algo->sett_desc_count * sizeof(struct vpu_prop_desc));
-		CHECK_RET("[GET_ALGO] update setting desc failed, ret=%d\n", ret);
-
-		/* 2-4. write info desc */
-		LOG_INF("algo->info_desc_count (%d)\n", algo->info_desc_count);
-		ret = put_user(algo->info_desc_count, &u_algo->info_desc_count);
-		ret |= copy_to_user(u_algo->info_descs, algo->info_descs,
-				algo->info_desc_count * sizeof(struct vpu_prop_desc));
-		CHECK_RET("[GET_ALGO] update info desc failed, ret=%d\n", ret);
-
-		/* 2-5. write info data */
-		ret = get_user(u_info_ptr, &u_algo->info_ptr);
-		LOG_INF("u_info_ptr (0x%lx)\n", (unsigned long)u_info_ptr);
-		ret |= get_user(u_info_length, &u_algo->info_length);
-		LOG_INF("u_info_length (0x%x)/0x%x, 0x%x\n", u_info_length, u_algo->info_length, algo->info_length);
-		CHECK_RET("[GET_ALGO] get info ptr/length failed, ret=%d\n", ret);
-		ret = (u_info_length < algo->info_length) ? -EINVAL : 0;
-		CHECK_RET("[GET_ALGO] the size of info data is not enough!");
-		ret = copy_to_user((void *) (u_info_ptr), (void *) algo->info_ptr, algo->info_length);
-		CHECK_RET("[GET_ALGO] update info data failed, ret=%d\n", ret);
-
-		LOG_INF("[vpu] VPU_IOCTL_GET_ALGO_INFO -");
-		#endif
 		LOG_WRN("DO NOT SUPPORT VPU_IOCTL_GET_ALGO_INFO");
 		break;
 	}
@@ -872,60 +1003,67 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 	{
 		struct vpu_reg_values regs;
 
-		ret = copy_from_user(&regs, (void *) arg, sizeof(struct vpu_reg_values));
-		CHECK_RET("[REG] copy 'struct reg' failed,%d\n", ret);
+		ret = copy_from_user(&regs, (void *) arg,
+					sizeof(struct vpu_reg_values));
+		if (ret) {
+			LOG_ERR("[REG] copy 'struct reg' failed,%d\n", ret);
+			goto out;
+		}
 
 		ret = vpu_write_register(&regs);
-		CHECK_RET("[REG] write reg failed,%d\n", ret);
-
+		if (ret) {
+			LOG_ERR("[REG] write reg failed,%d\n", ret);
+			goto out;
+		}
 		break;
 	}
 	case VPU_IOCTL_LOCK:
 	{
-		#if 0
-		vpu_hw_lock(user);
-		#else
 		LOG_WRN("DO NOT SUPPORT VPU_IOCTL_LOCK\n");
-		#endif
 		break;
 	}
 	case VPU_IOCTL_UNLOCK:
 	{
-		#if 0
-		vpu_hw_unlock(user);
-		#else
 		LOG_WRN("DO NOT SUPPORT VPU_IOCTL_LOCK\n");
-		#endif
 		break;
 	}
 	case VPU_IOCTL_LOAD_ALG_TO_POOL:
 	{
-		vpu_name_t name;
+		char name[32];
 		vpu_id_t algo_id[MTK_VPU_CORE];
 		int temp_algo_id;
 		struct vpu_algo *u_algo;
 
 		u_algo = (struct vpu_algo *) arg;
-		ret = copy_from_user(name, u_algo->name, sizeof(vpu_name_t));
-		CHECK_RET("[GET_ALGO] copy 'name' failed, ret=%d\n", ret);
-		name[sizeof(vpu_name_t) - 1] = '\0';
+		ret = copy_from_user(name, u_algo->name, (sizeof(char)*32));
+		if (ret) {
+			LOG_ERR("[GET_ALGO] copy 'name' failed, ret=%d\n", ret);
+			goto out;
+		}
+
+		name[(sizeof(char)*32) - 1] = '\0';
 
 		for (i = 0 ; i < MTK_VPU_CORE ; i++) {
 			temp_algo_id = vpu_get_algo_id_by_name(i, name);
 			if (temp_algo_id < 0) {
-				LOG_ERR("[GET_ALGO] can not find algo, name=%s, id:%d\n", name, temp_algo_id);
+				LOG_ERR("[GET_ALGO] %s, name=%s, id:%d\n",
+						"can not find algo",
+						name, temp_algo_id);
 				ret = -ESPIPE;
 				goto out;
 			} else {
-				LOG_DBG("[GET_ALGO] core(%d) name=%s, id=%d\n", i, name, temp_algo_id);
+				LOG_DBG("[GET_ALGO] core(%d) name=%s, id=%d\n",
+						i, name, temp_algo_id);
 			}
 			algo_id[i] = (vpu_id_t)temp_algo_id;
 		}
 
 		ret = copy_to_user(u_algo->id, algo_id,
 				MTK_VPU_CORE * sizeof(vpu_id_t));
-		CHECK_RET("[GET_ALGO] update id failed, ret=%d\n", ret);
-
+		if (ret) {
+			LOG_ERR("[GET_ALGO] update id failed, ret=%d\n", ret);
+			goto out;
+		}
 
 		break;
 	}
@@ -934,18 +1072,210 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 		struct vpu_status *u_status = (struct vpu_status *) arg;
 		struct vpu_status status;
 
-		ret = copy_from_user(&status, (void *) arg, sizeof(struct vpu_status));
-		CHECK_RET("[GET_CORE_STATUS] copy 'struct vpu status' failed, ret=%d\n", ret);
+		ret = copy_from_user(&status, (void *) arg,
+				sizeof(struct vpu_status));
+		if (ret) {
+			LOG_ERR("[%s]copy 'struct vpu_status' failed ret=%d\n",
+					"GET_CORE_STATUS", ret);
+			goto out;
+		}
 
 		ret = vpu_get_core_status(&status);
-		CHECK_RET("[GET_CORE_STATUS] vpu_get_core_status failed, ret=%d\n", ret);
+		if (ret) {
+			LOG_ERR("[%s] vpu_get_core_status failed, ret=%d\n",
+					"GET_CORE_STATUS", ret);
+			goto out;
+		}
 
-		ret = put_user(status.vpu_core_available, (bool *)&(u_status->vpu_core_available));
-		ret |= put_user(status.pool_list_size, (int *)&(u_status->pool_list_size));
-		CHECK_RET("[GET_CORE_STATUS] put to user failed, ret=%d\n", ret);
+		ret = put_user(status.vpu_core_available,
+				(bool *)&(u_status->vpu_core_available));
+		ret |= put_user(status.pool_list_size,
+					(int *)&(u_status->pool_list_size));
+		if (ret) {
+			LOG_ERR("[%s] put to user failed, ret=%d\n",
+					"GET_CORE_STATUS", ret);
+			goto out;
+		}
 
 		break;
 	}
+	case VPU_IOCTL_OPEN_DEV_NOTICE:
+	{
+		struct vpu_dev_debug_info *dev_debug_info;
+		struct vpu_dev_debug_info *u_dev_debug_info;
+
+		ret = vpu_alloc_debug_info(&dev_debug_info);
+		if (ret) {
+			LOG_ERR("[%s] alloc debug_info failed, ret=%d\n",
+					"OPEN_DEV_NOTICE", ret);
+			goto out;
+		}
+
+		u_dev_debug_info = (struct vpu_dev_debug_info *) arg;
+		ret = get_user(dev_debug_info->dev_fd,
+					&u_dev_debug_info->dev_fd);
+		if (ret) {
+			LOG_ERR("[%s] copy 'dev_fd' failed, ret=%d\n",
+				"VPU_IOCTL_OPEN_DEV_NOTICE", ret);
+		}
+
+		ret |= copy_from_user(dev_debug_info->callername,
+			u_dev_debug_info->callername, (sizeof(char)*32));
+		dev_debug_info->callername[(sizeof(char)*32) - 1] = '\0';
+		if (ret) {
+			LOG_ERR("[%s] copy 'callname' failed, ret=%d\n",
+					"VPU_IOCTL_OPEN_DEV_NOTICE", ret);
+		}
+
+		dev_debug_info->open_pid = user->open_pid;
+		dev_debug_info->open_tgid = user->open_tgid;
+
+		if (g_vpu_log_level > Log_ALGO_OPP_INFO) {
+			LOG_INF("[%s] user:%s/%d. pid(%d/%d)\n",
+				"VPU_IOCTL_OPEN_DEV_NOTICE",
+				dev_debug_info->callername,
+				dev_debug_info->dev_fd,
+				dev_debug_info->open_pid,
+				dev_debug_info->open_tgid);
+		}
+
+		if (ret) {
+			/* error handle, free memory */
+			vpu_free_debug_info(dev_debug_info);
+		} else {
+			mutex_lock(&debug_list_mutex);
+			list_add_tail(vlist_link(dev_debug_info,
+					struct vpu_dev_debug_info),
+					&device_debug_list);
+			mutex_unlock(&debug_list_mutex);
+		}
+
+		break;
+	}
+	case VPU_IOCTL_CLOSE_DEV_NOTICE:
+	{
+		int dev_fd;
+		struct list_head *head = NULL;
+		struct vpu_dev_debug_info *dbg_info;
+		bool get = false;
+
+		ret = copy_from_user(&dev_fd, (void *) arg, sizeof(int));
+		if (ret) {
+			LOG_ERR("[%s] copy 'dev_fd' failed, ret=%d\n",
+					"CLOSE_DEV_NOTICE", ret);
+			goto out;
+		}
+
+		list_for_each(head, &device_debug_list)
+		{
+			dbg_info = vlist_node_of(head,
+						struct vpu_dev_debug_info);
+			if (g_vpu_log_level > Log_ALGO_OPP_INFO) {
+				LOG_INF("[%s] req_user-> = %s/%d, %d/%d\n",
+					"VPU_IOCTL_CLOSE_DEV_NOTICE",
+					dbg_info->callername,
+					dbg_info->dev_fd, dbg_info->open_pid,
+					dbg_info->open_tgid);
+			}
+
+			if (dbg_info->dev_fd == dev_fd) {
+				LOG_DBG("[%s] get fd(%d) to close\n",
+					"VPU_IOCTL_CLOSE_DEV_NOTICE", dev_fd);
+				get = true;
+				break;
+			}
+		}
+
+		if (g_vpu_log_level > Log_ALGO_OPP_INFO) {
+			LOG_INF("[%s] user:%d. pid(%d/%d), get(%d)\n",
+					"VPU_IOCTL_CLOSE_DEV_NOTICE",
+					dev_fd, user->open_pid,
+					user->open_tgid, get);
+		}
+
+		if (get) {
+			list_del_init(vlist_link(dbg_info,
+						struct vpu_dev_debug_info));
+			vpu_free_debug_info(dbg_info);
+		} else {
+			LOG_ERR("[%s] want to close wrong fd(%d)\n",
+				"VPU_IOCTL_CLOSE_DEV_NOTICE", dev_fd);
+			ret = -ESPIPE;
+			goto out;
+		}
+
+		break;
+	}
+#ifdef CONFIG_MTK_GZ_SUPPORT_SDSP
+
+	case VPU_IOCTL_SDSP_SEC_LOCK:
+	{
+		LOG_WRN("SDSP_SEC_LOCK mutex in\n");
+
+		if (sdsp_locked == false) {
+			LOG_WRN("SDSP_SEC_LOCK mutex in\n");
+			for (i = 0 ; i < MTK_VPU_CORE ; i++)
+				mutex_lock(&vpu_device->sdsp_control_mutex[i]);
+
+			sdsp_locked = true;
+
+			LOG_WRN("SDSP_SEC_LOCK mutex-m lock\n");
+			ret = vpu_sdsp_get_power(user);
+			LOG_WRN("SDSP_POWER_ON %s\n", ret == 0?"done":"fail");
+
+			/* Disable IRQ */
+			for (i = 0 ; i < MTK_VPU_CORE ; i++)
+				disable_irq(vpu_device->irq_num[i]);
+
+			if (false == vpu_is_available()) {
+				LOG_WRN("vpu_queue is not empty!!\n");
+				if (ret == 0)
+					ret = 1;
+			}
+
+			if (ret >= 0) {
+				int sdsp_state;
+
+				sdsp_state = mtee_sdsp_enable(1);
+				if (sdsp_state != 0) {
+					LOG_ERR("mtee sdsp enable fail(%d)\n",
+						sdsp_state);
+					ret = -1;
+				}
+			}
+		} else
+			LOG_WRN("SDSP_SEC_LOCK fail, duel lock!!\n");
+
+		break;
+	}
+	case VPU_IOCTL_SDSP_SEC_UNLOCK:
+	{
+		if (sdsp_locked == true) {
+			ret = mtee_sdsp_enable(0);
+			if (ret != 0) {
+				LOG_ERR("mtee_sdsp_enable(0) fail(%d)\n", ret);
+				break;
+			}
+
+			ret = vpu_sdsp_put_power(user);
+			LOG_WRN("DSP_SEC_UNLOCK %s\n", ret == 0?"done":"fail");
+
+			/* Enable IRQ */
+			for (i = 0 ; i < MTK_VPU_CORE ; i++) {
+				enable_irq(vpu_device->irq_num[i]);
+				mutex_unlock(
+					&vpu_device->sdsp_control_mutex[i]);
+			}
+
+			sdsp_locked = false;
+			LOG_WRN("DSP_SEC_UNLOCK mutex-m unlock\n");
+		} else
+			LOG_WRN("DSP_SEC_UNLOCK fail!!\n");
+
+		break;
+	}
+#endif
+
 	default:
 		LOG_WRN("ioctl: no such command!\n");
 		ret = -EINVAL;
@@ -954,10 +1284,11 @@ static long vpu_ioctl(struct file *flip, unsigned int cmd, unsigned long arg)
 
 out:
 	if (ret) {
-		LOG_ERR("fail, cmd(%d), pid(%d), (process, pid, tgid)=(%s, %d, %d)\n",
+		LOG_ERR("fail, cmd(%d), pid(%d), %s=%s, %s=%d, %s=%d\n",
 				cmd, user->open_pid,
-				current->comm,
-				current->pid, current->tgid);
+				"process", current->comm,
+				"pid", current->pid,
+				"tgid", current->tgid);
 	}
 
 	return ret;
@@ -967,15 +1298,22 @@ static int vpu_release(struct inode *inode, struct file *flip)
 {
 	struct vpu_user *user = flip->private_data;
 
+	LOG_INF("%s cnt(%d) user->id : 0x%lx, tids(%d/%d)\n", __func__,
+		vpu_num_users,
+		(unsigned long)(user->id),
+		user->open_pid, user->open_tgid);
+
 	vpu_delete_user(user);
+	mutex_lock(&debug_list_mutex);
+	vpu_num_users--;
+	mutex_unlock(&debug_list_mutex);
+
+	if (vpu_num_users > 10)
+		vpu_dump_device_dbg(NULL);
 
 	return 0;
 }
 
-
-/*******************************************************************************
-*
-********************************************************************************/
 static int vpu_mmap(struct file *flip, struct vm_area_struct *vma)
 {
 	unsigned long length = 0;
@@ -985,8 +1323,14 @@ static int vpu_mmap(struct file *flip, struct vm_area_struct *vma)
 	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 	pfn = vma->vm_pgoff << PAGE_SHIFT;
 
-	LOG_INF("vpu_mmap: vm_pgoff(0x%lx),pfn(0x%x),phy(0x%lx),vm_start(0x%lx),vm_end(0x%lx),length(0x%lx)\n",
-			vma->vm_pgoff, pfn, vma->vm_pgoff << PAGE_SHIFT, vma->vm_start, vma->vm_end, length);
+	LOG_INF("%s:%s=0x%lx,%s=0x%x,%s=0x%lx,%s=0x%lx,%s=0x%lx,%s=0x%lx\n",
+			__func__,
+			"vm_pgoff", vma->vm_pgoff,
+			"pfn", pfn,
+			"phy", vma->vm_pgoff << PAGE_SHIFT,
+			"vm_start", vma->vm_start,
+			"vm_end", vma->vm_end,
+			"length", length);
 
 	switch (pfn) {
 
@@ -996,10 +1340,6 @@ static int vpu_mmap(struct file *flip, struct vm_area_struct *vma)
 	}
 }
 
-
-/*******************************************************************************
-*
-********************************************************************************/
 static dev_t vpu_devt;
 static struct cdev *vpu_chardev;
 static struct class *vpu_class;
@@ -1051,9 +1391,9 @@ out:
 	return ret;
 }
 
-/*******************************************************************************
-* platform_driver
-********************************************************************************/
+/******************************************************************************
+ * platform_driver
+ *****************************************************************************/
 
 static int vpu_probe(struct platform_device *pdev)
 {
@@ -1061,117 +1401,144 @@ static int vpu_probe(struct platform_device *pdev)
 	int core = 0;
 	struct device *dev;
 	struct device_node *node;
-	unsigned int irq_info[3];	/* Record interrupts info from device tree */
+	unsigned int irq_info[3]; /* Record interrupts info from device tree */
 	struct device_node *smi_node = NULL;
 	struct device_node *ipu_conn_node = NULL;
 
-#ifdef MTK_VPU_FPGA_PORTING
-	core = vpu_num_devs - 3;
-#else
 	core = vpu_num_devs;
-#endif
+
 	smi_node = NULL;
+
 	if (core == MTK_VPU_CORE) {
-		LOG_INF("vpu_num_devs(%d), core(%d) = core(%d)+2 in FPGA, return\n", vpu_num_devs, core, MTK_VPU_CORE);
+		LOG_INF("%s(%d), core(%d) = core(%d)+2 in FPGA, return\n",
+			"vpu_num_devs", vpu_num_devs, core, MTK_VPU_CORE);
 		return ret;
 	}
+
 	node = pdev->dev.of_node;
 	vpu_device->dev[vpu_num_devs] = &pdev->dev;
-	LOG_INF("probe 0, pdev id = %d name = %s, name = %s\n", pdev->id, pdev->name, pdev->dev.of_node->name);
+	LOG_INF("probe 0, pdev id = %d name = %s, name = %s\n",
+			pdev->id, pdev->name,
+			pdev->dev.of_node->name);
+
+#ifdef MTK_VPU_FPGA_PORTING
+	if (vpu_num_devs == 0) {
+		/* get register address */
+#ifdef NEVER
+		if (strncmp(node->name, "ipu_conn",
+						strlen("ipu_conn"))) {
+			vpu_device->vpu_syscfg_base =
+					(unsigned long) of_iomap(node, 0);
+		} else if (strncmp(node->name, "ipu_adl",
+						strlen("ipu_adl"))) {
+			vpu_device->vpu_adlctrl_base =
+					(unsigned long) of_iomap(node, 0);
+		} else if (strncmp(node->name, "ipu_vcore",
+						strlen("ipu_vcore"))) {
+			vpu_device->vpu_vcorecfg_base =
+					(unsigned long) of_iomap(node, 0);
+		}
+#endif /* NEVER */
+		struct device_node *tmp;
+
+		tmp = of_find_compatible_node(NULL, NULL, "mediatek,ipu_conn");
+		vpu_device->vpu_syscfg_base = (unsigned long) of_iomap(tmp, 0);
+
+		tmp = of_find_compatible_node(NULL, NULL, "mediatek,ipu_adl");
+		vpu_device->vpu_adlctrl_base = (unsigned long) of_iomap(tmp, 0);
+
+		tmp = of_find_compatible_node(NULL, NULL, "mediatek,ipu_vcore");
+		vpu_device->vpu_vcorecfg_base =
+					(unsigned long) of_iomap(tmp, 0);
+
+		LOG_DBG("probe 2, %s=0x%lx, %s=0x%lx, %s=0x%lx\n",
+			 "vpu_syscfg_base", vpu_device->vpu_syscfg_base,
+			 "vpu_adlctrl_base", vpu_device->vpu_adlctrl_base,
+			 "vpu_vcorecfg_base", vpu_device->vpu_vcorecfg_base);
+	}
+#endif
 
 #ifdef MTK_VPU_EMULATOR
 	/* emulator will fill vpu_base and bin_base */
 	vpu_init_emulator(vpu_device);
 #else
 	LOG_INF("[vpu] core/total : %d/%d\n", core, MTK_VPU_CORE);
-	switch (vpu_num_devs) {
-#ifdef MTK_VPU_FPGA_PORTING
-	/* get register address */
-	case 0:
-		vpu_device->vpu_syscfg_base = (unsigned long) of_iomap(node, 0);
-		break;
-	case 1:
-		vpu_device->vpu_adlctrl_base = (unsigned long) of_iomap(node, 0);
-		break;
-	case 2:
-		vpu_device->vpu_vcorecfg_base = (unsigned long) of_iomap(node, 0);
-		break;
-#endif
-	default:
-		vpu_device->vpu_base[core] = (unsigned long) of_iomap(node, 0);
-		/* get physical address of binary data loaded by LK */
-#ifdef MTK_VPU_FPGA_PORTING
-		if (vpu_num_devs == 3) {
-#else
-		if (vpu_num_devs == 0) {
-#endif	/*MTK_VPU_FPGA_PORTING*/
-			uint32_t phy_addr;
-			uint32_t phy_size;
+	vpu_device->vpu_base[core] = (unsigned long) of_iomap(node, 0);
+	/* get physical address of binary data loaded by LK */
+	if (vpu_num_devs == 0) {
+		uint32_t phy_addr;
+		uint32_t phy_size;
 
-			if (of_property_read_u32(node, "bin-phy-addr", &phy_addr) ||
-				of_property_read_u32(node, "bin-size", &phy_size)) {
-				LOG_ERR("fail to get physical address of vpu binary!\n");
-				return -ENODEV;
-			}
-
-			/* bin_base for cpu read/write */
-			vpu_device->bin_base = (unsigned long)ioremap_wc(phy_addr, phy_size);
-			vpu_device->bin_pa = phy_addr;
-			vpu_device->bin_size = phy_size;
-			LOG_INF("probe core:%d, bin_base:0x%lx phy_addr: 0x%x, phy_size: 0x%x\n",
-				core, (unsigned long)vpu_device->bin_base, phy_addr, phy_size);
-
-			/* get smi common register */
-			#ifdef MTK_VPU_SMI_DEBUG_ON
-			smi_node = of_find_compatible_node(NULL, NULL, "mediatek,smi_common");
-			vpu_device->smi_common_base = (unsigned long) of_iomap(smi_node, 0);
-			#endif
-
-			ipu_conn_node = of_find_compatible_node(NULL, NULL, "mediatek,ipu_conn");
-			vpu_device->vpu_syscfg_base = (unsigned long) of_iomap(ipu_conn_node, 0);
-			LOG_INF("probe, smi_common_base: 0x%lx, ipu_conn:0x%lx\n",
-				vpu_device->smi_common_base, vpu_device->vpu_syscfg_base);
+		if (of_property_read_u32(node, "bin-phy-addr", &phy_addr) ||
+			of_property_read_u32(node, "bin-size", &phy_size)) {
+			LOG_ERR("fail to get phy address of vpu binary!\n");
+			return -ENODEV;
 		}
-		break;
+
+		/* bin_base for cpu read/write */
+		vpu_device->bin_base =
+			(unsigned long)ioremap_wc(phy_addr, phy_size);
+		vpu_device->bin_pa = phy_addr;
+		vpu_device->bin_size = phy_size;
+
+		LOG_INF("probe core:%d, %s=0x%lx %s=0x%x, %s=0x%x\n",
+			core,
+			"bin_base", (unsigned long)vpu_device->bin_base,
+			"phy_addr", phy_addr,
+			"phy_size", phy_size);
+
+		/* get smi common register */
+		#ifdef MTK_VPU_SMI_DEBUG_ON
+		smi_node = of_find_compatible_node(NULL, NULL,
+						"mediatek,smi_common");
+		vpu_device->smi_cmn_base =
+				(unsigned long) of_iomap(smi_node, 0);
+		#endif
+
+		ipu_conn_node = of_find_compatible_node(NULL, NULL,
+						"mediatek,ipu_conn");
+
+		vpu_device->vpu_syscfg_base =
+				(unsigned long) of_iomap(ipu_conn_node, 0);
+
+		LOG_INF("probe, smi_cmn_base: 0x%lx, ipu_conn:0x%lx\n",
+				vpu_device->smi_cmn_base,
+				vpu_device->vpu_syscfg_base);
 	}
-#endif	/*MTK_VPU_EMULATOR*/
-
-#ifdef MTK_VPU_FPGA_PORTING
-	if (vpu_num_devs > 2) {
 #endif
-		vpu_device->irq_num[core] = irq_of_parse_and_map(node, 0);
-		LOG_DBG("probe 2, [%d/%d] vpu_base: 0x%lx, bin_base: 0x%lx, irq_num: %d, pdev: %p\n",
-			 vpu_num_devs, core, vpu_device->vpu_base[core],  vpu_device->bin_base,
-			 vpu_device->irq_num[core], vpu_device->dev[vpu_num_devs]);
-		if (vpu_device->irq_num[core] > 0) {
-			/* Get IRQ Flag from device node */
-			if (of_property_read_u32_array
-			    (pdev->dev.of_node, "interrupts", irq_info, ARRAY_SIZE(irq_info))) {
-				dev_err(&pdev->dev, "get irq flags from DTS fail!!\n");
-				return -ENODEV;
-			}
-			vpu_device->irq_trig_level = irq_info[2];
-			LOG_DBG("vpu_device->irq_trig_level (0x%x), IRQF_TRIGGER_NONE(0x%x)\n",
-				vpu_device->irq_trig_level, IRQF_TRIGGER_NONE);
-		}
 
-		vpu_init_algo(vpu_device);
-		LOG_DBG("[probe] [%d] init_algo done\n", core);
-		vpu_init_hw(core, vpu_device);
-		LOG_DBG("[probe] [%d] init_hw done\n", core);
-		vpu_init_reg(core, vpu_device);
-		LOG_DBG("[probe] [%d] init_reg done\n", core);
+	vpu_device->irq_num[core] = irq_of_parse_and_map(node, 0);
+	LOG_DBG("probe 2, [%d/%d] %s=0x%lx, %s=0x%lx, %s=%d, %s:%p\n",
+			 vpu_num_devs, core,
+			 "vpu_base", vpu_device->vpu_base[core],
+			 "bin_base", vpu_device->bin_base,
+			 "irq_num", vpu_device->irq_num[core],
+			 "pdev", vpu_device->dev[vpu_num_devs]);
+	if (vpu_device->irq_num[core] > 0) {
+		/* Get IRQ Flag from device node */
+		if (of_property_read_u32_array(pdev->dev.of_node,
+				"interrupts", irq_info, ARRAY_SIZE(irq_info))) {
+			dev_err(&pdev->dev, "get irq flags from DTS fail!!\n");
+			return -ENODEV;
+		}
+		vpu_device->irq_trig_level = irq_info[2];
+		LOG_DBG("vpu_device->irq_trig_level (0x%x), %s(0x%x)\n",
+			vpu_device->irq_trig_level,
+			"IRQF_TRIGGER_NONE", IRQF_TRIGGER_NONE);
+	}
+
+	vpu_init_algo(vpu_device);
+	LOG_DBG("[probe] [%d] init_algo done\n", core);
+	vpu_init_hw(core, vpu_device);
+	LOG_DBG("[probe] [%d] init_hw done\n", core);
+	vpu_init_reg(core, vpu_device);
+	LOG_DBG("[probe] [%d] init_reg done\n", core);
 #ifdef MET_POLLING_MODE
-		vpu_init_profile(core, vpu_device);
-		LOG_DBG("[probe] [%d] vpu_init_profile done\n", core);
+	vpu_init_profile(core, vpu_device);
+	LOG_DBG("[probe] [%d] vpu_init_profile done\n", core);
 #endif
-		if (!my_ion_client)
-			my_ion_client = ion_client_create(g_ion_device, "vpu_drv");
-#ifdef MTK_VPU_FPGA_PORTING
-	}
-	LOG_DBG("probe 2, vpu_syscfg_base: 0x%lx, vpu_adlctrl_base: 0x%lx vpu_vcorecfg_base: 0x%lx\n",
-			 vpu_device->vpu_syscfg_base,  vpu_device->vpu_adlctrl_base,  vpu_device->vpu_vcorecfg_base);
-#endif
+	if (!my_ion_client)
+		my_ion_client = ion_client_create(g_ion_device, "vpu_drv");
 
 	/* Only register char driver in the 1st time */
 	if (++vpu_num_devs == 1) {
@@ -1190,11 +1557,13 @@ static int vpu_probe(struct platform_device *pdev)
 			goto out;
 		}
 
-		dev = device_create(vpu_class, NULL, vpu_devt, NULL, VPU_DEV_NAME);
+		dev = device_create(vpu_class, NULL, vpu_devt,
+					NULL, VPU_DEV_NAME);
 		if (IS_ERR(dev)) {
 			ret = PTR_ERR(dev);
 			dev_err(vpu_device->dev[vpu_num_devs-1],
-				"Failed to create device: /dev/%s, err = %d", VPU_DEV_NAME, ret);
+				"Failed to create device: /dev/%s, err = %d",
+				VPU_DEV_NAME, ret);
 			goto out;
 		}
 
@@ -1259,32 +1628,42 @@ static int vpu_resume(struct platform_device *pdev)
 	return 0;
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
 static int __init VPU_INIT(void)
 {
 	int ret = 0, i = 0;
 
 	vpu_device = kzalloc(sizeof(struct vpu_device), GFP_KERNEL);
+	sdsp_locked = false;
 
 	INIT_LIST_HEAD(&vpu_device->user_list);
 	mutex_init(&vpu_device->user_mutex);
+	/*Add for mutex check mechanism issue*/
+	mutex_init(&vpu_device->sdsp_control_mutex[0]);
+	mutex_init(&vpu_device->sdsp_control_mutex[1]);
 	/*  */
 	for (i = 0 ; i < MTK_VPU_CORE ; i++) {
-		INIT_LIST_HEAD(&vpu_device->servicepool_list[i]);
+		INIT_LIST_HEAD(&vpu_device->pool_list[i]);
 		mutex_init(&vpu_device->servicepool_mutex[i]);
 		vpu_device->servicepool_list_size[i] = 0;
 		vpu_device->service_core_available[i] = true;
 	}
-	INIT_LIST_HEAD(&vpu_device->commonpool_list);
+	INIT_LIST_HEAD(&vpu_device->cmnpool_list);
 	mutex_init(&vpu_device->commonpool_mutex);
 	vpu_device->commonpool_list_size = 0;
 	init_waitqueue_head(&vpu_device->req_wait);
+	INIT_LIST_HEAD(&device_debug_list);
+	mutex_init(&debug_list_mutex);
 
 	/* Register M4U callback */
 	LOG_DBG("register m4u callback");
-	m4u_register_fault_callback(VPU_PORT_OF_IOMMU, vpu_m4u_fault_callback, NULL);
+#ifdef CONFIG_MTK_M4U
+	m4u_register_fault_callback(VPU_PORT_OF_IOMMU,
+				vpu_m4u_fault_callback, NULL);
+#else
+	mtk_iommu_register_fault_callback(VPU_PORT_OF_IOMMU,
+			vpu_m4u_fault_callback,
+			NULL);
+#endif
 
 	LOG_DBG("platform_driver_register start\n");
 	if (platform_driver_register(&vpu_driver)) {
@@ -1304,13 +1683,13 @@ static void __exit VPU_EXIT(void)
 	kfree(vpu_device);
 	/* Un-Register M4U callback */
 	LOG_DBG("un-register m4u callback");
+#ifdef CONFIG_MTK_M4U
 	m4u_unregister_fault_callback(VPU_PORT_OF_IOMMU);
+#else
+	mtk_iommu_unregister_fault_callback(VPU_PORT_OF_IOMMU);
+#endif
 }
 
-
-/*******************************************************************************
-*
-********************************************************************************/
 module_init(VPU_INIT);
 module_exit(VPU_EXIT);
 MODULE_DESCRIPTION("MTK VPU Driver");

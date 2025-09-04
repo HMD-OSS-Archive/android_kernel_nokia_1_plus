@@ -58,10 +58,13 @@ static void ppm_lcmoff_update_limit_cb(void)
 	for (i = 0; i < 1; i++) {
 	/* for (i = 0; i < lcmoff_policy.req.cluster_num; i++) { */
 		if (lcmoff_policy.req.limit[i].min_cpufreq_idx != -1) {
-			int idx = ppm_main_freq_to_idx(i, lcmoff_min_freq, CPUFREQ_RELATION_L);
+			int idx = ppm_main_freq_to_idx(i,
+				lcmoff_min_freq,
+				CPUFREQ_RELATION_L);
 
 			lcmoff_policy.req.limit[i].min_cpufreq_idx =
-				MIN(lcmoff_policy.req.limit[i].min_cpufreq_idx, idx);
+				MIN(lcmoff_policy.req.limit[i].min_cpufreq_idx,
+				idx);
 		}
 	}
 
@@ -94,8 +97,10 @@ static void ppm_lcmoff_switch(int onoff)
 		if (lcmoff_policy.is_activated) {
 			lcmoff_policy.is_activated = false;
 			for (i = 0; i < lcmoff_policy.req.cluster_num; i++) {
-				lcmoff_policy.req.limit[i].min_cpufreq_idx = get_cluster_min_cpufreq_idx(i);
-				lcmoff_policy.req.limit[i].max_cpufreq_idx = get_cluster_max_cpufreq_idx(i);
+				lcmoff_policy.req.limit[i].min_cpufreq_idx =
+					get_cluster_min_cpufreq_idx(i);
+				lcmoff_policy.req.limit[i].max_cpufreq_idx =
+					get_cluster_max_cpufreq_idx(i);
 			}
 		}
 	} else {
@@ -109,7 +114,8 @@ static void ppm_lcmoff_switch(int onoff)
 	FUNC_EXIT(FUNC_LV_POLICY);
 }
 
-static int ppm_lcmoff_fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data)
+static int ppm_lcmoff_fb_notifier_callback(struct notifier_block *self,
+	unsigned long event, void *data)
 {
 	struct fb_event *evdata = data;
 	int blank;
@@ -152,10 +158,10 @@ static int ppm_lcmoff_min_freq_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-static ssize_t ppm_lcmoff_min_freq_proc_write(struct file *file, const char __user *buffer,
-					size_t count, loff_t *pos)
+static ssize_t ppm_lcmoff_min_freq_proc_write(struct file *file,
+		const char __user *buffer, size_t count, loff_t *pos)
 {
-	unsigned int freq;
+	unsigned int freq = 0;
 
 	char *buf = ppm_copy_from_user_for_proc(buffer, count);
 
@@ -172,7 +178,6 @@ static ssize_t ppm_lcmoff_min_freq_proc_write(struct file *file, const char __us
 }
 
 PROC_FOPS_RW(lcmoff_min_freq);
-
 static int __init ppm_lcmoff_policy_init(void)
 {
 	int ret = 0, i;
@@ -190,15 +195,18 @@ static int __init ppm_lcmoff_policy_init(void)
 
 	/* create procfs */
 	for (i = 0; i < ARRAY_SIZE(entries); i++) {
-		if (!proc_create(entries[i].name, S_IRUGO | S_IWUSR | S_IWGRP, policy_dir, entries[i].fops)) {
-			ppm_err("%s(), create /proc/ppm/policy/%s failed\n", __func__, entries[i].name);
+		if (!proc_create(entries[i].name, 0664,
+			policy_dir, entries[i].fops)) {
+			ppm_err("%s(), create /proc/ppm/policy/%s failed\n",
+				__func__, entries[i].name);
 			ret = -EINVAL;
 			goto out;
 		}
 	}
 
 	if (fb_register_client(&ppm_lcmoff_fb_notifier)) {
-		ppm_err("@%s: lcmoff policy register FB client failed!\n", __func__);
+		ppm_err("@%s: lcmoff policy register FB client failed!\n",
+			__func__);
 		ret = -EINVAL;
 		goto out;
 	}

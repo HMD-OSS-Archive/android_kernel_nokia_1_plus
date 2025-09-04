@@ -296,10 +296,13 @@ static int mt6336_enable(void)
 
 			/* disable charging */
 			/* mt6336_set_register_value(0x0400, 0x00); */
-			buck_enable_status =
-				mt6336_get_flag_register_value(MT6336_RG_EN_BUCK);
+			buck_enable_status = mt6336_get_flag_register_value(
+					MT6336_RG_EN_BUCK);
 			mt6336_set_flag_register_value(MT6336_RG_EN_BUCK, 0x00);
-			/* mt6336_set_flag_register_value(MT6336_RG_EN_CHARGE, 0x00); */
+			/*
+			 * mt6336_set_flag_register_value(
+			 * MT6336_RG_EN_CHARGE, 0x00);
+			 */
 
 			/* pre-enable steps */
 			mt6336_preenable();
@@ -317,9 +320,10 @@ static int mt6336_enable(void)
 
 #if 1
 			/* enable flash and apply previous buck setting */
-			mt6336_set_flag_register_value(
-					MT6336_RG_EN_BUCK, buck_enable_status);
-			mt6336_set_flag_register_value(MT6336_RG_EN_FLASH, 0x01);
+			mt6336_set_flag_register_value(MT6336_RG_EN_BUCK,
+					buck_enable_status);
+			mt6336_set_flag_register_value(MT6336_RG_EN_FLASH,
+					0x01);
 #else
 			/* Enable flash and enable charger here for robust.
 			 *
@@ -582,6 +586,8 @@ static int mt6336_timer_cancel(int channel)
 static int mt6336_operate(int channel, int enable)
 {
 	ktime_t ktime;
+	unsigned int s;
+	unsigned int ns;
 
 	/* setup enable/disable */
 	if (channel == MT6336_CHANNEL_CH1) {
@@ -616,15 +622,19 @@ static int mt6336_operate(int channel, int enable)
 			mt6336_timer_cancel(MT6336_CHANNEL_CH2);
 		} else {
 			if (mt6336_timeout_ms[MT6336_CHANNEL_CH1]) {
-				ktime = ktime_set(
-					mt6336_timeout_ms[MT6336_CHANNEL_CH1] / 1000,
-					(mt6336_timeout_ms[MT6336_CHANNEL_CH1] % 1000) * 1000000);
+				s = mt6336_timeout_ms[MT6336_CHANNEL_CH1] /
+					1000;
+				ns = mt6336_timeout_ms[MT6336_CHANNEL_CH1] %
+						1000 * 1000000;
+				ktime = ktime_set(s, ns);
 				mt6336_timer_start(MT6336_CHANNEL_CH1, ktime);
 			}
 			if (mt6336_timeout_ms[MT6336_CHANNEL_CH2]) {
-				ktime = ktime_set(
-					mt6336_timeout_ms[MT6336_CHANNEL_CH2] / 1000,
-					(mt6336_timeout_ms[MT6336_CHANNEL_CH2] % 1000) * 1000000);
+				s = mt6336_timeout_ms[MT6336_CHANNEL_CH2] /
+					1000;
+				ns = mt6336_timeout_ms[MT6336_CHANNEL_CH2] %
+						1000 * 1000000;
+				ktime = ktime_set(s, ns);
 				mt6336_timer_start(MT6336_CHANNEL_CH2, ktime);
 			}
 			mt6336_enable();
@@ -801,7 +811,8 @@ static int mt6336_parse_dt(struct device *dev,
 		pr_info("Parse no dt, decouple.\n");
 
 	pdata->dev_id = devm_kzalloc(dev,
-			pdata->channel_num * sizeof(struct flashlight_device_id),
+			pdata->channel_num *
+			sizeof(struct flashlight_device_id),
 			GFP_KERNEL);
 	if (!pdata->dev_id)
 		return -ENOMEM;
@@ -813,14 +824,16 @@ static int mt6336_parse_dt(struct device *dev,
 			goto err_node_put;
 		if (of_property_read_u32(cnp, "part", &pdata->dev_id[i].part))
 			goto err_node_put;
-		snprintf(pdata->dev_id[i].name, FLASHLIGHT_NAME_SIZE, MT6336_NAME);
+		snprintf(pdata->dev_id[i].name, FLASHLIGHT_NAME_SIZE,
+				MT6336_NAME);
 		pdata->dev_id[i].channel = i;
 		pdata->dev_id[i].decouple = decouple;
 
 		pr_info("Parse dt (type,ct,part,name,channel,decouple)=(%d,%d,%d,%s,%d,%d).\n",
 				pdata->dev_id[i].type, pdata->dev_id[i].ct,
 				pdata->dev_id[i].part, pdata->dev_id[i].name,
-				pdata->dev_id[i].channel, pdata->dev_id[i].decouple);
+				pdata->dev_id[i].channel,
+				pdata->dev_id[i].decouple);
 		i++;
 	}
 
@@ -868,8 +881,10 @@ static int mt6336_probe(struct platform_device *pdev)
 
 	/* register and enable mt6336 pmic ISR */
 	mt6336_ctrl_enable(flashlight_ctrl);
-	mt6336_register_interrupt_callback(MT6336_INT_LED1_SHORT, mt6336_isr_short_ch1);
-	mt6336_register_interrupt_callback(MT6336_INT_LED2_SHORT, mt6336_isr_short_ch2);
+	mt6336_register_interrupt_callback(
+			MT6336_INT_LED1_SHORT, mt6336_isr_short_ch1);
+	mt6336_register_interrupt_callback(
+			MT6336_INT_LED2_SHORT, mt6336_isr_short_ch2);
 	/* mt6336_register_interrupt_callback(MT6336_INT_LED1_OPEN, NULL); */
 	/* mt6336_register_interrupt_callback(MT6336_INT_LED2_OPEN, NULL); */
 	mt6336_enable_interrupt(MT6336_INT_LED1_SHORT, "flashlight");
@@ -884,7 +899,9 @@ static int mt6336_probe(struct platform_device *pdev)
 	/* register flashlight device */
 	if (pdata->channel_num) {
 		for (i = 0; i < pdata->channel_num; i++)
-			if (flashlight_dev_register_by_device_id(&pdata->dev_id[i], &mt6336_ops))
+			if (flashlight_dev_register_by_device_id(
+						&pdata->dev_id[i],
+						&mt6336_ops))
 				return -EFAULT;
 	} else {
 		if (flashlight_dev_register(MT6336_NAME, &mt6336_ops))
@@ -908,7 +925,8 @@ static int mt6336_remove(struct platform_device *pdev)
 	/* unregister flashlight device */
 	if (pdata && pdata->channel_num)
 		for (i = 0; i < pdata->channel_num; i++)
-			flashlight_dev_unregister_by_device_id(&pdata->dev_id[i]);
+			flashlight_dev_unregister_by_device_id(
+					&pdata->dev_id[i]);
 	else
 		flashlight_dev_unregister(MT6336_NAME);
 

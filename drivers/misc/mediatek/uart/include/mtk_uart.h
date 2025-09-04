@@ -51,7 +51,8 @@ do { \
 
 /******************************************************************************
  * ENUM & STRUCT
-******************************************************************************/
+ *****************************************************************************
+ */
 enum {
 	UART_NON_DMA,
 	UART_TX_DMA,
@@ -75,7 +76,7 @@ enum {
 /* flow control mode */
 enum {
 	UART_FC_NONE,		/*NO flow control */
-	UART_FC_SW,		/*MTK SW Flow Control, differs from Linux Flow Control */
+	UART_FC_SW,/*MTK SW Flow Control, differs from Linux Flow Control */
 	UART_FC_HW,		/*HW Flow Control */
 };
 /*---------------------------------------------------------------------------*/
@@ -199,8 +200,8 @@ struct mtk_uart {
 	int fctl_mode;		/*flow control */
 	int poweron_count;
 	int timeout_count;	/*for console write */
-
-	unsigned int fcr_back_up;	/* FCR register is a write only register */
+	/* FCR register is a write only register */
+	unsigned int fcr_back_up;
 
 	struct mtk_uart_register registers;
 	struct mtk_uart_dma dma_tx;
@@ -241,7 +242,8 @@ extern struct mtk_uart *console_port;
 unsigned int mtk_uart_pdn_enable(char *port, int enable);
 extern void update_history_byte(char is_tx, int nport, unsigned char byte);
 extern void update_history_time(char is_tx, int nport);
-extern void update_history_bulk(char is_tx, int nport, unsigned char *chars, int count);
+extern void update_history_bulk(char is_tx, int nport,
+	unsigned char *chars, int count);
 extern struct mtk_uart mtk_uarts[UART_NR];
 
 #ifdef CONFIG_FIQ_DEBUGGER

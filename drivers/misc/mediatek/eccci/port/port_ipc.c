@@ -1,15 +1,15 @@
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ * Copyright (C) 2016 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ */
 #include <linux/cdev.h>
 #include <linux/device.h>
 #include <linux/fs.h>
@@ -29,15 +29,6 @@
 #include "ccci_modem.h"
 #include "ccci_fsm.h"
 #include "port_t.h"
-
-#define uint32 unsigned int
-
-/* AP Status Indication For Garbage Filter  */
-struct ap_status_ind {
-	uint32 em_ap_status;
-	uint32 bm_cmd;
-} __packed;
-
 static struct ipc_task_id_map ipc_msgsvc_maptbl[] = {
 
 #define __IPC_ID_TABLE
@@ -46,7 +37,10 @@ static struct ipc_task_id_map ipc_msgsvc_maptbl[] = {
 };
 
 #ifdef CONFIG_MTK_CONN_MD
-#include "conn_md_exp.h"	/* this file also include ccci_ipc_task_ID.h, must include it after ipc_msgsvc_maptbl */
+/* this file also include ccci_ipc_task_ID.h,
+ * must include it after ipc_msgsvc_maptbl
+ */
+#include "conn_md_exp.h"
 #endif
 
 #define MAX_QUEUE_LENGTH 32
@@ -73,7 +67,8 @@ static struct ipc_task_id_map *unify_xx_id_2_local_id(u32 unify_id, int AP)
 {
 	int i;
 
-	if (!(AP ? (unify_id & AP_UNIFY_ID_FLAG) : !(unify_id & AP_UNIFY_ID_FLAG)))
+	if (!(AP ? (unify_id & AP_UNIFY_ID_FLAG) :
+		!(unify_id & AP_UNIFY_ID_FLAG)))
 		return NULL;
 
 	for (i = 0; i < ARRAY_SIZE(ipc_msgsvc_maptbl); i++) {
@@ -86,13 +81,16 @@ static struct ipc_task_id_map *unify_xx_id_2_local_id(u32 unify_id, int AP)
 int port_ipc_recv_match(struct port_t *port, struct sk_buff *skb)
 {
 	struct ccci_header *ccci_h = (struct ccci_header *)skb->data;
-	struct ccci_ipc_ctrl *ipc_ctrl = (struct ccci_ipc_ctrl *)port->private_data;
+	struct ccci_ipc_ctrl *ipc_ctrl =
+		(struct ccci_ipc_ctrl *)port->private_data;
 	struct ipc_task_id_map *id_map;
 
 	if (port->rx_ch != CCCI_IPC_RX)
 		return 1;
 
-	CCCI_DEBUG_LOG(port->md_id, IPC, "task_id matching: (%x/%x)\n", ipc_ctrl->task_id, ccci_h->reserved);
+	CCCI_DEBUG_LOG(port->md_id, IPC,
+		"task_id matching: (%x/%x)\n",
+		ipc_ctrl->task_id, ccci_h->reserved);
 	id_map = unify_AP_id_2_local_id(ccci_h->reserved);
 	if (id_map == NULL)
 		return 0;
@@ -102,15 +100,17 @@ int port_ipc_recv_match(struct port_t *port, struct sk_buff *skb)
 }
 
 static int send_new_time_to_md(int md_id, int tz);
-volatile int current_time_zone;
+int current_time_zone;
 
-long port_ipc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+long port_ipc_ioctl(struct file *file, unsigned int cmd,
+	unsigned long arg)
 {
 	long ret = 0;
 	struct port_t *port = file->private_data;
 	struct sk_buff *skb = NULL;
 	unsigned long flags;
-	struct ccci_ipc_ctrl *ipc_ctrl = (struct ccci_ipc_ctrl *)port->private_data;
+	struct ccci_ipc_ctrl *ipc_ctrl =
+		(struct ccci_ipc_ctrl *)port->private_data;
 
 	switch (cmd) {
 	case CCCI_IPC_RESET_RECV:
@@ -128,26 +128,33 @@ long port_ipc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	case CCCI_IPC_WAIT_MD_READY:
 		if (ipc_ctrl->md_is_ready == 0) {
-			ret = wait_event_interruptible(ipc_ctrl->md_rdy_wq, ipc_ctrl->md_is_ready == 1);
+			ret = wait_event_interruptible(ipc_ctrl->md_rdy_wq,
+				ipc_ctrl->md_is_ready == 1);
 			if (ret == -ERESTARTSYS)
 				ret = -EINTR;
 		}
 		break;
 
 	case CCCI_IPC_UPDATE_TIME:
-		CCCI_REPEAT_LOG(port->md_id, IPC, "CCCI_IPC_UPDATE_TIME 0x%x\n", (unsigned int)arg);
+		CCCI_REPEAT_LOG(port->md_id, IPC,
+			"CCCI_IPC_UPDATE_TIME 0x%x\n", (unsigned int)arg);
 		current_time_zone = (int)arg;
 		ret = send_new_time_to_md(port->md_id, (int)arg);
 		break;
 
 	case CCCI_IPC_WAIT_TIME_UPDATE:
-		CCCI_DEBUG_LOG(port->md_id, IPC, "CCCI_IPC_WAIT_TIME_UPDATE\n");
+		CCCI_DEBUG_LOG(port->md_id, IPC,
+			"CCCI_IPC_WAIT_TIME_UPDATE\n");
 		ret = wait_time_update_notify();
-		CCCI_DEBUG_LOG(port->md_id, IPC, "CCCI_IPC_WAIT_TIME_UPDATE wakeup\n");
+		CCCI_DEBUG_LOG(port->md_id, IPC,
+			"CCCI_IPC_WAIT_TIME_UPDATE wakeup\n");
 		break;
 
+
 	case CCCI_IPC_UPDATE_TIMEZONE:
-		CCCI_REPEAT_LOG(port->md_id, IPC, "CCCI_IPC_UPDATE_TIMEZONE keep 0x%x\n", (unsigned int)arg);
+		CCCI_REPEAT_LOG(port->md_id, IPC,
+			"CCCI_IPC_UPDATE_TIMEZONE keep 0x%x\n",
+			(unsigned int)arg);
 		current_time_zone = (int)arg;
 		break;
 	default:
@@ -162,7 +169,8 @@ long port_ipc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 void port_ipc_md_state_notify(struct port_t *port, unsigned int state)
 {
-	struct ccci_ipc_ctrl *ipc_ctrl = (struct ccci_ipc_ctrl *)port->private_data;
+	struct ccci_ipc_ctrl *ipc_ctrl =
+		(struct ccci_ipc_ctrl *)port->private_data;
 
 	switch (state) {
 	case READY:
@@ -176,12 +184,15 @@ void port_ipc_md_state_notify(struct port_t *port, unsigned int state)
 
 int port_ipc_write_check_id(struct port_t *port, struct sk_buff *skb)
 {
-	struct ccci_ipc_ilm *ilm = (struct ccci_ipc_ilm *)((char *)skb->data + sizeof(struct ccci_header));
+	struct ccci_ipc_ilm *ilm =
+		(struct ccci_ipc_ilm *)((char *)skb->data +
+		sizeof(struct ccci_header));
 	struct ipc_task_id_map *id_map;
 
 	id_map = local_MD_id_2_unify_id(ilm->dest_mod_id);
 	if (id_map == NULL) {
-		CCCI_ERROR_LOG(port->md_id, IPC, "Invalid Dest MD ID (%d)\n", ilm->dest_mod_id);
+		CCCI_ERROR_LOG(port->md_id, IPC,
+		"Invalid Dest MD ID (%d)\n", ilm->dest_mod_id);
 		return -CCCI_ERR_IPC_ID_ERROR;
 	}
 	return id_map->extq_id;
@@ -190,7 +201,8 @@ int port_ipc_write_check_id(struct port_t *port, struct sk_buff *skb)
 unsigned int port_ipc_poll(struct file *fp, struct poll_table_struct *poll)
 {
 	struct port_t *port = fp->private_data;
-	struct ccci_ipc_ctrl *ipc_ctrl = (struct ccci_ipc_ctrl *)port->private_data;
+	struct ccci_ipc_ctrl *ipc_ctrl =
+		(struct ccci_ipc_ctrl *)port->private_data;
 	unsigned int mask = 0;
 
 	poll_wait(fp, &ipc_ctrl->tx_wq, poll);
@@ -235,38 +247,47 @@ static int port_ipc_kernel_write(int md_id, struct ipc_ilm *in_ilm)
 	task_id = in_ilm->src_mod_id & (~AP_UNIFY_ID_FLAG);
 	port = find_ipc_port_by_task_id(md_id, task_id);
 	if (!port) {
-		CCCI_ERROR_LOG(-1, IPC, "invalid task ID %x\n", in_ilm->src_mod_id);
+		CCCI_ERROR_LOG(-1, IPC, "invalid task ID %x\n",
+		in_ilm->src_mod_id);
 		return -EINVAL;
 	}
 	if (in_ilm->local_para_ptr == NULL) {
-		CCCI_ERROR_LOG(-1, IPC, "invalid ILM local parameter pointer %p for task %d\n", in_ilm, task_id);
+		CCCI_ERROR_LOG(-1, IPC,
+			"invalid ILM local parameter pointer %p for task %d\n",
+			in_ilm, task_id);
 		return -EINVAL;
 	}
 
-	count = sizeof(struct ccci_ipc_ilm) + in_ilm->local_para_ptr->msg_len;
+	count = sizeof(struct ccci_ipc_ilm) +
+		in_ilm->local_para_ptr->msg_len;
 	if (count > CCCI_MTU) {
-		CCCI_ERROR_LOG(port->md_id, IPC, "reject packet(size=%d ), lager than MTU on %s\n", count,
-			     port->name);
+		CCCI_ERROR_LOG(port->md_id, IPC,
+			"reject packet(size=%d ), lager than MTU on %s\n",
+			count, port->name);
 		return -ENOMEM;
 	}
-	CCCI_DEBUG_LOG(port->md_id, IPC, "write on %s for %d\n", port->name, in_ilm->local_para_ptr->msg_len);
+	CCCI_DEBUG_LOG(port->md_id, IPC, "write on %s for %d\n",
+		port->name, in_ilm->local_para_ptr->msg_len);
 
 	actual_count = count + sizeof(struct ccci_header);
 	skb = ccci_alloc_skb(actual_count, 1, 1);
 	if (skb) {
 		/* ccci header */
-		ccci_h = (struct ccci_header *)skb_put(skb, sizeof(struct ccci_header));
+		ccci_h = (struct ccci_header *)skb_put(skb,
+			sizeof(struct ccci_header));
 		ccci_h->data[0] = 0;
 		ccci_h->data[1] = actual_count;
 		ccci_h->channel = port->tx_ch;
 		ccci_h->reserved = 0;
 		/* copy ilm */
-		ilm = (struct ccci_ipc_ilm *)skb_put(skb, sizeof(struct ccci_ipc_ilm));
+		ilm = (struct ccci_ipc_ilm *)skb_put(skb,
+			sizeof(struct ccci_ipc_ilm));
 		ilm->src_mod_id = in_ilm->src_mod_id;
 		ilm->dest_mod_id = in_ilm->dest_mod_id;
 		ilm->sap_id = in_ilm->sap_id;
 		ilm->msg_id = in_ilm->msg_id;
-		ilm->local_para_ptr = 1;	/* to let MD treat it as != NULL */
+		/* to let MD treat it as != NULL */
+		ilm->local_para_ptr = 1;
 		ilm->peer_buff_ptr = 0;
 		/* copy data */
 		count = in_ilm->local_para_ptr->msg_len;
@@ -315,18 +336,21 @@ static int port_ipc_kernel_thread(void *arg)
 	struct ipc_ilm out_ilm;
 	struct ipc_task_id_map *id_map;
 
-	CCCI_DEBUG_LOG(port->md_id, IPC, "port %s's thread running\n", port->name);
+	CCCI_DEBUG_LOG(port->md_id, IPC,
+		"port %s's thread running\n", port->name);
 
 	while (1) {
 retry:
 		if (skb_queue_empty(&port->rx_skb_list)) {
-			ret = wait_event_interruptible(port->rx_wq, !skb_queue_empty(&port->rx_skb_list));
+			ret = wait_event_interruptible(port->rx_wq,
+				!skb_queue_empty(&port->rx_skb_list));
 			if (ret == -ERESTARTSYS)
 				continue;	/* FIXME */
 		}
 		if (kthread_should_stop())
 			break;
-		CCCI_DEBUG_LOG(port->md_id, IPC, "read on %s\n", port->name);
+		CCCI_DEBUG_LOG(port->md_id, IPC,
+			"read on %s\n", port->name);
 		/* 1. dequeue */
 		spin_lock_irqsave(&port->rx_skb_list.lock, flags);
 		skb = __skb_dequeue(&port->rx_skb_list);
@@ -363,19 +387,25 @@ retry:
 #endif
 				break;
 			case AP_IPC_USB:
-#if defined(CONFIG_MTK_MD_DIRECT_TETHERING_SUPPORT) || defined(CONFIG_MTK_MD_DIRECT_LOGGING_SUPPORT)
+#if defined(CONFIG_MTK_MD_DIRECT_TETHERING_SUPPORT) \
+	|| defined(CONFIG_MTK_MD_DIRECT_LOGGING_SUPPORT)
 				rndis_md_msg_hdlr(&out_ilm);
 #endif
 				break;
 			default:
-				CCCI_ERROR_LOG(port->md_id, IPC, "recv unknown task ID %d\n", id_map->task_id);
+				CCCI_ERROR_LOG(port->md_id, IPC,
+					"recv unknown task ID %d\n",
+					id_map->task_id);
 				break;
 			}
 		} else {
-			CCCI_ERROR_LOG(port->md_id, IPC, "recv unknown module ID %d\n", ccci_h->reserved);
+			CCCI_ERROR_LOG(port->md_id, IPC,
+				"recv unknown module ID %d\n",
+				ccci_h->reserved);
 		}
-		CCCI_DEBUG_LOG(port->md_id, IPC, "read done on %s l=%d\n", port->name,
-			     out_ilm.local_para_ptr->msg_len);
+		CCCI_DEBUG_LOG(port->md_id, IPC,
+			"read done on %s l=%d\n", port->name,
+			out_ilm.local_para_ptr->msg_len);
 		ccci_free_skb(skb);
 	}
 	return 0;
@@ -384,16 +414,19 @@ int port_ipc_init(struct port_t *port)
 {
 	struct cdev *dev;
 	int ret = 0;
-	struct ccci_ipc_ctrl *ipc_ctrl = kmalloc(sizeof(struct ccci_ipc_ctrl), GFP_KERNEL);
+	struct ccci_ipc_ctrl *ipc_ctrl =
+		kmalloc(sizeof(struct ccci_ipc_ctrl), GFP_KERNEL);
 
 	if (unlikely(!ipc_ctrl)) {
 		CCCI_ERROR_LOG(port->md_id, IPC, "alloc ipc_ctrl fail!!\n");
 		return -1;
 	}
+
 	port->rx_length_th = MAX_QUEUE_LENGTH;
 	port->private_data = ipc_ctrl;
 	/*
-	 * tricky part, we use pre-defined minor number as task ID, then we modify it into the right number.
+	 * tricky part, we use pre-defined minor number as task ID,
+	 * then we modify it into the right number.
 	 */
 	ipc_ctrl->task_id = port->minor;
 	port->minor += CCCI_IPC_MINOR_BASE;
@@ -405,23 +438,29 @@ int port_ipc_init(struct port_t *port)
 	if (port->flags & PORT_F_WITH_CHAR_NODE) {
 		dev = kmalloc(sizeof(struct cdev), GFP_KERNEL);
 		if (unlikely(!dev)) {
-			CCCI_ERROR_LOG(port->md_id, IPC, "alloc ipc char dev fail!!\n");
+			CCCI_ERROR_LOG(port->md_id, IPC,
+				"alloc ipc char dev fail!!\n");
 			kfree(ipc_ctrl);
 			return -1;
 		}
 		cdev_init(dev, &ipc_dev_fops);
 		dev->owner = THIS_MODULE;
-		ret = cdev_add(dev, MKDEV(port->major, port->minor_base + port->minor), 1);
-		ret = ccci_register_dev_node(port->name, port->major, port->minor_base + port->minor);
+		ret = cdev_add(dev, MKDEV(port->major,
+			port->minor_base + port->minor), 1);
+		ret = ccci_register_dev_node(port->name, port->major,
+			port->minor_base + port->minor);
 		port->interception = 0;
 		port->flags |= PORT_F_ADJUST_HEADER;
 	} else {
 		kthread_run(port_ipc_kernel_thread, port, "%s", port->name);
 		if (ipc_ctrl->task_id == AP_IPC_WMT) {
 #ifdef CONFIG_MTK_CONN_MD
-			struct conn_md_bridge_ops ccci_ipc_conn_ops = {.rx_cb = ccci_ipc_send_ilm_to_md1};
+			struct conn_md_bridge_ops ccci_ipc_conn_ops = {
+			.rx_cb = ccci_ipc_send_ilm_to_md1};
 
 			mtk_conn_md_bridge_reg(MD_MOD_EL1, &ccci_ipc_conn_ops);
+			mtk_conn_md_bridge_reg(MD_MOD_GMMGR,
+						&ccci_ipc_conn_ops);
 #endif
 		}
 	}
@@ -454,14 +493,18 @@ int send_new_time_to_md(int md_id, int tz)
 	in_ilm.sap_id = 0;
 	in_ilm.msg_id = IPC_MSG_ID_CCCIIPC_CLIB_TIME_REQ;
 	in_ilm.local_para_ptr = (struct local_para *)&local_param[0];
-	/* msg_len not only contain local_para_ptr->data, but also contain 4 Bytes header itself */
+	/* msg_len not only contain local_para_ptr->data,
+	 * but also contain 4 Bytes header itself
+	 */
 	in_ilm.local_para_ptr->msg_len = 20;
 	memcpy(in_ilm.local_para_ptr->data, timeinfo, 16);
 
-	CCCI_DEBUG_LOG(md_id, IPC, "Update time(R): [sec=0x%lx][timezone=0x%08x][des=0x%08x]\n", tv.tv_sec,
-		     sys_tz.tz_minuteswest, sys_tz.tz_dsttime);
-	CCCI_DEBUG_LOG(md_id, IPC, "Update time(A): [L:0x%08x][H:0x%08x][0x%08x][0x%08x]\n", timeinfo[0], timeinfo[1],
-		     timeinfo[2], timeinfo[3]);
+	CCCI_DEBUG_LOG(md_id, IPC,
+		"Update time(R): [sec=0x%lx][timezone=0x%08x][des=0x%08x]\n",
+		tv.tv_sec, sys_tz.tz_minuteswest, sys_tz.tz_dsttime);
+	CCCI_DEBUG_LOG(md_id, IPC,
+		"Update time(A): [L:0x%08x][H:0x%08x][0x%08x][0x%08x]\n",
+		timeinfo[0], timeinfo[1], timeinfo[2], timeinfo[3]);
 	if (port_ipc_kernel_write(md_id, &in_ilm) < 0) {
 		CCCI_NORMAL_LOG(md_id, IPC, "Update fail\n");
 		return -1;
@@ -482,56 +525,9 @@ int ccci_get_emi_info(int md_id, struct ccci_emi_info *emi_info)
 	emi_info->md_domain_id = 1;
 	emi_info->ap_view_bank0_base = mem_layout->md_bank0.base_ap_view_phy;
 	emi_info->bank0_size = mem_layout->md_bank0.size;
-	emi_info->ap_view_bank4_base = mem_layout->md_bank4_noncacheable_total.base_md_view_phy;
+	emi_info->ap_view_bank4_base =
+		mem_layout->md_bank4_noncacheable_total.base_md_view_phy;
 	emi_info->bank4_size = mem_layout->md_bank4_noncacheable_total.size;
 	return 0;
-}
-
-/* Send suspend/resume msg to MD for Garbage filter feature */
-void ccci_garbage_filter(int val)
-{
-	int ret = 0;
-	struct ipc_ilm *in_ilm = NULL;
-	struct ap_status_ind *ccci_ap_status_ind = NULL;
-	struct local_para *s_local_para = NULL;
-
-	in_ilm = kzalloc(sizeof(struct ipc_ilm), GFP_KERNEL);
-	if (!in_ilm) {
-		CCCI_ERROR_LOG(-1, IPC, "Allocation in_ilm failed !");
-		goto out;
-	}
-	ccci_ap_status_ind = kzalloc(sizeof(struct ap_status_ind), GFP_KERNEL);
-	if (!ccci_ap_status_ind) {
-		CCCI_ERROR_LOG(-1, IPC, "Allocation ccci_ap_status_ind failed !");
-		goto out;
-	}
-	s_local_para = kzalloc(sizeof(struct local_para)+sizeof(struct ap_status_ind), GFP_KERNEL);
-	if (!s_local_para) {
-		CCCI_ERROR_LOG(-1, IPC, "Allocation s_local_para failed !");
-		goto out;
-	}
-
-	s_local_para->ref_count = 0;
-	s_local_para->_stub = 0;
-	ccci_ap_status_ind->em_ap_status = val ? 0 : 1;
-	ccci_ap_status_ind->bm_cmd = val ? 1 : 0;
-
-	memcpy(s_local_para->data, ccci_ap_status_ind, sizeof(struct ap_status_ind));
-	s_local_para->msg_len = sizeof(struct local_para)+sizeof(struct ap_status_ind);
-
-	in_ilm->src_mod_id = AP_MOD_CCCIIPC;
-	in_ilm->dest_mod_id = MD_MOD_IPCORE;
-	in_ilm->sap_id = 0;
-	in_ilm->msg_id = IPC_MSG_ID_AP_STATUS_IND;
-	in_ilm->local_para_ptr = s_local_para;
-	in_ilm->peer_buff_ptr = 0;
-
-	ret = ccci_ipc_send_ilm(0, in_ilm);
-	if (unlikely(ret < 0))
-		CCCI_ERROR_LOG(-1, IPC, "Garbage filter ccci_ipc_send_ilm fail for garbage filter %d\n", ret);
-out:
-	kfree(in_ilm);
-	kfree(ccci_ap_status_ind);
-	kfree(s_local_para);
 }
 

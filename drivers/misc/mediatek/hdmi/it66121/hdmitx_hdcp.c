@@ -1,24 +1,24 @@
 /*
-* HDMI support
-*
-* Copyright (C) 2013 ITE Tech. Inc.
-* Author: Hermes Wu <hermes.wu@ite.com.tw>
-*
-* HDMI TX driver for IT66121
-*
-*
-* This program is free software; you can redistribute it and/or modify it
-* under the terms of the GNU General Public License version 2 as published by
-* the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful, but WITHOUT
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
-* more details.
-*
-* You should have received a copy of the GNU General Public License along with
-* this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ * HDMI support
+ *
+ * Copyright (C) 2013 ITE Tech. Inc.
+ * Author: Hermes Wu <hermes.wu@ite.com.tw>
+ *
+ * HDMI TX driver for IT66121
+ *
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 #include "hdmitx.h"
 #include "hdmitx_drv.h"
 #include "sha1.h"
@@ -42,7 +42,8 @@ bool HDMITX_EnableHDCP(unsigned char bEnable)
 #ifdef SUPPORT_HDCP
 	if (bEnable) {
 		if (hdmitx_hdcp_Authenticate() == ER_FAIL) {
-			/* IT66121_LOG("ER_FAIL == hdmitx_hdcp_Authenticate\n"); */
+			/* IT66121_LOG("ER_FAIL == hdmitx_hdcp_Authenticate\n");
+			 */
 			hdmitx_hdcp_ResetAuth();
 			return FALSE;
 		}
@@ -56,22 +57,27 @@ bool HDMITX_EnableHDCP(unsigned char bEnable)
 
 bool getHDMITX_AuthenticationDone(void)
 {
-	/* HDCP_DEBUG_PRINTF((" getHDMITX_AuthenticationDone() = %s\n",hdmiTxDev[0].bAuthenticated?"TRUE":"FALSE" )); */
+	/* HDCP_DEBUG_PRINTF((" getHDMITX_AuthenticationDone() =
+	 * %s\n",hdmiTxDev[0].bAuthenticated?"TRUE":"FALSE" ));
+	 */
 	return hdmiTxDev[0].bAuthenticated;
 }
 
-/* //////////////////////////////////////////////////////////////////// */
+/* */
 /* Authentication */
-/* //////////////////////////////////////////////////////////////////// */
+/* */
 void hdmitx_hdcp_ClearAuthInterrupt(void)
 {
 	/* unsigned char uc ; */
 	/* uc = HDMITX_ReadI2C_Byte(REG_TX_INT_MASK2) &*/
 	/* (~(B_TX_KSVLISTCHK_MASK|B_TX_AUTH_DONE_MASK|B_TX_AUTH_FAIL_MASK)); */
 	HDMITX_SetI2C_Byte(REG_TX_INT_MASK2,
-			   B_TX_KSVLISTCHK_MASK | B_TX_AUTH_DONE_MASK | B_TX_AUTH_FAIL_MASK, 0);
-	HDMITX_WriteI2C_Byte(REG_TX_INT_CLR0,
-			     B_TX_CLR_AUTH_FAIL | B_TX_CLR_AUTH_DONE | B_TX_CLR_KSVLISTCHK);
+			   B_TX_KSVLISTCHK_MASK | B_TX_AUTH_DONE_MASK |
+				   B_TX_AUTH_FAIL_MASK,
+			   0);
+	HDMITX_WriteI2C_Byte(REG_TX_INT_CLR0, B_TX_CLR_AUTH_FAIL |
+						      B_TX_CLR_AUTH_DONE |
+						      B_TX_CLR_KSVLISTCHK);
 	HDMITX_WriteI2C_Byte(REG_TX_INT_CLR1, 0);
 	HDMITX_WriteI2C_Byte(REG_TX_SYS_STATUS, B_TX_INTACTDONE);
 }
@@ -81,7 +87,8 @@ void hdmitx_hdcp_ResetAuth(void)
 	HDMITX_WriteI2C_Byte(REG_TX_LISTCTRL, 0);
 	HDMITX_WriteI2C_Byte(REG_TX_HDCP_DESIRE, 0);
 	HDMITX_OrReg_Byte(REG_TX_SW_RST, B_TX_HDCP_RST_HDMITX);
-	HDMITX_WriteI2C_Byte(REG_TX_DDC_MASTER_CTRL, B_TX_MASTERDDC | B_TX_MASTERHOST);
+	HDMITX_WriteI2C_Byte(REG_TX_DDC_MASTER_CTRL,
+			     B_TX_MASTERDDC | B_TX_MASTERHOST);
 	hdmitx_hdcp_ClearAuthInterrupt();
 	hdmitx_AbortDDC();
 }
@@ -97,7 +104,8 @@ void hdmitx_hdcp_ResetAuth(void)
 void hdmitx_hdcp_Auth_Fire(void)
 {
 	/* HDCP_DEBUG_PRINTF(("hdmitx_hdcp_Auth_Fire():\n")); */
-	HDMITX_WriteI2C_Byte(REG_TX_DDC_MASTER_CTRL, B_TX_MASTERDDC | B_TX_MASTERHDCP);
+	HDMITX_WriteI2C_Byte(REG_TX_DDC_MASTER_CTRL,
+			     B_TX_MASTERDDC | B_TX_MASTERHDCP);
 	/* MASTERHDCP,no need command but fire. */
 	HDMITX_WriteI2C_Byte(REG_TX_AUTHFIRE, 1);
 }
@@ -114,7 +122,7 @@ void hdmitx_hdcp_Auth_Fire(void)
 void hdmitx_hdcp_StartAnCipher(void)
 {
 	HDMITX_WriteI2C_Byte(REG_TX_AN_GENERATE, B_TX_START_CIPHER_GEN);
-	delay1ms(1);		/* delay 1 ms */
+	delay1ms(1); /* delay 1 ms */
 }
 
 /* //////////////////////////////////////////////////////////////////// */
@@ -184,9 +192,10 @@ SYS_STATUS hdmitx_hdcp_GetBCaps(unsigned char *pBCaps, unsigned short *pBStatus)
 	unsigned char TimeOut;
 
 	Switch_HDMITX_Bank(0);
-	HDMITX_WriteI2C_Byte(REG_TX_DDC_MASTER_CTRL, B_TX_MASTERDDC | B_TX_MASTERHOST);
+	HDMITX_WriteI2C_Byte(REG_TX_DDC_MASTER_CTRL,
+			     B_TX_MASTERDDC | B_TX_MASTERHOST);
 	HDMITX_WriteI2C_Byte(REG_TX_DDC_HEADER, DDC_HDCP_ADDRESS);
-	HDMITX_WriteI2C_Byte(REG_TX_DDC_REQOFF, 0x40);	/* BCaps offset */
+	HDMITX_WriteI2C_Byte(REG_TX_DDC_REQOFF, 0x40); /* BCaps offset */
 	HDMITX_WriteI2C_Byte(REG_TX_DDC_REQCOUNT, 3);
 	HDMITX_WriteI2C_Byte(REG_TX_DDC_CMD, CMD_DDC_SEQ_BURSTREAD);
 
@@ -196,11 +205,15 @@ SYS_STATUS hdmitx_hdcp_GetBCaps(unsigned char *pBCaps, unsigned short *pBStatus)
 		ucdata = HDMITX_ReadI2C_Byte(REG_TX_DDC_STATUS);
 
 		if (ucdata & B_TX_DDC_DONE) {
-			/* HDCP_DEBUG_PRINTF(("hdmitx_hdcp_GetBCaps(): DDC Done.\n")); */
+			/* HDCP_DEBUG_PRINTF(("hdmitx_hdcp_GetBCaps(): DDC
+			 * Done.\n"));
+			 */
 			break;
 		}
 		if (ucdata & B_TX_DDC_ERROR) {
-/* HDCP_DEBUG_PRINTF(("hdmitx_hdcp_GetBCaps(): DDC fail by reg16=%02X.\n",ucdata)); */
+			/* HDCP_DEBUG_PRINTF(("hdmitx_hdcp_GetBCaps(): DDC fail
+			 * by reg16=%02X.\n",ucdata));
+			 */
 			return ER_FAIL;
 		}
 	}
@@ -218,7 +231,7 @@ SYS_STATUS hdmitx_hdcp_GetBCaps(unsigned char *pBCaps, unsigned short *pBStatus)
 	*pBCaps = HDMITX_ReadI2C_Byte(0x17);
 	*pBStatus = HDMITX_ReadI2C_Byte(0x17) & 0xFF;
 	*pBStatus |= (int)(HDMITX_ReadI2C_Byte(0x17) & 0xFF) << 8;
-	HDCP_DEBUG_PRINTF("hdmitx_hdcp_GetBCaps(): ucdata = %02X\n",
+	HDCP_DEBUG_PRINTF("%s(): ucdata = %02X\n", __func__,
 			  (int)HDMITX_ReadI2C_Byte(0x16));
 #endif
 	return ER_SUCCESS;
@@ -227,7 +240,7 @@ SYS_STATUS hdmitx_hdcp_GetBCaps(unsigned char *pBCaps, unsigned short *pBStatus)
 /* //////////////////////////////////////////////////////////////////// */
 /* Function: hdmitx_hdcp_GetBKSV */
 /* Parameter: pBKSV - pointer of 5 bytes buffer for getting BKSV */
-/* Return: ER_SUCCESS if successfuly got BKSV from Rx. */
+/* Return: ER_SUCCESS if successfully got BKSV from Rx. */
 /* Remark: Get BKSV from HDCP receiver. */
 /* Side-Effect: N/A */
 /* //////////////////////////////////////////////////////////////////// */
@@ -238,9 +251,10 @@ SYS_STATUS hdmitx_hdcp_GetBKSV(unsigned char *pBKSV)
 	unsigned char TimeOut;
 
 	Switch_HDMITX_Bank(0);
-	HDMITX_WriteI2C_Byte(REG_TX_DDC_MASTER_CTRL, B_TX_MASTERDDC | B_TX_MASTERHOST);
+	HDMITX_WriteI2C_Byte(REG_TX_DDC_MASTER_CTRL,
+			     B_TX_MASTERDDC | B_TX_MASTERHOST);
 	HDMITX_WriteI2C_Byte(REG_TX_DDC_HEADER, DDC_HDCP_ADDRESS);
-	HDMITX_WriteI2C_Byte(REG_TX_DDC_REQOFF, 0x00);	/* BKSV offset */
+	HDMITX_WriteI2C_Byte(REG_TX_DDC_REQOFF, 0x00); /* BKSV offset */
 	HDMITX_WriteI2C_Byte(REG_TX_DDC_REQCOUNT, 5);
 	HDMITX_WriteI2C_Byte(REG_TX_DDC_CMD, CMD_DDC_SEQ_BURSTREAD);
 
@@ -249,19 +263,20 @@ SYS_STATUS hdmitx_hdcp_GetBKSV(unsigned char *pBKSV)
 
 		ucdata = HDMITX_ReadI2C_Byte(REG_TX_DDC_STATUS);
 		if (ucdata & B_TX_DDC_DONE) {
-			HDCP_DEBUG_PRINTF("hdmitx_hdcp_GetBCaps(): DDC Done.\n");
+			HDCP_DEBUG_PRINTF(
+				"hdmitx_hdcp_GetBCaps(): DDC Done.\n");
 			break;
 		}
 		if (ucdata & B_TX_DDC_ERROR) {
-			HDCP_DEBUG_PRINTF
-			    ("hdmitx_hdcp_GetBCaps(): DDC No ack or arbilose,%x,maybe cable did not connected. Fail.\n",
-			     ucdata);
+			HDCP_DEBUG_PRINTF(
+				"hdmitx_hdcp_GetBCaps(): DDC No ack or arbilose,%x,maybe cable did not connected. Fail.\n",
+				ucdata);
 			return ER_FAIL;
 		}
 	}
 	if (TimeOut == 0)
 		return ER_FAIL;
-	HDMITX_ReadI2C_ByteN(REG_TX_BKSV, (unsigned char *) pBKSV, 5);
+	HDMITX_ReadI2C_ByteN(REG_TX_BKSV, (unsigned char *)pBKSV, 5);
 
 	return ER_SUCCESS;
 }
@@ -272,7 +287,9 @@ SYS_STATUS hdmitx_hdcp_GetBKSV(unsigned char *pBKSV)
 /* Return: ER_SUCCESS if Authenticated without error. */
 /* Remark: do Authentication with Rx */
 /* Side-Effect: */
-/* 1. hdmiTxDev[0].bAuthenticated global variable will be TRUE when authenticated. */
+/* 1. hdmiTxDev[0].bAuthenticated global variable will be TRUE when
+ * authenticated.
+ */
 /* 2. Auth_done interrupt and AUTH_FAIL interrupt will be enabled. */
 /* //////////////////////////////////////////////////////////////////// */
 static unsigned char countbit(unsigned char b)
@@ -315,7 +332,7 @@ SYS_STATUS hdmitx_hdcp_Authenticate(void)
 
 	/* Authenticate should be called after AFE setup up. */
 
-	HDCP_DEBUG_PRINTF("hdmitx_hdcp_Authenticate():\n");
+	HDCP_DEBUG_PRINTF("%s():\n", __func__);
 	hdmitx_hdcp_Reset();
 
 	Switch_HDMITX_Bank(0);
@@ -327,27 +344,35 @@ SYS_STATUS hdmitx_hdcp_Authenticate(void)
 			HDCP_DEBUG_PRINTF("hdmitx_hdcp_GetBCaps fail.\n");
 			return ER_FAIL;
 		}
-		/* HDCP_DEBUG_PRINTF(("(%d)Reg16 = %02X\n",idx++,(int)HDMITX_ReadI2C_Byte(0x16))); */
+		/* HDCP_DEBUG_PRINTF(("(%d)Reg16 =
+		 * %02X\n",idx++,(int)HDMITX_ReadI2C_Byte(0x16)));
+		 */
 
-		if (B_TX_HDMI_MODE == (HDMITX_ReadI2C_Byte(REG_TX_HDMI_MODE) & B_TX_HDMI_MODE)) {
-			if ((BStatus & B_TX_CAP_HDMI_MODE) == B_TX_CAP_HDMI_MODE)
+		if (B_TX_HDMI_MODE ==
+		    (HDMITX_ReadI2C_Byte(REG_TX_HDMI_MODE) & B_TX_HDMI_MODE)) {
+			if ((BStatus & B_TX_CAP_HDMI_MODE) ==
+			    B_TX_CAP_HDMI_MODE)
 				break;
 		} else {
-			if ((BStatus & B_TX_CAP_HDMI_MODE) != B_TX_CAP_HDMI_MODE)
+			if ((BStatus & B_TX_CAP_HDMI_MODE) !=
+			    B_TX_CAP_HDMI_MODE)
 				break;
 		}
 	}
 	/*   if((BStatus & M_TX_DOWNSTREAM_COUNT)> 6)*/
 	/*   {*/
-	/*   HDCP_DEBUG_PRINTF(("Down Stream Count %d is over maximum supported number 6,fail.\n",*/
+	/*   HDCP_DEBUG_PRINTF(("Down Stream Count %d is over maximum supported
+	 * number 6,fail.\n",
+	 */
 	/*	(int)(BStatus & M_TX_DOWNSTREAM_COUNT)));*/
 	/*   return ER_FAIL ;*/
 	/*   }*/
 
 	HDCP_DEBUG_PRINTF("BCAPS = %02X BSTATUS = %04X\n", (int)BCaps, BStatus);
 	hdmitx_hdcp_GetBKSV(BKSV);
-	HDCP_DEBUG_PRINTF("BKSV %02X %02X %02X %02X %02X\n", (int)BKSV[0], (int)BKSV[1],
-			  (int)BKSV[2], (int)BKSV[3], (int)BKSV[4]);
+	HDCP_DEBUG_PRINTF("BKSV %02X %02X %02X %02X %02X\n", (int)BKSV[0],
+			  (int)BKSV[1], (int)BKSV[2], (int)BKSV[3],
+			  (int)BKSV[4]);
 
 	for (TimeOut = 0, ucdata = 0; TimeOut < 5; TimeOut++)
 		ucdata += countbit(BKSV[TimeOut]);
@@ -355,10 +380,11 @@ SYS_STATUS hdmitx_hdcp_Authenticate(void)
 	if (ucdata != 20) {
 		HDCP_DEBUG_PRINTF("countbit error\n");
 		return ER_FAIL;
-
 	}
 	Switch_HDMITX_Bank(0);
-	/* switch bank action should start on direct register writing of each function. */
+	/* switch bank action should start on direct register writing of each
+	 * function.
+	 */
 
 	HDMITX_AndReg_Byte(REG_TX_SW_RST, ~(B_TX_HDCP_RST_HDMITX));
 
@@ -376,7 +402,7 @@ SYS_STATUS hdmitx_hdcp_Authenticate(void)
 		/* wait for status ; */
 
 		for (TimeOut = 250; TimeOut > 0; TimeOut--) {
-			delay1ms(5);	/* delay 1ms */
+			delay1ms(5); /* delay 1ms */
 			ucdata = HDMITX_ReadI2C_Byte(REG_TX_AUTH_STAT);
 			/* HDCP_DEBUG_PRINTF("reg46 = %02x reg16 = %02x\n",*/
 			/* (int)ucdata,(int)HDMITX_ReadI2C_Byte(0x16)); */
@@ -388,20 +414,24 @@ SYS_STATUS hdmitx_hdcp_Authenticate(void)
 			ucdata = HDMITX_ReadI2C_Byte(REG_TX_INT_STAT2);
 			if (ucdata & B_TX_INT_AUTH_FAIL) {
 
-				HDMITX_WriteI2C_Byte(REG_TX_INT_CLR0, B_TX_CLR_AUTH_FAIL);
+				HDMITX_WriteI2C_Byte(REG_TX_INT_CLR0,
+						     B_TX_CLR_AUTH_FAIL);
 				HDMITX_WriteI2C_Byte(REG_TX_INT_CLR1, 0);
-				HDMITX_WriteI2C_Byte(REG_TX_SYS_STATUS, B_TX_INTACTDONE);
+				HDMITX_WriteI2C_Byte(REG_TX_SYS_STATUS,
+						     B_TX_INTACTDONE);
 				HDMITX_WriteI2C_Byte(REG_TX_SYS_STATUS, 0);
 
-				HDCP_DEBUG_PRINTF
-				    ("hdmitx_hdcp_Authenticate()-receiver: Authenticate fail\n");
+				HDCP_DEBUG_PRINTF(
+					"%s()-receiver: Authenticate fail\n",
+					__func__);
 				hdmiTxDev[0].bAuthenticated = FALSE;
 				return ER_FAIL;
 			}
 		}
 		if (TimeOut == 0) {
-			HDCP_DEBUG_PRINTF
-			    ("hdmitx_hdcp_Authenticate()-receiver: Time out. return fail\n");
+			HDCP_DEBUG_PRINTF(
+				"%s()-receiver: Time out. return fail\n",
+				__func__);
 			hdmiTxDev[0].bAuthenticated = FALSE;
 			return ER_FAIL;
 		}
@@ -420,7 +450,9 @@ SYS_STATUS hdmitx_hdcp_Authenticate(void)
 
 SYS_STATUS hdmitx_hdcp_VerifyIntegration(void)
 {
-	/* if any interrupt issued a Auth fail,returned the Verify Integration fail. */
+	/* if any interrupt issued a Auth fail,returned the Verify Integration
+	 * fail.
+	 */
 
 	if (HDMITX_ReadI2C_Byte(REG_TX_INT_STAT1) & B_TX_INT_AUTH_FAIL) {
 		hdmitx_hdcp_ClearAuthInterrupt();
@@ -444,7 +476,8 @@ SYS_STATUS hdmitx_hdcp_VerifyIntegration(void)
 void hdmitx_hdcp_CancelRepeaterAuthenticate(void)
 {
 	HDCP_DEBUG_PRINTF("hdmitx_hdcp_CancelRepeaterAuthenticate");
-	HDMITX_WriteI2C_Byte(REG_TX_DDC_MASTER_CTRL, B_TX_MASTERDDC | B_TX_MASTERHOST);
+	HDMITX_WriteI2C_Byte(REG_TX_DDC_MASTER_CTRL,
+			     B_TX_MASTERDDC | B_TX_MASTERHOST);
 	hdmitx_AbortDDC();
 	HDMITX_WriteI2C_Byte(REG_TX_LISTCTRL, B_TX_LISTFAIL | B_TX_LISTDONE);
 	hdmitx_hdcp_ClearAuthInterrupt();
@@ -456,7 +489,7 @@ void hdmitx_hdcp_ResumeRepeaterAuthenticate(void)
 	HDMITX_WriteI2C_Byte(REG_TX_DDC_MASTER_CTRL, B_TX_MASTERHDCP);
 }
 
-#if 0				/* def SUPPORT_SHA */
+#if 0  /* def SUPPORT_SHA */
 /* #define SHA_BUFF_COUNT 17 */
 /* ULONG w[SHA_BUFF_COUNT]; */
 /*  */
@@ -490,9 +523,12 @@ void hdmitx_hdcp_ResumeRepeaterAuthenticate(void)
 /* } */
 /*  */
 /* if((t>=0)&&(t<20)) { */
-/* tmp = rol(h[0],5) + ((h[1] & h[2]) | (h[3] & ~h[1])) + h[4] + w[t%SHA_BUFF_COUNT] + 0x5a827999; */
-/* //HDCP_DEBUG_PRINTF(("%08lX %08lX %08lX %08lX %08lX\n",h[0],h[1],h[2],h[3],h[4])); */
-/*  */
+/* tmp = rol(h[0],5) + ((h[1] & h[2]) | (h[3] & ~h[1])) + h[4] +
+ * w[t%SHA_BUFF_COUNT] + 0x5a827999;
+ */
+/* HDCP_DEBUG_PRINTF(("%08lX %08lX %08lX %08lX %08lX\n",
+ * h[0],h[1],h[2],h[3],h[4]));
+ */
 /* h[4] = h[3]; */
 /* h[3] = h[2]; */
 /* h[2] = rol(h[1],30); */
@@ -501,8 +537,12 @@ void hdmitx_hdcp_ResumeRepeaterAuthenticate(void)
 /*  */
 /* } */
 /* if((t>=20)&&(t<40)) { */
-/* tmp = rol(h[0],5) + (h[1] ^ h[2] ^ h[3]) + h[4] + w[t%SHA_BUFF_COUNT] + 0x6ed9eba1; */
-/* //HDCP_DEBUG_PRINTF(("%08lX %08lX %08lX %08lX %08lX\n",h[0],h[1],h[2],h[3],h[4])); */
+/* tmp = rol(h[0],5) + (h[1] ^ h[2] ^ h[3]) + h[4] +
+ * w[t%SHA_BUFF_COUNT] + 0x6ed9eba1;
+ */
+/* HDCP_DEBUG_PRINTF(("%08lX %08lX %08lX %08lX %08lX\n",
+ * h[0],h[1],h[2],h[3],h[4]));
+ */
 /* h[4] = h[3]; */
 /* h[3] = h[2]; */
 /* h[2] = rol(h[1],30); */
@@ -510,9 +550,13 @@ void hdmitx_hdcp_ResumeRepeaterAuthenticate(void)
 /* h[0] = tmp; */
 /* } */
 /* if((t>=40)&&(t<60)) { */
-/* tmp = rol(h[0], 5) + ((h[1] & h[2]) | (h[1] & h[3]) | (h[2] & h[3])) + h[4] + w[t%SHA_BUFF_COUNT] + */
-/* 0x8f1bbcdc; */
-/* //HDCP_DEBUG_PRINTF(("%08lX %08lX %08lX %08lX %08lX\n",h[0],h[1],h[2],h[3],h[4])); */
+/* tmp = rol(h[0], 5) + ((h[1] & h[2]) |
+ * (h[1] & h[3]) | (h[2] & h[3])) + h[4] +
+ * w[t%SHA_BUFF_COUNT] + 0x8f1bbcdc;
+ */
+/* //HDCP_DEBUG_PRINTF(("%08lX %08lX %08lX %08lX %08lX\n",
+ * h[0],h[1],h[2],h[3],h[4]));
+ */
 /* h[4] = h[3]; */
 /* h[3] = h[2]; */
 /* h[2] = rol(h[1],30); */
@@ -520,8 +564,12 @@ void hdmitx_hdcp_ResumeRepeaterAuthenticate(void)
 /* h[0] = tmp; */
 /* } */
 /* if((t>=60)&&(t<80)) { */
-/* tmp = rol(h[0],5) + (h[1] ^ h[2] ^ h[3]) + h[4] + w[t%SHA_BUFF_COUNT] + 0xca62c1d6; */
-/* //HDCP_DEBUG_PRINTF(("%08lX %08lX %08lX %08lX %08lX\n",h[0],h[1],h[2],h[3],h[4])); */
+/* tmp = rol(h[0],5) + (h[1] ^ h[2] ^ h[3]) + h[4] +
+ * w[t%SHA_BUFF_COUNT] + 0xca62c1d6;
+ */
+/* HDCP_DEBUG_PRINTF(("%08lX %08lX %08lX %08lX %08lX\n",
+ * h[0],h[1],h[2],h[3],h[4]));
+ */
 /* h[4] = h[3]; */
 /* h[3] = h[2]; */
 /* h[2] = rol(h[1],30); */
@@ -529,14 +577,18 @@ void hdmitx_hdcp_ResumeRepeaterAuthenticate(void)
 /* h[0] = tmp; */
 /* } */
 /* } */
-/* HDCP_DEBUG_PRINTF(("%08lX %08lX %08lX %08lX %08lX\n",h[0],h[1],h[2],h[3],h[4])); */
-/*  */
+/* HDCP_DEBUG_PRINTF(("%08lX %08lX %08lX %08lX %08lX\n",
+ * h[0],h[1],h[2],h[3],h[4]));
+ */
+
 /* h[0] += 0x67452301 ; */
 /* h[1] += 0xefcdab89; */
 /* h[2] += 0x98badcfe; */
 /* h[3] += 0x10325476; */
 /* h[4] += 0xc3d2e1f0; */
-/* //    HDCP_DEBUG_PRINTF(("%08lX %08lX %08lX %08lX %08lX\n",h[0],h[1],h[2],h[3],h[4])); */
+/* //    HDCP_DEBUG_PRINTF(("%08lX %08lX %08lX %08lX %08lX\n",
+ * h[0],h[1],h[2],h[3],h[4]));
+ */
 /* } */
 /*  */
 /*  ---------------------------------------------------------------------- */
@@ -580,7 +632,9 @@ void hdmitx_hdcp_ResumeRepeaterAuthenticate(void)
 /* c &= 0xFF ; */
 /* c <<= (3-(i%4))*8 ; */
 /* w[t] |= c ; */
-/* //        HDCP_DEBUG_PRINTF(("pBuff[%d] = %02x, c = %08lX, w[%d] = %08lX\n",i,pBuff[i],c,t,w[t])); */
+/* //        HDCP_DEBUG_PRINTF(("pBuff[%d] = %02x, c = %08lX,
+ * w[%d] = %08lX\n",i,pBuff[i],c,t,w[t]));
+ */
 /* } */
 /*  */
 /* t = i/4 ; */
@@ -614,12 +668,13 @@ void hdmitx_hdcp_ResumeRepeaterAuthenticate(void)
 /* output[i*4+3]   = (unsigned char)((sha[i]>>24)&0xFF); */
 /* } */
 /* } */
-#endif				/* 0 */
+#endif /* 0 */
 
 #ifdef SUPPORT_SHA
 
-SYS_STATUS hdmitx_hdcp_CheckSHA(unsigned char pM0[], unsigned short BStatus, unsigned char pKSVList[],
-				int cDownStream, unsigned char Vr[])
+SYS_STATUS hdmitx_hdcp_CheckSHA(unsigned char pM0[], unsigned short BStatus,
+				unsigned char pKSVList[], int cDownStream,
+				unsigned char Vr[])
 {
 	int i, n;
 
@@ -641,18 +696,18 @@ SYS_STATUS hdmitx_hdcp_CheckSHA(unsigned char pM0[], unsigned short BStatus, uns
 	/* SHABuff[62] = (n>>8) & 0xff ; */
 	/* SHABuff[63] = (n>>8) & 0xff ; */
 
-/*  for(i = 0 ; i < 64 ; i++)*/
-/*  {*/
-/*	if(i % 16 == 0)*/
-/*	{*/
-/*	    HDCP_DEBUG_PRINTF(("SHA[]: "));*/
-/*	}*/
-/*	HDCP_DEBUG_PRINTF((" %02X",SHABuff[i]));*/
-/*	if((i%16)==15)*/
-/*	{*/
-/*	    HDCP_DEBUG_PRINTF(("\n"));*/
-/*	}*/
-/*    }*/
+	/*  for(i = 0 ; i < 64 ; i++)*/
+	/*  {*/
+	/*	if(i % 16 == 0)*/
+	/*	{*/
+	/*	    HDCP_DEBUG_PRINTF(("SHA[]: "));*/
+	/*	}*/
+	/*	HDCP_DEBUG_PRINTF((" %02X",SHABuff[i]));*/
+	/*	if((i%16)==15)*/
+	/*	{*/
+	/*	    HDCP_DEBUG_PRINTF(("\n"));*/
+	/*	}*/
+	/*    }*/
 
 	SHA_Simple(SHABuff, n, V);
 	for (i = 0; i < 20; i++) {
@@ -671,9 +726,10 @@ SYS_STATUS hdmitx_hdcp_CheckSHA(unsigned char pM0[], unsigned short BStatus, uns
 	return ER_SUCCESS;
 }
 
-#endif				/* SUPPORT_SHA */
+#endif /* SUPPORT_SHA */
 
-SYS_STATUS hdmitx_hdcp_GetKSVList(unsigned char *pKSVList, unsigned char cDownStream)
+SYS_STATUS hdmitx_hdcp_GetKSVList(unsigned char *pKSVList,
+				  unsigned char cDownStream)
 {
 	unsigned char TimeOut = 100;
 	unsigned char ucdata;
@@ -694,13 +750,14 @@ SYS_STATUS hdmitx_hdcp_GetKSVList(unsigned char *pKSVList, unsigned char cDownSt
 
 		ucdata = HDMITX_ReadI2C_Byte(REG_TX_DDC_STATUS);
 		if (ucdata & B_TX_DDC_DONE) {
-			HDCP_DEBUG_PRINTF("hdmitx_hdcp_GetKSVList(): DDC Done.\n");
+			HDCP_DEBUG_PRINTF(
+				"%s(): DDC Done.\n", __func__);
 			break;
 		}
 		if (ucdata & B_TX_DDC_ERROR) {
-			HDCP_DEBUG_PRINTF
-			    ("hdmitx_hdcp_GetKSVList(): DDC Fail by REG_TX_DDC_STATUS = %x.\n",
-			     ucdata);
+			HDCP_DEBUG_PRINTF(
+				"%s(): DDC Fail by REG_TX_DDC_STATUS = %x.\n",
+				__func__, ucdata);
 			return ER_FAIL;
 		}
 		delay1ms(5);
@@ -708,7 +765,7 @@ SYS_STATUS hdmitx_hdcp_GetKSVList(unsigned char *pKSVList, unsigned char cDownSt
 	if (TimeOut == 0)
 		return ER_FAIL;
 
-	HDCP_DEBUG_PRINTF("hdmitx_hdcp_GetKSVList(): KSV");
+	HDCP_DEBUG_PRINTF("%s(): KSV", __func__);
 	for (TimeOut = 0; TimeOut < cDownStream * 5; TimeOut++) {
 		pKSVList[TimeOut] = HDMITX_ReadI2C_Byte(REG_TX_DDC_READFIFO);
 		HDCP_DEBUG_PRINTF(" %02X", (int)pKSVList[TimeOut]);
@@ -734,31 +791,38 @@ SYS_STATUS hdmitx_hdcp_GetVr(unsigned char *pVr)
 	for (TimeOut = 200; TimeOut > 0; TimeOut--) {
 		ucdata = HDMITX_ReadI2C_Byte(REG_TX_DDC_STATUS);
 		if (ucdata & B_TX_DDC_DONE) {
-			HDCP_DEBUG_PRINTF("hdmitx_hdcp_GetVr(): DDC Done.\n");
+			HDCP_DEBUG_PRINTF("%s(): DDC Done.\n", __func__);
 			break;
 		}
 		if (ucdata & B_TX_DDC_ERROR) {
-			HDCP_DEBUG_PRINTF
-			    ("hdmitx_hdcp_GetVr(): DDC fail by REG_TX_DDC_STATUS = %x.\n",
-			     (int)ucdata);
+			HDCP_DEBUG_PRINTF(
+				"%s(): DDC fail by REG_TX_DDC_STATUS = %x.\n",
+				__func__, (int)ucdata);
 			return ER_FAIL;
 		}
 		delay1ms(5);
 	}
 	if (TimeOut == 0) {
-		HDCP_DEBUG_PRINTF("hdmitx_hdcp_GetVr(): DDC fail by timeout.\n");
+		HDCP_DEBUG_PRINTF(
+			"%s(): DDC fail by timeout.\n", __func__);
 		return ER_FAIL;
 	}
 	Switch_HDMITX_Bank(0);
 
 	for (TimeOut = 0; TimeOut < 5; TimeOut++) {
 		HDMITX_WriteI2C_Byte(REG_TX_SHA_SEL, TimeOut);
-		pVr[TimeOut * 4] = (ULONG) HDMITX_ReadI2C_Byte(REG_TX_SHA_RD_BYTE1);
-		pVr[TimeOut * 4 + 1] = (ULONG) HDMITX_ReadI2C_Byte(REG_TX_SHA_RD_BYTE2);
-		pVr[TimeOut * 4 + 2] = (ULONG) HDMITX_ReadI2C_Byte(REG_TX_SHA_RD_BYTE3);
-		pVr[TimeOut * 4 + 3] = (ULONG) HDMITX_ReadI2C_Byte(REG_TX_SHA_RD_BYTE4);
-/* HDCP_DEBUG_PRINTF(("V' = %02X %02X %02X %02X\n",*/
-/*(int)pVr[TimeOut*4],(int)pVr[TimeOut*4+1],(int)pVr[TimeOut*4+2],(int)pVr[TimeOut*4+3])); */
+		pVr[TimeOut * 4] =
+			(ULONG)HDMITX_ReadI2C_Byte(REG_TX_SHA_RD_BYTE1);
+		pVr[TimeOut * 4 + 1] =
+			(ULONG)HDMITX_ReadI2C_Byte(REG_TX_SHA_RD_BYTE2);
+		pVr[TimeOut * 4 + 2] =
+			(ULONG)HDMITX_ReadI2C_Byte(REG_TX_SHA_RD_BYTE3);
+		pVr[TimeOut * 4 + 3] =
+			(ULONG)HDMITX_ReadI2C_Byte(REG_TX_SHA_RD_BYTE4);
+		/* HDCP_DEBUG_PRINTF(("V' = %02X %02X %02X %02X\n",*/
+		/* (int)pVr[TimeOut*4],(int)pVr[TimeOut*4+1],
+		 * (int)pVr[TimeOut*4+2],(int)pVr[TimeOut*4+3]));
+		 */
 	}
 	return ER_SUCCESS;
 }
@@ -770,18 +834,19 @@ SYS_STATUS hdmitx_hdcp_GetM0(unsigned char *pM0)
 	if (!pM0)
 		return ER_FAIL;
 
-	HDMITX_WriteI2C_Byte(REG_TX_SHA_SEL, 5);	/* read m0[31:0] from reg51~reg54 */
+	HDMITX_WriteI2C_Byte(REG_TX_SHA_SEL,
+			     5); /* read m0[31:0] from reg51~reg54 */
 	pM0[0] = HDMITX_ReadI2C_Byte(REG_TX_SHA_RD_BYTE1);
 	pM0[1] = HDMITX_ReadI2C_Byte(REG_TX_SHA_RD_BYTE2);
 	pM0[2] = HDMITX_ReadI2C_Byte(REG_TX_SHA_RD_BYTE3);
 	pM0[3] = HDMITX_ReadI2C_Byte(REG_TX_SHA_RD_BYTE4);
-	HDMITX_WriteI2C_Byte(REG_TX_SHA_SEL, 0);	/* read m0[39:32] from reg55 */
+	HDMITX_WriteI2C_Byte(REG_TX_SHA_SEL, 0); /* read m0[39:32] from reg55 */
 	pM0[4] = HDMITX_ReadI2C_Byte(REG_TX_AKSV_RD_BYTE5);
-	HDMITX_WriteI2C_Byte(REG_TX_SHA_SEL, 1);	/* read m0[47:40] from reg55 */
+	HDMITX_WriteI2C_Byte(REG_TX_SHA_SEL, 1); /* read m0[47:40] from reg55 */
 	pM0[5] = HDMITX_ReadI2C_Byte(REG_TX_AKSV_RD_BYTE5);
-	HDMITX_WriteI2C_Byte(REG_TX_SHA_SEL, 2);	/* read m0[55:48] from reg55 */
+	HDMITX_WriteI2C_Byte(REG_TX_SHA_SEL, 2); /* read m0[55:48] from reg55 */
 	pM0[6] = HDMITX_ReadI2C_Byte(REG_TX_AKSV_RD_BYTE5);
-	HDMITX_WriteI2C_Byte(REG_TX_SHA_SEL, 3);	/* read m0[63:56] from reg55 */
+	HDMITX_WriteI2C_Byte(REG_TX_SHA_SEL, 3); /* read m0[63:56] from reg55 */
 	pM0[7] = HDMITX_ReadI2C_Byte(REG_TX_AKSV_RD_BYTE5);
 
 	HDCP_DEBUG_PRINTF("M[] =");
@@ -826,7 +891,8 @@ SYS_STATUS hdmitx_hdcp_Authenticate_Repeater(void)
 
 	hdmitx_hdcp_GetBCaps(&BCaps, &BStatus);
 	delay1ms(2);
-	if ((B_TX_INT_HPD_PLUG | B_TX_INT_RX_SENSE) & HDMITX_ReadI2C_Byte(REG_TX_INT_STAT1)) {
+	if ((B_TX_INT_HPD_PLUG | B_TX_INT_RX_SENSE) &
+	    HDMITX_ReadI2C_Byte(REG_TX_INT_STAT1)) {
 		HDCP_DEBUG_PRINTF("HPD Before Fire Auth\n");
 		goto hdmitx_hdcp_Repeater_Fail;
 	}
@@ -834,14 +900,16 @@ SYS_STATUS hdmitx_hdcp_Authenticate_Repeater(void)
 	/* delay1ms(550); // emily add for test */
 	for (ii = 0; ii < 55; ii++) {
 		/* delay1ms(550); // emily add for test */
-		if ((B_TX_INT_HPD_PLUG | B_TX_INT_RX_SENSE) & HDMITX_ReadI2C_Byte(REG_TX_INT_STAT1))
+		if ((B_TX_INT_HPD_PLUG | B_TX_INT_RX_SENSE) &
+		    HDMITX_ReadI2C_Byte(REG_TX_INT_STAT1))
 			goto hdmitx_hdcp_Repeater_Fail;
 
 		delay1ms(10);
 	}
 	for (TimeOut = /*250*6 */ 10; TimeOut > 0; TimeOut--) {
 		HDCP_DEBUG_PRINTF("TimeOut = %d wait part 1\n", TimeOut);
-		if ((B_TX_INT_HPD_PLUG | B_TX_INT_RX_SENSE) & HDMITX_ReadI2C_Byte(REG_TX_INT_STAT1)) {
+		if ((B_TX_INT_HPD_PLUG | B_TX_INT_RX_SENSE) &
+		    HDMITX_ReadI2C_Byte(REG_TX_INT_STAT1)) {
 			HDCP_DEBUG_PRINTF("HPD at wait part 1\n");
 			goto hdmitx_hdcp_Repeater_Fail;
 		}
@@ -853,21 +921,27 @@ SYS_STATUS hdmitx_hdcp_Authenticate_Repeater(void)
 		uc = HDMITX_ReadI2C_Byte(REG_TX_INT_STAT2);
 
 		if (uc & B_TX_INT_AUTH_FAIL) {
-			/*   HDMITX_WriteI2C_Byte(REG_TX_INT_CLR0,B_TX_CLR_AUTH_FAIL);*/
-			/*   HDMITX_WriteI2C_Byte(REG_TX_INT_CLR1,0);*/
-			/*   HDMITX_WriteI2C_Byte(REG_TX_SYS_STATUS,B_TX_INTACTDONE);*/
-			/*   HDMITX_WriteI2C_Byte(REG_TX_SYS_STATUS,0);*/
+			/* HDMITX_WriteI2C_Byte(REG_TX_INT_CLR0,
+			 * B_TX_CLR_AUTH_FAIL);
+			 */
+			/* HDMITX_WriteI2C_Byte(REG_TX_INT_CLR1,0);*/
+			/* HDMITX_WriteI2C_Byte(REG_TX_SYS_STATUS,
+			 * B_TX_INTACTDONE);
+			 */
+			/* HDMITX_WriteI2C_Byte(REG_TX_SYS_STATUS,0);*/
 
-			HDCP_DEBUG_PRINTF
-			    ("hdmitx_hdcp_Authenticate_Repeater(): B_TX_INT_AUTH_FAIL.\n");
+			HDCP_DEBUG_PRINTF(
+				"%s(): B_TX_INT_AUTH_FAIL.\n", __func__);
 			goto hdmitx_hdcp_Repeater_Fail;
 		}
 		/* emily add for test */
 		/* test =(HDMITX_ReadI2C_Byte(0x7)&0x4)>>2 ; */
 		if (uc & B_TX_INT_KSVLIST_CHK) {
-			HDMITX_WriteI2C_Byte(REG_TX_INT_CLR0, B_TX_CLR_KSVLISTCHK);
+			HDMITX_WriteI2C_Byte(REG_TX_INT_CLR0,
+				B_TX_CLR_KSVLISTCHK);
 			HDMITX_WriteI2C_Byte(REG_TX_INT_CLR1, 0);
-			HDMITX_WriteI2C_Byte(REG_TX_SYS_STATUS, B_TX_INTACTDONE);
+			HDMITX_WriteI2C_Byte(REG_TX_SYS_STATUS,
+				B_TX_INTACTDONE);
 			HDMITX_WriteI2C_Byte(REG_TX_SYS_STATUS, 0);
 			HDCP_DEBUG_PRINTF("B_TX_INT_KSVLIST_CHK\n");
 			break;
@@ -875,7 +949,8 @@ SYS_STATUS hdmitx_hdcp_Authenticate_Repeater(void)
 		delay1ms(5);
 	}
 	if (TimeOut == 0) {
-		HDCP_DEBUG_PRINTF("Time out for wait KSV List checking interrupt\n");
+		HDCP_DEBUG_PRINTF(
+			"Time out for wait KSV List checking interrupt\n");
 		goto hdmitx_hdcp_Repeater_Fail;
 	}
 	/* ///////////////////////////////////// */
@@ -884,7 +959,8 @@ SYS_STATUS hdmitx_hdcp_Authenticate_Repeater(void)
 
 	for (TimeOut = 500; TimeOut > 0; TimeOut--) {
 		HDCP_DEBUG_PRINTF("TimeOut=%d at wait FIFO ready\n", TimeOut);
-		if ((B_TX_INT_HPD_PLUG | B_TX_INT_RX_SENSE) & HDMITX_ReadI2C_Byte(REG_TX_INT_STAT1)) {
+		if ((B_TX_INT_HPD_PLUG | B_TX_INT_RX_SENSE) &
+		    HDMITX_ReadI2C_Byte(REG_TX_INT_STAT1)) {
 			HDCP_DEBUG_PRINTF("HPD at wait FIFO ready\n");
 			goto hdmitx_hdcp_Repeater_Fail;
 		}
@@ -897,7 +973,6 @@ SYS_STATUS hdmitx_hdcp_Authenticate_Repeater(void)
 			break;
 		}
 		delay1ms(5);
-
 	}
 	if (TimeOut == 0) {
 		HDCP_DEBUG_PRINTF("Get KSV FIFO ready TimeOut\n");
@@ -909,8 +984,8 @@ SYS_STATUS hdmitx_hdcp_Authenticate_Repeater(void)
 	hdmitx_GenerateDDCSCLK();
 	cDownStream = (BStatus & M_TX_DOWNSTREAM_COUNT);
 
-	if (/*cDownStream == 0 || */ cDownStream > 6
-	    || BStatus & (B_TX_MAX_CASCADE_EXCEEDED | B_TX_DOWNSTREAM_OVER)) {
+	if (/*cDownStream == 0 || */ cDownStream > 6 ||
+	    BStatus & (B_TX_MAX_CASCADE_EXCEEDED | B_TX_DOWNSTREAM_OVER)) {
 		HDCP_DEBUG_PRINTF("Invalid Down stream count,fail\n");
 		goto hdmitx_hdcp_Repeater_Fail;
 	}
@@ -945,14 +1020,16 @@ SYS_STATUS hdmitx_hdcp_Authenticate_Repeater(void)
 		goto hdmitx_hdcp_Repeater_Fail;
 
 	/* do check SHA */
-	if (hdmitx_hdcp_CheckSHA(M0, BStatus, KSVList, cDownStream, Vr) == ER_FAIL)
+	if (hdmitx_hdcp_CheckSHA(M0, BStatus, KSVList, cDownStream, Vr) ==
+	    ER_FAIL)
 		goto hdmitx_hdcp_Repeater_Fail;
 
-	if ((B_TX_INT_HPD_PLUG | B_TX_INT_RX_SENSE) & HDMITX_ReadI2C_Byte(REG_TX_INT_STAT1)) {
+	if ((B_TX_INT_HPD_PLUG | B_TX_INT_RX_SENSE) &
+	    HDMITX_ReadI2C_Byte(REG_TX_INT_STAT1)) {
 		HDCP_DEBUG_PRINTF("HPD at Final\n");
 		goto hdmitx_hdcp_Repeater_Fail;
 	}
-#endif				/* SUPPORT_SHA */
+#endif /* SUPPORT_SHA */
 
 	hdmitx_hdcp_ResumeRepeaterAuthenticate();
 	hdmiTxDev[0].bAuthenticated = TRUE;
@@ -967,7 +1044,8 @@ hdmitx_hdcp_Repeater_Fail:
 /* Function: hdmitx_hdcp_ResumeAuthentication */
 /* Parameter: N/A */
 /* Return: N/A */
-/* Remark: called by interrupt handler to restart Authentication and Encryption. */
+/* Remark: called by interrupt handler to restart Authentication and Encryption.
+ */
 /* Side-Effect: as Authentication and Encryption. */
 /* //////////////////////////////////////////////////////////////////// */
 
@@ -980,4 +1058,4 @@ void hdmitx_hdcp_ResumeAuthentication(void)
 	setHDMITX_AVMute(FALSE);
 }
 
-#endif				/* SUPPORT_HDCP */
+#endif /* SUPPORT_HDCP */

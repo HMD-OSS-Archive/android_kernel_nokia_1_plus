@@ -24,11 +24,11 @@ sys.path.append('.')
 sys.path.append('..')
 
 from obj.ChipObj import ChipObj
-from obj.ChipObj import Everest
-from obj.ChipObj import Olympus
+from obj.ChipObj import MT6797
+from obj.ChipObj import MT6757
 from obj.ChipObj import MT6757_P25
-from obj.ChipObj import Rushmore
-from obj.ChipObj import Whitney
+from obj.ChipObj import MT6570
+from obj.ChipObj import MT6799
 from obj.ChipObj import MT6759
 from obj.ChipObj import MT6763
 from obj.ChipObj import MT6750S
@@ -37,6 +37,9 @@ from obj.ChipObj import MT6739
 from obj.ChipObj import MT8695
 from obj.ChipObj import MT6771
 from obj.ChipObj import MT6775
+from obj.ChipObj import MT6779
+from obj.ChipObj import MT6768
+from obj.ChipObj import MT6785
 
 from utility.util import LogLevel
 from utility.util import log
@@ -140,17 +143,15 @@ if __name__ == '__main__':
     log(LogLevel.info, 'chip id: %s' %(chipId))
     chipObj = None
     if cmp(chipId, 'MT6797') == 0:
-        chipObj = Everest(dws_path, gen_path)
+        chipObj = MT6797(dws_path, gen_path)
     elif cmp(chipId, 'MT6757') == 0:
-        chipObj = Olympus(dws_path, gen_path)
+        chipObj = MT6757(dws_path, gen_path)
     elif cmp(chipId, 'MT6757-P25') == 0:
         chipObj = MT6757_P25(dws_path, gen_path)
-    elif cmp(chipId, 'KIBOPLUS') == 0:
-        chipObj = MT6757_P25(dws_path, gen_path)
     elif cmp(chipId, 'MT6570') == 0:
-        chipObj = Rushmore(dws_path, gen_path)
+        chipObj = MT6570(dws_path, gen_path)
     elif cmp(chipId, 'MT6799') == 0:
-        chipObj = Whitney(dws_path, gen_path)
+        chipObj = MT6799(dws_path, gen_path)
     elif cmp(chipId, 'MT6763') == 0:
         chipObj = MT6763(dws_path, gen_path)
     elif cmp(chipId, 'MT6759') == 0:
@@ -161,13 +162,21 @@ if __name__ == '__main__':
         chipObj = MT6758(dws_path, gen_path)
     elif cmp(chipId, 'MT6739') == 0:
         chipObj = MT6739(dws_path, gen_path)
-    elif cmp(chipId, 'MT8695') == 0:
+    elif cmp(chipId, 'MT8695') == 0 or \
+         cmp(chipId, 'MT8168') == 0:
         chipObj = MT8695(dws_path, gen_path)
     elif cmp(chipId, 'MT6771') == 0 or \
-         cmp(chipId, 'MT6775') == 0:
+         cmp(chipId, 'MT6775') == 0 or \
+         cmp(chipId, 'MT6765') == 0 or \
+         cmp(chipId, 'MT3967') == 0 or \
+         cmp(chipId, 'MT6761') == 0:
         chipObj = MT6771(dws_path, gen_path)
-    #elif cmp(chipId, 'MT6775') == 0:
-        #chipObj = MT6775(dws_path, gen_path)
+    elif cmp(chipId, 'MT6779') == 0:
+        chipObj = MT6779(dws_path, gen_path)
+    elif cmp(chipId, 'MT6768') == 0:
+        chipObj = MT6768(dws_path, gen_path)
+    elif cmp(chipId, 'MT6785') == 0:
+        chipObj = MT6785(dws_path, gen_path)
     else:
         chipObj = ChipObj(dws_path, gen_path)
 

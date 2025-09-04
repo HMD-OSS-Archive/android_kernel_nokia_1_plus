@@ -1,20 +1,20 @@
-/*******************************************************************************
-* mtk_pwm_hal_hub.h PWM Drvier
-*
-* Copyright (c) 2016, Media Teck.inc
-*
-* This program is free software; you can redistribute it and/or modify it
-* under the terms and conditions of the GNU General Public Licence,
-* version 2, as publish by the Free Software Foundation.
-*
-* This program is distributed and in hope it will be useful, but WITHOUT
-* ANY WARRNTY; without even the implied warranty of MERCHANTABITLITY or
-* FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
-* more details.
-*
-*
-********************************************************************************
-*/
+/*****************************************************************************
+ * mtk_pwm_hal_hub.h PWM Drvier
+ *
+ * Copyright (c) 2016, Media Teck.inc
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public Licence,
+ * version 2, as publish by the Free Software Foundation.
+ *
+ * This program is distributed and in hope it will be useful, but WITHOUT
+ * ANY WARRNTY; without even the implied warranty of MERCHANTABITLITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+ * more details.
+ *
+ *
+ *****************************************************************************
+ */
 
 #ifndef __MT_PWM_HAL_PUB_H__
 #define __MT_PWM_HAL_PUB_H__
@@ -23,8 +23,8 @@
 #include <linux/platform_device.h>
 
 /*********************************
-*  Define Error Number
-**********************************/
+ *  Define Error Number
+ **********************************/
 #define RSUCCESS 0
 #define EEXCESSPWMNO 1
 #define EPARMNOSUPPORT 2
@@ -34,15 +34,6 @@
 #define EINVALID 6
 #define EEXCESS4GADDR 7
 
-#define PWM_DEBUG
-#ifdef PWM_DEBUG
-#define PWMDBG(fmt, args ...)  pr_debug("pwm %5d: " fmt, __LINE__, ##args)
-#else
-#define PWMDBG(fmt, args ...)
-#endif
-
-#define PWMMSG(fmt, args ...)  pr_debug(fmt, ##args)
-
 #define PWM_DEVICE "mt-pwm"
 
 #if !defined(CONFIG_MTK_LEGACY)
@@ -51,8 +42,10 @@ extern void __iomem *pwm_base;
 #endif
 #endif
 
-void mt_pwm_power_on_hal(uint32_t pwm_no, bool pmic_pad, unsigned long *power_flag);
-void mt_pwm_power_off_hal(uint32_t pwm_no, bool pmic_pad, unsigned long *power_flag);
+void mt_pwm_power_on_hal(uint32_t pwm_no, bool pmic_pad,
+		unsigned long *power_flag);
+void mt_pwm_power_off_hal(uint32_t pwm_no, bool pmic_pad,
+		unsigned long *power_flag);
 void mt_pwm_init_power_flag(unsigned long *power_flag);
 int32_t mt_pwm_sel_pmic_hal(uint32_t pwm_no);
 int32_t mt_pwm_sel_ap_hal(uint32_t pwm_no);
@@ -67,7 +60,8 @@ int32_t mt_set_pwm_con_datasrc_hal(uint32_t pwm_no, uint32_t val);
 int32_t mt_set_pwm_con_mode_hal(uint32_t pwm_no, uint32_t val);
 int32_t mt_set_pwm_con_idleval_hal(uint32_t pwm_no, uint16_t val);
 int32_t mt_set_pwm_con_guardval_hal(uint32_t pwm_no, uint16_t val);
-void mt_set_pwm_con_stpbit_hal(uint32_t pwm_no, uint32_t stpbit, uint32_t srcsel);
+void mt_set_pwm_con_stpbit_hal(uint32_t pwm_no, uint32_t stpbit,
+		uint32_t srcsel);
 int32_t mt_set_pwm_con_oldmode_hal(uint32_t pwm_no, uint32_t val);
 void mt_set_pwm_HiDur_hal(uint32_t pwm_no, uint16_t DurVal);
 void mt_set_pwm_LowDur_hal(uint32_t pwm_no, uint16_t DurVal);
@@ -91,4 +85,5 @@ void mt_set_pwm_buf0_addr_hal(uint32_t pwm_no, dma_addr_t addr);
 void mt_set_pwm_buf0_size_hal(uint32_t pwm_no, uint16_t size);
 
 int mt_get_pwm_clk_src(struct platform_device *pdev);
+void  mt_pwm_clk_sel_hal(u32 pwm, u32 clk_src);
 #endif

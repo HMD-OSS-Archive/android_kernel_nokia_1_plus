@@ -40,9 +40,8 @@
 #include "private/tmem_priv.h"
 #include "private/tmem_utils.h"
 
-#ifdef TCORE_UT_FWK_SUPPORT
-#include "private/ut_tests.h"
-DEFINE_UT_SERVER(trusted_mem_subsys);
+#ifdef TCORE_UT_TESTS_SUPPORT
+#include "tests/ut_api.h"
 #endif
 
 struct trusted_mem_device_table {
@@ -59,10 +58,10 @@ static inline void run_ut_with_memory_leak_check(u64 cmd, u64 param1,
 	size_t start_size = mld_stamp();
 #endif
 
-#ifdef TCORE_UT_FWK_SUPPORT
-	invoke_ut_test_suite(cmd, param1, param2, param3);
+#ifdef TCORE_UT_TESTS_SUPPORT
+	invoke_ut_cases(cmd, param1, param2, param3);
 #else
-	pr_err("TCORE_UT_FWK_SUPPORT option is not enabled\n");
+	pr_err("TCORE_UT_TESTS_SUPPORT option is not enabled\n");
 #endif
 
 #ifdef TCORE_MEMORY_LEAK_DETECTION_SUPPORT
@@ -139,12 +138,6 @@ err_create_device:
 	return NULL;
 }
 
-static bool is_virt_mem_type(enum TRUSTED_MEM_TYPE type)
-{
-	return (type >= TRUSTED_MEM_VIRT_START)
-	       && (type <= TRUSTED_MEM_VIRT_END);
-}
-
 /* clang-format off */
 #define FREE_IF_VALID(ptr) \
 	do { \
@@ -155,11 +148,6 @@ static bool is_virt_mem_type(enum TRUSTED_MEM_TYPE type)
 
 void destroy_trusted_mem_device(struct trusted_mem_device *tmem_device)
 {
-	if (is_virt_mem_type(tmem_device->mem_type) && VALID(tmem_device)) {
-		FREE_IF_VALID(tmem_device);
-		return;
-	}
-
 	if (VALID(tmem_device)) {
 #ifdef TCORE_PROFILING_SUPPORT
 		FREE_IF_VALID(tmem_device->profile_mgr);
@@ -187,8 +175,8 @@ static void install_profiler(struct trusted_mem_device *tmem_device)
 		 tmem_device->profile_mgr->profiled_ssmr_ops);
 	PTR_SWAP(tmem_device->peer_ops,
 		 tmem_device->profile_mgr->profiled_peer_ops);
-	PTR_SWAP(tmem_device->peer_priv,
-		 tmem_device->profile_mgr->profiled_peer_priv);
+	PTR_SWAP(tmem_device->dev_desc,
+		 tmem_device->profile_mgr->profiled_dev_desc);
 }
 #endif
 
@@ -217,12 +205,6 @@ static bool is_invalid_ssmr_ops(struct ssmr_operations *ops)
 
 static bool is_invalid_ops_hooks(struct trusted_mem_device *mem_device)
 {
-	if (mem_device->configs.mock_peer_enable
-	    && is_invalid_peer_ops(mem_device->mock_peer_ops))
-		return true;
-	if (mem_device->configs.mock_ssmr_enable
-	    && is_invalid_ssmr_ops(mem_device->mock_ssmr_ops))
-		return true;
 	if (is_invalid_peer_ops(mem_device->peer_ops))
 		return true;
 	if (is_invalid_ssmr_ops(mem_device->ssmr_ops))
@@ -250,54 +232,13 @@ int register_trusted_mem_device(enum TRUSTED_MEM_TYPE register_type,
 	tmem_dev[register_type].mem_type = register_type;
 	tmem_dev[register_type].device = tmem_device;
 
-	if (is_virt_mem_type(register_type))
-		goto exit;
-
-	if (tmem_device->configs.mock_peer_enable)
-		tmem_device->peer_ops = tmem_device->mock_peer_ops;
-
-	if (tmem_device->configs.mock_ssmr_enable)
-		tmem_device->ssmr_ops = tmem_device->mock_ssmr_ops;
-
 #ifdef TCORE_PROFILING_SUPPORT
 	install_profiler(tmem_device);
 #endif
 
-exit:
 	pr_info("trusted mem type '%s' %d registered!\n", tmem_device->name,
 		register_type);
 	return TMEM_OK;
-}
-
-struct trusted_mem_device *create_and_register_shared_trusted_mem_device(
-	enum TRUSTED_MEM_TYPE mem_type, struct trusted_mem_device *tmem_device,
-	char *dev_name)
-{
-	struct trusted_mem_device *t_shared_device = NULL;
-	int ret;
-
-	t_shared_device =
-		mld_kmalloc(sizeof(struct trusted_mem_device), GFP_KERNEL);
-	if (INVALID(t_shared_device)) {
-		pr_err("%s:%d out of memory!\n", __func__, __LINE__);
-		return NULL;
-	}
-
-	memcpy(t_shared_device, tmem_device, sizeof(struct trusted_mem_device));
-	t_shared_device->ssmr_feature_id = SSMR_FEAT_INVALID_ID;
-	snprintf(t_shared_device->name, MAX_DEVICE_NAME_LEN, "%s", dev_name);
-
-	ret = register_trusted_mem_device(mem_type, t_shared_device);
-	if (ret) {
-		pr_err("register trusted mem device failed:%d\n", ret);
-		mld_kfree(t_shared_device);
-		return NULL;
-	}
-
-	tmem_device->shared_trusted_mem_device = t_shared_device;
-	t_shared_device->shared_trusted_mem_device = tmem_device;
-
-	return t_shared_device;
 }
 
 static int __init trusted_mem_subsys_init(void)

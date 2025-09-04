@@ -14,10 +14,12 @@
 #include <linux/kconfig.h>
 #include <linux/module.h>
 #include <linux/string.h>
+#ifdef CONFIG_MTK_DFD_INTERNAL_DUMP
 #include <mtk_platform_debug.h>
+#endif
 
 #ifdef CONFIG_MTK_WATCHDOG
-#include <mach/wd_api.h>
+#include <mtk_wd_api.h>
 
 #ifdef CONFIG_MTK_LASTPC_V2
 static void mrdump_set_sram_lastpc_flag(void)
@@ -33,14 +35,16 @@ static void mrdump_wd_mcu_cache_preserve(bool enabled)
 
 	res = get_wd_api(&wd_api);
 	if (res < 0) {
-		pr_alert("%s: get wd api error %d\n", __func__, res);
+		pr_notice("%s: get wd api error %d\n", __func__, res);
 	} else {
 		res = wd_api->wd_mcu_cache_preserve(enabled);
 		if (res == 0) {
 			if (enabled == true)
-				pr_alert("%s: MCU Cache Preserve enabled\n", __func__);
+				pr_notice("%s: MCU Cache Preserve enabled\n",
+						__func__);
 			else
-				pr_alert("%s: MCU Cache Preserve disabled\n", __func__);
+				pr_notice("%s: MCU Cache Preserve disabled\n",
+						__func__);
 		}
 	}
 }
@@ -50,7 +54,8 @@ static char mrdump_lk_ddr_reserve_ready[4];
 
 static int __init mrdump_get_ddr_reserve_status(char *str)
 {
-	strlcpy(mrdump_lk_ddr_reserve_ready, str, sizeof(mrdump_lk_ddr_reserve_ready));
+	strlcpy(mrdump_lk_ddr_reserve_ready, str,
+			sizeof(mrdump_lk_ddr_reserve_ready));
 	return 0;
 }
 
@@ -69,69 +74,57 @@ static void mrdump_wd_dram_reserved_mode(bool enabled)
 	int res;
 	struct wd_api *wd_api = NULL;
 
-	pr_alert("%s: DDR Reserved Mode ready or not? (%s)\n", __func__, mrdump_lk_ddr_reserve_ready);
+	pr_notice("%s: DDR Reserved Mode ready or not? (%s)\n", __func__,
+			mrdump_lk_ddr_reserve_ready);
 	res = get_wd_api(&wd_api);
 	if (res < 0) {
-		pr_alert("%s: get wd api error (%d)\n", __func__, res);
+		pr_notice("%s: get wd api error (%d)\n", __func__, res);
 	} else {
 		if (mrdump_ddr_reserve_is_ready()) {
 			res = wd_api->wd_dram_reserved_mode(enabled);
 			if (res == 0) {
 				if (enabled == true) {
-					pr_alert("%s: DDR reserved mode enabled\n",  __func__);
+					pr_notice("%s: DDR reserved mode enabled\n",
+							__func__);
 #ifdef CONFIG_MTK_DFD_INTERNAL_DUMP
-					res = dfd_setup();
+					res = dfd_setup(DFD_BASIC_DUMP);
 					if (res == -1)
-						pr_alert("%s: DFD disabled\n", __func__);
+						pr_notice("%s: DFD_BASIC_DUMP disabled\n",
+								__func__);
 					else
-						pr_alert("%s: DFD enabled\n", __func__);
+						pr_notice("%s: DFD_BASIC_DUMP enabled\n",
+								__func__);
+#else
+			pr_notice("%s: config is not enabled yet\n",
+					__func__);
 #endif
 				} else {
-					pr_alert("%s: DDR reserved mode disabled(%d)\n",  __func__, res);
+					pr_notice("%s: DDR reserved mode disabled(%d)\n",
+							__func__, res);
 				}
 			}
 		}
 	}
 }
 
-static int __init mrdump_hw_init(void)
+int __init mrdump_hw_init(void)
 {
-	bool cache_preserve_ok = false;
-	bool ddr_rsv_mode_ok = cache_preserve_ok;
-	int condition = 0;
-
+	mrdump_wd_dram_reserved_mode(true);
 #ifdef CONFIG_MTK_LASTPC_V2
-	condition++;
-#endif
-
-#ifdef CONFIG_MTK_AEE_DRAM_CONSOLE
-	condition++;
-#endif
-
-#ifdef CONFIG_MTK_AEE_IPANIC
-	condition++;
-#endif
-
-#ifdef CONFIG_MTK_AEE_MRDUMP
-	condition++;
-#endif
-
-	if (condition > 0) {
-		ddr_rsv_mode_ok = true;
-		cache_preserve_ok = true;
-	}
-
-	mrdump_wd_dram_reserved_mode(ddr_rsv_mode_ok);
-#ifdef CONFIG_MTK_LASTPC_V2
-	mrdump_wd_mcu_cache_preserve(cache_preserve_ok);
+	mrdump_wd_mcu_cache_preserve(true);
 	mrdump_set_sram_lastpc_flag();
 #endif /* CONFIG_MTK_LASTPC_V2 */
-
 	pr_info("%s: init_done.\n", __func__);
 	return 0;
 }
 
-arch_initcall(mrdump_hw_init);
+#else
+
+int __init mrdump_hw_init(void)
+{
+	return 0;
+}
+
 #endif /* CONFIG_MTK_WATCHDOG */
 
 MODULE_LICENSE("GPL v2");

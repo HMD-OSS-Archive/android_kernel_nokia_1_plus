@@ -26,29 +26,29 @@ struct nanohub_bl {
 	u8 cmd_read_memory;
 	u8 cmd_write_memory;
 
-	int (*open)(const void *);
-	void (*close)(const void *);
-	u8 (*sync)(const void *);
-	u8 (*write_data)(const void *, u8 *, int);
-	u8 (*write_cmd)(const void *, u8);
-	u8 (*read_data)(const void *, u8 *, int);
-	u8 (*read_ack)(const void *);
+	int (*open)(const void *data);
+	void (*close)(const void *data);
+	u8 (*sync)(const void *data);
+	u8 (*write_data)(const void *data, u8 *buf, int size);
+	u8 (*write_cmd)(const void *data, u8 cmd_memory);
+	u8 (*read_data)(const void *data, u8 *buf, int size);
+	u8 (*read_ack)(const void *data);
 
 	u8 *tx_buffer;
 	u8 *rx_buffer;
 };
 
-int nanohub_bl_open(struct nanohub_data *);
-u8 nanohub_bl_sync(struct nanohub_data *);
-void nanohub_bl_close(struct nanohub_data *);
-u8 nanohub_bl_download(struct nanohub_data *, u32 addr,
-		       const u8 *data, size_t length);
-u8 nanohub_bl_erase_shared(struct nanohub_data *);
-u8 nanohub_bl_erase_sector(struct nanohub_data *, uint16_t);
-u8 nanohub_bl_read_memory(struct nanohub_data *, u32, u32,
-			  u8 *);
-u8 nanohub_bl_write_memory(struct nanohub_data *, u32, u32,
-			   const u8 *);
+int nanohub_bl_open(struct nanohub_data *data);
+u8 nanohub_bl_sync(struct nanohub_data *data);
+void nanohub_bl_close(struct nanohub_data *data);
+u8 nanohub_bl_download(struct nanohub_data *data,
+		       u32 addr, const u8 *image, size_t length);
+u8 nanohub_bl_erase_shared(struct nanohub_data *data);
+u8 nanohub_bl_erase_sector(struct nanohub_data *data, uint16_t sector);
+u8 nanohub_bl_read_memory(struct nanohub_data *data, u32 addr,
+			  u32 length, u8 *buffer);
+u8 nanohub_bl_write_memory(struct nanohub_data *data, u32 addr,
+			   u32 length, const u8 *buffer);
 
 /*
  * Bootloader commands

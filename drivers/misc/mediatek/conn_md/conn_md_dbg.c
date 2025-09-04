@@ -54,12 +54,14 @@ int conn_md_dbg_set_log_lvl(int par1, int par2, int par3)
 }
 
 #if USE_NEW_PROC_FS_FLAG
-ssize_t conn_md_dbg_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
+ssize_t conn_md_dbg_read(struct file *filp, char __user *buf,
+		size_t count, loff_t *f_pos)
 {
 	return 0;
 }
 #else
-static int conn_md_dbg_read(char *page, char **start, off_t off, int count, int *eof, void *data)
+static int conn_md_dbg_read(char *page, char **start, off_t off,
+		int count, int *eof, void *data)
 {
 	int len = 0;
 
@@ -68,16 +70,18 @@ static int conn_md_dbg_read(char *page, char **start, off_t off, int count, int 
 #endif
 
 #if USE_NEW_PROC_FS_FLAG
-ssize_t conn_md_dbg_write(struct file *filp, const char __user *buffer, size_t count, loff_t *f_pos)
+ssize_t conn_md_dbg_write(struct file *filp, const char __user *buffer,
+		size_t count, loff_t *f_pos)
 #else
-static int conn_md_dbg_write(struct file *file, const char *buffer, unsigned long count, void *data)
+static int conn_md_dbg_write(struct file *file, const char *buffer,
+		unsigned long count, void *data)
 #endif
 {
 
 	char buf[256];
 	char *pBuf;
 	unsigned long len = count;
-	long x = 0;
+	unsigned long x = 0;
 	long y = 0;
 	long z = 0;
 	long i;
@@ -115,12 +119,12 @@ static int conn_md_dbg_write(struct file *file, const char *buffer, unsigned lon
 	else
 		z = 0;
 
-	CONN_MD_INFO_FUNC("x(0x%08x), y(0x%08x), z(0x%08x)\n\r", x, y, z);
+	CONN_MD_INFO_FUNC("x(0x%08lx), y(0x%08lx), z(0x%08lx)\n\r", x, y, z);
 
 	if (ARRAY_SIZE(conn_md_dbg_func) > x && NULL != conn_md_dbg_func[x])
 		(*conn_md_dbg_func[x]) (x, y, z);
 	else
-		CONN_MD_WARN_FUNC("no handler defined for command id(0x%08x)\n\r", x);
+		CONN_MD_WARN_FUNC("no handler for command id(0x%08lx)\n\r", x);
 	return len;
 }
 
@@ -132,7 +136,8 @@ int conn_md_test_dbg(int par1, int par2, int par3)
 int conn_md_dbg_init(void)
 {
 #if USE_NEW_PROC_FS_FLAG
-	gConnMdDbgEntry = proc_create(CONN_MD_DBG_PROCNAME, 0664, NULL, &conn_md_dbg_fops);
+	gConnMdDbgEntry = proc_create(CONN_MD_DBG_PROCNAME, 0664,
+				      NULL, &conn_md_dbg_fops);
 	if (gConnMdDbgEntry == NULL) {
 		CONN_MD_ERR_FUNC("Unable to create /proc entry\n\r");
 		return -1;

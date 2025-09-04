@@ -1,15 +1,15 @@
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ * Copyright (C) 2016 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ */
 
 #include <linux/types.h>
 #include <linux/device.h>
@@ -27,6 +27,7 @@
 #include <linux/uaccess.h>
 #include <linux/atomic.h>
 #include <linux/sched.h>
+#include <linux/sched/clock.h>
 #include <linux/mm.h>
 #include <linux/seq_file.h>
 #include "smi_public.h"
@@ -35,11 +36,12 @@
 /*#include <mach/hardware.h>*/
 /* #include <mach/mt6593_pll.h> */
 #include "camera_owe.h"
+#include "engine_request.h"
 /*#include <mach/irqs.h>*/
 /* #include <mach/mt_reg_base.h> */
 
 #include <mt-plat/sync_write.h>	/* For mt65xx_reg_sync_writel(). */
-/* #include <mach/mt_spm_idle.h>	 For spm_enable_sodi()/spm_disable_sodi(). */
+/* #include <mach/mt_spm_idle.h> For spm_enable_sodi()/spm_disable_sodi(). */
 
 #include <linux/of_platform.h>
 #include <linux/of_irq.h>
@@ -63,8 +65,10 @@
 #include <linux/ftrace_event.h>
 static unsigned long __read_mostly tracing_mark_write_addr;
 #define _kernel_trace_begin(name) {\
-	tracing_mark_write_addr = kallsyms_lookup_name("tracing_mark_write");\
-	event_trace_printk(tracing_mark_write_addr,  "B|%d|%s\n", current->tgid, name);\
+	tracing_mark_write_addr =\
+		kallsyms_lookup_name("tracing_mark_write");\
+	event_trace_printk(tracing_mark_write_addr,\
+		"B|%d|%s\n", current->tgid, name);\
 }
 #define _kernel_trace_end() {\
 	event_trace_printk(tracing_mark_write_addr,  "E\n");\
@@ -89,7 +93,7 @@ static unsigned long __read_mostly tracing_mark_write_addr;
 
 /*  #include "smi_common.h" */
 
-#include <linux/wakelock.h>
+#include <linux/pm_wakeup.h>
 
 /* OWE Command Queue */
 /* #include "../../cmdq/mt6797/cmdq_record.h" */
@@ -103,7 +107,7 @@ struct OWE_CLK_STRUCT {
 	struct clk *CG_IMGSYS_OWE;
 };
 struct OWE_CLK_STRUCT owe_clk;
-#endif				/* !defined(CONFIG_MTK_LEGACY) && defined(CONFIG_COMMON_CLK)  */
+#endif	/* !defined(CONFIG_MTK_LEGACY) && defined(CONFIG_COMMON_CLK)  */
 #endif
 /*  */
 #ifndef MTRUE
@@ -117,7 +121,7 @@ struct OWE_CLK_STRUCT owe_clk;
 
 /* #define OWE_WAITIRQ_LOG  */
 #define OWE_USE_GCE
-/* #define OWE_DEBUG_USE  */
+/* #define OWE_DEBUG_USE */
 /* #define OWE_MULTIPROCESS_TIMEING_ISSUE  */
 /*I can' test the situation in FPGA, because the velocity of FPGA is so slow. */
 #define MyTag "[OWE]"
@@ -126,7 +130,7 @@ struct OWE_CLK_STRUCT owe_clk;
 #define LOG_VRB(format,	args...)    pr_debug(MyTag format, ##args)
 
 #ifdef OWE_DEBUG_USE
-#define LOG_DBG(format, args...)    pr_debug(MyTag format, ##args)
+#define LOG_DBG(format, args...)    pr_info(MyTag format, ##args)
 #else
 #define LOG_DBG(format, args...)
 #endif
@@ -138,15 +142,16 @@ struct OWE_CLK_STRUCT owe_clk;
 #define LOG_AST(format, args...)    pr_info(MyTag format, ##args)
 
 
-/*******************************************************************************
-*
-********************************************************************************/
-/* #define OWE_WR32(addr, data)    iowrite32(data, addr) // For other projects. */
-#define OWE_WR32(addr, data)    mt_reg_sync_writel(data, addr)	/* For 89 Only.   // NEED_TUNING_BY_PROJECT */
+/******************************************************************************
+ *
+ ******************************************************************************/
+/* #define OWE_WR32(addr, data)  iowrite32(data, addr) // For other projects. */
+/* For 89 Only.   // NEED_TUNING_BY_PROJECT */
+#define OWE_WR32(addr, data)    mt_reg_sync_writel(data, addr)
 #define OWE_RD32(addr)          ioread32(addr)
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 /* dynamic log level */
 #define OWE_DBG_DBGLOG              (0x00000001)
 #define OWE_DBG_INFLOG              (0x00000002)
@@ -158,9 +163,9 @@ struct OWE_CLK_STRUCT owe_clk;
 
 /* ///////////////////////////////////////////////////////////////// */
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 
 /* CAM interrupt status */
 /* normal siganl */
@@ -186,10 +191,6 @@ struct OWE_CLK_STRUCT owe_clk;
 
 /* static irqreturn_t OWE_Irq_CAM_A(signed int  Irq,void *DeviceId); */
 static irqreturn_t ISP_Irq_OWE(signed int Irq, void *DeviceId);
-#ifdef OWE_USE_GCE
-static signed int ConfigOCCHW(struct OWE_OCCConfig *pOccConfig);
-static signed int ConfigWMFEHW(struct OWE_WMFEConfig *pWmfeConfig);
-#endif
 static void OWE_ScheduleOccWork(struct work_struct *data);
 static void OWE_ScheduleWmfeWork(struct work_struct *data);
 
@@ -215,7 +216,7 @@ const struct ISR_TABLE OWE_IRQ_CB_TBL[OWE_IRQ_TYPE_AMOUNT] = {
 };
 
 #endif
-/* //////////////////////////////////////////////////////////////////////////////////////////// */
+/* ////////////////////////////////////////////////////////////////////////// */
 /*  */
 typedef void (*tasklet_cb) (unsigned long);
 struct Tasklet_table {
@@ -231,7 +232,7 @@ static struct Tasklet_table OWE_tasklet[OWE_IRQ_TYPE_AMOUNT] = {
 	{ISP_TaskletFunc_OWE, &Owetkt[OWE_IRQ_TYPE_INT_OWE_ST]},
 };
 
-struct wake_lock OWE_wake_lock;
+struct wakeup_source OWE_wake_lock;
 
 static DEFINE_MUTEX(gOweOccMutex);
 static DEFINE_MUTEX(gOweOccDequeMutex);
@@ -297,10 +298,11 @@ struct OCC_REQUEST_STRUCT {
 	enum OWE_REQUEST_STATE_ENUM RequestState;
 	pid_t processID;	/* caller process ID */
 	unsigned int callerID;	/* caller thread ID */
-	unsigned int enqueReqNum;	/* to judge it belongs to which frame package */
+	unsigned int enqueReqNum;/* to judge it belongs to which frame package*/
 	signed int FrameWRIdx;	/* Frame write Index */
 	signed int FrameRDIdx;	/* Frame read Index */
-	enum OWE_FRAME_STATUS_ENUM OccFrameStatus[_SUPPORT_MAX_OWE_FRAME_REQUEST_];
+	enum OWE_FRAME_STATUS_ENUM
+			OccFrameStatus[_SUPPORT_MAX_OWE_FRAME_REQUEST_];
 	struct OWE_OCCConfig OccFrameConfig[_SUPPORT_MAX_OWE_FRAME_REQUEST_];
 };
 
@@ -308,7 +310,8 @@ struct OCC_REQUEST_RING_STRUCT {
 	signed int WriteIdx;	/* enque how many request  */
 	signed int ReadIdx;		/* read which request index */
 	signed int HWProcessIdx;	/* HWWriteIdx */
-	struct OCC_REQUEST_STRUCT OCCReq_Struct[_SUPPORT_MAX_OWE_REQUEST_RING_SIZE_];
+	struct OCC_REQUEST_STRUCT
+			OCCReq_Struct[_SUPPORT_MAX_OWE_REQUEST_RING_SIZE_];
 };
 
 struct OCC_CONFIG_STRUCT {
@@ -325,10 +328,11 @@ struct WMFE_REQUEST_STRUCT {
 	enum OWE_REQUEST_STATE_ENUM RequestState;
 	pid_t processID;	/* caller process ID */
 	unsigned int callerID;	/* caller thread ID */
-	unsigned int enqueReqNum;	/* to judge it belongs to which frame package */
+	unsigned int enqueReqNum;/* to judge it belongs to which frame package*/
 	signed int FrameWRIdx;	/* Frame write Index */
 	signed int FrameRDIdx;	/* Frame read Index */
-	enum OWE_FRAME_STATUS_ENUM WmfeFrameStatus[_SUPPORT_MAX_OWE_FRAME_REQUEST_];
+	enum OWE_FRAME_STATUS_ENUM
+		WmfeFrameStatus[_SUPPORT_MAX_OWE_FRAME_REQUEST_];
 	struct OWE_WMFEConfig WmfeFrameConfig[_SUPPORT_MAX_OWE_FRAME_REQUEST_];
 };
 
@@ -336,7 +340,8 @@ struct WMFE_REQUEST_RING_STRUCT {
 	signed int WriteIdx;	/* enque how many request  */
 	signed int ReadIdx;		/* read which request index */
 	signed int HWProcessIdx;	/* HWWriteIdx */
-	struct WMFE_REQUEST_STRUCT WMFEReq_Struct[_SUPPORT_MAX_OWE_REQUEST_RING_SIZE_];
+	struct WMFE_REQUEST_STRUCT
+		WMFEReq_Struct[_SUPPORT_MAX_OWE_REQUEST_RING_SIZE_];
 };
 
 struct WMFE_CONFIG_STRUCT {
@@ -346,11 +351,16 @@ struct WMFE_CONFIG_STRUCT {
 static struct WMFE_REQUEST_RING_STRUCT g_WMFE_ReqRing;
 static struct WMFE_CONFIG_STRUCT g_WmfeEnqueReq_Struct;
 static struct WMFE_CONFIG_STRUCT g_WmfeDequeReq_Struct;
+static struct engine_requests wmfe_reqs;
+static struct OWE_WMFERequest kWmfeReq;
+
+static struct engine_requests occ_reqs;
+static struct OWE_OCCRequest kOccReq;
 
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 struct OWE_USER_INFO_STRUCT {
 	pid_t Pid;
 	pid_t Tid;
@@ -363,9 +373,9 @@ enum OWE_PROCESS_ID_ENUM {
 };
 
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 struct OWE_IRQ_INFO_STRUCT {
 	unsigned int Status[OWE_IRQ_TYPE_AMOUNT];
 	signed int OccIrqCnt;
@@ -382,6 +392,7 @@ struct OWE_INFO_STRUCT {
 	wait_queue_head_t WaitQueueHead;
 	struct work_struct ScheduleOccWork;
 	struct work_struct ScheduleWmfeWork;
+	struct workqueue_struct *wkqueue;
 	unsigned int UserCount;	/* User Count */
 	unsigned int DebugMask;	/* Debug Mask */
 	signed int IrqNum;
@@ -395,7 +406,9 @@ struct OWE_INFO_STRUCT {
 static struct OWE_INFO_STRUCT OWEInfo;
 
 enum _eLOG_TYPE {
-	_LOG_DBG = 0,		/* currently, only used at ipl_buf_ctrl. to protect critical section */
+	_LOG_DBG = 0,	/* currently, only used at ipl_buf_ctrl.
+			 * to protect critical section
+			 */
 	_LOG_INF = 1,
 	_LOG_ERR = 2,
 	_LOG_MAX = 3,
@@ -441,7 +454,9 @@ static struct SV_LOG_STR gSvLog[OWE_IRQ_TYPE_AMOUNT];
 	} else {\
 		str_leng = 0;\
 	} \
-	ptr = pDes = (char *)&(gSvLog[irq]._str[ppb][logT][gSvLog[irq]._cnt[ppb][logT]]);    \
+	ptr = pDes = (char *)&(gSvLog[irq].\
+			_str[ppb][logT][gSvLog[irq].\
+			_cnt[ppb][logT]]);    \
 	avaLen = str_leng - 1 - gSvLog[irq]._cnt[ppb][logT];\
 	if (avaLen > 1) {\
 		snprintf((char *)(pDes), avaLen, fmt,\
@@ -458,33 +473,45 @@ static struct SV_LOG_STR gSvLog[OWE_IRQ_TYPE_AMOUNT];
 		if (pSrc->_cnt[ppb][logT] != 0) {\
 			if (logT == _LOG_DBG) {\
 				for (logi = 0; logi < DBG_PAGE; logi++) {\
-					if (ptr[NORMAL_STR_LEN*(logi+1) - 1] != '\0') {\
-						ptr[NORMAL_STR_LEN*(logi+1) - 1] = '\0';\
-						LOG_DBG("%s", &ptr[NORMAL_STR_LEN*logi]);\
+					if (ptr[NORMAL_STR_LEN*(logi+1) - 1] !=\
+					    '\0') {\
+						ptr[NORMAL_STR_LEN*(logi+1)\
+						    - 1] = '\0';\
+						LOG_DBG("%s",\
+						    &ptr[NORMAL_STR_LEN*logi]);\
 					} else{\
-						LOG_DBG("%s", &ptr[NORMAL_STR_LEN*logi]);\
+						LOG_DBG("%s",\
+						    &ptr[NORMAL_STR_LEN*logi]);\
 						break;\
 					} \
 				} \
 			} \
 			else if (logT == _LOG_INF) {\
 				for (logi = 0; logi < INF_PAGE; logi++) {\
-					if (ptr[NORMAL_STR_LEN*(logi+1) - 1] != '\0') {\
-						ptr[NORMAL_STR_LEN*(logi+1) - 1] = '\0';\
-						LOG_INF("%s", &ptr[NORMAL_STR_LEN*logi]);\
+					if (ptr[NORMAL_STR_LEN*(logi+1) - 1] !=\
+					    '\0') {\
+						ptr[NORMAL_STR_LEN*(logi+1)\
+						    - 1] = '\0';\
+						LOG_INF("%s",\
+						    &ptr[NORMAL_STR_LEN*logi]);\
 					} else{\
-						LOG_INF("%s", &ptr[NORMAL_STR_LEN*logi]);\
+						LOG_INF("%s",\
+						    &ptr[NORMAL_STR_LEN*logi]);\
 						break;\
 					} \
 				} \
 			} \
 			else if (logT == _LOG_ERR) {\
 				for (logi = 0; logi < ERR_PAGE; logi++) {\
-					if (ptr[NORMAL_STR_LEN*(logi+1) - 1] != '\0') {\
-						ptr[NORMAL_STR_LEN*(logi+1) - 1] = '\0';\
-						LOG_INF("%s", &ptr[NORMAL_STR_LEN*logi]);\
+					if (ptr[NORMAL_STR_LEN*(logi+1) - 1] !=\
+					    '\0') {\
+						ptr[NORMAL_STR_LEN*(logi+1)\
+						    - 1] = '\0';\
+						LOG_INF("%s",\
+						    &ptr[NORMAL_STR_LEN*logi]);\
 					} else{\
-						LOG_INF("%s", &ptr[NORMAL_STR_LEN*logi]);\
+						LOG_INF("%s",\
+						    &ptr[NORMAL_STR_LEN*logi]);\
 						break;\
 					} \
 				} \
@@ -495,9 +522,10 @@ static struct SV_LOG_STR gSvLog[OWE_IRQ_TYPE_AMOUNT];
 			ptr[0] = '\0';\
 			pSrc->_cnt[ppb][logT] = 0;\
 			avaLen = str_leng - 1;\
-			ptr = pDes = (char *)&(pSrc->_str[ppb][logT][pSrc->_cnt[ppb][logT]]);\
+			ptr = pDes = (char *)&(\
+			     pSrc->_str[ppb][logT][pSrc->_cnt[ppb][logT]]);\
 			ptr2 = &(pSrc->_cnt[ppb][logT]);\
-			snprintf((char *)(pDes), avaLen, fmt, ##__VA_ARGS__);   \
+			snprintf((char *)(pDes), avaLen, fmt, ##__VA_ARGS__);\
 			while (*ptr++ != '\0') {\
 				(*ptr2)++;\
 			} \
@@ -804,30 +832,32 @@ static struct SV_LOG_STR gSvLog[OWE_IRQ_TYPE_AMOUNT];
 #define OWE_DMA_REQ_STATUS_REG         (ISP_OWE_BASE + 0x7F8)
 #define OWE_DMA_RDY_STATUS_REG         (ISP_OWE_BASE + 0x7FC)
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 static inline unsigned int OWE_MsToJiffies(unsigned int Ms)
 {
 	return ((Ms * HZ + 512) >> 10);
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 static inline unsigned int OWE_UsToJiffies(unsigned int Us)
 {
 	return (((Us / 1000) * HZ + 512) >> 10);
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
-static inline unsigned int OWE_GetIRQState(unsigned int type, unsigned int userNumber, unsigned int stus,
-				      enum OWE_PROCESS_ID_ENUM whichReq, int ProcessID)
+/******************************************************************************
+ *
+ ******************************************************************************/
+static inline unsigned int OWE_GetIRQState(
+	unsigned int type, unsigned int userNumber, unsigned int stus,
+	enum OWE_PROCESS_ID_ENUM whichReq, int ProcessID)
 {
 	unsigned int ret = 0;
-	unsigned long flags; /* old: unsigned int flags;*//* FIX to avoid build warning */
+	unsigned long flags; /* old: unsigned int flags;*/
+			     /* FIX to avoid build warning */
 
 	/*  */
 	spin_lock_irqsave(&(OWEInfo.SpinLockIrq[type]), flags);
@@ -840,8 +870,10 @@ static inline unsigned int OWE_GetIRQState(unsigned int type, unsigned int userN
 		ret = ((OWEInfo.IrqInfo.WmfeIrqCnt > 0)
 		       && (OWEInfo.ProcessID[OWEInfo.ReadReqIdx] == ProcessID));
 	} else {
-		LOG_ERR(" WaitIRQ Err,type:%d,urNum:%d,sta:%d,whReq:%d,PID:0x%x, RdReqIdx:%d\n",
-		type, userNumber, stus, whichReq, ProcessID, OWEInfo.ReadReqIdx);
+		LOG_ERR(
+		"WaitIRQ Err,type:%d,urNum:%d,sta:%d,whReq:%d,PID:0x%x, RdReqIdx:%d\n",
+		type, userNumber, stus, whichReq,
+		ProcessID, OWEInfo.ReadReqIdx);
 	}
 
 #else
@@ -852,8 +884,8 @@ static inline unsigned int OWE_GetIRQState(unsigned int type, unsigned int userN
 		ret = ((OWEInfo.IrqInfo.WmfeIrqCnt > 0)
 		       && (OWEInfo.IrqInfo.ProcessID[whichReq] == ProcessID));
 	} else {
-		LOG_ERR
-		    ("WaitIRQ Status Error, type:%d, userNumber:%d, status:%d, whichReq:%d, ProcessID:0x%x\n",
+		LOG_ERR(
+		"WaitIRQ Status Error, type:%d, userNumber:%d, status:%d, whichReq:%d, ProcessID:0x%x\n",
 		     type, userNumber, stus, whichReq, ProcessID);
 	}
 #endif
@@ -863,9 +895,9 @@ static inline unsigned int OWE_GetIRQState(unsigned int type, unsigned int userN
 }
 
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 static inline unsigned int OWE_JiffiesToMs(unsigned int Jiffies)
 {
 	return ((Jiffies * 1000) / HZ);
@@ -875,151 +907,101 @@ static inline unsigned int OWE_JiffiesToMs(unsigned int Jiffies)
 #define RegDump(start, end) {\
 	unsigned int i;\
 	for (i = start; i <= end; i += 0x10) {\
-		LOG_DBG("[0x%08X %08X],[0x%08X %08X],[0x%08X %08X],[0x%08X %08X]",\
-	    (unsigned int)(ISP_OWE_BASE + i), (unsigned int)OWE_RD32(ISP_OWE_BASE + i),\
-	    (unsigned int)(ISP_OWE_BASE + i+0x4), (unsigned int)OWE_RD32(ISP_OWE_BASE + i+0x4),\
-	    (unsigned int)(ISP_OWE_BASE + i+0x8), (unsigned int)OWE_RD32(ISP_OWE_BASE + i+0x8),\
-	    (unsigned int)(ISP_OWE_BASE + i+0xc), (unsigned int)OWE_RD32(ISP_OWE_BASE + i+0xc));\
+		LOG_DBG(\
+		  "[0x%08X %08X],[0x%08X %08X],[0x%08X %08X],[0x%08X %08X]",\
+		  (unsigned int)(ISP_OWE_BASE + i),\
+		  (unsigned int)OWE_RD32(ISP_OWE_BASE + i),\
+		  (unsigned int)(ISP_OWE_BASE + i+0x4),\
+		  (unsigned int)OWE_RD32(ISP_OWE_BASE + i+0x4),\
+		  (unsigned int)(ISP_OWE_BASE + i+0x8),\
+		  (unsigned int)OWE_RD32(ISP_OWE_BASE + i+0x8),\
+		  (unsigned int)(ISP_OWE_BASE + i+0xc),\
+		  (unsigned int)OWE_RD32(ISP_OWE_BASE + i+0xc));\
 	} \
 }
 
-
-static bool ConfigOCCRequest(signed int ReqIdx)
+signed int occ_enque_cb(struct frame *frames, void *req)
 {
-	unsigned int j;
-	unsigned long flags; /* old: unsigned int flags;*//* FIX to avoid build warning */
+	unsigned int f, fcnt;
+	/*TODO: define engine request struct */
+	struct OWE_OCCRequest *_req;
+	struct OWE_OCCConfig *pcfg;
 
+	_req = (struct OWE_OCCRequest *) req;
 
-	spin_lock_irqsave(&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]), flags);
-	if (g_OCC_RequestRing.OCCReq_Struct[ReqIdx].RequestState == OWE_REQUEST_STATE_PENDING) {
-		g_OCC_RequestRing.OCCReq_Struct[ReqIdx].RequestState = OWE_REQUEST_STATE_RUNNING;
-		for (j = 0; j < _SUPPORT_MAX_OWE_FRAME_REQUEST_; j++) {
-			if (OWE_FRAME_STATUS_ENQUE ==
-			    g_OCC_RequestRing.OCCReq_Struct[ReqIdx].OccFrameStatus[j]) {
-				g_OCC_RequestRing.OCCReq_Struct[ReqIdx].OccFrameStatus[j] =
-				    OWE_FRAME_STATUS_RUNNING;
-				spin_unlock_irqrestore(&
-						       (OWEInfo.
-							SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]),
-						       flags);
-				ConfigOCCHW(&g_OCC_RequestRing.OCCReq_Struct[ReqIdx].
-					    OccFrameConfig[j]);
-				spin_lock_irqsave(&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]),
-						  flags);
-			}
-		}
-	} else {
-		LOG_ERR("ConfigOCCRequest state machine error!!, ReqIdx:%d, RequestState:%d\n",
-			ReqIdx, g_OCC_RequestRing.OCCReq_Struct[ReqIdx].RequestState);
-	}
-	spin_unlock_irqrestore(&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]), flags);
+	if (frames == NULL || _req == NULL)
+		return -1;
 
-
-	return MTRUE;
-}
-
-static bool UpdateOCC(pid_t *ProcessID)
-{
-	unsigned int i, j, next_idx;
-	bool bFinishRequest = MFALSE;
-
-	for (i = g_OCC_RequestRing.HWProcessIdx; i < _SUPPORT_MAX_OWE_REQUEST_RING_SIZE_; i++) {
-		if (g_OCC_RequestRing.OCCReq_Struct[i].RequestState == OWE_REQUEST_STATE_RUNNING) {
-			for (j = 0; j < _SUPPORT_MAX_OWE_FRAME_REQUEST_; j++) {
-				if (OWE_FRAME_STATUS_RUNNING ==
-				    g_OCC_RequestRing.OCCReq_Struct[i].OccFrameStatus[j]) {
-					break;
-				}
-			}
-			IRQ_LOG_KEEPER(OWE_IRQ_TYPE_INT_OWE_ST, m_CurrentPPB, _LOG_DBG,
-				       "UpdateOCC idx j:%d\n", j);
-			if (j != _SUPPORT_MAX_OWE_FRAME_REQUEST_) {
-				next_idx = j + 1;
-				g_OCC_RequestRing.OCCReq_Struct[i].OccFrameStatus[j] =
-				    OWE_FRAME_STATUS_FINISHED;
-
-				if ((_SUPPORT_MAX_OWE_FRAME_REQUEST_ == (next_idx))
-				    || ((_SUPPORT_MAX_OWE_FRAME_REQUEST_ > (next_idx))
-					&& (OWE_FRAME_STATUS_EMPTY ==
-					    g_OCC_RequestRing.OCCReq_Struct[i].
-					    OccFrameStatus[next_idx]))) {
-					bFinishRequest = MTRUE;
-					(*ProcessID) = g_OCC_RequestRing.OCCReq_Struct[i].processID;
-					g_OCC_RequestRing.OCCReq_Struct[i].RequestState =
-					    OWE_REQUEST_STATE_FINISHED;
-					g_OCC_RequestRing.HWProcessIdx =
-					    (g_OCC_RequestRing.HWProcessIdx +
-					     1) % _SUPPORT_MAX_OWE_REQUEST_RING_SIZE_;
-					IRQ_LOG_KEEPER(OWE_IRQ_TYPE_INT_OWE_ST, m_CurrentPPB,
-						       _LOG_INF,
-						       "Finish OCC Request i:%d, j:%d, HWProcessIdx:%d\n",
-						       i, j, g_OCC_RequestRing.HWProcessIdx);
-				} else {
-					IRQ_LOG_KEEPER(OWE_IRQ_TYPE_INT_OWE_ST, m_CurrentPPB,
-						       _LOG_DBG,
-						       "Finish OCC Frame i:%d, j:%d, HWProcessIdx:%d\n",
-						       i, j, g_OCC_RequestRing.HWProcessIdx);
-				}
-				break;
-			}
-			/*else {*/
-			IRQ_LOG_KEEPER(OWE_IRQ_TYPE_INT_OWE_ST, m_CurrentPPB, _LOG_ERR,
-				       "OCC State Machine is wrong! HWProcessIdx(%d), RequestState(%d)\n",
-				       g_OCC_RequestRing.HWProcessIdx,
-				       g_OCC_RequestRing.OCCReq_Struct[i].RequestState);
-			g_OCC_RequestRing.OCCReq_Struct[i].RequestState =
-			    OWE_REQUEST_STATE_FINISHED;
-			g_OCC_RequestRing.HWProcessIdx =
-			    (g_OCC_RequestRing.HWProcessIdx +
-			     1) % _SUPPORT_MAX_OWE_REQUEST_RING_SIZE_;
-			break;
-			/*}*/
-		}
+	/*TODO: m_ReqNum is FrmNum; FIFO only thus f starts from 0 */
+	fcnt = _req->m_ReqNum;
+	for (f = 0; f < fcnt; f++) {
+		memcpy(frames[f].data, &_req->m_pOweConfig[f],
+						sizeof(struct OWE_OCCConfig));
+		pcfg = &_req->m_pOweConfig[f];
 	}
 
-	return bFinishRequest;
+	return 0;
 }
 
-
-static bool ConfigWMFERequest(signed int ReqIdx)
+signed int occ_deque_cb(struct frame *frames, void *req)
 {
-	unsigned int j;
-	unsigned long flags; /* old: unsigned int flags;*//* FIX to avoid build warning */
+	unsigned int f, fcnt;
+	struct OWE_OCCRequest *_req;
+	struct OWE_OCCConfig *pcfg;
 
+	_req = (struct OWE_OCCRequest *) req;
 
-	spin_lock_irqsave(&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]), flags);
-	if (g_WMFE_ReqRing.WMFEReq_Struct[ReqIdx].RequestState == OWE_REQUEST_STATE_PENDING) {
-		g_WMFE_ReqRing.WMFEReq_Struct[ReqIdx].RequestState = OWE_REQUEST_STATE_RUNNING;
-		for (j = 0; j < _SUPPORT_MAX_OWE_FRAME_REQUEST_; j++) {
-			if (OWE_FRAME_STATUS_ENQUE ==
-			    g_WMFE_ReqRing.WMFEReq_Struct[ReqIdx].WmfeFrameStatus[j]) {
-				g_WMFE_ReqRing.WMFEReq_Struct[ReqIdx].WmfeFrameStatus[j] =
-				    OWE_FRAME_STATUS_RUNNING;
-				spin_unlock_irqrestore(&
-						       (OWEInfo.
-							SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]),
-						       flags);
-				ConfigWMFEHW(&g_WMFE_ReqRing.WMFEReq_Struct[ReqIdx].
-					     WmfeFrameConfig[j]);
-				spin_lock_irqsave(&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]),
-						  flags);
-			}
-		}
-	} else {
-		LOG_ERR("ConfigWMFERequest state machine error!!, ReqIdx:%d, RequestState:%d\n",
-			ReqIdx, g_WMFE_ReqRing.WMFEReq_Struct[ReqIdx].RequestState);
+	if (frames == NULL || _req == NULL)
+		return -1;
+
+	/*TODO: m_ReqNum is FrmNum; FIFO only thus f starts from 0 */
+	fcnt = _req->m_ReqNum;
+	for (f = 0; f < fcnt; f++) {
+		memcpy(&_req->m_pOweConfig[f], frames[f].data,
+						sizeof(struct OWE_OCCConfig));
+		LOG_DBG("[%s]request deque frame(%d/%d).", __func__, f, fcnt);
+		pcfg = &_req->m_pOweConfig[f];
 	}
-	spin_unlock_irqrestore(&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]), flags);
 
-
-	return MTRUE;
+	return 0;
 }
 
-#ifdef OWE_USE_GCE
-static signed int ConfigOCCHW(struct OWE_OCCConfig *pOccConfig)
+static int cmdq_engine_secured(struct cmdqRecStruct *handle,
+						enum CMDQ_ENG_ENUM engine)
 {
+	cmdqRecSetSecure(handle, 1);
+	cmdqRecSecureEnablePortSecurity(handle, (1LL << engine));
+	cmdqRecSecureEnableDAPC(handle, (1LL << engine));
+
+	return 0;
+}
+
+/*TODO : M4U_PORT */
+#if 0
+static int cmdq_sec_base(struct cmdqRecStruct *handle, unsigned int dma_sec,
+			unsigned int reg, unsigned int val, unsigned int size)
+{
+	if (dma_sec != 0)
+		cmdqRecWriteSecure(handle, reg, CMDQ_SAM_H_2_MVA, val, 0, size,
+							M4U_PORT_CAM_OWE_RDMA);
+	else
+		cmdqRecWrite(handle, reg, val, CMDQ_REG_MASK);
+
+	return 0;
+}
+#endif
+signed int CmdqOCCHW(struct frame *frame)
+{
+	struct OWE_OCCConfig *pOccConfig;
 	struct cmdqRecStruct *handle;
+	unsigned int size_sec = 0;
 	uint64_t engineFlag = (uint64_t)(1LL << CMDQ_ENG_OWE);
+
+	if (frame == NULL || frame->data == NULL)
+		return -1;
+
+	LOG_DBG("%s request sent to CMDQ driver", __func__);
+	pOccConfig = (struct OWE_OCCConfig *) frame->data;
 
 	if (OWE_DBG_DBGLOG == (OWE_DBG_DBGLOG & OWEInfo.DebugMask)) {
 		LOG_DBG("ConfigOCCHW Start!\n");
@@ -1046,213 +1028,367 @@ static signed int ConfigOCCHW(struct OWE_OCCConfig *pOccConfig)
 #endif
 	}
 
-#ifdef __OWE_KERNEL_PERFORMANCE_MEASURE__
-	mt_kernel_trace_begin("ConfigOCCHW");
-#endif
 
 	cmdqRecCreate(CMDQ_SCENARIO_KERNEL_CONFIG_GENERAL, &handle);
-	/* CMDQ driver dispatches CMDQ HW thread and HW thread's priority according to scenario */
+	/* CMDQ driver dispatches CMDQ HW thread
+	 * and HW thread's priority according to scenario
+	 */
 
 	cmdqRecSetEngine(handle, engineFlag);
 
 	cmdqRecReset(handle);
+
+	if (pOccConfig->eng_secured == 1)
+		cmdq_engine_secured(handle, CMDQ_ENG_OWE);
+
 #ifndef BYPASS_REG
-#define CMDQWR(REG) cmdqRecWrite(handle, REG ##_HW, pOccConfig->REG, CMDQ_REG_MASK)
+#define CMDQWR(REG) \
+	cmdqRecWrite(handle, REG ##_HW, pOccConfig->REG, CMDQ_REG_MASK)
 	/* Use command queue to write register */
-	cmdqRecWrite(handle, OWE_INT_CTL_HW, 0x1, CMDQ_REG_MASK);	/* OWE Interrupt read-clear mode */
-	cmdqRecWrite(handle, OWE_OCC_INT_CTRL_HW, 0x1, CMDQ_REG_MASK);	/* OCC Interrupt read-clear mode */
+	cmdqRecWrite(handle, OWE_INT_CTL_HW, 0x1, CMDQ_REG_MASK);
+	/* OWE Interrupt read-clear mode */
+	cmdqRecWrite(handle, OWE_OCC_INT_CTRL_HW, 0x1, CMDQ_REG_MASK);
+	/* OCC Interrupt read-clear mode */
 
 	CMDQWR(DPE_OCC_CTRL_0);
 	CMDQWR(DPE_OCC_CTRL_1);
 	CMDQWR(DPE_OCC_CTRL_2);
 	CMDQWR(DPE_OCC_CTRL_3);
-	CMDQWR(DPE_OCC_REF_VEC_BASE);
+
+	size_sec = pOccConfig->dma_sec_size[OCC_DMA_REF_VEC];
+	if (size_sec != 0)
+		cmdqRecWriteSecure(handle, DPE_OCC_REF_VEC_BASE_HW,
+			CMDQ_SAM_H_2_MVA,
+			pOccConfig->DPE_OCC_REF_VEC_BASE, 0, size_sec,
+			M4U_PORT_CAM_OWE_RDMA);
+	else
+		CMDQWR(DPE_OCC_REF_VEC_BASE);
+
+	size_sec = pOccConfig->dma_sec_size[OCC_DMA_REF_PXL];
+	if (size_sec != 0)
+		cmdqRecWriteSecure(handle, DPE_OCC_REF_PXL_BASE_HW,
+			CMDQ_SAM_H_2_MVA,
+			pOccConfig->DPE_OCC_REF_PXL_BASE, 0, size_sec,
+			M4U_PORT_CAM_OWE_RDMA);
+	else
+		CMDQWR(DPE_OCC_REF_PXL_BASE);
+
+	size_sec = pOccConfig->dma_sec_size[OCC_DMA_MAJ_VEC];
+	if (size_sec != 0)
+		cmdqRecWriteSecure(handle, DPE_OCC_MAJ_VEC_BASE_HW,
+			CMDQ_SAM_H_2_MVA,
+			pOccConfig->DPE_OCC_MAJ_VEC_BASE, 0, size_sec,
+			M4U_PORT_CAM_OWE_RDMA);
+	else
+		CMDQWR(DPE_OCC_MAJ_VEC_BASE);
+
+	size_sec = pOccConfig->dma_sec_size[OCC_DMA_MAJ_PXL];
+	if (size_sec != 0)
+		cmdqRecWriteSecure(handle, DPE_OCC_MAJ_PXL_BASE_HW,
+			CMDQ_SAM_H_2_MVA,
+			pOccConfig->DPE_OCC_MAJ_PXL_BASE, 0, size_sec,
+			M4U_PORT_CAM_OWE_RDMA);
+	else
+		CMDQWR(DPE_OCC_MAJ_PXL_BASE);
+
+
+	size_sec = pOccConfig->dma_sec_size[OCC_DMA_WDMA];
+	if (size_sec != 0)
+		cmdqRecWriteSecure(handle, DPE_OCC_WDMA_BASE_HW,
+			CMDQ_SAM_H_2_MVA,
+			pOccConfig->DPE_OCC_WDMA_BASE, 0, size_sec,
+			M4U_PORT_CAM_OWE_WDMA);
+	else
+		CMDQWR(DPE_OCC_WDMA_BASE);
+
 	CMDQWR(DPE_OCC_REF_VEC_STRIDE);
-	CMDQWR(DPE_OCC_REF_PXL_BASE);
 	CMDQWR(DPE_OCC_REF_PXL_STRIDE);
-	CMDQWR(DPE_OCC_MAJ_VEC_BASE);
 	CMDQWR(DPE_OCC_MAJ_VEC_STRIDE);
-	CMDQWR(DPE_OCC_MAJ_PXL_BASE);
 	CMDQWR(DPE_OCC_MAJ_PXL_STRIDE);
-	CMDQWR(DPE_OCC_WDMA_BASE);
 	CMDQWR(DPE_OCC_WDMA_STRIDE);
 	CMDQWR(DPE_OCC_PQ_0);
 	CMDQWR(DPE_OCC_PQ_1);
 
-	cmdqRecWrite(handle, OWE_OCC_START_HW, 0x1, CMDQ_REG_MASK);	/* OWE Interrupt read-clear mode */
+	cmdqRecWrite(handle, OWE_OCC_START_HW, 0x1, CMDQ_REG_MASK);
+	/* OWE Interrupt read-clear mode */
 	cmdqRecWait(handle, CMDQ_EVENT_OCC_DONE);
-	cmdqRecWrite(handle, OWE_OCC_START_HW, 0x0, CMDQ_REG_MASK);	/* OWE Interrupt read-clear mode */
+	cmdqRecWrite(handle, OWE_OCC_START_HW, 0x0, CMDQ_REG_MASK);
+	/* OWE Interrupt read-clear mode */
 
 	/* non-blocking API, Please  use cmdqRecFlushAsync() */
 	cmdqRecFlushAsync(handle);
-	cmdqRecReset(handle);	/* if you want to re-use the handle, please reset the handle */
-	cmdqRecDestroy(handle);	/* recycle the memory */
+	/* if you want to re-use the handle, please reset the handle */
+	cmdqRecReset(handle);
+	cmdqRecDestroy(handle);
 #endif
 
-#ifdef __OWE_KERNEL_PERFORMANCE_MEASURE__
-	mt_kernel_trace_end();
-#endif
 
 	return 0;
-
 }
-#endif
+static const struct engine_ops occ_ops = {
+	.req_enque_cb = occ_enque_cb,
+	.req_deque_cb = occ_deque_cb,
+	.frame_handler = CmdqOCCHW,
+	.req_feedback_cb = NULL,
+};
 
-static bool UpdateWMFE(pid_t *ProcessID)
+signed int wmfe_enque_cb(struct frame *frames, void *req)
 {
-	unsigned int i, j, next_idx;
-	bool bFinishRequest = MFALSE;
+	unsigned int f, fcnt;
+	/*TODO: define engine request struct */
+	struct OWE_WMFERequest *_req;
+	struct OWE_WMFEConfig *pcfg;
 
-	for (i = g_WMFE_ReqRing.HWProcessIdx; i < _SUPPORT_MAX_OWE_REQUEST_RING_SIZE_; i++) {
-		if (g_WMFE_ReqRing.WMFEReq_Struct[i].RequestState == OWE_REQUEST_STATE_RUNNING) {
-			for (j = 0; j < _SUPPORT_MAX_OWE_FRAME_REQUEST_; j++) {
-				if (OWE_FRAME_STATUS_RUNNING ==
-				    g_WMFE_ReqRing.WMFEReq_Struct[i].WmfeFrameStatus[j]) {
-					break;
-				}
-			}
-			IRQ_LOG_KEEPER(OWE_IRQ_TYPE_INT_OWE_ST, m_CurrentPPB, _LOG_DBG,
-				       "UpdateWMFE idx j:%d\n", j);
-			if (j != _SUPPORT_MAX_OWE_FRAME_REQUEST_) {
-				next_idx = j + 1;
-				g_WMFE_ReqRing.WMFEReq_Struct[i].WmfeFrameStatus[j] =
-				    OWE_FRAME_STATUS_FINISHED;
-				if ((_SUPPORT_MAX_OWE_FRAME_REQUEST_ == (next_idx))
-				    || ((_SUPPORT_MAX_OWE_FRAME_REQUEST_ > (next_idx))
-					&& (OWE_FRAME_STATUS_EMPTY ==
-					    g_WMFE_ReqRing.WMFEReq_Struct[i].
-					    WmfeFrameStatus[next_idx]))) {
-					bFinishRequest = MTRUE;
-					(*ProcessID) =
-					    g_WMFE_ReqRing.WMFEReq_Struct[i].processID;
-					g_WMFE_ReqRing.WMFEReq_Struct[i].RequestState =
-					    OWE_REQUEST_STATE_FINISHED;
-					g_WMFE_ReqRing.HWProcessIdx =
-					    (g_WMFE_ReqRing.HWProcessIdx +
-					     1) % _SUPPORT_MAX_OWE_REQUEST_RING_SIZE_;
-					IRQ_LOG_KEEPER(OWE_IRQ_TYPE_INT_OWE_ST, m_CurrentPPB,
-						       _LOG_INF,
-						       "Finish WMFE Request i:%d, j:%d, HWProcessIdx:%d\n",
-						       i, j, g_WMFE_ReqRing.HWProcessIdx);
-				} else {
-					IRQ_LOG_KEEPER(OWE_IRQ_TYPE_INT_OWE_ST, m_CurrentPPB,
-						       _LOG_DBG,
-						       "Finish WMFE Frame i:%d, j:%d, HWProcessIdx:%d\n",
-						       i, j, g_WMFE_ReqRing.HWProcessIdx);
-				}
-				break;
-			}
-			/*else {*/
-			IRQ_LOG_KEEPER(OWE_IRQ_TYPE_INT_OWE_ST, m_CurrentPPB, _LOG_ERR,
-				       "WMFE State Machine is wrong! HWProcessIdx(%d), RequestState(%d)\n",
-				       g_WMFE_ReqRing.HWProcessIdx,
-				       g_WMFE_ReqRing.WMFEReq_Struct[i].RequestState);
-			g_WMFE_ReqRing.WMFEReq_Struct[i].RequestState =
-			    OWE_REQUEST_STATE_FINISHED;
-			g_WMFE_ReqRing.HWProcessIdx =
-			    (g_WMFE_ReqRing.HWProcessIdx +
-			     1) % _SUPPORT_MAX_OWE_REQUEST_RING_SIZE_;
-			break;
-			/*}*/
-		}
+	_req = (struct OWE_WMFERequest *) req;
+
+	if (frames == NULL || _req == NULL)
+		return -1;
+
+	/*TODO: m_ReqNum is FrmNum; FIFO only thus f starts from 0 */
+	fcnt = _req->m_ReqNum;
+	for (f = 0; f < fcnt; f++) {
+		memcpy(frames[f].data, &_req->m_pWmfeConfig[f],
+			sizeof(struct OWE_WMFEConfig));
+		pcfg = &_req->m_pWmfeConfig[f];
 	}
 
-	return bFinishRequest;
+	return 0;
 }
 
-#ifdef OWE_USE_GCE
-static signed int ConfigWMFEHW(struct OWE_WMFEConfig *pWmfeCfg)
+signed int wmfe_deque_cb(struct frame *frames, void *req)
 {
+	unsigned int f, fcnt;
+	struct OWE_WMFERequest *_req;
+	struct OWE_WMFEConfig *pcfg;
+
+	_req = (struct OWE_WMFERequest *) req;
+
+	if (frames == NULL || _req == NULL)
+		return -1;
+
+	/*TODO: m_ReqNum is FrmNum; FIFO only thus f starts from 0 */
+	fcnt = _req->m_ReqNum;
+	for (f = 0; f < fcnt; f++) {
+		memcpy(&_req->m_pWmfeConfig[f], frames[f].data,
+			sizeof(struct OWE_WMFEConfig));
+		LOG_DBG("[%s]request dequeued frame(%d/%d).",
+			__func__, f, fcnt);
+		pcfg = &_req->m_pWmfeConfig[f];
+	}
+
+	return 0;
+}
+
+signed int CmdqWMFEHW(struct frame *frame)
+{
+	struct OWE_WMFEConfig *pWmfeCfg;
 	struct cmdqRecStruct *handle;
 	uint64_t engineFlag = (uint64_t)(1LL << CMDQ_ENG_OWE);
 	unsigned int i = 0;
+	unsigned int size_sec = 0;
+
+	if (frame == NULL || frame->data == NULL)
+		return -1;
+
+	LOG_DBG("%s request sent to CMDQ driver", __func__);
+	pWmfeCfg = (struct OWE_WMFEConfig *) frame->data;
 
 	if (OWE_DBG_DBGLOG == (OWE_DBG_DBGLOG & OWEInfo.DebugMask)) {
 
 		LOG_DBG("ConfigWMFEHW Start!\n");
 		for (i = 0; i < pWmfeCfg->WmfeCtrlSize; i++) {
-			LOG_DBG("WMFE_CTRL_%d_REG:0x%x!\n", i, pWmfeCfg->WmfeCtrl[i].WMFE_CTRL);
-			LOG_DBG("WMFE_SIZE_%d_REG:0x%x!\n", i, pWmfeCfg->WmfeCtrl[i].WMFE_SIZE);
+			LOG_DBG("WMFE_CTRL_%d_REG:0x%x!\n",
+				i, pWmfeCfg->WmfeCtrl[i].WMFE_CTRL);
+			LOG_DBG("WMFE_SIZE_%d_REG:0x%x!\n",
+				i, pWmfeCfg->WmfeCtrl[i].WMFE_SIZE);
 			LOG_DBG("WMFE_IMGI_BASE_ADDR_%d_REG:0x%x!\n",
 				i, pWmfeCfg->WmfeCtrl[i].WMFE_IMGI_BASE_ADDR);
-			LOG_DBG("WMFE_IMGI_STRIDE_%d_REG:0x%x!\n", i, pWmfeCfg->WmfeCtrl[i].WMFE_IMGI_STRIDE);
+			LOG_DBG("WMFE_IMGI_STRIDE_%d_REG:0x%x!\n",
+				i, pWmfeCfg->WmfeCtrl[i].WMFE_IMGI_STRIDE);
 			LOG_DBG("WMFE_DPI_BASE_ADDR_%d_REG:0x%x!\n",
 				i, pWmfeCfg->WmfeCtrl[i].WMFE_DPI_BASE_ADDR);
-			LOG_DBG("WMFE_DPI_STRIDE_%d_REG:0x%x!\n", i, pWmfeCfg->WmfeCtrl[i].WMFE_DPI_STRIDE);
+			LOG_DBG("WMFE_DPI_STRIDE_%d_REG:0x%x!\n",
+				i, pWmfeCfg->WmfeCtrl[i].WMFE_DPI_STRIDE);
 			LOG_DBG("WMFE_TBLI_BASE_ADDR_%d_REG:0x%x!\n",
 				i, pWmfeCfg->WmfeCtrl[i].WMFE_TBLI_BASE_ADDR);
-			LOG_DBG("WMFE_TBLI_STRIDE_%d_REG:0x%x!\n", i, pWmfeCfg->WmfeCtrl[i].WMFE_TBLI_STRIDE);
+			LOG_DBG("WMFE_TBLI_STRIDE_%d_REG:0x%x!\n",
+				i, pWmfeCfg->WmfeCtrl[i].WMFE_TBLI_STRIDE);
 			LOG_DBG("WMFE_MASKI_BASE_ADDR_%d_REG:0x%x!\n",
 				i, pWmfeCfg->WmfeCtrl[i].WMFE_MASKI_BASE_ADDR);
-			LOG_DBG("WMFE_MASKI_STRIDE_%d_REG:0x%x!\n", i, pWmfeCfg->WmfeCtrl[i].WMFE_MASKI_STRIDE);
+			LOG_DBG("WMFE_MASKI_STRIDE_%d_REG:0x%x!\n",
+				i, pWmfeCfg->WmfeCtrl[i].WMFE_MASKI_STRIDE);
 			LOG_DBG("WMFE_DPO_BASE_ADDR_%d_REG:0x%x!\n",
 				i, pWmfeCfg->WmfeCtrl[i].WMFE_DPO_BASE_ADDR);
-			LOG_DBG("WMFE_DPO_STRIDE_%d_REG:0x%x!\n", i, pWmfeCfg->WmfeCtrl[i].WMFE_DPO_STRIDE);
+			LOG_DBG("WMFE_DPO_STRIDE_%d_REG:0x%x!\n",
+				i, pWmfeCfg->WmfeCtrl[i].WMFE_DPO_STRIDE);
 		}
 	}
 
-#ifdef __OWE_KERNEL_PERFORMANCE_MEASURE__
-	mt_kernel_trace_begin("ConfigWMFEHW");
-#endif
-
 	cmdqRecCreate(CMDQ_SCENARIO_KERNEL_CONFIG_GENERAL, &handle);
-	/* CMDQ driver dispatches CMDQ HW thread and HW thread's priority according to scenario */
+	/* CMDQ driver dispatches CMDQ HW thread and HW thread's
+	 * priority according to scenario
+	 */
 
 	cmdqRecSetEngine(handle, engineFlag);
 
 	cmdqRecReset(handle);
+
+	if (pWmfeCfg->WmfeCtrl[0].eng_secured == 1)
+		cmdq_engine_secured(handle, CMDQ_ENG_OWE);
+
 #ifndef BYPASS_REG
 	/* Use command queue to write register */
-	cmdqRecWrite(handle, OWE_INT_CTL_HW, 0x1, CMDQ_REG_MASK);	/* OWE Interrupt read-clear mode */
-	cmdqRecWrite(handle, OWE_WMFE_INT_CTRL_HW, 0x1, CMDQ_REG_MASK);	/* WMFE Interrupt read-clear mode */
+	cmdqRecWrite(handle,
+		OWE_INT_CTL_HW,
+		0x1, CMDQ_REG_MASK);	/* OWE Interrupt read-clear mode */
+	cmdqRecWrite(handle,
+		OWE_WMFE_INT_CTRL_HW,
+		0x1, CMDQ_REG_MASK);	/* WMFE Interrupt read-clear mode */
 
 	for (i = 0; i < pWmfeCfg->WmfeCtrlSize; i++) {
-		LOG_DBG("OWE_WMFE_CTRL_%d_REG:0x%x!\n", i, pWmfeCfg->WmfeCtrl[i].WMFE_CTRL);
+		LOG_DBG("OWE_WMFE_CTRL_%d_REG:0x%x!\n",
+			i, pWmfeCfg->WmfeCtrl[i].WMFE_CTRL);
 
-		if (WMFE_ENABLE == (pWmfeCfg->WmfeCtrl[i].WMFE_CTRL & WMFE_ENABLE)) {
-			cmdqRecWrite(handle, OWE_WMFE_CTRL_0_HW + (i*0x40),
-				pWmfeCfg->WmfeCtrl[i].WMFE_CTRL, CMDQ_REG_MASK);
-			cmdqRecWrite(handle, OWE_WMFE_SIZE_0_HW + (i*0x40),
-				pWmfeCfg->WmfeCtrl[i].WMFE_SIZE, CMDQ_REG_MASK);
-			cmdqRecWrite(handle, OWE_WMFE_IMGI_BASE_ADDR_0_HW + (i*0x40),
-				pWmfeCfg->WmfeCtrl[i].WMFE_IMGI_BASE_ADDR, CMDQ_REG_MASK);
-			cmdqRecWrite(handle, OWE_WMFE_IMGI_STRIDE_0_HW + (i*0x40),
-				pWmfeCfg->WmfeCtrl[i].WMFE_IMGI_STRIDE, CMDQ_REG_MASK);
-			cmdqRecWrite(handle, OWE_WMFE_DPI_BASE_ADDR_0_HW + (i*0x40),
-				pWmfeCfg->WmfeCtrl[i].WMFE_DPI_BASE_ADDR, CMDQ_REG_MASK);
-			cmdqRecWrite(handle, OWE_WMFE_DPI_STRIDE_0_HW + (i*0x40),
-				pWmfeCfg->WmfeCtrl[i].WMFE_DPI_STRIDE, CMDQ_REG_MASK);
-			cmdqRecWrite(handle, OWE_WMFE_TBLI_BASE_ADDR_0_HW + (i*0x40),
-				pWmfeCfg->WmfeCtrl[i].WMFE_TBLI_BASE_ADDR, CMDQ_REG_MASK);
-			cmdqRecWrite(handle, OWE_WMFE_TBLI_STRIDE_0_HW + (i*0x40),
-				pWmfeCfg->WmfeCtrl[i].WMFE_TBLI_STRIDE, CMDQ_REG_MASK);
-			cmdqRecWrite(handle, OWE_WMFE_MASKI_BASE_ADDR_0_HW + (i*0x40),
-				pWmfeCfg->WmfeCtrl[i].WMFE_MASKI_BASE_ADDR, CMDQ_REG_MASK);
-			cmdqRecWrite(handle, OWE_WMFE_MASKI_STRIDE_0_HW + (i*0x40),
-				pWmfeCfg->WmfeCtrl[i].WMFE_MASKI_STRIDE, CMDQ_REG_MASK);
-			cmdqRecWrite(handle, OWE_WMFE_DPO_BASE_ADDR_0_HW + (i*0x40),
-				pWmfeCfg->WmfeCtrl[i].WMFE_DPO_BASE_ADDR, CMDQ_REG_MASK);
-			cmdqRecWrite(handle, OWE_WMFE_DPO_STRIDE_0_HW + (i*0x40),
-				pWmfeCfg->WmfeCtrl[i].WMFE_DPO_STRIDE, CMDQ_REG_MASK);
+		if (WMFE_ENABLE ==
+			(pWmfeCfg->WmfeCtrl[i].WMFE_CTRL & WMFE_ENABLE)) {
+			cmdqRecWrite(handle,
+				OWE_WMFE_CTRL_0_HW + (i*0x40),
+				pWmfeCfg->WmfeCtrl[i].WMFE_CTRL,
+				CMDQ_REG_MASK);
+			cmdqRecWrite(handle,
+				OWE_WMFE_SIZE_0_HW + (i*0x40),
+				pWmfeCfg->WmfeCtrl[i].WMFE_SIZE,
+				CMDQ_REG_MASK);
+			cmdqRecWrite(handle,
+				OWE_WMFE_IMGI_STRIDE_0_HW + (i*0x40),
+				pWmfeCfg->WmfeCtrl[i].WMFE_IMGI_STRIDE,
+				CMDQ_REG_MASK);
+			cmdqRecWrite(handle,
+				OWE_WMFE_DPI_STRIDE_0_HW + (i*0x40),
+				pWmfeCfg->WmfeCtrl[i].WMFE_DPI_STRIDE,
+				CMDQ_REG_MASK);
+			cmdqRecWrite(handle,
+				OWE_WMFE_TBLI_STRIDE_0_HW + (i*0x40),
+				pWmfeCfg->WmfeCtrl[i].WMFE_TBLI_STRIDE,
+				CMDQ_REG_MASK);
+			cmdqRecWrite(handle,
+				OWE_WMFE_MASKI_STRIDE_0_HW + (i*0x40),
+				pWmfeCfg->WmfeCtrl[i].WMFE_MASKI_STRIDE,
+				CMDQ_REG_MASK);
+			cmdqRecWrite(handle,
+				OWE_WMFE_DPO_STRIDE_0_HW + (i*0x40),
+				pWmfeCfg->WmfeCtrl[i].WMFE_DPO_STRIDE,
+				CMDQ_REG_MASK);
+
+			size_sec =
+				pWmfeCfg->WmfeCtrl[i].dma_sec_size[
+								WMFE_DMA_IMGI];
+			if (size_sec != 0)
+				cmdqRecWriteSecure(handle,
+					OWE_WMFE_IMGI_BASE_ADDR_0_HW + (i*0x40),
+					CMDQ_SAM_H_2_MVA,
+					pWmfeCfg->WmfeCtrl[
+							i].WMFE_IMGI_BASE_ADDR,
+					0, size_sec, M4U_PORT_CAM_OWE_RDMA);
+			else
+				cmdqRecWrite(handle,
+					OWE_WMFE_IMGI_BASE_ADDR_0_HW + (i*0x40),
+					pWmfeCfg->WmfeCtrl[
+							i].WMFE_IMGI_BASE_ADDR,
+					CMDQ_REG_MASK);
+
+			size_sec =
+				pWmfeCfg->WmfeCtrl[i].dma_sec_size[
+								WMFE_DMA_DPI];
+			if (size_sec != 0)
+				cmdqRecWriteSecure(handle,
+					OWE_WMFE_DPI_BASE_ADDR_0_HW + (i*0x40),
+					CMDQ_SAM_H_2_MVA,
+					pWmfeCfg->WmfeCtrl[
+							i].WMFE_DPI_BASE_ADDR,
+					0, size_sec, M4U_PORT_CAM_OWE_RDMA);
+			else
+				cmdqRecWrite(handle,
+					OWE_WMFE_DPI_BASE_ADDR_0_HW + (i*0x40),
+					pWmfeCfg->WmfeCtrl[
+						i].WMFE_DPI_BASE_ADDR,
+					CMDQ_REG_MASK);
+
+			size_sec =
+				pWmfeCfg->WmfeCtrl[i].dma_sec_size[
+								WMFE_DMA_TBLI];
+			if (size_sec != 0)
+				cmdqRecWriteSecure(handle,
+					OWE_WMFE_TBLI_BASE_ADDR_0_HW + (i*0x40),
+					CMDQ_SAM_H_2_MVA,
+					pWmfeCfg->WmfeCtrl[
+						i].WMFE_TBLI_BASE_ADDR,
+					0, size_sec, M4U_PORT_CAM_OWE_RDMA);
+			else
+				cmdqRecWrite(handle,
+					OWE_WMFE_TBLI_BASE_ADDR_0_HW + (i*0x40),
+					pWmfeCfg->WmfeCtrl[
+						i].WMFE_TBLI_BASE_ADDR,
+					CMDQ_REG_MASK);
+
+			size_sec = pWmfeCfg->WmfeCtrl[i].dma_sec_size[
+								WMFE_DMA_MASKI];
+			if (size_sec != 0)
+				cmdqRecWriteSecure(handle,
+				    OWE_WMFE_MASKI_BASE_ADDR_0_HW + (i*0x40),
+				    CMDQ_SAM_H_2_MVA,
+				    pWmfeCfg->WmfeCtrl[
+					i].WMFE_MASKI_BASE_ADDR,
+				    0, size_sec, M4U_PORT_CAM_OWE_RDMA);
+			else
+				cmdqRecWrite(handle,
+				    OWE_WMFE_MASKI_BASE_ADDR_0_HW + (i*0x40),
+				    pWmfeCfg->WmfeCtrl[
+					i].WMFE_MASKI_BASE_ADDR,
+				    CMDQ_REG_MASK);
+
+			size_sec = pWmfeCfg->WmfeCtrl[i].dma_sec_size[
+								WMFE_DMA_DPO];
+			if (size_sec != 0)
+				cmdqRecWriteSecure(handle,
+					OWE_WMFE_DPO_BASE_ADDR_0_HW + (i*0x40),
+					CMDQ_SAM_H_2_MVA,
+					pWmfeCfg->WmfeCtrl[
+						i].WMFE_DPO_BASE_ADDR, 0,
+					size_sec, M4U_PORT_CAM_OWE_WDMA);
+			else
+				cmdqRecWrite(handle,
+					OWE_WMFE_DPO_BASE_ADDR_0_HW + (i*0x40),
+					pWmfeCfg->WmfeCtrl[
+						i].WMFE_DPO_BASE_ADDR,
+					CMDQ_REG_MASK);
+
 		}
 	}
 #endif
-	cmdqRecWrite(handle, OWE_WMFE_START_HW, 0x1, CMDQ_REG_MASK);	/* OWE Interrupt read-clear mode */
+	cmdqRecWrite(handle,
+		OWE_WMFE_START_HW,
+		0x1, CMDQ_REG_MASK);	/* OWE Interrupt read-clear mode */
 
 	cmdqRecWait(handle, CMDQ_EVENT_WMF_EOF);
-	cmdqRecWrite(handle, OWE_WMFE_START_HW, 0x0, CMDQ_REG_MASK);	/* OWE Interrupt read-clear mode */
+	cmdqRecWrite(handle,
+		OWE_WMFE_START_HW,
+		0x0, CMDQ_REG_MASK);	/* OWE Interrupt read-clear mode */
 	/* non-blocking API, Please  use cmdqRecFlushAsync() */
 	cmdqRecFlushAsync(handle);
-	cmdqRecReset(handle);	/* if you want to re-use the handle, please reset the handle */
+	cmdqRecReset(handle);	/* if you want to re-use the handle,
+				 * please reset the handle
+				 */
 	cmdqRecDestroy(handle);	/* recycle the memory */
-
-#ifdef __OWE_KERNEL_PERFORMANCE_MEASURE__
-	mt_kernel_trace_end();
-#endif
 
 	return 0;
 }
-#endif
+static const struct engine_ops wmfe_ops = {
+	.req_enque_cb = wmfe_enque_cb,
+	.req_deque_cb = wmfe_deque_cb,
+	.frame_handler = CmdqWMFEHW,
+	.req_feedback_cb = NULL,
+};
 
 /*
  *
@@ -1260,13 +1396,13 @@ static signed int ConfigWMFEHW(struct OWE_WMFEConfig *pWmfeCfg)
 static signed int OWE_DumpReg(void)
 {
 	signed int Ret = 0;
-	unsigned int i, j;
 	/*  */
 	LOG_INF("- E.");
 	/*  */
 	LOG_INF("OCC Config Info\n");
 
-#define PRINT_INF(REG) LOG_INF("[0x%08X %08X]\n", (unsigned int)(REG ##_HW), (unsigned int)OWE_RD32(REG ##_REG))
+#define PRINT_INF(REG) LOG_INF("[0x%08X %08X]\n", (unsigned int)(REG ##_HW), \
+	(unsigned int)OWE_RD32(REG ##_REG))
 	PRINT_INF(OWE_OCC_START);
 	PRINT_INF(OWE_OCC_INT_CTRL);
 	PRINT_INF(OWE_OCC_INT_STATUS);
@@ -1312,7 +1448,8 @@ static signed int OWE_DumpReg(void)
 		(unsigned int)OWE_RD32(OWE_WMFE_TBLI_BASE_ADDR_0_REG));
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(OWE_WMFE_TBLI_STRIDE_0_HW),
 		(unsigned int)OWE_RD32(OWE_WMFE_TBLI_STRIDE_0_REG));
-	LOG_INF("[0x%08X %08X]\n", (unsigned int)(OWE_WMFE_MASKI_BASE_ADDR_0_HW),
+	LOG_INF("[0x%08X %08X]\n",
+		(unsigned int)(OWE_WMFE_MASKI_BASE_ADDR_0_HW),
 		(unsigned int)OWE_RD32(OWE_WMFE_MASKI_BASE_ADDR_0_REG));
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(OWE_WMFE_MASKI_STRIDE_0_HW),
 		(unsigned int)OWE_RD32(OWE_WMFE_MASKI_STRIDE_0_REG));
@@ -1339,7 +1476,8 @@ static signed int OWE_DumpReg(void)
 		(unsigned int)OWE_RD32(OWE_WMFE_TBLI_BASE_ADDR_1_REG));
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(OWE_WMFE_TBLI_STRIDE_1_HW),
 		(unsigned int)OWE_RD32(OWE_WMFE_TBLI_STRIDE_1_REG));
-	LOG_INF("[0x%08X %08X]\n", (unsigned int)(OWE_WMFE_MASKI_BASE_ADDR_1_HW),
+	LOG_INF("[0x%08X %08X]\n",
+		(unsigned int)(OWE_WMFE_MASKI_BASE_ADDR_1_HW),
 		(unsigned int)OWE_RD32(OWE_WMFE_MASKI_BASE_ADDR_1_REG));
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(OWE_WMFE_MASKI_STRIDE_1_HW),
 		(unsigned int)OWE_RD32(OWE_WMFE_MASKI_STRIDE_1_REG));
@@ -1365,7 +1503,8 @@ static signed int OWE_DumpReg(void)
 		(unsigned int)OWE_RD32(OWE_WMFE_TBLI_BASE_ADDR_2_REG));
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(OWE_WMFE_TBLI_STRIDE_2_HW),
 		(unsigned int)OWE_RD32(OWE_WMFE_TBLI_STRIDE_2_REG));
-	LOG_INF("[0x%08X %08X]\n", (unsigned int)(OWE_WMFE_MASKI_BASE_ADDR_2_HW),
+	LOG_INF("[0x%08X %08X]\n",
+		(unsigned int)(OWE_WMFE_MASKI_BASE_ADDR_2_HW),
 		(unsigned int)OWE_RD32(OWE_WMFE_MASKI_BASE_ADDR_2_REG));
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(OWE_WMFE_MASKI_STRIDE_2_HW),
 		(unsigned int)OWE_RD32(OWE_WMFE_MASKI_STRIDE_2_REG));
@@ -1391,7 +1530,8 @@ static signed int OWE_DumpReg(void)
 		(unsigned int)OWE_RD32(OWE_WMFE_TBLI_BASE_ADDR_3_REG));
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(OWE_WMFE_TBLI_STRIDE_3_HW),
 		(unsigned int)OWE_RD32(OWE_WMFE_TBLI_STRIDE_3_REG));
-	LOG_INF("[0x%08X %08X]\n", (unsigned int)(OWE_WMFE_MASKI_BASE_ADDR_3_HW),
+	LOG_INF("[0x%08X %08X]\n",
+		(unsigned int)(OWE_WMFE_MASKI_BASE_ADDR_3_HW),
 		(unsigned int)OWE_RD32(OWE_WMFE_MASKI_BASE_ADDR_3_REG));
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(OWE_WMFE_MASKI_STRIDE_3_HW),
 		(unsigned int)OWE_RD32(OWE_WMFE_MASKI_STRIDE_3_REG));
@@ -1417,7 +1557,8 @@ static signed int OWE_DumpReg(void)
 		(unsigned int)OWE_RD32(OWE_WMFE_TBLI_BASE_ADDR_4_REG));
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(OWE_WMFE_TBLI_STRIDE_4_HW),
 		(unsigned int)OWE_RD32(OWE_WMFE_TBLI_STRIDE_4_REG));
-	LOG_INF("[0x%08X %08X]\n", (unsigned int)(OWE_WMFE_MASKI_BASE_ADDR_4_HW),
+	LOG_INF("[0x%08X %08X]\n",
+		(unsigned int)(OWE_WMFE_MASKI_BASE_ADDR_4_HW),
 		(unsigned int)OWE_RD32(OWE_WMFE_MASKI_BASE_ADDR_4_REG));
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(OWE_WMFE_MASKI_STRIDE_4_HW),
 		(unsigned int)OWE_RD32(OWE_WMFE_MASKI_STRIDE_4_REG));
@@ -1456,55 +1597,8 @@ static signed int OWE_DumpReg(void)
 	LOG_INF("[0x%08X %08X]\n", (unsigned int)(OWE_DMA_RDY_STATUS_HW),
 		(unsigned int)OWE_RD32(OWE_DMA_RDY_STATUS_REG));
 
-
-	LOG_INF("OCC:HWProcessIdx:%d, WriteIdx:%d, ReadIdx:%d\n", g_OCC_RequestRing.HWProcessIdx,
-		g_OCC_RequestRing.WriteIdx, g_OCC_RequestRing.ReadIdx);
-
-	for (i = 0; i < _SUPPORT_MAX_OWE_REQUEST_RING_SIZE_; i++) {
-		LOG_INF
-		    ("OCC:ReqSte:%d, PID:0x%08X, callerID:0x%08X, enqueReqNum:%d, FrameWRIdx:%d, FrameRDIdx:%d\n",
-		     g_OCC_RequestRing.OCCReq_Struct[i].RequestState,
-		     g_OCC_RequestRing.OCCReq_Struct[i].processID,
-		     g_OCC_RequestRing.OCCReq_Struct[i].callerID,
-		     g_OCC_RequestRing.OCCReq_Struct[i].enqueReqNum,
-		     g_OCC_RequestRing.OCCReq_Struct[i].FrameWRIdx,
-		     g_OCC_RequestRing.OCCReq_Struct[i].FrameRDIdx);
-
-		for (j = 0; j < _SUPPORT_MAX_OWE_FRAME_REQUEST_;) {
-			LOG_INF
-			    ("OCC:FrameStatus[%d]:%d, FrameStatus[%d]:%d, FrameStatus[%d]:%d\n",
-			     j, g_OCC_RequestRing.OCCReq_Struct[i].OccFrameStatus[j]
-			     , j + 1, g_OCC_RequestRing.OCCReq_Struct[i].OccFrameStatus[j + 1],
-			     j + 2, g_OCC_RequestRing.OCCReq_Struct[i].OccFrameStatus[j + 2]);
-			j = j + 3;
-		}
-	}
-
-	LOG_INF("WMFE:HWProcessIdx:%d, WriteIdx:%d, ReadIdx:%d\n", g_WMFE_ReqRing.HWProcessIdx,
-		g_WMFE_ReqRing.WriteIdx, g_WMFE_ReqRing.ReadIdx);
-
-	for (i = 0; i < _SUPPORT_MAX_OWE_REQUEST_RING_SIZE_; i++) {
-		LOG_INF
-		    ("WMFE:ReqSte:%d, PID:0x%08X, callerID:0x%08X, enqueReqNum:%d, FrameWRIdx:%d, FrameRDIdx:%d\n",
-		     g_WMFE_ReqRing.WMFEReq_Struct[i].RequestState,
-		     g_WMFE_ReqRing.WMFEReq_Struct[i].processID,
-		     g_WMFE_ReqRing.WMFEReq_Struct[i].callerID,
-		     g_WMFE_ReqRing.WMFEReq_Struct[i].enqueReqNum,
-		     g_WMFE_ReqRing.WMFEReq_Struct[i].FrameWRIdx,
-		     g_WMFE_ReqRing.WMFEReq_Struct[i].FrameRDIdx);
-
-		for (j = 0; j < _SUPPORT_MAX_OWE_FRAME_REQUEST_;) {
-			LOG_INF
-			    ("WMFE:FrameStatus[%d]:%d, FrameStatus[%d]:%d, FrameStatus[%d]:%d\n",
-			     j, g_WMFE_ReqRing.WMFEReq_Struct[i].WmfeFrameStatus[j]
-			     , j + 1, g_WMFE_ReqRing.WMFEReq_Struct[i].WmfeFrameStatus[j + 1],
-			     j + 2, g_WMFE_ReqRing.WMFEReq_Struct[i].WmfeFrameStatus[j + 2]);
-			j = j + 3;
-		}
-
-	}
-
-
+	request_dump(&occ_reqs);
+	request_dump(&wmfe_reqs);
 
 	LOG_INF("- X.");
 	/*  */
@@ -1512,73 +1606,38 @@ static signed int OWE_DumpReg(void)
 }
 #ifndef __OWE_EP_NO_CLKMGR__
 #if !defined(CONFIG_MTK_LEGACY) && defined(CONFIG_COMMON_CLK) /*CCF*/
-static inline void OWE_Prepare_ccf_clock(void)
-{
-	int ret;
-	/* must keep this clk open order: CG_SCP_SYS_DIS-> CG_MM_SMI_COMMON -> CG_SCP_SYS_ISP -> OWE clk */
-	smi_clk_prepare(SMI_LARB_IMGSYS1, "camera-owe", 1);
-
-	ret = clk_prepare(owe_clk.CG_IMGSYS_OWE);
-	if (ret)
-		LOG_ERR("cannot prepare CG_IMGSYS_OWE clock\n");
-
-}
-
-static inline void OWE_Enable_ccf_clock(void)
-{
-	int ret;
-	/* must keep this clk open order: CG_SCP_SYS_DIS-> CG_MM_SMI_COMMON -> CG_SCP_SYS_ISP -> OWE  clk */
-	smi_clk_enable(SMI_LARB_IMGSYS1, "camera-owe", 1);
-
-	ret = clk_enable(owe_clk.CG_IMGSYS_OWE);
-	if (ret)
-		LOG_ERR("cannot enable CG_IMGSYS_OWE clock\n");
-
-}
-
 static inline void OWE_Prepare_Enable_ccf_clock(void)
 {
 	int ret;
-	/* must keep this clk open order: CG_SCP_SYS_DIS-> CG_MM_SMI_COMMON -> CG_SCP_SYS_ISP -> OWE clk */
-	smi_bus_enable(SMI_LARB_IMGSYS1, "camera-owe");
-
+	/* must keep this clk open order:
+	 * CG_SCP_SYS_DIS-> CG_MM_SMI_COMMON -> CG_SCP_SYS_ISP -> OWE clk
+	 */
+	smi_bus_prepare_enable(SMI_LARB5, OWE_DEV_NAME);
 	ret = clk_prepare_enable(owe_clk.CG_IMGSYS_OWE);
 	if (ret)
 		LOG_ERR("cannot prepare and enable CG_IMGSYS_OWE clock\n");
 
 }
 
-static inline void OWE_Unprepare_ccf_clock(void)
-{
-	/* must keep this clk close order: OWE clk -> CG_SCP_SYS_ISP -> CG_MM_SMI_COMMON -> CG_SCP_SYS_DIS */
-	clk_unprepare(owe_clk.CG_IMGSYS_OWE);
-	smi_clk_unprepare(SMI_LARB_IMGSYS1, "camera-owe", 1);
-
-}
-
-static inline void OWE_Disable_ccf_clock(void)
-{
-	/* must keep this clk close order: OWE clk -> CG_SCP_SYS_ISP -> CG_MM_SMI_COMMON -> CG_SCP_SYS_DIS */
-	clk_disable(owe_clk.CG_IMGSYS_OWE);
-	smi_clk_disable(SMI_LARB_IMGSYS1, "camera-owe", 1);
-}
-
 static inline void OWE_Disable_Unprepare_ccf_clock(void)
 {
-	/* must keep this clk close order: OWE clk -> CG_SCP_SYS_ISP -> CG_MM_SMI_COMMON -> CG_SCP_SYS_DIS */
+	/* must keep this clk close order:
+	 * OWE clk -> CG_SCP_SYS_ISP -> CG_MM_SMI_COMMON -> CG_SCP_SYS_DIS
+	 */
 
 	clk_disable_unprepare(owe_clk.CG_IMGSYS_OWE);
-	smi_bus_disable(SMI_LARB_IMGSYS1, "camera-owe");
+	smi_bus_disable_unprepare(SMI_LARB5, OWE_DEV_NAME);
 }
 #endif
 #endif
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 static void OWE_EnableClock(bool En)
 {
-	if (En) {		/* Enable clock. */
-		/* LOG_DBG("Owe clock enbled. g_u4EnableClockCount: %d.", g_u4EnableClockCount); */
+	if (En) {/* Enable clock. */
+		/* LOG_DBG("Owe clock enbled. g_u4EnableClockCount: %d.", */
+		/* g_u4EnableClockCount); */
 		switch (g_u4EnableClockCount) {
 		case 0:
 #ifndef __OWE_EP_NO_CLKMGR__
@@ -1593,7 +1652,7 @@ static void OWE_EnableClock(bool En)
 			enable_clock(MT_CG_IMAGE_CAM_SV, "CAMERA");
 			/* enable_clock(MT_CG_IMAGE_FD, "CAMERA"); */
 			enable_clock(MT_CG_IMAGE_LARB2_SMI, "CAMERA");
-#endif				/* #if !defined(CONFIG_MTK_LEGACY) && defined(CONFIG_COMMON_CLK)  */
+#endif	/* #if !defined(CONFIG_MTK_LEGACY) && defined(CONFIG_COMMON_CLK)  */
 #endif
 			break;
 		default:
@@ -1604,7 +1663,8 @@ static void OWE_EnableClock(bool En)
 		spin_unlock(&(OWEInfo.SpinLockOWE));
 	} else {		/* Disable clock. */
 
-		/* LOG_DBG("Owe clock disabled. g_u4EnableClockCount: %d.", g_u4EnableClockCount); */
+		/* LOG_DBG("Owe clock disabled. g_u4EnableClockCount: %d.", */
+		/* g_u4EnableClockCount); */
 		spin_lock(&(OWEInfo.SpinLockOWE));
 		g_u4EnableClockCount--;
 		spin_unlock(&(OWEInfo.SpinLockOWE));
@@ -1623,7 +1683,7 @@ static void OWE_EnableClock(bool En)
 			/* disable_clock(MT_CG_IMAGE_FD, "CAMERA"); */
 			disable_clock(MT_CG_IMAGE_LARB2_SMI, "CAMERA");
 			disable_clock(MT_CG_DOWE0_SMI_COMMON, "CAMERA");
-#endif				/* #if !defined(CONFIG_MTK_LEGACY) && defined(CONFIG_COMMON_CLK) */
+#endif	/* #if !defined(CONFIG_MTK_LEGACY) && defined(CONFIG_COMMON_CLK) */
 #endif
 			break;
 		default:
@@ -1632,9 +1692,9 @@ static void OWE_EnableClock(bool En)
 	}
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/*****************************************************************************
+ *
+ ******************************************************************************/
 static inline void OWE_Reset(void)
 {
 	LOG_DBG("- E.");
@@ -1663,9 +1723,9 @@ static inline void OWE_Reset(void)
 
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 static signed int OWE_ReadReg(struct OWE_REG_IO_STRUCT *pRegIo)
 {
 	unsigned int i;
@@ -1675,32 +1735,41 @@ static signed int OWE_ReadReg(struct OWE_REG_IO_STRUCT *pRegIo)
 	struct OWE_REG_STRUCT *pData = NULL;
 	struct OWE_REG_STRUCT *pTmpData = NULL;
 
-	if ((pRegIo->pData == NULL) || (pRegIo->Count == 0) || (pRegIo->Count > (OWE_REG_RANGE>>2))) {
-		LOG_ERR("OWE_ReadReg pRegIo->pData is NULL, Count:%d!!", pRegIo->Count);
+	if ((pRegIo->pData == NULL) || (pRegIo->Count == 0) ||
+		(pRegIo->Count > (OWE_REG_RANGE>>2))) {
+		LOG_ERR("pRegIo->pData is NULL, Count:%d!!",
+			pRegIo->Count);
 		Ret = -EFAULT;
 		goto EXIT;
 	}
-	pData = kmalloc((pRegIo->Count) * sizeof(struct OWE_REG_STRUCT), GFP_KERNEL);
+	pData = kmalloc(
+		(pRegIo->Count) * sizeof(struct OWE_REG_STRUCT), GFP_KERNEL);
 	if (pData == NULL) {
-		LOG_ERR("ERROR: OWE_ReadReg kmalloc failed, cnt:%d\n", pRegIo->Count);
+		LOG_ERR("ERROR: kmalloc failed, cnt:%d\n",
+			pRegIo->Count);
 		Ret = -ENOMEM;
 		goto EXIT;
 	}
 	pTmpData = pData;
-	if (copy_from_user(pData, (void *)pRegIo->pData, (pRegIo->Count) * sizeof(struct OWE_REG_STRUCT)) == 0) {
+	if (copy_from_user(pData, (void *)pRegIo->pData,
+		(pRegIo->Count) * sizeof(struct OWE_REG_STRUCT)) == 0) {
 		for (i = 0; i < pRegIo->Count; i++) {
 			if ((ISP_OWE_BASE + pData->Addr >= ISP_OWE_BASE)
-			    && (ISP_OWE_BASE + pData->Addr < (ISP_OWE_BASE + OWE_REG_RANGE))
+			    && (ISP_OWE_BASE + pData->Addr <
+				(ISP_OWE_BASE + OWE_REG_RANGE))
 			    && ((pData->Addr & 0x3) == 0)) {
-				pData->Val = OWE_RD32(ISP_OWE_BASE + pData->Addr);
+				pData->Val =
+					OWE_RD32(ISP_OWE_BASE + pData->Addr);
 			} else {
-				LOG_ERR("Wrong address(0x%p)", (ISP_OWE_BASE + pData->Addr));
+				LOG_ERR("Wrong address(0x%p)",
+					(ISP_OWE_BASE + pData->Addr));
 				pData->Val = 0;
 			}
 			pData++;
 		}
 		pData = pTmpData;
-		if (copy_to_user((void *)pRegIo->pData, pData, (pRegIo->Count) * sizeof(struct OWE_REG_STRUCT)) != 0) {
+		if (copy_to_user((void *)pRegIo->pData, pData,
+			(pRegIo->Count) * sizeof(struct OWE_REG_STRUCT)) != 0) {
 			LOG_ERR("copy_to_user failed\n");
 			Ret = -EFAULT;
 			goto EXIT;
@@ -1721,17 +1790,22 @@ EXIT:
 }
 
 
-/*******************************************************************************
-*
-********************************************************************************/
-/* Can write sensor's test model only, if need write to other modules, need modify current code flow */
-static signed int OWE_WriteRegToHw(struct OWE_REG_STRUCT *pReg, unsigned int Count)
+/******************************************************************************
+ *
+ ******************************************************************************/
+/* Can write sensor's test model only, if need write to other modules,
+ * need modify current code flow
+ */
+static signed int OWE_WriteRegToHw(
+	struct OWE_REG_STRUCT *pReg, unsigned int Count)
 {
 	signed int Ret = 0;
 	unsigned int i;
 	bool dbgWriteReg;
 
-	/* Use local variable to store OWEInfo.DebugMask & OWE_DBG_WRITE_REG for saving lock time */
+	/* Use local variable to store OWEInfo.DebugMask & OWE_DBG_WRITE_REG
+	 * for saving lock time
+	 */
 	spin_lock(&(OWEInfo.SpinLockOWE));
 	dbgWriteReg = OWEInfo.DebugMask & OWE_DBG_WRITE_REG;
 	spin_unlock(&(OWEInfo.SpinLockOWE));
@@ -1748,7 +1822,8 @@ static signed int OWE_WriteRegToHw(struct OWE_REG_STRUCT *pReg, unsigned int Cou
 				(unsigned int) (pReg[i].Val));
 		}
 
-		if (((ISP_OWE_BASE + pReg[i].Addr) < (ISP_OWE_BASE + OWE_REG_RANGE))
+		if (((ISP_OWE_BASE + pReg[i].Addr) <
+			(ISP_OWE_BASE + OWE_REG_RANGE))
 			&& ((pReg[i].Addr & 0x3) == 0)) {
 			OWE_WR32(ISP_OWE_BASE + pReg[i].Addr, pReg[i].Val);
 		} else {
@@ -1763,9 +1838,9 @@ static signed int OWE_WriteRegToHw(struct OWE_REG_STRUCT *pReg, unsigned int Cou
 
 
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 static signed int OWE_WriteReg(struct OWE_REG_IO_STRUCT *pRegIo)
 {
 	signed int Ret = 0;
@@ -1773,24 +1848,31 @@ static signed int OWE_WriteReg(struct OWE_REG_IO_STRUCT *pRegIo)
 	struct  OWE_REG_STRUCT *pData = NULL;
 	/*  */
 	if (OWEInfo.DebugMask & OWE_DBG_WRITE_REG)
-		LOG_DBG("Data(0x%p), Count(%d)\n", (pRegIo->pData), (pRegIo->Count));
+		LOG_DBG("Data(0x%p), Count(%d)\n",
+			(pRegIo->pData), (pRegIo->Count));
 
-	if ((pRegIo->pData == NULL) || (pRegIo->Count == 0) || (pRegIo->Count > (OWE_REG_RANGE>>2))) {
-		LOG_ERR("ERROR: pRegIo->pData is NULL or Count:%d\n", pRegIo->Count);
+	if ((pRegIo->pData == NULL) || (pRegIo->Count == 0) ||
+			(pRegIo->Count > (OWE_REG_RANGE>>2))) {
+		LOG_ERR("ERROR: pRegIo->pData is NULL or Count:%d\n",
+			pRegIo->Count);
 		Ret = -EFAULT;
 		goto EXIT;
 	}
-	/* pData = (unsigned char*)kmalloc((pRegIo->Count)*sizeof(OWE_REG_STRUCT), GFP_ATOMIC); */
-	pData = kmalloc((pRegIo->Count) * sizeof(struct OWE_REG_STRUCT), GFP_KERNEL);
+	/* pData = (unsigned char*)kmalloc( */
+	/*	(pRegIo->Count)*sizeof(OWE_REG_STRUCT), GFP_ATOMIC); */
+	pData = kmalloc(
+		(pRegIo->Count) * sizeof(struct OWE_REG_STRUCT), GFP_KERNEL);
 	if (pData == NULL) {
-		LOG_ERR("ERROR: kmalloc failed, (process, pid, tgid)=(%s, %d, %d)\n", current->comm,
+		LOG_ERR(
+			"ERROR: kmalloc failed, (process, pid, tgid)=(%s, %d, %d)\n",
+			current->comm,
 			current->pid, current->tgid);
 		Ret = -ENOMEM;
 		goto EXIT;
 	}
 	/*  */
-	if (copy_from_user
-	    (pData, (void __user *)(pRegIo->pData), pRegIo->Count * sizeof(struct OWE_REG_STRUCT)) != 0) {
+	if (copy_from_user(pData, (void __user *)(pRegIo->pData),
+		pRegIo->Count * sizeof(struct OWE_REG_STRUCT)) != 0) {
 		LOG_ERR("copy_from_user failed\n");
 		Ret = -EFAULT;
 		goto EXIT;
@@ -1807,9 +1889,9 @@ EXIT:
 }
 
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 static signed int OWE_WaitIrq(struct OWE_WAIT_IRQ_STRUCT *WaitIrq)
 {
 
@@ -1818,7 +1900,8 @@ static signed int OWE_WaitIrq(struct OWE_WAIT_IRQ_STRUCT *WaitIrq)
 	enum OWE_PROCESS_ID_ENUM whichReq = OWE_PROCESS_ID_NONE;
 
 	/*unsigned int i;*/
-	unsigned long flags; /* old: unsigned int flags;*//* FIX to avoid build warning */
+	unsigned long flags; /* old: unsigned int flags;*/
+			     /* FIX to avoid build warning */
 	unsigned int irqStatus;
 	/*int cnt = 0;*/
 	struct timeval time_getrequest;
@@ -1837,9 +1920,14 @@ static signed int OWE_WaitIrq(struct OWE_WAIT_IRQ_STRUCT *WaitIrq)
 	if (OWEInfo.DebugMask & OWE_DBG_INT) {
 		if (WaitIrq->Status & OWEInfo.IrqInfo.Mask[WaitIrq->Type]) {
 			if (WaitIrq->UserKey > 0) {
-				LOG_DBG("+WaitIrq Clr(%d),Type(%d),Sta(0x%08X),Timeout(%d),user(%d),PID(%d)\n",
-				     WaitIrq->Clear, WaitIrq->Type, WaitIrq->Status,
-				     WaitIrq->Timeout, WaitIrq->UserKey, WaitIrq->ProcessID);
+				LOG_DBG(
+					"+WaitIrq Clr(%d),Type(%d),Sta(0x%08X),Timeout(%d),user(%d),PID(%d)\n",
+					WaitIrq->Clear,
+					WaitIrq->Type,
+					WaitIrq->Status,
+					WaitIrq->Timeout,
+					WaitIrq->UserKey,
+					WaitIrq->ProcessID);
 			}
 		}
 	}
@@ -1847,23 +1935,30 @@ static signed int OWE_WaitIrq(struct OWE_WAIT_IRQ_STRUCT *WaitIrq)
 
 	/* 1. wait type update */
 	if (WaitIrq->Clear == OWE_IRQ_CLEAR_STATUS) {
-		spin_lock_irqsave(&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
+		spin_lock_irqsave(
+			&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
 		OWEInfo.IrqInfo.Status[WaitIrq->Type] &= (~WaitIrq->Status);
-		spin_unlock_irqrestore(&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
+		spin_unlock_irqrestore(
+			&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
 		return Ret;
 	}
 
 	if (WaitIrq->Clear == OWE_IRQ_CLEAR_WAIT) {
-		spin_lock_irqsave(&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
+		spin_lock_irqsave(
+			&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
 		if (OWEInfo.IrqInfo.Status[WaitIrq->Type] & WaitIrq->Status)
-			OWEInfo.IrqInfo.Status[WaitIrq->Type] &= (~WaitIrq->Status);
+			OWEInfo.IrqInfo.Status[WaitIrq->Type] &=
+				(~WaitIrq->Status);
 
-		spin_unlock_irqrestore(&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
+		spin_unlock_irqrestore(
+			&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
 	} else if (WaitIrq->Clear == OWE_IRQ_CLEAR_ALL) {
-		spin_lock_irqsave(&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
+		spin_lock_irqsave(
+			&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
 
 		OWEInfo.IrqInfo.Status[WaitIrq->Type] = 0;
-		spin_unlock_irqrestore(&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
+		spin_unlock_irqrestore(
+			&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
 	}
 	/* OWE_IRQ_WAIT_CLEAR ==> do nothing */
 
@@ -1878,49 +1973,73 @@ static signed int OWE_WaitIrq(struct OWE_WAIT_IRQ_STRUCT *WaitIrq)
 	} else if (WaitIrq->Status & OWE_WMFE_INT_ST) {
 		whichReq = OWE_PROCESS_ID_WMFE;
 	} else {
-		LOG_ERR("No Such Stats can be waited!! irq Type/User/Sts/Pid(0x%x/%d/0x%x/%d)\n",
-			WaitIrq->Type, WaitIrq->UserKey, WaitIrq->Status, WaitIrq->ProcessID);
+		LOG_ERR(
+			"No Such Stats can be waited!! irq Type/User/Sts/Pid(0x%x/%d/0x%x/%d)\n",
+			WaitIrq->Type,
+			WaitIrq->UserKey,
+			WaitIrq->Status,
+			WaitIrq->ProcessID);
 	}
 
 
 #ifdef OWE_WAITIRQ_LOG
-	LOG_INF("before wait_event! Timeout(%d)Clear(%d),Type(%d),IrqSta(0x%08X), WaitSta(0x%08X)\n",
-		WaitIrq->Timeout, WaitIrq->Clear, WaitIrq->Type, irqStatus, WaitIrq->Status);
-	LOG_INF("urKey(%d),whReq(%d),PID(%d)\n", WaitIrq->UserKey, whichReq, WaitIrq->ProcessID);
-	LOG_INF("OccIrqCnt(0x%08X),WmfeIrqCnt(0x%08X),WriteReqIdx(0x%08X),ReadReqIdx(0x%08X)\n",
-	OWEInfo.IrqInfo.OccIrqCnt, OWEInfo.IrqInfo.WmfeIrqCnt, OWEInfo.WriteReqIdx, OWEInfo.ReadReqIdx);
+	LOG_INF(
+		"before wait_event! Timeout(%d)Clear(%d),Type(%d),IrqSta(0x%08X), WaitSta(0x%08X)\n",
+		WaitIrq->Timeout, WaitIrq->Clear,
+		WaitIrq->Type, irqStatus, WaitIrq->Status);
+	LOG_INF(
+		"urKey(%d),whReq(%d),PID(%d)\n",
+		WaitIrq->UserKey, whichReq, WaitIrq->ProcessID);
+	LOG_INF(
+		"OccIrqCnt(0x%08X),WmfeIrqCnt(0x%08X),WriteReqIdx(0x%08X),ReadReqIdx(0x%08X)\n",
+		OWEInfo.IrqInfo.OccIrqCnt, OWEInfo.IrqInfo.WmfeIrqCnt,
+		OWEInfo.WriteReqIdx, OWEInfo.ReadReqIdx);
 #endif
 
 	/* 2. start to wait signal */
 	Timeout = wait_event_interruptible_timeout(OWEInfo.WaitQueueHead,
-						   OWE_GetIRQState(WaitIrq->Type, WaitIrq->UserKey,
-								   WaitIrq->Status, whichReq,
-								   WaitIrq->ProcessID),
-						   OWE_MsToJiffies(WaitIrq->Timeout));
+				OWE_GetIRQState(WaitIrq->Type, WaitIrq->UserKey,
+				WaitIrq->Status, whichReq,
+				WaitIrq->ProcessID),
+				OWE_MsToJiffies(WaitIrq->Timeout));
 
 	/* check if user is interrupted by system signal */
-	if ((Timeout != 0)
-	    &&
-	    (!OWE_GetIRQState
-	     (WaitIrq->Type, WaitIrq->UserKey, WaitIrq->Status, whichReq, WaitIrq->ProcessID))) {
-		LOG_DBG("waked up by sys. signal,ret(%d),irq Type/User/Sts/whReq/Pid(0x%x/%d/0x%x/%d/%d)\n",
-		     Timeout, WaitIrq->Type, WaitIrq->UserKey, WaitIrq->Status, whichReq,
-		     WaitIrq->ProcessID);
+	if ((Timeout != 0) &&
+	    (!OWE_GetIRQState(
+		WaitIrq->Type,
+		WaitIrq->UserKey,
+		WaitIrq->Status,
+		whichReq,
+		WaitIrq->ProcessID))) {
+		LOG_INF(
+			"waked up by sys. signal,ret(%d),irq Type/User/Sts/whReq/Pid(0x%x/%d/0x%x/%d/%d)\n",
+			Timeout, WaitIrq->Type, WaitIrq->UserKey,
+			WaitIrq->Status, whichReq,
+			WaitIrq->ProcessID);
 		Ret = -ERESTARTSYS;	/* actually it should be -ERESTARTSYS */
 		goto EXIT;
 	}
 	/* timeout */
 	if (Timeout == 0) {
-		/* Store irqinfo status in here to redeuce time of spin_lock_irqsave */
-		spin_lock_irqsave(&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
+		/* Store irqinfo status in here to redeuce time of
+		 * spin_lock_irqsave
+		 */
+		spin_lock_irqsave(
+			&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
 		irqStatus = OWEInfo.IrqInfo.Status[WaitIrq->Type];
-		spin_unlock_irqrestore(&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
+		spin_unlock_irqrestore(
+			&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
 
-		LOG_ERR("ERRRR Timeout!Timeout(%d)Clear(%d),Type(%d),IrqSta(0x%08X), WaitSta(0x%08X)\n",
-			WaitIrq->Timeout, WaitIrq->Clear, WaitIrq->Type, irqStatus, WaitIrq->Status);
-		LOG_ERR("urKey(%d),whReq(%d),PID(%d)\n", WaitIrq->UserKey, whichReq, WaitIrq->ProcessID);
-		LOG_ERR("OccIrqCnt(0x%08X),WmfeIrqCnt(0x%08X),WriteReqIdx(0x%08X),ReadReqIdx(0x%08X)\n",
-		OWEInfo.IrqInfo.OccIrqCnt, OWEInfo.IrqInfo.WmfeIrqCnt, OWEInfo.WriteReqIdx, OWEInfo.ReadReqIdx);
+		LOG_ERR(
+			"ERRRR Timeout!Timeout(%d)Clear(%d),Type(%d),IrqSta(0x%08X), WaitSta(0x%08X)\n",
+			WaitIrq->Timeout, WaitIrq->Clear,
+			WaitIrq->Type, irqStatus, WaitIrq->Status);
+		LOG_ERR("urKey(%d),whReq(%d),PID(%d)\n",
+			WaitIrq->UserKey, whichReq, WaitIrq->ProcessID);
+		LOG_ERR(
+			"OccIrqCnt(0x%08X),WmfeIrqCnt(0x%08X),WriteReqIdx(0x%08X),ReadReqIdx(0x%08X)\n",
+			OWEInfo.IrqInfo.OccIrqCnt, OWEInfo.IrqInfo.WmfeIrqCnt,
+			OWEInfo.WriteReqIdx, OWEInfo.ReadReqIdx);
 
 		if (WaitIrq->bDumpReg)
 			OWE_DumpReg();
@@ -1928,45 +2047,59 @@ static signed int OWE_WaitIrq(struct OWE_WAIT_IRQ_STRUCT *WaitIrq)
 		Ret = -EFAULT;
 		goto EXIT;
 	} else {
-		/* Store irqinfo status in here to redeuce time of spin_lock_irqsave */
+		/* Store irqinfo status in here to redeuce time of
+		 * spin_lock_irqsave
+		 */
 #ifdef __OWE_KERNEL_PERFORMANCE_MEASURE__
 		mt_kernel_trace_begin("OWE_WaitIrq");
 #endif
 
-		spin_lock_irqsave(&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
+		spin_lock_irqsave(
+			&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
 		irqStatus = OWEInfo.IrqInfo.Status[WaitIrq->Type];
-		spin_unlock_irqrestore(&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
+		spin_unlock_irqrestore(
+			&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
 
 		if (WaitIrq->Clear == OWE_IRQ_WAIT_CLEAR) {
-			spin_lock_irqsave(&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
+			spin_lock_irqsave(
+				&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
 
 #ifdef OWE_MULTIPROCESS_TIMEING_ISSUE
-			OWEInfo.ReadReqIdx =
-			    (OWEInfo.ReadReqIdx + 1) % _SUPPORT_MAX_OWE_FRAME_REQUEST_;
+			OWEInfo.ReadReqIdx = (OWEInfo.ReadReqIdx + 1) %
+						_SUPPORT_MAX_OWE_FRAME_REQUEST_;
 			/* actually, it doesn't happen the timging issue!! */
 			/* wake_up_interruptible(&OWEInfo.WaitQueueHead); */
 #endif
 			if (WaitIrq->Status & OWE_OCC_INT_ST) {
 				OWEInfo.IrqInfo.OccIrqCnt--;
 				if (OWEInfo.IrqInfo.OccIrqCnt == 0)
-					OWEInfo.IrqInfo.Status[WaitIrq->Type] &= (~WaitIrq->Status);
+					OWEInfo.IrqInfo.Status[WaitIrq->Type] &=
+						(~WaitIrq->Status);
 			} else if (WaitIrq->Status & OWE_WMFE_INT_ST) {
 				OWEInfo.IrqInfo.WmfeIrqCnt--;
 				if (OWEInfo.IrqInfo.WmfeIrqCnt == 0)
-					OWEInfo.IrqInfo.Status[WaitIrq->Type] &= (~WaitIrq->Status);
+					OWEInfo.IrqInfo.Status[WaitIrq->Type] &=
+						(~WaitIrq->Status);
 			} else {
-				LOG_ERR("OWE_IRQ_WAIT_CLEAR Error, Type(%d), WaitStatus(0x%08X)",
+				LOG_ERR(
+				"OWE_IRQ_WAIT_CLEAR Error, Type(%d), WaitStatus(0x%08X)",
 					WaitIrq->Type, WaitIrq->Status);
 			}
-			spin_unlock_irqrestore(&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
+			spin_unlock_irqrestore(
+				&(OWEInfo.SpinLockIrq[WaitIrq->Type]), flags);
 		}
 
 #ifdef OWE_WAITIRQ_LOG
-		LOG_INF("no Timeout!Timeout(%d)Clear(%d),Type(%d),IrqSta(0x%08X), WaitSta(0x%08X)\n",
-			WaitIrq->Timeout, WaitIrq->Clear, WaitIrq->Type, irqStatus, WaitIrq->Status);
-		LOG_INF("urKey(%d),whReq(%d),PID(%d)\n", WaitIrq->UserKey, whichReq, WaitIrq->ProcessID);
-		LOG_INF("OccIrqCnt(0x%08X),WmfeIrqCnt(0x%08X),WriteReqIdx(0x%08X),ReadReqIdx(0x%08X)\n",
-		OWEInfo.IrqInfo.OccIrqCnt, OWEInfo.IrqInfo.WmfeIrqCnt, OWEInfo.WriteReqIdx, OWEInfo.ReadReqIdx);
+		LOG_INF(
+			"no Timeout!Timeout(%d)Clear(%d),Type(%d),IrqSta(0x%08X), WaitSta(0x%08X)\n",
+			WaitIrq->Timeout, WaitIrq->Clear,
+			WaitIrq->Type, irqStatus, WaitIrq->Status);
+		LOG_INF("urKey(%d),whReq(%d),PID(%d)\n",
+			WaitIrq->UserKey, whichReq, WaitIrq->ProcessID);
+		LOG_INF(
+			"OccIrqCnt(0x%08X),WmfeIrqCnt(0x%08X),WriteReqIdx(0x%08X),ReadReqIdx(0x%08X)\n",
+			OWEInfo.IrqInfo.OccIrqCnt, OWEInfo.IrqInfo.WmfeIrqCnt,
+			OWEInfo.WriteReqIdx, OWEInfo.ReadReqIdx);
 
 #endif
 
@@ -1984,9 +2117,9 @@ EXIT:
 }
 
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 static long OWE_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 {
 	signed int Ret = 0;
@@ -1997,18 +2130,16 @@ static long OWE_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 	struct OWE_CLEAR_IRQ_STRUCT ClearIrq;
 	struct OWE_OCCRequest owe_OccReq;
 	struct OWE_WMFERequest owe_WmfeReq;
-	signed int OccWriteIdx = 0;
-	signed int WmfeWriteIdx = 0;
-	int idx;
 	struct OWE_USER_INFO_STRUCT *pUserInfo;
 	int dequeNum;
-	unsigned long flags; /* old: unsigned int flags;*//* FIX to avoid build warning */
-
-
+	unsigned long flags; /* old: unsigned int flags;*/
+			     /* FIX to avoid build warning */
 
 	/*  */
 	if (pFile->private_data == NULL) {
-		LOG_WRN("private_data is NULL,(process, pid, tgid)=(%s, %d, %d)", current->comm,
+		LOG_WRN(
+			"private_data is NULL,(process, pid, tgid)=(%s, %d, %d)",
+			current->comm,
 			current->pid, current->tgid);
 		return -EFAULT;
 	}
@@ -2034,63 +2165,85 @@ static long OWE_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 		{
 			unsigned int currentPPB = m_CurrentPPB;
 
-			spin_lock_irqsave(&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]), flags);
+			spin_lock_irqsave(
+				&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]),
+				flags);
 			m_CurrentPPB = (m_CurrentPPB + 1) % LOG_PPNUM;
-			spin_unlock_irqrestore(&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]),
-					       flags);
+			spin_unlock_irqrestore(
+				&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]),
+				flags);
 
-			IRQ_LOG_PRINTER(OWE_IRQ_TYPE_INT_OWE_ST, currentPPB, _LOG_INF);
-			IRQ_LOG_PRINTER(OWE_IRQ_TYPE_INT_OWE_ST, currentPPB, _LOG_ERR);
+			IRQ_LOG_PRINTER(OWE_IRQ_TYPE_INT_OWE_ST,
+				currentPPB, _LOG_INF);
+			IRQ_LOG_PRINTER(OWE_IRQ_TYPE_INT_OWE_ST,
+				currentPPB, _LOG_ERR);
 			break;
 		}
 	case OWE_READ_REGISTER:
 		{
-			if (copy_from_user(&RegIo, (void *)Param, sizeof(struct OWE_REG_IO_STRUCT)) == 0) {
-				/* 2nd layer behavoir of copy from user is implemented in OWE_ReadReg(...) */
+			if (copy_from_user(&RegIo, (void *)Param,
+				sizeof(struct OWE_REG_IO_STRUCT)) == 0) {
+				/* 2nd layer behavoir of copy from user is
+				 * implemented in OWE_ReadReg(...)
+				 */
 				Ret = OWE_ReadReg(&RegIo);
 			} else {
-				LOG_ERR("OWE_READ_REGISTER copy_from_user failed");
+				LOG_ERR(
+					"OWE_READ_REGISTER copy_from_user failed");
 				Ret = -EFAULT;
 			}
 			break;
 		}
 	case OWE_WRITE_REGISTER:
 		{
-			if (copy_from_user(&RegIo, (void *)Param, sizeof(struct OWE_REG_IO_STRUCT)) == 0) {
-				/* 2nd layer behavoir of copy from user is implemented in OWE_WriteReg(...) */
+			if (copy_from_user(&RegIo, (void *)Param,
+				sizeof(struct OWE_REG_IO_STRUCT)) == 0) {
+				/* 2nd layer behavoir of copy from user is
+				 * implemented in OWE_WriteReg(...)
+				 */
 				Ret = OWE_WriteReg(&RegIo);
 			} else {
-				LOG_ERR("OWE_WRITE_REGISTER copy_from_user failed");
+				LOG_ERR(
+					"OWE_WRITE_REGISTER copy_from_user failed");
 				Ret = -EFAULT;
 			}
 			break;
 		}
 	case OWE_WAIT_IRQ:
 		{
-			if (copy_from_user(&IrqInfo, (void *)Param, sizeof(struct OWE_WAIT_IRQ_STRUCT)) ==
-			    0) {
+			if (copy_from_user(&IrqInfo, (void *)Param,
+				sizeof(struct OWE_WAIT_IRQ_STRUCT)) == 0) {
 				/*  */
-				if ((IrqInfo.Type >= OWE_IRQ_TYPE_AMOUNT) || (IrqInfo.Type < 0)) {
+				if ((IrqInfo.Type >= OWE_IRQ_TYPE_AMOUNT) ||
+					(IrqInfo.Type < 0)) {
 					Ret = -EFAULT;
-					LOG_ERR("invalid type(%d)", IrqInfo.Type);
+					LOG_ERR("invalid type(%d)",
+						IrqInfo.Type);
 					goto EXIT;
 				}
 
-				if ((IrqInfo.UserKey >= IRQ_USER_NUM_MAX) || (IrqInfo.UserKey < 0)) {
-					LOG_ERR("invalid userKey(%d), max(%d), force userkey = 0\n",
-						IrqInfo.UserKey, IRQ_USER_NUM_MAX);
+				if ((IrqInfo.UserKey >= IRQ_USER_NUM_MAX) ||
+					(IrqInfo.UserKey < 0)) {
+					LOG_ERR(
+						"invalid userKey(%d), max(%d), force userkey = 0\n",
+						IrqInfo.UserKey,
+						IRQ_USER_NUM_MAX);
 					IrqInfo.UserKey = 0;
 				}
 
-				LOG_INF
-				    ("IRQ clear(%d), type(%d), userKey(%d), timeout(%d), status(%d)\n",
-				     IrqInfo.Clear, IrqInfo.Type, IrqInfo.UserKey, IrqInfo.Timeout,
-				     IrqInfo.Status);
+				LOG_INF(
+					"IRQ clear(%d), type(%d), userKey(%d), timeout(%d), status(%d)\n",
+					IrqInfo.Clear, IrqInfo.Type,
+					IrqInfo.UserKey, IrqInfo.Timeout,
+					IrqInfo.Status);
+
 				IrqInfo.ProcessID = pUserInfo->Pid;
 				Ret = OWE_WaitIrq(&IrqInfo);
+				if (Ret < 0)
+					OWE_DumpReg();
 
-				if (copy_to_user
-				    ((void *)Param, &IrqInfo, sizeof(struct OWE_WAIT_IRQ_STRUCT)) != 0) {
+				if (copy_to_user((void *)Param, &IrqInfo,
+				    sizeof(struct OWE_WAIT_IRQ_STRUCT)) != 0) {
 					LOG_ERR("copy_to_user failed\n");
 					Ret = -EFAULT;
 				}
@@ -2102,46 +2255,58 @@ static long OWE_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 		}
 	case OWE_CLEAR_IRQ:
 		{
-			if (copy_from_user(&ClearIrq, (void *)Param, sizeof(struct OWE_CLEAR_IRQ_STRUCT))
-			    == 0) {
-				LOG_DBG("OWE_CLEAR_IRQ Type(%d)", ClearIrq.Type);
+			if (copy_from_user(&ClearIrq, (void *)Param,
+				sizeof(struct OWE_CLEAR_IRQ_STRUCT)) == 0) {
+				LOG_DBG("OWE_CLEAR_IRQ Type(%d)",
+					ClearIrq.Type);
 
-				if ((ClearIrq.Type >= OWE_IRQ_TYPE_AMOUNT) || (ClearIrq.Type < 0)) {
+				if ((ClearIrq.Type >= OWE_IRQ_TYPE_AMOUNT) ||
+					(ClearIrq.Type < 0)) {
 					Ret = -EFAULT;
-					LOG_ERR("invalid type(%d)", ClearIrq.Type);
+					LOG_ERR("invalid type(%d)",
+						ClearIrq.Type);
 					goto EXIT;
 				}
 
 				/*  */
 				if ((ClearIrq.UserKey >= IRQ_USER_NUM_MAX)
 				    || (ClearIrq.UserKey < 0)) {
-					LOG_ERR("errUserEnum(%d)", ClearIrq.UserKey);
+					LOG_ERR("errUserEnum(%d)",
+						ClearIrq.UserKey);
 					Ret = -EFAULT;
 					goto EXIT;
 				}
 
-				LOG_DBG("OWE_CLEAR_IRQ:Type(%d),Status(0x%08X),IrqStatus(0x%08X)\n",
+				LOG_DBG(
+					"OWE_CLEAR_IRQ:Type(%d),Status(0x%08X),IrqStatus(0x%08X)\n",
 					ClearIrq.Type, ClearIrq.Status,
 					OWEInfo.IrqInfo.Status[ClearIrq.Type]);
-				spin_lock_irqsave(&(OWEInfo.SpinLockIrq[ClearIrq.Type]), flags);
-				OWEInfo.IrqInfo.Status[ClearIrq.Type] &= (~ClearIrq.Status);
-				spin_unlock_irqrestore(&(OWEInfo.SpinLockIrq[ClearIrq.Type]),
-						       flags);
+				spin_lock_irqsave(
+					&(OWEInfo.SpinLockIrq[ClearIrq.Type]),
+					flags);
+				OWEInfo.IrqInfo.Status[ClearIrq.Type] &=
+					(~ClearIrq.Status);
+				spin_unlock_irqrestore(
+					&(OWEInfo.SpinLockIrq[ClearIrq.Type]),
+					flags);
 			} else {
-				LOG_ERR("OWE_CLEAR_IRQ copy_from_user failed\n");
+				LOG_ERR(
+					"OWE_CLEAR_IRQ copy_from_user failed\n");
 				Ret = -EFAULT;
 			}
 			break;
 		}
 	case OWE_OCC_ENQUE_REQ:
 		{
-		signed int WIdx;
-		signed int FWRIdx;
-
-		if (copy_from_user(&owe_OccReq, (void *)Param, sizeof(struct OWE_OCCRequest)) == 0) {
-			LOG_DBG("OCC_ENQNUE_NUM:%d, pid:%d\n", owe_OccReq.m_ReqNum, pUserInfo->Pid);
-			if (owe_OccReq.m_ReqNum > _SUPPORT_MAX_OWE_FRAME_REQUEST_) {
-				LOG_ERR("OCC Enque Num is bigger than enqueNum:%d\n",
+		if (copy_from_user(&owe_OccReq, (void *)Param,
+			sizeof(struct OWE_OCCRequest)) == 0) {
+			LOG_DBG("OCC_ENQNUE_NUM:%d, pid:%d\n",
+				owe_OccReq.m_ReqNum,
+				pUserInfo->Pid);
+			if (owe_OccReq.m_ReqNum >
+				_SUPPORT_MAX_OWE_FRAME_REQUEST_) {
+				LOG_ERR(
+					"OCC Enque Num is bigger than enqueNum:%d\n",
 					owe_OccReq.m_ReqNum);
 				Ret = -EFAULT;
 				goto EXIT;
@@ -2153,107 +2318,64 @@ static long OWE_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 				goto EXIT;
 			}
 
-			if (copy_from_user
-			    (g_OccEnqueReq_Struct.OccFrameConfig, (void *)owe_OccReq.m_pOweConfig,
-			     owe_OccReq.m_ReqNum * sizeof(struct OWE_OCCConfig)) != 0) {
-				LOG_ERR("copy OCCConfig from request is fail!!\n");
+			if (copy_from_user(g_OccEnqueReq_Struct.OccFrameConfig,
+				(void *)owe_OccReq.m_pOweConfig,
+				owe_OccReq.m_ReqNum * sizeof(
+					struct OWE_OCCConfig)
+				) != 0) {
+				LOG_ERR(
+					"copy OCCConfig from request is fail!!\n");
 				Ret = -EFAULT;
 				goto EXIT;
 			}
 
-			mutex_lock(&gOweOccMutex);	/* Protect the Multi Process */
+			mutex_lock(&gOweOccMutex);/* Protect the Multi Process*/
 
-			spin_lock_irqsave(&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]), flags);
-			WIdx = g_OCC_RequestRing.WriteIdx;
-			FWRIdx = g_OCC_RequestRing.OCCReq_Struct[WIdx].FrameWRIdx;
-			if (OWE_REQUEST_STATE_EMPTY ==
-			    g_OCC_RequestRing.OCCReq_Struct[WIdx].RequestState) {
-				g_OCC_RequestRing.OCCReq_Struct[WIdx].processID = pUserInfo->Pid;
-				g_OCC_RequestRing.OCCReq_Struct[WIdx].enqueReqNum = owe_OccReq.m_ReqNum;
-				for (idx = 0; idx < owe_OccReq.m_ReqNum; idx++) {
-					g_OCC_RequestRing.OCCReq_Struct[WIdx].OccFrameStatus[FWRIdx]
-						= OWE_FRAME_STATUS_ENQUE;
-					memcpy(&g_OCC_RequestRing.OCCReq_Struct[WIdx].OccFrameConfig[FWRIdx++],
-					&g_OccEnqueReq_Struct.OccFrameConfig[idx], sizeof(struct OWE_OCCConfig));
-				}
-				g_OCC_RequestRing.OCCReq_Struct[WIdx].RequestState = OWE_REQUEST_STATE_PENDING;
-				OccWriteIdx = WIdx;
-				g_OCC_RequestRing.WriteIdx = (WIdx + 1) % _SUPPORT_MAX_OWE_REQUEST_RING_SIZE_;
-				LOG_INF("OCC enq %d done!\n", WIdx);
-			} else {
-				LOG_ERR("No OCC Buf! WriteIdx(%d),ReqSta(%d),FrameWRIdx(%d),enqReqNum(%d)\n",
-				     g_OCC_RequestRing.WriteIdx,
-				     g_OCC_RequestRing.OCCReq_Struct[WIdx].RequestState,
-				     g_OCC_RequestRing.OCCReq_Struct[WIdx].FrameWRIdx,
-				     g_OCC_RequestRing.OCCReq_Struct[WIdx].enqueReqNum);
-			}
-			g_OCC_RequestRing.OCCReq_Struct[WIdx].FrameWRIdx = FWRIdx;
-			spin_unlock_irqrestore(&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]),
-					       flags);
+			spin_lock_irqsave(
+				&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]),
+				flags);
+			kOccReq.m_ReqNum = owe_OccReq.m_ReqNum;
+			kOccReq.m_pOweConfig =
+					g_OccEnqueReq_Struct.OccFrameConfig;
+			enque_request(&occ_reqs, kOccReq.m_ReqNum, &kOccReq,
+								pUserInfo->Pid);
+			spin_unlock_irqrestore(
+				&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]),
+				flags);
 			LOG_DBG("ConfigOCC Request!!\n");
-			ConfigOCCRequest(OccWriteIdx);
-
+			if (!request_running(&occ_reqs)) {
+				LOG_DBG("direct request_handler\n");
+				request_handler(&occ_reqs,
+						&(OWEInfo.SpinLockIrq[
+						OWE_IRQ_TYPE_INT_OWE_ST]));
+			}
 			mutex_unlock(&gOweOccMutex);
 		} else {
 			LOG_ERR("OWE_OCC_ENQUE copy_from_user failed\n");
 			Ret = -EFAULT;
 		}
-		}
-
 		break;
+		}
 	case OWE_OCC_DEQUE_REQ:
 		{
-			signed int ReadIdx;
-			signed int FrameRDIdx;
+			if (copy_from_user(&owe_OccReq, (void *)Param,
+					sizeof(struct OWE_OCCRequest)) == 0) {
+				mutex_lock(&gOweOccDequeMutex);
+				/* Protect the Multi Process */
 
-			if (copy_from_user(&owe_OccReq, (void *)Param, sizeof(struct OWE_OCCRequest)) == 0) {
-				mutex_lock(&gOweOccDequeMutex);	/* Protect the Multi Process */
-
-				spin_lock_irqsave(&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]),
+				spin_lock_irqsave(&(OWEInfo.SpinLockIrq[
+						OWE_IRQ_TYPE_INT_OWE_ST]),
 						  flags);
-				ReadIdx = g_OCC_RequestRing.ReadIdx;
-				FrameRDIdx = g_OCC_RequestRing.OCCReq_Struct[ReadIdx].FrameRDIdx;
-				if (OWE_REQUEST_STATE_FINISHED ==
-				    g_OCC_RequestRing.OCCReq_Struct[ReadIdx].RequestState) {
-					dequeNum = g_OCC_RequestRing.OCCReq_Struct[ReadIdx].enqueReqNum;
-					LOG_DBG("OCC DEQUE_NUM(%d)\n", dequeNum);
-				} else {
-					dequeNum = 0;
-					LOG_ERR("DEQ_NUM No Buf!,ReadIdx(%d),ReqSta(%d),FrameRDIdx(%d),enqReqNum(%d)\n",
-					     ReadIdx,
-					     g_OCC_RequestRing.OCCReq_Struct[ReadIdx].RequestState,
-					     g_OCC_RequestRing.OCCReq_Struct[ReadIdx].FrameRDIdx,
-					     g_OCC_RequestRing.OCCReq_Struct[ReadIdx].enqueReqNum);
-				}
+				kOccReq.m_pOweConfig =
+					g_OccDequeReq_Struct.OccFrameConfig;
+				deque_request(&occ_reqs, &kOccReq.m_ReqNum,
+					&kOccReq);
+				dequeNum = kOccReq.m_ReqNum;
 				owe_OccReq.m_ReqNum = dequeNum;
-				for (idx = 0; idx < dequeNum; idx++) {
-					if (OWE_FRAME_STATUS_FINISHED ==
-					    g_OCC_RequestRing.OCCReq_Struct[ReadIdx].OccFrameStatus[FrameRDIdx]) {
-						memcpy(&g_OccDequeReq_Struct.OccFrameConfig[idx],
-						&g_OCC_RequestRing.OCCReq_Struct[ReadIdx].OccFrameConfig[FrameRDIdx],
-						sizeof(struct OWE_OCCConfig));
-						g_OCC_RequestRing.OCCReq_Struct[ReadIdx].OccFrameStatus[FrameRDIdx++] =
-						    OWE_FRAME_STATUS_EMPTY;
-					} else {
-						LOG_ERR("OCC!idx(%d),deqNum(%d),ReadIdx,(%d),FRDIdx(%d),OccFSta(%d)\n",
-						idx, dequeNum, g_OCC_RequestRing.ReadIdx,
-						g_OCC_RequestRing.OCCReq_Struct[ReadIdx].FrameRDIdx,
-						g_OCC_RequestRing.OCCReq_Struct[ReadIdx].OccFrameStatus[FrameRDIdx]);
-					}
-				}
-				g_OCC_RequestRing.OCCReq_Struct[ReadIdx].FrameRDIdx = FrameRDIdx;
-				g_OCC_RequestRing.OCCReq_Struct[ReadIdx].RequestState = OWE_REQUEST_STATE_EMPTY;
-				g_OCC_RequestRing.OCCReq_Struct[ReadIdx].FrameWRIdx = 0;
-				g_OCC_RequestRing.OCCReq_Struct[ReadIdx].FrameRDIdx = 0;
-				g_OCC_RequestRing.OCCReq_Struct[ReadIdx].enqueReqNum = 0;
-				g_OCC_RequestRing.ReadIdx = (ReadIdx + 1) % _SUPPORT_MAX_OWE_REQUEST_RING_SIZE_;
-				LOG_INF("OCC deq %d done\n", ReadIdx);
-
-
-				spin_unlock_irqrestore(&
-						       (OWEInfo.
-							SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]),
-						       flags);
+				spin_unlock_irqrestore(
+					&(OWEInfo.SpinLockIrq[
+						OWE_IRQ_TYPE_INT_OWE_ST]),
+					flags);
 
 				mutex_unlock(&gOweOccDequeMutex);
 
@@ -2263,36 +2385,39 @@ static long OWE_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 					goto EXIT;
 				}
 
-				if (copy_to_user
-				    ((void *)owe_OccReq.m_pOweConfig,
-				     &g_OccDequeReq_Struct.OccFrameConfig[0],
-				     dequeNum * sizeof(struct OWE_OCCConfig)) != 0) {
-					LOG_ERR
-					    ("OWE_CMD_OCC_DEQUE_REQ copy_to_user frameconfig failed\n");
+				if (copy_to_user(
+					(void *)owe_OccReq.m_pOweConfig,
+					&g_OccDequeReq_Struct.OccFrameConfig[0],
+					dequeNum * sizeof(
+						struct OWE_OCCConfig)) != 0) {
+					LOG_ERR(
+						"OWE_CMD_OCC_DEQUE_REQ copy_to_user frameconfig failed\n");
 					Ret = -EFAULT;
 				}
-				if (copy_to_user((void *)Param, &owe_OccReq, sizeof(struct OWE_OCCRequest))
-				    != 0) {
-					LOG_ERR("OWE_CMD_OCC_DEQUE_REQ copy_to_user failed\n");
+				if (copy_to_user((void *)Param, &owe_OccReq,
+					sizeof(struct OWE_OCCRequest)) != 0) {
+					LOG_ERR(
+						"OWE_CMD_OCC_DEQUE_REQ copy_to_user failed\n");
 					Ret = -EFAULT;
 				}
 			} else {
-				LOG_ERR("OWE_CMD_OCC_DEQUE_REQ copy_from_user failed\n");
+				LOG_ERR(
+					"OWE_CMD_OCC_DEQUE_REQ copy_from_user failed\n");
 				Ret = -EFAULT;
 			}
 			break;
 		}
 	case OWE_WMFE_ENQUE_REQ:
 		{
-			signed int WIdx;
-			signed int FWRIdx;
-
-		if (copy_from_user(&owe_WmfeReq, (void *)Param, sizeof(struct OWE_WMFERequest)) ==
-		    0) {
-			LOG_DBG("WMFE_ENQNUE_NUM:%d, pid:%d\n", owe_WmfeReq.m_ReqNum,
+		if (copy_from_user(&owe_WmfeReq, (void *)Param,
+			sizeof(struct OWE_WMFERequest)) == 0) {
+			LOG_DBG("WMFE_ENQNUE_NUM:%d, pid:%d\n",
+				owe_WmfeReq.m_ReqNum,
 				pUserInfo->Pid);
-			if (owe_WmfeReq.m_ReqNum > _SUPPORT_MAX_OWE_FRAME_REQUEST_) {
-				LOG_ERR("WMFE Enque Num is bigger than enqueNum:%d\n",
+			if (owe_WmfeReq.m_ReqNum >
+				_SUPPORT_MAX_OWE_FRAME_REQUEST_) {
+				LOG_ERR(
+					"WMFE Enque Num is bigger than enqueNum:%d\n",
 					owe_WmfeReq.m_ReqNum);
 				Ret = -EFAULT;
 				goto EXIT;
@@ -2304,52 +2429,42 @@ static long OWE_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 				goto EXIT;
 			}
 
-			if (copy_from_user
-			    (g_WmfeEnqueReq_Struct.WmfeFrameConfig,
-			     (void *)owe_WmfeReq.m_pWmfeConfig,
-			     owe_WmfeReq.m_ReqNum * sizeof(struct OWE_WMFEConfig)) != 0) {
-				LOG_ERR("copy WMFEConfig from request is fail!!\n");
+			if (copy_from_user(
+				g_WmfeEnqueReq_Struct.WmfeFrameConfig,
+				(void *)owe_WmfeReq.m_pWmfeConfig,
+				owe_WmfeReq.m_ReqNum *
+					sizeof(struct OWE_WMFEConfig)) != 0) {
+				LOG_ERR(
+					"copy WMFEConfig from request is fail!!\n");
 				Ret = -EFAULT;
 				goto EXIT;
 			}
 
-			mutex_lock(&gOweWmfeMutex);	/* Protect the Multi Process */
+			/* Protect the Multi Process */
+			mutex_lock(&gOweWmfeMutex);
 
-			spin_lock_irqsave(&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]),
-					  flags);
-			WIdx = g_WMFE_ReqRing.WriteIdx;
-			FWRIdx = g_WMFE_ReqRing.WMFEReq_Struct[WIdx].FrameWRIdx;
-			if (OWE_REQUEST_STATE_EMPTY ==
-			    g_WMFE_ReqRing.WMFEReq_Struct[WIdx].RequestState) {
-				g_WMFE_ReqRing.WMFEReq_Struct[WIdx].processID = pUserInfo->Pid;
-				g_WMFE_ReqRing.WMFEReq_Struct[WIdx].enqueReqNum = owe_WmfeReq.m_ReqNum;
+			spin_lock_irqsave(
+				&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]),
+				flags);
+			kWmfeReq.m_ReqNum = owe_WmfeReq.m_ReqNum;
+			kWmfeReq.m_pWmfeConfig =
+				g_WmfeEnqueReq_Struct.WmfeFrameConfig;
+			enque_request(&wmfe_reqs,
+				kWmfeReq.m_ReqNum,
+				&kWmfeReq, pUserInfo->Pid);
+			spin_unlock_irqrestore(
+				&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]),
+				flags);
 
-				for (idx = 0; idx < owe_WmfeReq.m_ReqNum; idx++) {
-					g_WMFE_ReqRing.
-					WMFEReq_Struct[WIdx].WmfeFrameStatus[FWRIdx] = OWE_FRAME_STATUS_ENQUE;
-					memcpy(&g_WMFE_ReqRing.WMFEReq_Struct[WIdx].WmfeFrameConfig[FWRIdx++],
-					&g_WmfeEnqueReq_Struct.WmfeFrameConfig[idx], sizeof(struct OWE_WMFEConfig));
-				}
-				g_WMFE_ReqRing.WMFEReq_Struct[WIdx].FrameWRIdx = FWRIdx;
-				g_WMFE_ReqRing.WMFEReq_Struct[WIdx].RequestState = OWE_REQUEST_STATE_PENDING;
-				WmfeWriteIdx = WIdx;
-				g_WMFE_ReqRing.WriteIdx = (WIdx + 1) % _SUPPORT_MAX_OWE_REQUEST_RING_SIZE_;
-				LOG_INF("WMFE enq %d done!!\n", WIdx);
-			} else {
-				LOG_ERR("No Empty WMFE Buf!WriteIdx(%d),ReqSta(%d),FWRIdx(%d),enqReqNum(%d)\n",
-				     WIdx,
-				     g_WMFE_ReqRing.WMFEReq_Struct[WIdx].RequestState,
-				     g_WMFE_ReqRing.WMFEReq_Struct[WIdx].FrameWRIdx,
-				     g_WMFE_ReqRing.WMFEReq_Struct[WIdx].enqueReqNum);
-			}
-			g_WMFE_ReqRing.WMFEReq_Struct[WIdx].FrameWRIdx = FWRIdx;
-			spin_unlock_irqrestore(&
-					       (OWEInfo.
-						SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]),
-					       flags);
 			LOG_DBG("ConfigWMFE Request!!\n");
-			ConfigWMFERequest(WmfeWriteIdx);
-
+			if (!request_running(&wmfe_reqs)) {
+				LOG_DBG("direct request_handler\n");
+				request_handler(
+					&wmfe_reqs,
+					&(OWEInfo.SpinLockIrq[
+						OWE_IRQ_TYPE_INT_OWE_ST])
+					);
+			}
 			mutex_unlock(&gOweWmfeMutex);
 		} else {
 			LOG_ERR("OWE_OCC_ENQUE copy_from_user failed\n");
@@ -2360,56 +2475,28 @@ static long OWE_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 		}
 	case OWE_WMFE_DEQUE_REQ:
 		{
-			signed int FrameRDIdx;
-			signed int ReadIdx;
+			if (copy_from_user(&owe_WmfeReq, (void *)Param,
+				sizeof(struct OWE_WMFERequest)) == 0) {
+				mutex_lock(&gOweWmfeDequeMutex);
+				/* Protect the Multi Process */
 
-			if (copy_from_user(&owe_WmfeReq, (void *)Param, sizeof(struct OWE_WMFERequest)) ==
-			    0) {
-				mutex_lock(&gOweWmfeDequeMutex);	/* Protect the Multi Process */
-
-				spin_lock_irqsave(&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]),
-						  flags);
-				ReadIdx = g_WMFE_ReqRing.ReadIdx;
-				FrameRDIdx = g_WMFE_ReqRing.WMFEReq_Struct[ReadIdx].FrameRDIdx;
-				if (OWE_REQUEST_STATE_FINISHED ==
-				    g_WMFE_ReqRing.WMFEReq_Struct[ReadIdx].RequestState) {
-					dequeNum = g_WMFE_ReqRing.WMFEReq_Struct[ReadIdx].enqueReqNum;
-					LOG_DBG("WMFE_DEQUE_NUM(%d)\n", dequeNum);
-				} else {
-					dequeNum = 0;
-					LOG_ERR("Deq No WMFE Buf,ReadIdx(%d),ReqSta(%d),FRDIdx(%d),enqReqNum(%d)\n",
-					     ReadIdx,
-					     g_WMFE_ReqRing.WMFEReq_Struct[ReadIdx].RequestState,
-					     FrameRDIdx,
-					     g_WMFE_ReqRing.WMFEReq_Struct[ReadIdx].enqueReqNum);
-				}
+				spin_lock_irqsave(
+					&(OWEInfo.SpinLockIrq[
+						OWE_IRQ_TYPE_INT_OWE_ST]),
+					flags);
+				kWmfeReq.m_pWmfeConfig =
+					g_WmfeDequeReq_Struct.WmfeFrameConfig;
+				deque_request(
+					&wmfe_reqs,
+					&kWmfeReq.m_ReqNum,
+					&kWmfeReq);
+				dequeNum = kWmfeReq.m_ReqNum;
 				owe_WmfeReq.m_ReqNum = dequeNum;
-				for (idx = 0; idx < dequeNum; idx++) {
-					if (OWE_FRAME_STATUS_FINISHED ==
-					    g_WMFE_ReqRing.WMFEReq_Struct[ReadIdx].WmfeFrameStatus[FrameRDIdx]) {
-						memcpy(&g_WmfeDequeReq_Struct.WmfeFrameConfig[idx],
-						&g_WMFE_ReqRing.WMFEReq_Struct[ReadIdx].WmfeFrameConfig[FrameRDIdx],
-						sizeof(struct OWE_WMFEConfig));
-						g_WMFE_ReqRing.WMFEReq_Struct[ReadIdx].WmfeFrameStatus[FrameRDIdx++]
-						= OWE_FRAME_STATUS_EMPTY;
-					} else {
-						LOG_ERR("WMFE!idx(%d),deqNum(%d),ReadIdx,(%d),FRDIdx(%d),FSts(%d)\n",
-						idx, dequeNum, ReadIdx, FrameRDIdx,
-						g_WMFE_ReqRing.WMFEReq_Struct[ReadIdx].WmfeFrameStatus[FrameRDIdx]);
-					}
-				}
-				g_WMFE_ReqRing.WMFEReq_Struct[ReadIdx].FrameRDIdx = FrameRDIdx;
-				g_WMFE_ReqRing.WMFEReq_Struct[ReadIdx].RequestState = OWE_REQUEST_STATE_EMPTY;
-				g_WMFE_ReqRing.WMFEReq_Struct[ReadIdx].FrameWRIdx = 0;
-				g_WMFE_ReqRing.WMFEReq_Struct[ReadIdx].FrameRDIdx = 0;
-				g_WMFE_ReqRing.WMFEReq_Struct[ReadIdx].enqueReqNum = 0;
-				g_WMFE_ReqRing.ReadIdx = (ReadIdx + 1) % _SUPPORT_MAX_OWE_REQUEST_RING_SIZE_;
-				LOG_INF("WMFE deq %d done\n", ReadIdx);
 
-				spin_unlock_irqrestore(&
-						       (OWEInfo.
-							SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]),
-						       flags);
+				spin_unlock_irqrestore(
+					&(OWEInfo.SpinLockIrq[
+						OWE_IRQ_TYPE_INT_OWE_ST]),
+					flags);
 
 				mutex_unlock(&gOweWmfeDequeMutex);
 
@@ -2419,21 +2506,25 @@ static long OWE_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 					goto EXIT;
 				}
 
-				if (copy_to_user
-				    ((void *)owe_WmfeReq.m_pWmfeConfig,
+				if (copy_to_user(
+					(void *)owe_WmfeReq.m_pWmfeConfig,
 				     &g_WmfeDequeReq_Struct.WmfeFrameConfig[0],
-				     dequeNum * sizeof(struct OWE_WMFEConfig)) != 0) {
-					LOG_ERR
-					    ("OWE_WMFE_DEQUE_REQ copy_to_user frameconfig failed\n");
+				     dequeNum *
+					sizeof(struct OWE_WMFEConfig)) != 0) {
+					LOG_ERR(
+						"OWE_WMFE_DEQUE_REQ copy_to_user frameconfig failed\n");
 					Ret = -EFAULT;
 				}
-				if (copy_to_user
-				    ((void *)Param, &owe_WmfeReq, sizeof(struct OWE_WMFERequest)) != 0) {
-					LOG_ERR("OWE_WMFE_DEQUE_REQ copy_to_user failed\n");
+				if (copy_to_user(
+					(void *)Param, &owe_WmfeReq,
+					sizeof(struct OWE_WMFERequest)) != 0) {
+					LOG_ERR(
+						"OWE_WMFE_DEQUE_REQ copy_to_user failed\n");
 					Ret = -EFAULT;
 				}
 			} else {
-				LOG_ERR("OWE_CMD_WMFE_DEQUE_REQ copy_from_user failed\n");
+				LOG_ERR(
+					"OWE_CMD_WMFE_DEQUE_REQ copy_from_user failed\n");
 				Ret = -EFAULT;
 			}
 
@@ -2442,7 +2533,9 @@ static long OWE_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 	default:
 		{
 			LOG_ERR("Unknown Cmd(%d)", Cmd);
-			LOG_ERR("Fail, Cmd(%d), Dir(%d), Type(%d), Nr(%d),Size(%d)\n", Cmd, _IOC_DIR(Cmd),
+			LOG_ERR(
+				"Fail, Cmd(%d), Dir(%d), Type(%d), Nr(%d),Size(%d)\n",
+				Cmd, _IOC_DIR(Cmd),
 				_IOC_TYPE(Cmd), _IOC_NR(Cmd), _IOC_SIZE(Cmd));
 			Ret = -EPERM;
 			break;
@@ -2451,8 +2544,11 @@ static long OWE_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 	/*  */
 EXIT:
 	if (Ret != 0) {
-		LOG_ERR("Fail, Cmd(%d), Pid(%d), (process, pid, tgid)=(%s, %d, %d)", Cmd,
-			pUserInfo->Pid, current->comm, current->pid, current->tgid);
+		LOG_ERR(
+			"Fail, Cmd(%d), Pid(%d), (process, pid, tgid)=(%s, %d, %d)",
+			Cmd,
+			pUserInfo->Pid, current->comm,
+			current->pid, current->tgid);
 	}
 	/*  */
 	return Ret;
@@ -2460,11 +2556,12 @@ EXIT:
 
 #ifdef CONFIG_COMPAT
 
-/*******************************************************************************
-*
-********************************************************************************/
-static int compat_get_OWE_read_register_data(struct compat_OWE_REG_IO_STRUCT __user *data32,
-					     struct OWE_REG_IO_STRUCT __user *data)
+/******************************************************************************
+ *
+ ******************************************************************************/
+static int compat_get_OWE_read_register_data(
+	struct compat_OWE_REG_IO_STRUCT __user *data32,
+	struct OWE_REG_IO_STRUCT __user *data)
 {
 	compat_uint_t count;
 	compat_uptr_t uptr;
@@ -2477,8 +2574,9 @@ static int compat_get_OWE_read_register_data(struct compat_OWE_REG_IO_STRUCT __u
 	return err;
 }
 
-static int compat_put_OWE_read_register_data(struct compat_OWE_REG_IO_STRUCT __user *data32,
-					     struct OWE_REG_IO_STRUCT __user *data)
+static int compat_put_OWE_read_register_data(
+	struct compat_OWE_REG_IO_STRUCT __user *data32,
+	struct OWE_REG_IO_STRUCT __user *data)
 {
 	compat_uint_t count;
 	/*compat_uptr_t uptr;*/
@@ -2491,8 +2589,9 @@ static int compat_put_OWE_read_register_data(struct compat_OWE_REG_IO_STRUCT __u
 	return err;
 }
 
-static int compat_get_OWE_occ_enque_req_data(struct compat_OWE_OCCRequest __user *data32,
-					     struct OWE_OCCRequest __user *data)
+static int compat_get_OWE_occ_enque_req_data(
+	struct compat_OWE_OCCRequest __user *data32,
+	struct OWE_OCCRequest __user *data)
 {
 	compat_uint_t count;
 	compat_uptr_t uptr;
@@ -2506,8 +2605,9 @@ static int compat_get_OWE_occ_enque_req_data(struct compat_OWE_OCCRequest __user
 }
 
 
-static int compat_put_OWE_occ_enque_req_data(struct compat_OWE_OCCRequest __user *data32,
-					     struct OWE_OCCRequest __user *data)
+static int compat_put_OWE_occ_enque_req_data(
+	struct compat_OWE_OCCRequest __user *data32,
+	struct OWE_OCCRequest __user *data)
 {
 	compat_uint_t count;
 	/*compat_uptr_t uptr;*/
@@ -2521,8 +2621,9 @@ static int compat_put_OWE_occ_enque_req_data(struct compat_OWE_OCCRequest __user
 }
 
 
-static int compat_get_OWE_occ_deque_req_data(struct compat_OWE_OCCRequest __user *data32,
-					     struct OWE_OCCRequest __user *data)
+static int compat_get_OWE_occ_deque_req_data(
+	struct compat_OWE_OCCRequest __user *data32,
+	struct OWE_OCCRequest __user *data)
 {
 	compat_uint_t count;
 	compat_uptr_t uptr;
@@ -2536,8 +2637,9 @@ static int compat_get_OWE_occ_deque_req_data(struct compat_OWE_OCCRequest __user
 }
 
 
-static int compat_put_OWE_occ_deque_req_data(struct compat_OWE_OCCRequest __user *data32,
-					     struct OWE_OCCRequest __user *data)
+static int compat_put_OWE_occ_deque_req_data(
+	struct compat_OWE_OCCRequest __user *data32,
+	struct OWE_OCCRequest __user *data)
 {
 	compat_uint_t count;
 	/*compat_uptr_t uptr;*/
@@ -2550,8 +2652,9 @@ static int compat_put_OWE_occ_deque_req_data(struct compat_OWE_OCCRequest __user
 	return err;
 }
 
-static int compat_get_OWE_wmfe_enque_req_data(struct compat_OWE_WMFERequest __user *data32,
-					      struct OWE_WMFERequest __user *data)
+static int compat_get_OWE_wmfe_enque_req_data(
+	struct compat_OWE_WMFERequest __user *data32,
+	struct OWE_WMFERequest __user *data)
 {
 	compat_uint_t count;
 	compat_uptr_t uptr;
@@ -2565,8 +2668,9 @@ static int compat_get_OWE_wmfe_enque_req_data(struct compat_OWE_WMFERequest __us
 }
 
 
-static int compat_put_OWE_wmfe_enque_req_data(struct compat_OWE_WMFERequest __user *data32,
-					      struct OWE_WMFERequest __user *data)
+static int compat_put_OWE_wmfe_enque_req_data(
+	struct compat_OWE_WMFERequest __user *data32,
+	struct OWE_WMFERequest __user *data)
 {
 	compat_uint_t count;
 	/*compat_uptr_t uptr;*/
@@ -2580,8 +2684,9 @@ static int compat_put_OWE_wmfe_enque_req_data(struct compat_OWE_WMFERequest __us
 }
 
 
-static int compat_get_OWE_wmfe_deque_req_data(struct compat_OWE_WMFERequest __user *data32,
-					      struct OWE_WMFERequest __user *data)
+static int compat_get_OWE_wmfe_deque_req_data(
+	struct compat_OWE_WMFERequest __user *data32,
+	struct OWE_WMFERequest __user *data)
 {
 	compat_uint_t count;
 	compat_uptr_t uptr;
@@ -2595,8 +2700,9 @@ static int compat_get_OWE_wmfe_deque_req_data(struct compat_OWE_WMFERequest __us
 }
 
 
-static int compat_put_OWE_wmfe_deque_req_data(struct compat_OWE_WMFERequest __user *data32,
-					      struct OWE_WMFERequest __user *data)
+static int compat_put_OWE_wmfe_deque_req_data(
+	struct compat_OWE_WMFERequest __user *data32,
+	struct OWE_WMFERequest __user *data)
 {
 	compat_uint_t count;
 	/*compat_uptr_t uptr;*/
@@ -2609,7 +2715,8 @@ static int compat_put_OWE_wmfe_deque_req_data(struct compat_OWE_WMFERequest __us
 	return err;
 }
 
-static long OWE_ioctl_compat(struct file *filp, unsigned int cmd, unsigned long arg)
+static long OWE_ioctl_compat(struct file *filp,
+	unsigned int cmd, unsigned long arg)
 {
 	long ret;
 
@@ -2632,7 +2739,8 @@ static long OWE_ioctl_compat(struct file *filp, unsigned int cmd, unsigned long 
 
 			err = compat_get_OWE_read_register_data(data32, data);
 			if (err) {
-				LOG_INF("compat_get_OWE_read_register_data error!!!\n");
+				LOG_INF(
+					"compat_get_OWE_read_register_data error!!!\n");
 				return err;
 			}
 			ret =
@@ -2640,7 +2748,8 @@ static long OWE_ioctl_compat(struct file *filp, unsigned int cmd, unsigned long 
 						       (unsigned long)data);
 			err = compat_put_OWE_read_register_data(data32, data);
 			if (err) {
-				LOG_INF("compat_put_OWE_read_register_data error!!!\n");
+				LOG_INF(
+					"compat_put_OWE_read_register_data error!!!\n");
 				return err;
 			}
 			return ret;
@@ -2786,9 +2895,9 @@ static long OWE_ioctl_compat(struct file *filp, unsigned int cmd, unsigned long 
 
 #endif
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 static signed int OWE_open(struct inode *pInode, struct file *pFile)
 {
 	signed int Ret = 0;
@@ -2804,10 +2913,14 @@ static signed int OWE_open(struct inode *pInode, struct file *pFile)
 	spin_lock(&(OWEInfo.SpinLockOWERef));
 
 	pFile->private_data = NULL;
-	pFile->private_data = kmalloc(sizeof(struct OWE_USER_INFO_STRUCT), GFP_ATOMIC);
+	pFile->private_data =
+		kmalloc(sizeof(struct OWE_USER_INFO_STRUCT), GFP_ATOMIC);
 	if (pFile->private_data == NULL) {
-		LOG_DBG("ERROR: kmalloc failed, (process, pid, tgid)=(%s, %d, %d)", current->comm,
-			current->pid, current->tgid);
+		LOG_DBG(
+			"ERROR: kmalloc failed, (process, pid, tgid)=(%s, %d, %d)",
+			current->comm,
+			current->pid,
+			current->tgid);
 		Ret = -ENOMEM;
 	} else {
 		pUserInfo = (struct OWE_USER_INFO_STRUCT *) pFile->private_data;
@@ -2818,14 +2931,18 @@ static signed int OWE_open(struct inode *pInode, struct file *pFile)
 	if (OWEInfo.UserCount > 0) {
 		OWEInfo.UserCount++;
 		spin_unlock(&(OWEInfo.SpinLockOWERef));
-		LOG_DBG("Curr UserCount(%d), (process, pid, tgid)=(%s, %d, %d), users exist",
-			OWEInfo.UserCount, current->comm, current->pid, current->tgid);
+		LOG_DBG(
+			"Curr UserCount(%d), (process, pid, tgid)=(%s, %d, %d), users exist",
+			OWEInfo.UserCount, current->comm,
+			current->pid, current->tgid);
 		goto EXIT;
 	} else {
 		OWEInfo.UserCount++;
 		spin_unlock(&(OWEInfo.SpinLockOWERef));
-		LOG_DBG("Curr UserCount(%d), (process, pid, tgid)=(%s, %d, %d), first user",
-			OWEInfo.UserCount, current->comm, current->pid, current->tgid);
+		LOG_DBG(
+			"Curr UserCount(%d), (process, pid, tgid)=(%s, %d, %d), first user",
+			OWEInfo.UserCount, current->comm,
+			current->pid, current->tgid);
 	}
 
 	/* do wait queue head init when re-enter in camera */
@@ -2835,7 +2952,8 @@ static signed int OWE_open(struct inode *pInode, struct file *pFile)
 		g_OCC_RequestRing.OCCReq_Struct[i].callerID = 0x0;
 		g_OCC_RequestRing.OCCReq_Struct[i].enqueReqNum = 0x0;
 		/* g_OCC_RequestRing.OCCReq_Struct[i].enqueIdx = 0x0; */
-		g_OCC_RequestRing.OCCReq_Struct[i].RequestState = OWE_REQUEST_STATE_EMPTY;
+		g_OCC_RequestRing.OCCReq_Struct[i].RequestState =
+						OWE_REQUEST_STATE_EMPTY;
 		g_OCC_RequestRing.OCCReq_Struct[i].FrameWRIdx = 0x0;
 		g_OCC_RequestRing.OCCReq_Struct[i].FrameRDIdx = 0x0;
 		/* WMFE */
@@ -2843,7 +2961,8 @@ static signed int OWE_open(struct inode *pInode, struct file *pFile)
 		g_WMFE_ReqRing.WMFEReq_Struct[i].callerID = 0x0;
 		g_WMFE_ReqRing.WMFEReq_Struct[i].enqueReqNum = 0x0;
 		/* g_WMFE_ReqRing.WMFEReq_Struct[i].enqueIdx = 0x0; */
-		g_WMFE_ReqRing.WMFEReq_Struct[i].RequestState = OWE_REQUEST_STATE_EMPTY;
+		g_WMFE_ReqRing.WMFEReq_Struct[i].RequestState =
+						OWE_REQUEST_STATE_EMPTY;
 		g_WMFE_ReqRing.WMFEReq_Struct[i].FrameWRIdx = 0x0;
 		g_WMFE_ReqRing.WMFEReq_Struct[i].FrameRDIdx = 0x0;
 		for (j = 0; j < _SUPPORT_MAX_OWE_FRAME_REQUEST_; j++) {
@@ -2867,10 +2986,12 @@ static signed int OWE_open(struct inode *pInode, struct file *pFile)
 	LOG_INF("OWE open g_u4EnableClockCount: %d", g_u4EnableClockCount);
 	/*  */
 
-	spin_lock_irqsave(&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]), flags);
+	spin_lock_irqsave(
+		&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]), flags);
 	for (i = 0; i < OWE_IRQ_TYPE_AMOUNT; i++)
 		OWEInfo.IrqInfo.Status[i] = 0;
-	spin_unlock_irqrestore(&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]), flags);
+	spin_unlock_irqrestore(
+		&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]), flags);
 
 	for (i = 0; i < _SUPPORT_MAX_OWE_FRAME_REQUEST_; i++)
 		OWEInfo.ProcessID[i] = 0;
@@ -2880,12 +3001,17 @@ static signed int OWE_open(struct inode *pInode, struct file *pFile)
 	OWEInfo.IrqInfo.OccIrqCnt = 0;
 	OWEInfo.IrqInfo.WmfeIrqCnt = 0;
 
-
 #ifdef KERNEL_LOG
     /* In EP, Add OWE_DBG_WRITE_REG for debug. Should remove it after EP */
 	OWEInfo.DebugMask = (OWE_DBG_INT | OWE_DBG_DBGLOG | OWE_DBG_WRITE_REG);
 #endif
 	/*  */
+	register_requests(&wmfe_reqs, sizeof(struct OWE_WMFEConfig));
+	set_engine_ops(&wmfe_reqs, &wmfe_ops);
+
+	register_requests(&occ_reqs, sizeof(struct OWE_OCCConfig));
+	set_engine_ops(&occ_reqs, &occ_ops);
+
 EXIT:
 
 
@@ -2896,9 +3022,9 @@ EXIT:
 
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 static signed int OWE_release(struct inode *pInode, struct file *pFile)
 {
 	struct OWE_USER_INFO_STRUCT *pUserInfo;
@@ -2918,14 +3044,18 @@ static signed int OWE_release(struct inode *pInode, struct file *pFile)
 
 	if (OWEInfo.UserCount > 0) {
 		spin_unlock(&(OWEInfo.SpinLockOWERef));
-		LOG_DBG("Curr UserCount(%d), (process, pid, tgid)=(%s, %d, %d), users exist",
-			OWEInfo.UserCount, current->comm, current->pid, current->tgid);
+		LOG_DBG(
+			"Curr UserCount(%d), (process, pid, tgid)=(%s, %d, %d), users exist",
+			OWEInfo.UserCount, current->comm,
+			current->pid, current->tgid);
 		goto EXIT;
 	} else
 		spin_unlock(&(OWEInfo.SpinLockOWERef));
 	/*  */
-	LOG_DBG("Curr UserCount(%d), (process, pid, tgid)=(%s, %d, %d), last user",
-		OWEInfo.UserCount, current->comm, current->pid, current->tgid);
+	LOG_DBG(
+		"Curr UserCount(%d), (process, pid, tgid)=(%s, %d, %d), last user",
+		OWEInfo.UserCount, current->comm,
+		current->pid, current->tgid);
 
 
 	/* Disable clock. */
@@ -2933,20 +3063,22 @@ static signed int OWE_release(struct inode *pInode, struct file *pFile)
 	LOG_INF("OWE release g_u4EnableClockCount: %d", g_u4EnableClockCount);
 
 	/*  */
-EXIT:
+	unregister_requests(&wmfe_reqs);
+	unregister_requests(&occ_reqs);
 
+EXIT:
 
 	LOG_DBG("- X. UserCount: %d.", OWEInfo.UserCount);
 	return 0;
 }
 
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 static signed int OWE_mmap(struct file *pFile, struct vm_area_struct *pVma)
 {
-	long length = 0;
+	unsigned long length = 0;
 	unsigned int pfn = 0x0;
 
 	length = pVma->vm_end - pVma->vm_start;
@@ -2955,15 +3087,17 @@ static signed int OWE_mmap(struct file *pFile, struct vm_area_struct *pVma)
 	pfn = pVma->vm_pgoff << PAGE_SHIFT;
 
 
-	LOG_INF("OWE_mmap: pVma->vm_pgoff(0x%lx)", pVma->vm_pgoff);
-	LOG_INF("OWE_mmap: pfn(0x%x),phy(0x%lx)", pfn, pVma->vm_pgoff << PAGE_SHIFT);
+	LOG_INF("mmap: pVma->vm_pgoff(0x%lx)", pVma->vm_pgoff);
+	LOG_INF("mmap: pfn(0x%x),phy(0x%lx)", pfn,
+		pVma->vm_pgoff << PAGE_SHIFT);
 	LOG_INF("pVmapVma->vm_start(0x%lx)", pVma->vm_start);
 	LOG_INF("pVma->vm_end(0x%lx),length(0x%lx)", pVma->vm_end, length);
 
 	switch (pfn) {
 	case OWE_BASE_HW:
 		if (length > OWE_REG_RANGE) {
-			LOG_ERR("mmap range error :module:0x%x length(0x%lx),OWE_REG_RANGE(0x%x)!",
+			LOG_ERR(
+				"mmap range error :module:0x%x length(0x%lx),OWE_REG_RANGE(0x%x)!",
 				pfn, length, OWE_REG_RANGE);
 			return -EAGAIN;
 		}
@@ -2972,18 +3106,19 @@ static signed int OWE_mmap(struct file *pFile, struct vm_area_struct *pVma)
 		LOG_ERR("Illegal starting HW addr for mmap!");
 		return -EAGAIN;
 	}
-	if (remap_pfn_range
-	    (pVma, pVma->vm_start, pVma->vm_pgoff, pVma->vm_end - pVma->vm_start,
-	     pVma->vm_page_prot)) {
+	if (remap_pfn_range(
+		pVma, pVma->vm_start, pVma->vm_pgoff,
+		pVma->vm_end - pVma->vm_start,
+		pVma->vm_page_prot)) {
 		return -EAGAIN;
 	}
 	/*  */
 	return 0;
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 
 static dev_t OWEDevNo;
 static struct cdev *pOWECharDrv;
@@ -3001,9 +3136,9 @@ static const struct file_operations OWEFileOper = {
 #endif
 };
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 static inline void OWE_UnregCharDev(void)
 {
 	LOG_DBG("- E.");
@@ -3017,9 +3152,9 @@ static inline void OWE_UnregCharDev(void)
 	unregister_chrdev_region(OWEDevNo, 1);
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 static inline signed int OWE_RegCharDev(void)
 {
 	signed int Ret = 0;
@@ -3059,16 +3194,16 @@ EXIT:
 	return Ret;
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 static signed int OWE_probe(struct platform_device *pDev)
 {
 	signed int Ret = 0;
 	/*struct resource *pRes = NULL;*/
 	signed int i = 0;
 	unsigned char n;
-	unsigned int irq_info[3];	/* Record interrupts info from device tree */
+	unsigned int irq_info[3];/* Record interrupts info from device tree */
 	struct device *dev = NULL;
 	struct OWE_device *_owedev = NULL;
 
@@ -3087,7 +3222,8 @@ static signed int OWE_probe(struct platform_device *pDev)
 	}
 
 	nr_OWE_devs += 1;
-	_owedev = krealloc(OWE_devs, sizeof(struct OWE_device) * nr_OWE_devs, GFP_KERNEL);
+	_owedev = krealloc(OWE_devs,
+		sizeof(struct OWE_device) * nr_OWE_devs, GFP_KERNEL);
 	if (!_owedev) {
 		dev_dbg(&pDev->dev, "Unable to allocate OWE_devs\n");
 		return -ENOMEM;
@@ -3116,42 +3252,52 @@ static signed int OWE_probe(struct platform_device *pDev)
 
 	if (OWE_dev->irq > 0) {
 		/* Get IRQ Flag from device node */
-		if (of_property_read_u32_array
-		    (pDev->dev.of_node, "interrupts", irq_info, ARRAY_SIZE(irq_info))) {
+		if (of_property_read_u32_array(
+			pDev->dev.of_node, "interrupts",
+			irq_info, ARRAY_SIZE(irq_info))) {
 			dev_dbg(&pDev->dev, "get irq flags from DTS fail!!\n");
 			return -ENODEV;
 		}
 
 		for (i = 0; i < OWE_IRQ_TYPE_AMOUNT; i++) {
-			if (strcmp(pDev->dev.of_node->name, OWE_IRQ_CB_TBL[i].device_name) == 0) {
-				Ret =
-				    request_irq(OWE_dev->irq,
-						(irq_handler_t) OWE_IRQ_CB_TBL[i].isr_fp,
-						irq_info[2],
-						(const char *)OWE_IRQ_CB_TBL[i].device_name, NULL);
+			if (strcmp(pDev->dev.of_node->name,
+				OWE_IRQ_CB_TBL[i].device_name) == 0) {
+				Ret = request_irq(OWE_dev->irq,
+				    (irq_handler_t) OWE_IRQ_CB_TBL[i].isr_fp,
+				    irq_info[2],
+				    (const char *)OWE_IRQ_CB_TBL[i].device_name,
+				    NULL);
+
 				if (Ret) {
 					dev_dbg(&pDev->dev,
 						"Unable to request IRQ, request_irq fail, nr_OWE_devs=%d, devnode(%s), irq=%d, ISR: %s\n",
-						nr_OWE_devs, pDev->dev.of_node->name, OWE_dev->irq,
+						nr_OWE_devs,
+						pDev->dev.of_node->name,
+						OWE_dev->irq,
 						OWE_IRQ_CB_TBL[i].device_name);
 					return Ret;
 				}
 
-				LOG_INF("nr_OWE_devs=%d, devnode(%s), irq=%d, ISR: %s\n",
-					nr_OWE_devs, pDev->dev.of_node->name, OWE_dev->irq,
+				LOG_INF(
+					"nr_OWE_devs=%d, devnode(%s), irq=%d, ISR: %s\n",
+					nr_OWE_devs, pDev->dev.of_node->name,
+					OWE_dev->irq,
 					OWE_IRQ_CB_TBL[i].device_name);
 				break;
 			}
 		}
 
 		if (i >= OWE_IRQ_TYPE_AMOUNT) {
-			LOG_INF("No corresponding ISR!!: nr_OWE_devs=%d, devnode(%s), irq=%d\n",
-				nr_OWE_devs, pDev->dev.of_node->name, OWE_dev->irq);
+			LOG_INF(
+				"No corresponding ISR!!: nr_OWE_devs=%d, devnode(%s), irq=%d\n",
+				nr_OWE_devs, pDev->dev.of_node->name,
+				OWE_dev->irq);
 		}
 
 
 	} else {
-		LOG_INF("No IRQ!!: nr_OWE_devs=%d, devnode(%s), irq=%d\n", nr_OWE_devs,
+		LOG_INF("No IRQ!!: nr_OWE_devs=%d, devnode(%s), irq=%d\n",
+			nr_OWE_devs,
 			pDev->dev.of_node->name, OWE_dev->irq);
 	}
 
@@ -3170,14 +3316,15 @@ static signed int OWE_probe(struct platform_device *pDev)
 #ifndef __OWE_EP_NO_CLKMGR__
 #if !defined(CONFIG_MTK_LEGACY) && defined(CONFIG_COMMON_CLK) /*CCF*/
 		    /*CCF: Grab clock pointer (struct clk*) */
-		owe_clk.CG_IMGSYS_OWE = devm_clk_get(&pDev->dev, "OWE_CLK_IMG_OWE");
+		owe_clk.CG_IMGSYS_OWE = devm_clk_get(&pDev->dev,
+				"OWE_CLK_IMG_OWE");
 
 		if (IS_ERR(owe_clk.CG_IMGSYS_OWE)) {
 			LOG_ERR("cannot get CG_IMGSYS_OWE clock\n");
 			return PTR_ERR(owe_clk.CG_IMGSYS_OWE);
 		}
 
-#endif				/* !defined(CONFIG_MTK_LEGACY) && defined(CONFIG_COMMON_CLK)  */
+#endif	/* !defined(CONFIG_MTK_LEGACY) && defined(CONFIG_COMMON_CLK)  */
 #endif
 
 		/* Create class register */
@@ -3188,7 +3335,8 @@ static signed int OWE_probe(struct platform_device *pDev)
 			goto EXIT;
 		}
 
-		dev = device_create(pOWEClass, NULL, OWEDevNo, NULL, OWE_DEV_NAME);
+		dev = device_create(
+			pOWEClass, NULL, OWEDevNo, NULL, OWE_DEV_NAME);
 
 		if (IS_ERR(dev)) {
 			Ret = PTR_ERR(dev);
@@ -3207,11 +3355,16 @@ static signed int OWE_probe(struct platform_device *pDev)
 		init_waitqueue_head(&OWEInfo.WaitQueueHead);
 		INIT_WORK(&OWEInfo.ScheduleOccWork, OWE_ScheduleOccWork);
 		INIT_WORK(&OWEInfo.ScheduleWmfeWork, OWE_ScheduleWmfeWork);
+		OWEInfo.wkqueue = create_singlethread_workqueue("WMFE-CMDQ-WQ");
+		if (!OWEInfo.wkqueue)
+			LOG_ERR("NULL WMFE-CMDQ-WQ\n");
 
-		wake_lock_init(&OWE_wake_lock, WAKE_LOCK_SUSPEND, "owe_lock_wakelock");
+		wakeup_source_init(&OWE_wake_lock, "owe_lock_wakelock");
 
 		for (i = 0; i < OWE_IRQ_TYPE_AMOUNT; i++)
-			tasklet_init(OWE_tasklet[i].pOWE_tkt, OWE_tasklet[i].tkt_cb, 0);
+			tasklet_init(
+				OWE_tasklet[i].pOWE_tkt,
+				OWE_tasklet[i].tkt_cb, 0);
 
 		/* Init OWEInfo */
 		spin_lock(&(OWEInfo.SpinLockOWERef));
@@ -3220,6 +3373,8 @@ static signed int OWE_probe(struct platform_device *pDev)
 		/*  */
 		OWEInfo.IrqInfo.Mask[OWE_IRQ_TYPE_INT_OWE_ST] = INT_ST_MASK_OWE;
 
+		seqlock_init(&(wmfe_reqs.seqlock));
+		seqlock_init(&(occ_reqs.seqlock));
 	}
 
 EXIT:
@@ -3232,9 +3387,9 @@ EXIT:
 	return Ret;
 }
 
-/*******************************************************************************
-* Called when the device is being detached from the driver
-********************************************************************************/
+/******************************************************************************
+ * Called when the device is being detached from the driver
+ ******************************************************************************/
 static signed int OWE_remove(struct platform_device *pDev)
 {
 	/*struct resource *pRes;*/
@@ -3242,6 +3397,10 @@ static signed int OWE_remove(struct platform_device *pDev)
 	int i;
 	/*  */
 	LOG_DBG("- E.");
+
+	destroy_workqueue(OWEInfo.wkqueue);
+	OWEInfo.wkqueue = NULL;
+
 	/* unregister char driver. */
 	OWE_UnregCharDev();
 
@@ -3269,7 +3428,9 @@ static signed int OWE_remove(struct platform_device *pDev)
 
 			typeof(((REG_IRQ_NODE *) 0)->list) * __mptr = (father);
 			accessNode =
-			    ((REG_IRQ_NODE *) ((char *)__mptr - offsetof(REG_IRQ_NODE, list)));
+			    ((REG_IRQ_NODE *) (
+			    (char *)__mptr -
+			    offsetof(REG_IRQ_NODE, list)));
 			LOG_INF("free father,reg_T(%d)\n", accessNode->reg_T);
 			if (father->nextirq != father) {
 				head->nextirq = father->nextirq;
@@ -3292,9 +3453,9 @@ static signed int OWE_remove(struct platform_device *pDev)
 	return 0;
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 static signed int bPass1_On_In_Resume_TG1;
 
 static signed int OWE_suspend(struct platform_device *pDev, pm_message_t Mesg)
@@ -3313,9 +3474,9 @@ static signed int OWE_suspend(struct platform_device *pDev, pm_message_t Mesg)
 	return 0;
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 static signed int OWE_resume(struct platform_device *pDev)
 {
 	LOG_DBG("bPass1_On_In_Resume_TG1(%d).\n", bPass1_On_In_Resume_TG1);
@@ -3400,9 +3561,9 @@ const struct dev_pm_ops OWE_pm_ops = {
 };
 
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 static struct platform_driver OWEDriver = {
 	.probe = OWE_probe,
 	.remove = OWE_remove,
@@ -3417,7 +3578,7 @@ static struct platform_driver OWEDriver = {
 #ifdef CONFIG_PM
 		   .pm = &OWE_pm_ops,
 #endif
-		   }
+	}
 };
 
 
@@ -3432,24 +3593,28 @@ static int owe_dump_read(struct seq_file *m, void *v)
 	seq_puts(m, "OCC Config Info\n");
 
 	for (i = 0x2C; i < 0x8C; i = i + 4) {
-		seq_printf(m, "[0x%08X %08X]\n", (unsigned int)(OWE_BASE_HW + i),
-			   (unsigned int)OWE_RD32(ISP_OWE_BASE + i));
+		seq_printf(m, "[0x%08X %08X]\n",
+			(unsigned int)(OWE_BASE_HW + i),
+			(unsigned int)OWE_RD32(ISP_OWE_BASE + i));
 	}
 	seq_puts(m, "OCC Debug Info\n");
 	for (i = 0x120; i < 0x148; i = i + 4) {
-		seq_printf(m, "[0x%08X %08X]\n", (unsigned int)(OWE_BASE_HW + i),
-			   (unsigned int)OWE_RD32(ISP_OWE_BASE + i));
+		seq_printf(m, "[0x%08X %08X]\n",
+			(unsigned int)(OWE_BASE_HW + i),
+			(unsigned int)OWE_RD32(ISP_OWE_BASE + i));
 	}
 
 	seq_puts(m, "WMFE Config Info\n");
 	for (i = 0x230; i < 0x2D8; i = i + 4) {
-		seq_printf(m, "[0x%08X %08X]\n", (unsigned int)(OWE_BASE_HW + i),
-			   (unsigned int)OWE_RD32(ISP_OWE_BASE + i));
+		seq_printf(m, "[0x%08X %08X]\n",
+			(unsigned int)(OWE_BASE_HW + i),
+			(unsigned int)OWE_RD32(ISP_OWE_BASE + i));
 	}
 	seq_puts(m, "WMFE Debug Info\n");
 	for (i = 0x2F4; i < 0x30C; i = i + 4) {
-		seq_printf(m, "[0x%08X %08X]\n", (unsigned int)(OWE_BASE_HW + i),
-			   (unsigned int)OWE_RD32(ISP_OWE_BASE + i));
+		seq_printf(m, "[0x%08X %08X]\n",
+			(unsigned int)(OWE_BASE_HW + i),
+			(unsigned int)OWE_RD32(ISP_OWE_BASE + i));
 	}
 
 	seq_puts(m, "\n");
@@ -3483,17 +3648,26 @@ static int owe_dump_read(struct seq_file *m, void *v)
 		for (j = 0; j < _SUPPORT_MAX_OWE_FRAME_REQUEST_;) {
 			seq_printf(m,
 				   "OCC:FrameStatus[%d]:%d, FrameStatus[%d]:%d, FrameStatus[%d]:%d\n",
-				   j, g_OCC_RequestRing.OCCReq_Struct[i].OccFrameStatus[j]
-				   , j + 1,
-				   g_OCC_RequestRing.OCCReq_Struct[i].OccFrameStatus[j + 1], j + 2,
-				   g_OCC_RequestRing.OCCReq_Struct[i].OccFrameStatus[j + 2]);
+				   j,
+				   g_OCC_RequestRing
+					.OCCReq_Struct[i]
+					.OccFrameStatus[j],
+				   j + 1,
+				   g_OCC_RequestRing
+					.OCCReq_Struct[i]
+					.OccFrameStatus[j + 1],
+				   j + 2,
+				   g_OCC_RequestRing
+					.OCCReq_Struct[i]
+					.OccFrameStatus[j + 2]);
 			j = j + 3;
 		}
 	}
 
 
 	seq_printf(m, "WMFE:HWProcessIdx:%d, WriteIdx:%d, ReadIdx:%d\n",
-		   g_WMFE_ReqRing.HWProcessIdx, g_WMFE_ReqRing.WriteIdx,
+		   g_WMFE_ReqRing.HWProcessIdx,
+		   g_WMFE_ReqRing.WriteIdx,
 		   g_WMFE_ReqRing.ReadIdx);
 
 	for (i = 0; i < _SUPPORT_MAX_OWE_REQUEST_RING_SIZE_; i++) {
@@ -3509,11 +3683,16 @@ static int owe_dump_read(struct seq_file *m, void *v)
 		for (j = 0; j < _SUPPORT_MAX_OWE_FRAME_REQUEST_;) {
 			seq_printf(m,
 				   "WMFE:FrameStatus[%d]:%d, FrameStatus[%d]:%d, FrameStatus[%d]:%d\n",
-				   j, g_WMFE_ReqRing.WMFEReq_Struct[i].WmfeFrameStatus[j]
-				   , j + 1,
-				   g_WMFE_ReqRing.WMFEReq_Struct[i].WmfeFrameStatus[j + 1],
+				   j,
+				   g_WMFE_ReqRing
+					.WMFEReq_Struct[i].WmfeFrameStatus[j],
+				   j + 1,
+				   g_WMFE_ReqRing
+					.WMFEReq_Struct[i]
+					.WmfeFrameStatus[j + 1],
 				   j + 2,
-				   g_WMFE_ReqRing.WMFEReq_Struct[i].WmfeFrameStatus[j + 2]);
+				   g_WMFE_ReqRing.WMFEReq_Struct[i]
+						.WmfeFrameStatus[j + 2]);
 			j = j + 3;
 		}
 	}
@@ -3546,23 +3725,29 @@ static int owe_reg_read(struct seq_file *m, void *v)
 	seq_puts(m, "======== read owe register ========\n");
 
 	for (i = 0x1C; i <= 0x308; i = i + 4) {
-		seq_printf(m, "[0x%08X 0x%08X]\n", (unsigned int)(OWE_BASE_HW + i),
-			   (unsigned int)OWE_RD32(ISP_OWE_BASE + i));
+		seq_printf(m, "[0x%08X 0x%08X]\n",
+			(unsigned int)(OWE_BASE_HW + i),
+			(unsigned int)OWE_RD32(ISP_OWE_BASE + i));
 	}
 
-	seq_printf(m, "[0x%08X 0x%08X]\n", (unsigned int)(OWE_BASE_HW + 0x7F4),
-		   (unsigned int)OWE_RD32(OWE_DMA_DBG_REG));
-	seq_printf(m, "[0x%08X 0x%08X]\n", (unsigned int)(OWE_BASE_HW + 0x7F8),
-		   (unsigned int)OWE_RD32(OWE_DMA_REQ_STATUS_REG));
-	seq_printf(m, "[0x%08X 0x%08X]\n", (unsigned int)(OWE_BASE_HW + 0x7FC),
-		   (unsigned int)OWE_RD32(OWE_DMA_RDY_STATUS_REG));
+	seq_printf(m, "[0x%08X 0x%08X]\n",
+		(unsigned int)(OWE_BASE_HW + 0x7F4),
+		(unsigned int)OWE_RD32(OWE_DMA_DBG_REG));
+	seq_printf(m, "[0x%08X 0x%08X]\n",
+		(unsigned int)(OWE_BASE_HW + 0x7F8),
+		(unsigned int)OWE_RD32(OWE_DMA_REQ_STATUS_REG));
+	seq_printf(m, "[0x%08X 0x%08X]\n",
+		(unsigned int)(OWE_BASE_HW + 0x7FC),
+		(unsigned int)OWE_RD32(OWE_DMA_RDY_STATUS_REG));
 
 	return 0;
 }
 
-/*static int owe_reg_write(struct file *file, const char __user *buffer, size_t count, loff_t *data)*/
+/*static int owe_reg_write(struct file *file,*/
+/*	const char __user *buffer, size_t count, loff_t *data)*/
 
-static ssize_t owe_reg_write(struct file *file, const char __user *buffer, size_t count, loff_t *data)
+static ssize_t owe_reg_write(struct file *file,
+	const char __user *buffer, size_t count, loff_t *data)
 {
 	char desc[128];
 	int len = 0;
@@ -3585,12 +3770,17 @@ static ssize_t owe_reg_write(struct file *file, const char __user *buffer, size_
 	if (sscanf(desc, "%23s %23s", addrSzBuf, valSzBuf) == 2) {
 		pszTmp = strstr(addrSzBuf, "0x");
 		if (pszTmp == NULL) {
-			if (kstrtol(addrSzBuf, 10, (long int *)&tempval) != 0)
-				LOG_ERR("scan decimal addr is wrong !!:%s", addrSzBuf);
+			if (kstrtol(addrSzBuf, 10,
+			    (long int *)&tempval) != 0)
+				LOG_ERR(
+				"scan decimal addr is wrong !!:%s",
+				addrSzBuf);
 		} else {
 			if (strlen(addrSzBuf) > 2) {
 				if (sscanf(addrSzBuf + 2, "%x", &addr) != 1)
-					LOG_ERR("scan hexadecimal addr is wrong !!:%s", addrSzBuf);
+					LOG_ERR(
+					"scan hexadecimal addr is wrong !!:%s",
+					addrSzBuf);
 			} else {
 				LOG_INF("OWE Write Addr Error!!:%s", addrSzBuf);
 			}
@@ -3599,23 +3789,28 @@ static ssize_t owe_reg_write(struct file *file, const char __user *buffer, size_
 		pszTmp = strstr(valSzBuf, "0x");
 		if (pszTmp == NULL) {
 			if (kstrtol(valSzBuf, 10, (long int *)&tempval) != 0)
-				LOG_ERR("scan decimal value is wrong !!:%s", valSzBuf);
+				LOG_ERR("scan decimal value is wrong !!:%s",
+					valSzBuf);
 		} else {
 			if (strlen(valSzBuf) > 2) {
 				if (sscanf(valSzBuf + 2, "%x", &val) != 1)
-					LOG_ERR("scan hexadecimal value is wrong !!:%s", valSzBuf);
+					LOG_ERR(
+					"scan hexadecimal value is wrong !!:%s",
+					valSzBuf);
 			} else {
-				LOG_INF("OWE Write Value Error!!:%s\n", valSzBuf);
+				LOG_INF("OWE Write Value Error!!:%s\n",
+					valSzBuf);
 			}
 		}
 
 		if ((addr >= OWE_BASE_HW) && (addr <= OWE_DMA_RDY_STATUS_HW)
 			&& ((addr & 0x3) == 0)) {
-			LOG_INF("Write Request - addr:0x%x, value:0x%x\n", addr, val);
+			LOG_INF("Write Request - addr:0x%x, value:0x%x\n",
+				addr, val);
 			OWE_WR32((ISP_OWE_BASE + (addr - OWE_BASE_HW)), val);
 		} else {
-			LOG_INF
-			    ("Write-Address Range exceeds the size of hw owe!! addr:0x%x, value:0x%x\n",
+			LOG_INF(
+				"Write-Address Range exceeds the size of hw owe!! addr:0x%x, value:0x%x\n",
 			     addr, val);
 		}
 
@@ -3623,13 +3818,16 @@ static ssize_t owe_reg_write(struct file *file, const char __user *buffer, size_
 		pszTmp = strstr(addrSzBuf, "0x");
 		if (pszTmp == NULL) {
 			if (kstrtol(addrSzBuf, 10, (long int *)&tempval) != 0)
-				LOG_ERR("scan decimal addr is wrong !!:%s", addrSzBuf);
+				LOG_ERR("scan decimal addr is wrong !!:%s",
+					addrSzBuf);
 			else
 				addr = tempval;
 		} else {
 			if (strlen(addrSzBuf) > 2) {
 				if (sscanf(addrSzBuf + 2, "%x", &addr) != 1)
-					LOG_ERR("scan hexadecimal addr is wrong !!:%s", addrSzBuf);
+					LOG_ERR(
+						"scan hexadecimal addr is wrong !!:%s",
+					addrSzBuf);
 			} else {
 				LOG_INF("OWE Read Addr Error!!:%s", addrSzBuf);
 			}
@@ -3638,10 +3836,11 @@ static ssize_t owe_reg_write(struct file *file, const char __user *buffer, size_
 		if ((addr >= OWE_BASE_HW) && (addr <= OWE_DMA_RDY_STATUS_HW)
 			&& ((addr & 0x3) == 0)) {
 			val = OWE_RD32((ISP_OWE_BASE + (addr - OWE_BASE_HW)));
-			LOG_INF("Read Request - addr:0x%x,value:0x%x\n", addr, val);
+			LOG_INF("Read Request - addr:0x%x,value:0x%x\n",
+				addr, val);
 		} else {
-			LOG_INF
-			    ("Read-Address Range exceeds the size of hw owe!! addr:0x%x, value:0x%x\n",
+			LOG_INF(
+				"Read-Address Range exceeds the size of hw owe!! addr:0x%x, value:0x%x\n",
 			     addr, val);
 		}
 
@@ -3664,9 +3863,9 @@ static const struct file_operations owe_reg_proc_fops = {
 };
 
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 
 int32_t OWE_ClockOnCallback(uint64_t engineFlag)
 {
@@ -3745,17 +3944,19 @@ static signed int __init OWE_Init(void)
 		return 0;
 	}
 
-	/* proc_entry = proc_create("pll_test", S_IRUGO | S_IWUSR, isp_owe_dir, &pll_test_proc_fops); */
+	/* proc_entry = proc_create("pll_test", */
+	/* S_IRUGO | S_IWUSR, isp_owe_dir, &pll_test_proc_fops); */
 
-	proc_entry = proc_create("owe_dump", S_IRUGO, isp_owe_dir, &owe_dump_proc_fops);
+	proc_entry = proc_create("owe_dump",
+		0444, isp_owe_dir, &owe_dump_proc_fops);
 
-	proc_entry = proc_create("owe_reg", S_IRUGO | S_IWUSR, isp_owe_dir, &owe_reg_proc_fops);
+	proc_entry = proc_create("owe_reg", 0644,
+		isp_owe_dir, &owe_reg_proc_fops);
 
 
 	/* isr log */
-	if (PAGE_SIZE <
-	    ((OWE_IRQ_TYPE_AMOUNT * NORMAL_STR_LEN * ((DBG_PAGE + INF_PAGE + ERR_PAGE) + 1)) *
-	     LOG_PPNUM)) {
+	if (PAGE_SIZE < ((OWE_IRQ_TYPE_AMOUNT * NORMAL_STR_LEN * ((
+	    DBG_PAGE + INF_PAGE + ERR_PAGE) + 1)) * LOG_PPNUM)) {
 		i = 0;
 		while (i <
 		       ((OWE_IRQ_TYPE_AMOUNT * NORMAL_STR_LEN *
@@ -3775,17 +3976,25 @@ static signed int __init OWE_Init(void)
 	for (i = 0; i < LOG_PPNUM; i++) {
 		for (j = 0; j < OWE_IRQ_TYPE_AMOUNT; j++) {
 			gSvLog[j]._str[i][_LOG_DBG] = (char *)tmp;
-			/* tmp = (void*) ((unsigned int)tmp + (NORMAL_STR_LEN*DBG_PAGE)); */
-			tmp = (void *)((char *)tmp + (NORMAL_STR_LEN * DBG_PAGE));
+			/* tmp = (void*) ((unsigned int)tmp + */
+			/*	(NORMAL_STR_LEN*DBG_PAGE)); */
+			tmp = (void *)((char *)tmp +
+				(NORMAL_STR_LEN * DBG_PAGE));
 			gSvLog[j]._str[i][_LOG_INF] = (char *)tmp;
-			/* tmp = (void*) ((unsigned int)tmp + (NORMAL_STR_LEN*INF_PAGE)); */
-			tmp = (void *)((char *)tmp + (NORMAL_STR_LEN * INF_PAGE));
+			/* tmp = (void*) ((unsigned int)tmp + */
+			/*	(NORMAL_STR_LEN*INF_PAGE)); */
+			tmp = (void *)((char *)tmp +
+				(NORMAL_STR_LEN * INF_PAGE));
 			gSvLog[j]._str[i][_LOG_ERR] = (char *)tmp;
-			/* tmp = (void*) ((unsigned int)tmp + (NORMAL_STR_LEN*ERR_PAGE)); */
-			tmp = (void *)((char *)tmp + (NORMAL_STR_LEN * ERR_PAGE));
+			/* tmp = (void*) ((unsigned int)tmp + */
+			/*	(NORMAL_STR_LEN*ERR_PAGE)); */
+			tmp = (void *)((char *)tmp +
+				(NORMAL_STR_LEN * ERR_PAGE));
 		}
-		/* tmp = (void*) ((unsigned int)tmp + NORMAL_STR_LEN); //log buffer ,in case of overflow */
-		tmp = (void *)((char *)tmp + NORMAL_STR_LEN);	/* log buffer ,in case of overflow */
+		/* tmp = (void*) ((unsigned int)tmp + NORMAL_STR_LEN); */
+		/* log buffer ,in case of overflow */
+		tmp = (void *)((char *)tmp + NORMAL_STR_LEN);
+		/* log buffer ,in case of overflow */
 	}
 
 	/* Cmdq */
@@ -3793,14 +4002,15 @@ static signed int __init OWE_Init(void)
 	LOG_DBG("register owe callback for CMDQ");
 	cmdqCoreRegisterCB(CMDQ_GROUP_OWE,
 			   OWE_ClockOnCallback,
-			   OWE_DumpCallback, OWE_ResetCallback, OWE_ClockOffCallback);
+			   OWE_DumpCallback, OWE_ResetCallback,
+			   OWE_ClockOffCallback);
 	LOG_DBG("- X. Ret: %d.", Ret);
 	return Ret;
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 static void __exit OWE_Exit(void)
 {
 	/*int i;*/
@@ -3819,23 +4029,30 @@ static void __exit OWE_Exit(void)
 }
 
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 static void OWE_ScheduleOccWork(struct work_struct *data)
 {
 	if (OWE_DBG_DBGLOG & OWEInfo.DebugMask)
 		LOG_DBG("- E.");
-
+	request_handler(&occ_reqs, &(OWEInfo.SpinLockIrq[
+						OWE_IRQ_TYPE_INT_OWE_ST]));
+	if (!request_running(&occ_reqs))
+		LOG_DBG("[%s]no more requests", __func__);
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 static void OWE_ScheduleWmfeWork(struct work_struct *data)
 {
 	if (OWE_DBG_DBGLOG & OWEInfo.DebugMask)
 		LOG_DBG("- E.");
+	request_handler(&wmfe_reqs,
+		&(OWEInfo.SpinLockIrq[OWE_IRQ_TYPE_INT_OWE_ST]));
+	if (!request_running(&wmfe_reqs))
+		LOG_DBG("[%s]no more requests", __func__);
 }
 
 
@@ -3855,24 +4072,36 @@ static irqreturn_t ISP_Irq_OWE(signed int Irq, void *DeviceId)
 #ifdef __OWE_KERNEL_PERFORMANCE_MEASURE__
 		mt_kernel_trace_begin("owe_occ_irq");
 #endif
-		/* Update the frame status. */
-		bResulst = UpdateOCC(&ProcessID);
+
+		if (update_request(&occ_reqs, &ProcessID) == 0)
+			bResulst = MTRUE;
 		/* Config the Next frame */
 		if (bResulst == MTRUE) {
-			schedule_work(&OWEInfo.ScheduleOccWork);
-			OWEInfo.IrqInfo.Status[OWE_IRQ_TYPE_INT_OWE_ST] |= OWE_OCC_INT_ST;
-			OWEInfo.IrqInfo.ProcessID[OWE_PROCESS_ID_OCC] = ProcessID;
+			#if REQUEST_REGULATION == REQUEST_BASE_REGULATION
+			/* schedule_work(&&OWEInfo.ScheduleOccWork); */
+			queue_work(OWEInfo.wkqueue, &OWEInfo.ScheduleOccWork);
+			#endif
+
+			OWEInfo.IrqInfo
+			    .Status[OWE_IRQ_TYPE_INT_OWE_ST] |= OWE_OCC_INT_ST;
+			OWEInfo.IrqInfo
+			    .ProcessID[OWE_PROCESS_ID_OCC] = ProcessID;
 			OWEInfo.IrqInfo.OccIrqCnt++;
 			OWEInfo.ProcessID[OWEInfo.WriteReqIdx] = ProcessID;
 			OWEInfo.WriteReqIdx =
-			    (OWEInfo.WriteReqIdx + 1) % _SUPPORT_MAX_OWE_FRAME_REQUEST_;
+			    (OWEInfo.WriteReqIdx + 1) %
+			    _SUPPORT_MAX_OWE_FRAME_REQUEST_;
 #ifdef OWE_MULTIPROCESS_TIMEING_ISSUE
 			/* check the write value is equal to read value ? */
 			/* actually, it doesn't happen!! */
 			if (OWEInfo.WriteReqIdx == OWEInfo.ReadReqIdx) {
-				IRQ_LOG_KEEPER(OWE_IRQ_TYPE_INT_OWE_ST, m_CurrentPPB, _LOG_ERR,
-					       "ISP_Irq_OWE Err!!, WriteReqIdx:0x%x, ReadReqIdx:0x%x\n",
-					       OWEInfo.WriteReqIdx, OWEInfo.ReadReqIdx);
+				IRQ_LOG_KEEPER(
+				    OWE_IRQ_TYPE_INT_OWE_ST,
+				    m_CurrentPPB,
+				    _LOG_ERR,
+				    "Err!!, WriteReqIdx:0x%x, ReadReqIdx:0x%x\n",
+				    OWEInfo.WriteReqIdx,
+				    OWEInfo.ReadReqIdx);
 			}
 #endif
 		}
@@ -3886,22 +4115,34 @@ static irqreturn_t ISP_Irq_OWE(signed int Irq, void *DeviceId)
 #ifdef __OWE_KERNEL_PERFORMANCE_MEASURE__
 		mt_kernel_trace_begin("owe_wmfe_irq");
 #endif
-		bResulst = UpdateWMFE(&ProcessID);
+
+		if (update_request(&wmfe_reqs, &ProcessID) == 0)
+			bResulst = MTRUE;
 		if (bResulst == MTRUE) {
-			schedule_work(&OWEInfo.ScheduleWmfeWork);
-			OWEInfo.IrqInfo.Status[OWE_IRQ_TYPE_INT_OWE_ST] |= OWE_WMFE_INT_ST;
-			OWEInfo.IrqInfo.ProcessID[OWE_PROCESS_ID_WMFE] = ProcessID;
+			#if REQUEST_REGULATION == REQUEST_BASE_REGULATION
+			/* schedule_work(&&OWEInfo.ScheduleWmfeWork); */
+			queue_work(OWEInfo.wkqueue, &OWEInfo.ScheduleWmfeWork);
+			#endif
+
+			OWEInfo.IrqInfo
+				.Status[OWE_IRQ_TYPE_INT_OWE_ST] |=
+				OWE_WMFE_INT_ST;
+			OWEInfo.IrqInfo
+				.ProcessID[OWE_PROCESS_ID_WMFE] = ProcessID;
 			OWEInfo.IrqInfo.WmfeIrqCnt++;
 			OWEInfo.ProcessID[OWEInfo.WriteReqIdx] = ProcessID;
 			OWEInfo.WriteReqIdx =
-			    (OWEInfo.WriteReqIdx + 1) % _SUPPORT_MAX_OWE_FRAME_REQUEST_;
+			    (OWEInfo.WriteReqIdx + 1) %
+			    _SUPPORT_MAX_OWE_FRAME_REQUEST_;
 #ifdef OWE_MULTIPROCESS_TIMEING_ISSUE
 			/* check the write value is equal to read value ? */
 			/* actually, it doesn't happen!! */
 			if (OWEInfo.WriteReqIdx == OWEInfo.ReadReqIdx) {
-				IRQ_LOG_KEEPER(OWE_IRQ_TYPE_INT_OWE_ST, m_CurrentPPB, _LOG_ERR,
-					       "ISP_Irq_OWE Err!!, WriteReqIdx:0x%x, ReadReqIdx:0x%x\n",
-					       OWEInfo.WriteReqIdx, OWEInfo.ReadReqIdx);
+				IRQ_LOG_KEEPER(OWE_IRQ_TYPE_INT_OWE_ST,
+						m_CurrentPPB, _LOG_ERR,
+					       "ISP_OWE Err!!, WriteReqIdx:0x%x, ReadReqIdx:0x%x\n",
+					       OWEInfo.WriteReqIdx,
+						OWEInfo.ReadReqIdx);
 			}
 #endif
 		}
@@ -3916,10 +4157,20 @@ static irqreturn_t ISP_Irq_OWE(signed int Irq, void *DeviceId)
 
 	/* dump log, use tasklet */
 	IRQ_LOG_KEEPER(OWE_IRQ_TYPE_INT_OWE_ST, m_CurrentPPB, _LOG_INF,
-		       "ISP_Irq_OWE:%d, reg 0x%x : 0x%x, bResulst:%d, OccHWSta:0x%x, WmfeHWSta:0x%x, OccIrqCnt:0x%x, WmfeIrqCnt:0x%x, WriteReqIdx:0x%x, ReadReqIdx:0x%x\n",
-		       Irq, OWE_INT_STATUS_HW, OweIntStatus, bResulst, OccStatus, WmfeStatus,
+		       "Irq_OWE:%d, reg 0x%x : 0x%x, bResulst:%d, OccHWSta:0x%x, WmfeHWSta:0x%x, OccIrqCnt:0x%x, WmfeIrqCnt:0x%x, WriteReqIdx:0x%x, ReadReqIdx:0x%x\n",
+		       Irq, OWE_INT_STATUS_HW, OweIntStatus,
+		       bResulst, OccStatus, WmfeStatus,
 		       OWEInfo.IrqInfo.OccIrqCnt, OWEInfo.IrqInfo.WmfeIrqCnt,
 		       OWEInfo.WriteReqIdx, OWEInfo.ReadReqIdx);
+
+	#if (REQUEST_REGULATION == FRAME_BASE_REGULATION)
+	/* schedule_work(&OWEInfo.ScheduleWmfeWork); */
+	if (OCC_INT_ST == (OCC_INT_ST & OccStatus))
+		queue_work(OWEInfo.wkqueue, &OWEInfo.ScheduleOccWork);
+
+	if (WMFE_INT_ST == (WMFE_INT_ST & WmfeStatus))
+		queue_work(OWEInfo.wkqueue, &OWEInfo.ScheduleWmfeWork);
+	#endif
 
 	if (OweIntStatus & OWE_INT_ST)
 		tasklet_schedule(OWE_tasklet[OWE_IRQ_TYPE_INT_OWE_ST].pOWE_tkt);
@@ -3936,9 +4187,9 @@ static void ISP_TaskletFunc_OWE(unsigned long data)
 }
 
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 module_init(OWE_Init);
 module_exit(OWE_Exit);
 MODULE_DESCRIPTION("Camera OWE driver");

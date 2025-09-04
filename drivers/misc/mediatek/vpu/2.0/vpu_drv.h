@@ -25,7 +25,7 @@ extern struct ion_client *my_ion_client;
 typedef uint8_t vpu_id_t;
 
 /* the last byte of string must be '/0' */
-typedef char vpu_name_t[32];
+//typedef char vpu_name_t[32];
 
 /**
  * Documentation index:
@@ -39,11 +39,12 @@ typedef char vpu_name_t[32];
  * VPU driver is a transparent platform for data exchange with VPU firmware.
  * VPU firmware can dynamically load an algorithm and do image post-processing.
  *
- * VPU driver implements a model based on aspect of algorithm's requirements. An algorithm needs
- * the buffers of input and output, and execution arguments. For all mentioned above, VPU driver
- * defines 'Port' to describe the buffers of input and output, and 'Info' to describe the
- * specification of algorithm. According the 'Port' and 'Info', a user could enque requests for
- * doing image post-processing. The diagram is as follows:
+ * VPU driver implements a model based on aspect of algorithm's requirements.
+ * An algorithm needs the buffers of input and output, and execution arguments.
+ * For all mentioned above, VPU driver defines 'Port' to describe the buffers
+ * of input and output, and 'Info' to describe the specification of algorithm.
+ * According the 'Port' and 'Info', a user could enque requests for doing
+ * image post-processing. The diagram is as follows:
  *
  *                 +---------------+
  *                 |     algo      |
@@ -53,8 +54,9 @@ typedef char vpu_name_t[32];
  *   input port2-> | [info...]     |
  *                 +---------------+
  *
- * With Algo's properties, a user can get enough information to do processing, and assign the buffers
- * to the matching ports. Moreover, a user algo can specify execution arguments to a request.
+ * With Algo's properties, a user can get enough information to do processing,
+ * and assign the buffers to the matching ports. Moreover, a user algo can
+ * specify execution arguments to a request.
  *
  *   +------------------------+
  *   |        request         |
@@ -72,7 +74,8 @@ typedef char vpu_name_t[32];
 /**
  * S2. Requirement
  * 1. The processing order is FIFO. User should deque the request in order.
- * 2. The buffer address must be accessible by VPU. Use iommu to remap address to the specific region.
+ * 2. The buffer address must be accessible by VPU. Use iommu to remap address
+ *    to the specific region.
  *
  */
 
@@ -103,7 +106,8 @@ typedef char vpu_name_t[32];
  *     struct vpu_request req;
  *     ioctl(fd, VPU_IOCTL_DEQUE_REQUEST, req);
  *
- * - VPU_IOCTL_FLUSH_REQUEST: flush all running request, and return failure if not finished
+ * - VPU_IOCTL_FLUSH_REQUEST: flush all running request, and return failure if
+ *                            not finished
  *
  *     ioctl(fd, VPU_IOCTL_FLUSH_REQUEST, 0);
  *
@@ -135,8 +139,8 @@ enum vpu_prop_access {
 
 /*
  * The description of properties contains the information about property values,
- * which are stored as compact memory. With the offset, it can get the specific value
- * from compact data.
+ * which are stored as compact memory. With the offset, it can get the specific
+ * value from compact data.
  *
  * The example of struct vpu_prop_desc is as follows:
  *   +--------+---------------------+--------+--------+-------+--------+
@@ -150,7 +154,8 @@ enum vpu_prop_access {
  *   +--------+---------------------+--------+--------+-------+--------+
  *
  * Use a buffer to store all property data, which is a compact-format data.
- * The buffer's layout is described by prop_desc, using the offset could get the specific data.
+ * The buffer's layout is described by prop_desc, using the offset could
+ * get the specific data.
  *
  * The example of compact-format memory is as follows:
  *   +--------+--------+--------+--------+--------+
@@ -166,7 +171,7 @@ struct vpu_prop_desc {
 	uint8_t access;    /* directional data exchange */
 	uint32_t offset;   /* offset = previous offset + previous size */
 	uint32_t count;    /* size = sizeof(type) x count */
-	vpu_name_t name;
+	char name[32];
 };
 
 /*---------------------------------------------------------------------------*/
@@ -208,7 +213,7 @@ struct vpu_port {
 	vpu_id_t id;
 	uint8_t usage;
 	uint8_t dir;
-	vpu_name_t name;
+	char name[32];
 };
 
 /*---------------------------------------------------------------------------*/
@@ -223,8 +228,8 @@ struct vpu_algo {
 	uint32_t sett_length;
 	uint32_t bin_length;
 	uint64_t info_ptr;       /* the pointer to info data buffer */
-	uint64_t bin_ptr;        /* mva of algo bin, which is accessible by VPU */
-	vpu_name_t name;
+	uint64_t bin_ptr;     /* mva of algo bin, which is accessible by VPU */
+	char name[32];
 	struct vpu_prop_desc info_descs[VPU_MAX_NUM_PROPS];
 	struct vpu_prop_desc sett_descs[VPU_MAX_NUM_PROPS];
 	struct vpu_port ports[VPU_MAX_NUM_PORTS];
@@ -260,7 +265,8 @@ enum vpu_power_mode {
 
 /*
  * Provide a set of OPPs(operation performance point)
- * The default opp is at the minimun performance, and users could request the performance.
+ * The default opp is at the minimun performance,
+ * and users could request the performance.
  */
 enum vpu_power_opp {
 	VPU_POWER_OPP_UNREQUEST = 0xFF,
@@ -270,7 +276,9 @@ struct vpu_power {
 	uint8_t opp_step;
 	uint8_t freq_step;
 	uint32_t bw; /* unit: MByte/s */
-	unsigned int core; /* align with core index defined in user space header file*/
+
+	/* align with core index defined in user space header file */
+	unsigned int core;
 };
 
 
@@ -314,11 +322,15 @@ enum vpu_req_status {
 struct vpu_request {
 	/* to recognize the request is from which user */
 	unsigned long *user_id;
-	/* to recognize the request object id for unorder enque/deque procedure */
+	/* to recognize the request object id for unorder enque/deque
+	 * procedure
+	 */
 	uint64_t request_id;
 	/* core index that user want to run the request on */
 	unsigned int requested_core;
-	/* the final occupied core index for request, especially for request in common pool */
+	/* the final occupied core index for request,
+	 * especially for request in common pool
+	 */
 	unsigned int occupied_core;
 	vpu_id_t algo_id[VPU_MAX_NUM_CORES];
 	int frame_magic; /* mapping for user space/kernel space */
@@ -339,6 +351,16 @@ struct vpu_status {
 	int pool_list_size;
 };
 
+struct vpu_dev_debug_info {
+	int dev_fd;
+	char callername[32];
+	pid_t open_pid;
+	pid_t open_tgid;
+};
+#ifdef CONFIG_MTK_GZ_SUPPORT_SDSP
+extern int mtee_sdsp_enable(u32 on);
+#endif
+
 /*---------------------------------------------------------------------------*/
 /*  IOCTL Command                                                            */
 /*---------------------------------------------------------------------------*/
@@ -354,6 +376,11 @@ struct vpu_status {
 #define VPU_IOCTL_REG_WRITE         _IOW(VPU_MAGICNO,   8, int)
 #define VPU_IOCTL_REG_READ          _IOWR(VPU_MAGICNO,  9, int)
 #define VPU_IOCTL_GET_CORE_STATUS   _IOWR(VPU_MAGICNO,  10, int)
+#define VPU_IOCTL_OPEN_DEV_NOTICE   _IOWR(VPU_MAGICNO,  11, int)
+#define VPU_IOCTL_CLOSE_DEV_NOTICE  _IOWR(VPU_MAGICNO,  12, int)
 
+
+#define VPU_IOCTL_SDSP_SEC_LOCK     _IOW(VPU_MAGICNO,   60, int)
+#define VPU_IOCTL_SDSP_SEC_UNLOCK   _IOW(VPU_MAGICNO,   61, int)
 
 #endif

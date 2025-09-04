@@ -28,11 +28,6 @@
 #define BOSCH_BARO_H
 
 #include <linux/ioctl.h>
-/*****************************************************
-*|  sensor  |   chip id  |     7-bit i2c address      |
------------------------------------------------------|
-|  bmp280  |    0x56    |0x76(SDO:Low)|0x77(SDO:High)|
-*****************************************************/
 
 /* apply low pass filter on output */
 /*#define CONFIG_BMP_LOWPASS*/

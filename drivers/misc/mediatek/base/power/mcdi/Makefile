@@ -10,22 +10,37 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 # See http://www.gnu.org/licenses/gpl-2.0.html for more details.
 #
-
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/include/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/mcdi/include/
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/mcdi/$(CONFIG_MTK_PLATFORM)/
 
-obj-$(CONFIG_MACH_MT6763) += mcdi_v1/
-obj-$(CONFIG_MACH_MT6763) += mtk_mcdi_governor.o
-obj-$(CONFIG_MACH_MT6763) += mtk_mcdi_governor_hint.o
-obj-$(CONFIG_MACH_MT6758) += mcdi_v1/
-obj-$(CONFIG_MACH_MT6758) += mtk_mcdi_governor.o
-obj-$(CONFIG_MACH_MT6758) += mtk_mcdi_governor_hint.o
-obj-$(CONFIG_MACH_MT6739) += mcdi_v2/
-obj-$(CONFIG_MACH_MT6739) += mtk_mcdi_governor.o
-obj-$(CONFIG_MACH_MT6739) += mtk_mcdi_governor_hint.o
-obj-$(CONFIG_MACH_MT6771) += mcdi_v1/
-obj-$(CONFIG_MACH_MT6771) += mtk_mcdi_governor.o
-obj-$(CONFIG_MACH_MT6771) += mtk_mcdi_governor_hint.o
-obj-$(CONFIG_MACH_MT6775) += mcdi_v1/
-obj-$(CONFIG_MACH_MT6775) += mtk_mcdi_governor.o
-obj-$(CONFIG_MACH_MT6775) += mtk_mcdi_governor_hint.o
+obj-y += mtk_mcdi_governor.o
+obj-y += mtk_mcdi_governor_lib.o
+obj-y += mtk_mcdi_governor_hint.o
+obj-y += mtk_mcdi_api.o
+obj-y += $(subst ",,$(CONFIG_MTK_PLATFORM))/
+
+ifeq ($(CONFIG_MACH_MT6771), y)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/mcdi/include/mcdi_v1/
+obj-y += mcdi_v1/
+endif
+
+ifeq ($(CONFIG_MACH_MT6739), y)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/mcdi/include/mcdi_v1/
+obj-y += mcdi_v1/
+endif
+
+ifeq ($(CONFIG_MACH_MT6768), y)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/mcdi/include/mcdi_v1/
+obj-y += mcdi_v1/
+endif
+
+ifeq ($(CONFIG_MACH_MT6765), y)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/mcdi/include/mcdi_v1/
+obj-y += mcdi_v1/
+endif
+
+ifeq ($(CONFIG_MACH_MT6785), y)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/mcdi/include/mcdi_v1/
+obj-y += mcdi_v1/
+endif

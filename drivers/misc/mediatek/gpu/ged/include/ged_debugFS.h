@@ -24,20 +24,20 @@ typedef ssize_t (GED_ENTRY_WRITE_FUNC)(
 	void *pvData);
 
 GED_ERROR ged_debugFS_create_entry(
-    const char*             pszName,
-	void*                   pvDir,
+    const char             *pszName,
+	void                   *pvDir,
 	const struct seq_operations *psReadOps,
-    GED_ENTRY_WRITE_FUNC*   pfnWrite,
-	void*                   pvData,
-	struct dentry**         ppsEntry);
+    GED_ENTRY_WRITE_FUNC   *pfnWrite,
+	void                   *pvData,
+	struct dentry         **ppsEntry);
 
 void ged_debugFS_remove_entry(
     struct dentry *psEntry);
 
 GED_ERROR ged_debugFS_create_entry_dir(
-    const char*     pszName,
-    struct dentry*  psParentDir,
-    struct dentry** ppsDir);
+    const char     *pszName,
+    struct dentry  *psParentDir,
+    struct dentry **ppsDir);
 
 void ged_debugFS_remove_entry_dir(
     struct dentry *psDir);

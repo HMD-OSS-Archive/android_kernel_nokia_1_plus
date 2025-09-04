@@ -13,151 +13,266 @@
 #include <mt-plat/mtk_ccci_common.h>
 
 struct md_check_header_v3 {
-	unsigned char check_header[12];  /* magic number is "CHECK_HEADER"*/
-	unsigned int  header_verno;	  /* header structure version number */
-	unsigned int  product_ver;	   /* 0x0:invalid; 0x1:debug version; 0x2:release version */
-	unsigned int  image_type;		/* 0x0:invalid; 0x1:2G modem; 0x2: 3G modem */
-	unsigned char platform[16];	  /* MT6573_S01 or MT6573_S02 */
-	unsigned char build_time[64];	/* build time string */
-	unsigned char build_ver[64];	 /* project version, ex:11A_MD.W11.28 */
+	/* magic number is "CHECK_HEADER"*/
+	unsigned char check_header[12];
+	/* header structure version number */
+	unsigned int  header_verno;
+	/* 0x0:invalid;
+	 * 0x1:debug version;
+	 * 0x2:release version
+	 */
+	unsigned int  product_ver;
+	/* 0x0:invalid;
+	 * 0x1:2G modem;
+	 * 0x2: 3G modem
+	 */
+	unsigned int  image_type;
+	/* MT6573_S01 or MT6573_S02 */
+	unsigned char platform[16];
+	/* build time string */
+	unsigned char build_time[64];
+	/* project version, ex:11A_MD.W11.28 */
+	unsigned char build_ver[64];
 
-	unsigned char bind_sys_id;	   /* bind to md sys id, MD SYS1: 1, MD SYS2: 2, MD SYS5: 5 */
-	unsigned char ext_attr;		  /* no shrink: 0, shrink: 1 */
-	unsigned char reserved[2];	   /* for reserved */
+	/* bind to md sys id,
+	 * MD SYS1: 1,
+	 * MD SYS2: 2,
+	 * MD SYS5: 5
+	 */
+	unsigned char bind_sys_id;
+	/* no shrink: 0, shrink: 1 */
+	unsigned char ext_attr;
+	/* for reserved */
+	unsigned char reserved[2];
 
-	unsigned int  mem_size;		  /* md ROM/RAM image size requested by md */
-	unsigned int  md_img_size;	   /* md image size, exclude head size */
-	unsigned int  rpc_sec_mem_addr;  /* RPC secure memory address */
+	/* md ROM/RAM image size requested by md */
+	unsigned int  mem_size;
+	/* md image size, exclude head size */
+	unsigned int  md_img_size;
+	/* RPC secure memory address */
+	unsigned int  rpc_sec_mem_addr;
 
 	unsigned int  dsp_img_offset;
 	unsigned int  dsp_img_size;
 	unsigned char reserved2[88];
-
-	unsigned int  size;			  /* the size of this structure */
+	/* the size of this structure */
+	unsigned int  size;
 } __packed;
 
 struct md_check_header_v4 {
-	unsigned char check_header[12]; /* magic number is "CHECK_HEADER"*/
-	unsigned int header_verno; /* header structure version number */
-	unsigned int product_ver; /* 0x0:invalid; 0x1:debug version; 0x2:release version */
-	unsigned int image_type; /* 0x0:invalid; 0x1:2G modem; 0x2: 3G modem */
-	unsigned char platform[16]; /* MT6573_S01 or MT6573_S02 */
-	unsigned char build_time[64]; /* build time string */
-	unsigned char build_ver[64]; /* project version, ex:11A_MD.W11.28 */
+	/* magic number is "CHECK_HEADER"*/
+	unsigned char check_header[12];
+	/* header structure version number */
+	unsigned int header_verno;
+	/* 0x0:invalid;
+	 * 0x1:debug version;
+	 * 0x2:release version
+	 */
+	unsigned int product_ver;
+	/* 0x0:invalid;
+	 * 0x1:2G modem;
+	 * 0x2: 3G modem
+	 */
+	unsigned int image_type;
+	/* MT6573_S01 or MT6573_S02 */
+	unsigned char platform[16];
+	/* build time string */
+	unsigned char build_time[64];
+	/* project version, ex:11A_MD.W11.28 */
+	unsigned char build_ver[64];
 
-	unsigned char bind_sys_id; /* bind to md sys id, MD SYS1: 1, MD SYS2: 2, MD SYS5: 5 */
-	unsigned char ext_attr; /* no shrink: 0, shrink: 1 */
-	unsigned char reserved[2]; /* for reserved */
+	/* bind to md sys id,
+	 * MD SYS1: 1,
+	 * MD SYS2: 2,
+	 * MD SYS5: 5
+	 */
+	unsigned char bind_sys_id;
+	/* no shrink: 0, shrink: 1 */
+	unsigned char ext_attr;
+	/* for reserved */
+	unsigned char reserved[2];
 
-	unsigned int mem_size; /* md ROM/RAM image size requested by md */
-	unsigned int md_img_size; /* md image size, exclude head size */
-	unsigned int rpc_sec_mem_addr; /* RPC secure memory address */
+	/* md ROM/RAM image size requested by md */
+	unsigned int mem_size;
+	/* md image size, exclude head size */
+	unsigned int md_img_size;
+	/* RPC secure memory address */
+	unsigned int rpc_sec_mem_addr;
 
 	unsigned int dsp_img_offset;
 	unsigned int dsp_img_size;
 
-	unsigned int region_num; /* total region number */
-	struct _md_regin_info region_info[8]; /* max support 8 regions */
-	unsigned int domain_attr[4]; /* max support 4 domain settings, each region has 4 control bits*/
+	/* total region number */
+	unsigned int region_num;
+	/* max support 8 regions */
+	struct _md_regin_info region_info[8];
+	/* max support 4 domain settings,
+	 * each region has 4 control bits
+	 */
+	unsigned int domain_attr[4];
 
 	unsigned char reserved2[4];
-
-	unsigned int size; /* the size of this structure */
+	/* the size of this structure */
+	unsigned int size;
 } __packed;
 
 struct md_check_header_v5 {
-	unsigned char check_header[12]; /* magic number is "CHECK_HEADER"*/
-	unsigned int  header_verno; /* header structure version number */
-	unsigned int  product_ver; /* 0x0:invalid; 0x1:debug version; 0x2:release version */
-	unsigned int  image_type; /* 0x0:invalid; 0x1:2G modem; 0x2: 3G modem */
-	unsigned char platform[16]; /* MT6573_S01 or MT6573_S02 */
-	unsigned char build_time[64]; /* build time string */
-	unsigned char build_ver[64]; /* project version, ex:11A_MD.W11.28 */
+	/* magic number is "CHECK_HEADER" */
+	unsigned char check_header[12];
+	/* header structure version number */
+	unsigned int  header_verno;
+	/* 0x0:invalid;
+	 * 0x1:debug version;
+	 * 0x2:release version
+	 */
+	unsigned int  product_ver;
+	/* 0x0:invalid;
+	 * 0x1:2G modem;
+	 * 0x2: 3G modem
+	 */
+	unsigned int  image_type;
+	/* MT6573_S01 or MT6573_S02 */
+	unsigned char platform[16];
+	/* build time string */
+	unsigned char build_time[64];
+	/* project version, ex:11A_MD.W11.28 */
+	unsigned char build_ver[64];
 
-	unsigned char bind_sys_id; /* bind to md sys id, MD SYS1: 1, MD SYS2: 2, MD SYS5: 5 */
-	unsigned char ext_attr; /* no shrink: 0, shrink: 1 */
-	unsigned char reserved[2]; /* for reserved */
+	/* bind to md sys id,
+	 * MD SYS1: 1,
+	 * MD SYS2: 2,
+	 * MD SYS5: 5
+	 */
+	unsigned char bind_sys_id;
+	/* no shrink: 0, shrink: 1 */
+	unsigned char ext_attr;
+	/* for reserved */
+	unsigned char reserved[2];
 
-	unsigned int  mem_size; /* md ROM/RAM image size requested by md */
-	unsigned int  md_img_size; /* md image size, exclude head size */
-	unsigned int  rpc_sec_mem_addr; /* RPC secure memory address */
+	/* md ROM/RAM image size requested by md */
+	unsigned int  mem_size;
+	/* md image size, exclude head size */
+	unsigned int  md_img_size;
+	/* RPC secure memory address */
+	unsigned int  rpc_sec_mem_addr;
 
 	unsigned int  dsp_img_offset;
 	unsigned int  dsp_img_size;
 
-	unsigned int  region_num; /* total region number */
-	struct _md_regin_info region_info[8]; /* max support 8 regions */
-	unsigned int  domain_attr[4]; /* max support 4 domain settings, each region has 4 control bits*/
+	/* total region number */
+	unsigned int  region_num;
+	/* max support 8 regions */
+	struct _md_regin_info region_info[8];
+	/* max support 4 domain settings,
+	 * each region has 4 control bits
+	 */
+	unsigned int  domain_attr[4];
 
 	unsigned int  arm7_img_offset;
 	unsigned int  arm7_img_size;
 
 	unsigned char reserved_1[56];
 
-
-	unsigned int  size; /* the size of this structure */
+	/* the size of this structure */
+	unsigned int  size;
 } __packed;
 
 struct md_check_header_struct {
-	unsigned char check_header[12];  /* magic number is "CHECK_HEADER"*/
-	unsigned int  header_verno;	  /* header structure version number */
-	unsigned int  product_ver;	   /* 0x0:invalid; 0x1:debug version; 0x2:release version */
-	unsigned int  image_type;		/* 0x0:invalid; 0x1:2G modem; 0x2: 3G modem */
-	unsigned char platform[16];	  /* MT6573_S01 or MT6573_S02 */
-	unsigned char build_time[64];	/* build time string */
-	unsigned char build_ver[64];	 /* project version, ex:11A_MD.W11.28 */
+	/* magic number is "CHECK_HEADER"*/
+	unsigned char check_header[12];
+	/* header structure version number */
+	unsigned int  header_verno;
+	/* 0x0:invalid;
+	 * 0x1:debug version;
+	 * 0x2:release version
+	 */
+	unsigned int  product_ver;
+	/* 0x0:invalid;
+	 * 0x1:2G modem;
+	 * 0x2: 3G modem
+	 */
+	unsigned int  image_type;
+	/* MT6573_S01 or MT6573_S02 */
+	unsigned char platform[16];
+	/* build time string */
+	unsigned char build_time[64];
+	/* project version, ex:11A_MD.W11.28 */
+	unsigned char build_ver[64];
 
-	unsigned char bind_sys_id;	   /* bind to md sys id, MD SYS1: 1, MD SYS2: 2 */
-	unsigned char ext_attr;		  /* no shrink: 0, shrink: 1*/
-	unsigned char reserved[2];	   /* for reserved */
+	/* bind to md sys id,
+	 * MD SYS1: 1,
+	 * MD SYS2: 2
+	 */
+	unsigned char bind_sys_id;
+	/* no shrink: 0, shrink: 1*/
+	unsigned char ext_attr;
+	/* for reserved */
+	unsigned char reserved[2];
 
-	unsigned int  mem_size;		  /* md ROM/RAM image size requested by md */
-	unsigned int  md_img_size;	   /* md image size, exclude head size*/
+	/* md ROM/RAM image size requested by md */
+	unsigned int  mem_size;
+	/* md image size, exclude head size*/
+	unsigned int  md_img_size;
 #if 0 /* no use now, we still use struct */
 	union {
 		struct {
-			unsigned int  reserved_info;	 /* for reserved */
-			unsigned int  size;			  /* the size of this structure */
+			/* for reserved */
+			unsigned int  reserved_info;
+			/* the size of this structure */
+			unsigned int  size;
 		} v12;
 		struct {
-			unsigned int  rpc_sec_mem_addr;  /* RPC secure memory address */
+			/* RPC secure memory address */
+			unsigned int  rpc_sec_mem_addr;
 
 			unsigned int  dsp_img_offset;
 			unsigned int  dsp_img_size;
 			unsigned char reserved2[88];
-
-			unsigned int  size;			  /* the size of this structure */
+			/* the size of this structure */
+			unsigned int  size;
 		} v3;
 		struct {
-			unsigned int rpc_sec_mem_addr; /* RPC secure memory address */
+			/* RPC secure memory address */
+			unsigned int rpc_sec_mem_addr;
 
 			unsigned int dsp_img_offset;
 			unsigned int dsp_img_size;
 
-			unsigned int region_num; /* total region number */
-			struct _md_regin_info region_info[8]; /* max support 8 regions */
-			unsigned int domain_attr[4]; /* max support 4 domain settings, each region has 4 control bits*/
+			/* total region number */
+			unsigned int region_num;
+			/* max support 8 regions */
+			struct _md_regin_info region_info[8];
+			/* max support 4 domain settings,
+			 * each region has 4 control bits
+			 */
+			unsigned int domain_attr[4];
 
 			unsigned char reserved2[4];
-
-			unsigned int size; /* the size of this structure */
+			/* the size of this structure */
+			unsigned int size;
 		} v4;
 		struct {
-			unsigned int  rpc_sec_mem_addr; /* RPC secure memory address */
+			/* RPC secure memory address */
+			unsigned int  rpc_sec_mem_addr;
 
 			unsigned int  dsp_img_offset;
 			unsigned int  dsp_img_size;
 
-			unsigned int  region_num; /* total region number */
-			struct _md_regin_info region_info[8]; /* max support 8 regions */
-			unsigned int  domain_attr[4]; /* max support 4 domain settings, each region has 4 control bits*/
+			/* total region number */
+			unsigned int  region_num;
+			/* max support 8 regions */
+			struct _md_regin_info region_info[8];
+			/* max support 4 domain settings,
+			 * each region has 4 control bits
+			 */
+			unsigned int  domain_attr[4];
 
 			unsigned int  arm7_img_offset;
 			unsigned int  arm7_img_size;
 
 			unsigned char reserved_1[56];
-
-			unsigned int  size; /* the size of this structure */
+			/* the size of this structure */
+			unsigned int  size;
 		} v5;
 	} diff;
 #endif
@@ -169,28 +284,56 @@ struct _free_padding_block {
 };
 
 struct md_check_header_v6 {
-	unsigned char check_header[12]; /* magic number is "CHECK_HEADER"*/
-	unsigned int  header_verno; /* header structure version number */
-	unsigned int  product_ver; /* 0x0:invalid; 0x1:debug version; 0x2:release version */
-	unsigned int  image_type; /* 0x0:invalid; 0x1:2G modem; 0x2: 3G modem */
-	unsigned char platform[16]; /* MT6573_S01 or MT6573_S02 */
-	unsigned char build_time[64]; /* build time string */
-	unsigned char build_ver[64]; /* project version, ex:11A_MD.W11.28 */
+	/* magic number is "CHECK_HEADER"*/
+	unsigned char check_header[12];
+	/* header structure version number */
+	unsigned int  header_verno;
+	/* 0x0:invalid;
+	 * 0x1:debug version;
+	 * 0x2:release version
+	 */
+	unsigned int  product_ver;
+	/* 0x0:invalid;
+	 * 0x1:2G modem;
+	 * 0x2: 3G modem
+	 */
+	unsigned int  image_type;
+	/* MT6573_S01 or MT6573_S02 */
+	unsigned char platform[16];
+	/* build time string */
+	unsigned char build_time[64];
+	/* project version, ex:11A_MD.W11.28 */
+	unsigned char build_ver[64];
 
-	unsigned char bind_sys_id; /* bind to md sys id, MD SYS1: 1, MD SYS2: 2, MD SYS5: 5 */
-	unsigned char ext_attr; /* no shrink: 0, shrink: 1 */
-	unsigned char reserved[2]; /* for reserved */
+	/* bind to md sys id,
+	 * MD SYS1: 1,
+	 * MD SYS2: 2,
+	 * MD SYS5: 5
+	 */
+	unsigned char bind_sys_id;
+	/* no shrink: 0, shrink: 1 */
+	unsigned char ext_attr;
+	/* for reserved */
+	unsigned char reserved[2];
 
-	unsigned int  mem_size; /* md ROM/RAM image size requested by md */
-	unsigned int  md_img_size; /* md image size, exclude head size */
-	unsigned int  rpc_sec_mem_addr; /* RPC secure memory address */
+	/* md ROM/RAM image size requested by md */
+	unsigned int  mem_size;
+	/* md image size, exclude head size */
+	unsigned int  md_img_size;
+	/* RPC secure memory address */
+	unsigned int  rpc_sec_mem_addr;
 
 	unsigned int  dsp_img_offset;
 	unsigned int  dsp_img_size;
 
-	unsigned int  region_num; /* total region number */
-	struct _md_regin_info region_info[8];    /* max support 8 regions */
-	unsigned int  domain_attr[4];    /* max support 4 domain settings, each region has 4 control bits*/
+	/* total region number */
+	unsigned int  region_num;
+	/* max support 8 regions */
+	struct _md_regin_info region_info[8];
+	/* max support 4 domain settings,
+	 * each region has 4 control bits
+	 */
+	unsigned int  domain_attr[4];
 
 	unsigned int  arm7_img_offset;
 	unsigned int  arm7_img_size;
@@ -205,7 +348,8 @@ struct md_check_header_v6 {
 
 	unsigned char reserved_1[144];
 
-	unsigned int  size; /* the size of this structure */
+	/* the size of this structure */
+	unsigned int  size;
 };
 
 /* Meta parsing section */

@@ -46,9 +46,6 @@
 extern int mtk_btif_hal_get_log_lvl(void);
 
 #define MTK_BTIF_MARK_UNUSED_API
-
-typedef irq_handler_t mtk_btif_irq_handler;
-
 #define MTK_BTIF_ENABLE_CLK_CTL 1
 #define MTK_BTIF_ENABLE_CLK_REF_COUNTER 1
 
@@ -121,55 +118,55 @@ do { \
 		__func__, __LINE__); \
 } while (0)
 
-/*-----------------------------------Enum Defination--------------------------------*/
+/*-------------------------------Enum Defination----------------------------*/
 /*IRQ sensetive type */
-typedef enum _ENUM_IRQ_SENS_TYPE_ {
+enum _ENUM_IRQ_SENS_TYPE_ {
 	IRQ_SENS_EDGE = 0,
 	IRQ_SENS_LVL = IRQ_SENS_EDGE + 1,
 	IRQ_SENS_TYPE_MAX
-} ENUM_IRQ_SENS_TYPE;
+};
 
 /*IRQ level trigger type */
-typedef enum _ENUM_IRQ_LVL_TYPE_ {
+enum _ENUM_IRQ_LVL_TYPE_ {
 	IRQ_LVL_LOW = 0,
 	IRQ_LVL_HIGH = IRQ_LVL_LOW + 1,
 	IRQ_LVL_MAX
-} ENUM_IRQ_LVL;
+};
 
 /*IRQ edge trigger type */
-typedef enum _ENUM_IRQ_EDGE_TYPE_ {
+enum _ENUM_IRQ_EDGE_TYPE_ {
 	IRQ_EDGE_FALL = 0,
 	IRQ_EDGE_RAISE = IRQ_EDGE_FALL + 1,
 	IRQ_EDGE_BOTH = IRQ_EDGE_RAISE + 1,
 	IRQ_EDGE_MAX
-} ENUM_IRQ_EDGE;
+};
 
-typedef enum _ENUM_CLOCK_CTRL_ {
+enum _ENUM_CLOCK_CTRL_ {
 	CLK_OUT_DISABLE = 0,
 	CLK_OUT_ENABLE = CLK_OUT_DISABLE + 1,
 	CLK_OUT_MAX
-} ENUM_CLOCK_CTRL;
+};
 
 /*Error No. table */
-typedef enum _ENUM_ERROR_CODE_ {
+enum _ENUM_ERROR_CODE_ {
 	ERR_NO_ERROR = 0,
 	ERR_INVALID_PAR = ERR_NO_ERROR - 1,
 	ERR_MAX = ERR_INVALID_PAR - 1,
-} ENUM_ERROR_CODE;
+};
 
-typedef enum _ENUM_BTIF_DIR_ {
+enum _ENUM_BTIF_DIR_ {
 	BTIF_TX = 0,
 	BTIF_RX = BTIF_TX + 1,
 	BTIF_DIR_MAX,
-} ENUM_BTIF_DIR;
+};
 
-typedef enum _ENUM_DMA_DIR_ {
+enum _ENUM_DMA_DIR_ {
 	DMA_DIR_RX = 0,
 	DMA_DIR_TX = DMA_DIR_RX + 1,
 	DMA_DIR_BOTH,
-} ENUM_DMA_DIR;
+};
 
-typedef enum _ENUM_BTIF_REG_ID_ {
+enum _ENUM_BTIF_REG_ID_ {
 	REG_IIR = 0,		/*Interrupt Identification Register */
 	REG_LSR = 1,		/*Line Status Register */
 	REG_FAKE_LCR = 2,	/*Fake Lcr Regiseter */
@@ -185,49 +182,49 @@ typedef enum _ENUM_BTIF_REG_ID_ {
 	REG_ALL = 12,	/*all  registers */
 	REG_IRQ = 13,	/*IRQ  registers */
 	REG_MAX
-} ENUM_BTIF_REG_ID;
+};
 
-typedef enum _MTK_BTIF_PM_OPID_ {
+enum _MTK_BTIF_PM_OPID_ {
 	BTIF_PM_DPIDLE_EN,
 	BTIF_PM_DPIDLE_DIS,
 	BTIF_PM_SUSPEND,
 	BTIF_PM_RESUME,
 	BTIF_PM_RESTORE_NOIRQ,
-} MTK_BTIF_PM_OPID;
+};
 
 #define BTIF_HAL_TX_FIFO_SIZE (1024 * 4)
 
-/*-----------------------------------Enum Defination End--------------------------------*/
+/*----------------------------Enum Defination End---------------------------*/
 
 /*****************************structure definition***************************/
 /*IRQ related information*/
-typedef struct _MTK_BTIF_IRQ_STR_ {
+struct _MTK_BTIF_IRQ_STR_ {
 	const char *name;
 	bool is_irq_sup;
 	unsigned int irq_id;
 #ifdef CONFIG_OF
 	unsigned int irq_flags;
 #else
-	ENUM_IRQ_SENS_TYPE sens_type;
+	enum _ENUM_IRQ_SENS_TYPE_ sens_type;
 	union {
-		ENUM_IRQ_LVL lvl_type;
-		ENUM_IRQ_EDGE edge_type;
+		enum _ENUM_IRQ_LVL_TYPE_ lvl_type;
+		enum _ENUM_IRQ_EDGE_TYPE_ edge_type;
 	};
 #endif
 	bool reg_flag;
 	irq_handler_t p_irq_handler;
-} MTK_BTIF_IRQ_STR, *P_MTK_BTIF_IRQ_STR;
+};
 
-typedef struct _DMA_VFIFO_ {
+struct _DMA_VFIFO_ {
 	/*[Driver Access] vFIFO memory'svirtual address */
 	unsigned char *p_vir_addr;
-	/*[HW Access] dma handle , physically address, set to DMA's HW Register */
+	/*[HW Access] dma handle, physical address, set to DMA's HW Register */
 	dma_addr_t phy_addr;
 	/*DMA's vFIFO size */
 	unsigned int vfifo_size;
 	/*DMA's threshold value */
 	unsigned int thre;
-} DMA_VFIFO, *P_DMA_VFIFO;
+};
 
 typedef unsigned int (*dma_rx_buf_write) (void *p_dma_info,
 					  unsigned char *p_buf,
@@ -237,18 +234,18 @@ typedef unsigned int (*btif_rx_buf_write) (void *p_btif_info,
 					   unsigned int buf_len);
 
 /*DMA related information*/
-typedef struct _MTK_DMA_INFO_STR_ {
+struct _MTK_DMA_INFO_STR_ {
 	unsigned long base;
-	ENUM_DMA_DIR dir;
-	P_MTK_BTIF_IRQ_STR p_irq;
+	enum _ENUM_DMA_DIR_ dir;
+	struct _MTK_BTIF_IRQ_STR_ *p_irq;
 	dma_rx_buf_write rx_cb;
-	P_DMA_VFIFO p_vfifo;
-} MTK_DMA_INFO_STR, *P_MTK_DMA_INFO_STR;
+	struct _DMA_VFIFO_ *p_vfifo;
+};
 
 /*DMA related information*/
-typedef struct _MTK_BTIF_INFO_STR_ {
+struct _MTK_BTIF_INFO_STR_ {
 	unsigned long base;	/*base address */
-	P_MTK_BTIF_IRQ_STR p_irq;	/*irq related information */
+	struct _MTK_BTIF_IRQ_STR_ *p_irq;	/*irq related information */
 
 	unsigned int tx_fifo_size;	/*BTIF tx FIFO size */
 	unsigned int rx_fifo_size;	/*BTIF rx FIFO size */
@@ -266,7 +263,7 @@ typedef struct _MTK_BTIF_INFO_STR_ {
 
 	struct kfifo *p_tx_fifo;	/*tx fifo */
 	spinlock_t tx_fifo_spinlock;	/*tx fifo spinlock */
-} MTK_BTIF_INFO_STR, *P_MTK_BTIF_INFO_STR;
+	};
 
 /**********End of Structure Definition***********/
 
@@ -291,12 +288,14 @@ typedef struct _MTK_BTIF_INFO_STR_ {
 #define BTIF_READ32(REG)              __raw_readl((unsigned int *)(REG))
 
 #define BTIF_SET_BIT(REG, BITVAL)    do { \
-*((volatile unsigned int *)(REG)) |= ((unsigned int)(BITVAL)); \
+writel(readl((unsigned int *)(REG)) | ((unsigned int)(BITVAL)), \
+(unsigned int *)(REG)); \
 mb(); /**/ \
 } \
 while (0)
 #define BTIF_CLR_BIT(REG, BITVAL)    do { \
-(*(volatile unsigned int *)(REG)) &= ~((unsigned int)(BITVAL)); \
+writel(readl((unsigned int *)(REG)) & ~((unsigned int)(BITVAL)), \
+(unsigned int *)(REG)); \
 mb(); /**/\
 } \
 while (0)

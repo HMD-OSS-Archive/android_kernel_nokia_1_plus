@@ -56,12 +56,12 @@ static int lcm_get_vgp_supply(struct device *dev)
 	int ret;
 	struct regulator *lcm_vgp_ldo;
 
-	/* printk("LCM: lcm_get_vgp_supply is going\n"); */
+	/* pr_notice("LCM: lcm_get_vgp_supply is going\n"); */
 
 	lcm_vgp_ldo = devm_regulator_get(dev, "reg-lcm");
 	if (IS_ERR(lcm_vgp_ldo)) {
 		ret = PTR_ERR(lcm_vgp_ldo);
-		dev_err(dev, "failed to get reg-lcm LDO, %d\n", ret);
+		pr_debug("failed to get reg-lcm LDO, %d\n", ret);
 		return ret;
 	}
 
@@ -81,30 +81,31 @@ int lcm_vgp_supply_enable(void)
 	int ret;
 	unsigned int volt;
 
-	/* printk("LCM: lcm_vgp_supply_enable\n"); */
+	/* pr_notice("LCM: lcm_vgp_supply_enable\n"); */
 
 	if (lcm_vgp == NULL)
 		return 0;
 
-	/* printk("LCM: set regulator voltage lcm_vgp voltage to 3.3V\n"); */
+	/* pr_notice("LCM: set regulator voltage lcm_vgp voltage to 3.3V\n"); */
 	/* set voltage to 1.8V */
 	ret = regulator_set_voltage(lcm_vgp, 3300000, 3300000);
 	if (ret != 0) {
-		pr_err("LCM: lcm failed to set lcm_vgp voltage: %d\n", ret);
+		pr_debug("LCM: lcm failed to set lcm_vgp voltage: %d\n", ret);
 		return ret;
 	}
 
 	/* get voltage settings again */
 	volt = regulator_get_voltage(lcm_vgp);
-	/*
+
 	if (volt == 3300000)
-		printk("LCM: check regulator voltage=3300000 pass!\n");
+		pr_notice("LCM: check voltage=3300000 pass!\n");
 	else
-		printk("LCM: check regulator voltage=3300000 fail! (voltage: %d)\n", volt);
-	*/
+		pr_debug("LCM: check voltage=3300000 fail! (voltage: %d)\n",
+			volt);
+
 	ret = regulator_enable(lcm_vgp);
 	if (ret != 0) {
-		pr_err("LCM: Failed to enable lcm_vgp: %d\n", ret);
+		pr_debug("LCM: Failed to enable lcm_vgp: %d\n", ret);
 		return ret;
 	}
 
@@ -122,35 +123,61 @@ int lcm_vgp_supply_disable(void)
 	/* disable regulator */
 	isenable = regulator_is_enabled(lcm_vgp);
 
-	/* printk("LCM: lcm query regulator enable status[%d]\n", isenable); */
+	/* pr_notice("LCM: query regulator enable status[%d]\n", isenable); */
 
 	if (isenable) {
 		ret = regulator_disable(lcm_vgp);
 		if (ret != 0) {
-			pr_err("LCM: lcm failed to disable lcm_vgp: %d\n", ret);
+			pr_debug("LCM: lcm failed to disable lcm_vgp: %d\n",
+				ret);
 			return ret;
 		}
 		/* verify */
 		isenable = regulator_is_enabled(lcm_vgp);
 		if (!isenable)
-			pr_err("LCM: lcm regulator disable pass\n");
+			pr_debug("LCM: lcm regulator disable pass\n");
 	}
 
 	return ret;
 }
 
+struct pinctrl *lcd_pinctrl1;
+struct pinctrl_state *lcd_disp_pwm;
+struct pinctrl_state *lcd_disp_pwm_gpio;
+
 void lcm_request_gpio_control(struct device *dev)
 {
+	int ret;
+
+	pr_notice("[Kernel/LCM] %s enter\n", __func__);
 	GPIO_LCD_PWR = of_get_named_gpio(dev->of_node, "gpio_lcd_pwr", 0);
 	gpio_request(GPIO_LCD_PWR, "GPIO_LCD_PWR");
 
 	GPIO_LCD_RST = of_get_named_gpio(dev->of_node, "gpio_lcd_rst", 0);
 	gpio_request(GPIO_LCD_RST, "GPIO_LCD_RST");
+
+	lcd_pinctrl1 = devm_pinctrl_get(dev);
+	if (IS_ERR(lcd_pinctrl1)) {
+		ret = PTR_ERR(lcd_pinctrl1);
+		pr_debug("Cannot find lcd_pinctrl1 %d!\n", ret);
+	}
+
+	lcd_disp_pwm = pinctrl_lookup_state(lcd_pinctrl1, "disp_pwm");
+	if (IS_ERR(lcd_pinctrl1)) {
+		ret = PTR_ERR(lcd_pinctrl1);
+		pr_debug("Cannot find lcd_disp_pwm %d!\n", ret);
+	}
+
+	lcd_disp_pwm_gpio = pinctrl_lookup_state(lcd_pinctrl1, "disp_pwm_gpio");
+	if (IS_ERR(lcd_pinctrl1)) {
+		ret = PTR_ERR(lcd_pinctrl1);
+		pr_debug("Cannot find lcd_disp_pwm_gpio %d!\n", ret);
+	}
 }
 
 static int lcm_driver_probe(struct device *dev, void const *data)
 {
-	/* printk("LCM: lcm_driver_probe\n"); */
+	/* pr_notice("LCM: lcm_driver_probe\n"); */
 
 	lcm_request_gpio_control(dev);
 	lcm_get_vgp_supply(dev);
@@ -184,16 +211,16 @@ static int lcm_platform_probe(struct platform_device *pdev)
 static struct platform_driver lcm_driver = {
 	.probe = lcm_platform_probe,
 	.driver = {
-		   .name = "kd070d5450nha6_rgb_dpi",
-		   .owner = THIS_MODULE,
-		   .of_match_table = lcm_platform_of_match,
-		   },
+		.name = "kd070d5450nha6_rgb_dpi",
+		.owner = THIS_MODULE,
+		.of_match_table = lcm_platform_of_match,
+	},
 };
 
 static int __init lcm_init(void)
 {
 	if (platform_driver_register(&lcm_driver)) {
-		pr_err("LCM: failed to register this driver!\n");
+		pr_debug("LCM: failed to register this driver!\n");
 		return -ENODEV;
 	}
 
@@ -210,32 +237,33 @@ MODULE_AUTHOR("mediatek");
 MODULE_DESCRIPTION("LCM display subsystem driver");
 MODULE_LICENSE("GPL");
 #endif
-/* --------------------------------------------------------------------------- */
+
+/* ------------------------------------------------------------------- */
 /* Local Constants */
-/* --------------------------------------------------------------------------- */
-#define FRAME_WIDTH  (1024)
-#define FRAME_HEIGHT (600)
+/* ------------------------------------------------------------------- */
+#define FRAME_WIDTH   (1024)
+#define FRAME_HEIGHT  (600)
 
 #define GPIO_OUT_ONE  1
 #define GPIO_OUT_ZERO 0
 
 #ifdef GPIO_LCM_PWR
-#define GPIO_LCD_PWR      GPIO_LCM_PWR
+#define GPIO_LCD_PWR  GPIO_LCM_PWR
 #endif
 
-/* --------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------- */
 /* Local Variables */
-/* --------------------------------------------------------------------------- */
-static LCM_UTIL_FUNCS lcm_util = { 0 };
+/* ------------------------------------------------------------------- */
+static struct LCM_UTIL_FUNCS lcm_util = { 0 };
 
 #define SET_RESET_PIN(v)    (lcm_util.set_reset_pin((v)))
 
 #define UDELAY(n) (lcm_util.udelay(n))
 #define MDELAY(n) (lcm_util.mdelay(n))
 
-/* --------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------- */
 /* Local Functions */
-/* --------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------- */
 static void lcm_set_gpio_output(unsigned int GPIO, unsigned int output)
 {
 #ifdef BUILD_LK
@@ -250,7 +278,7 @@ static void lcm_set_gpio_output(unsigned int GPIO, unsigned int output)
 static void lcm_init_power(void)
 {
 #ifdef BUILD_LK
-	printf("[LK/LCM] lcm_init_power() enter\n");
+	printf("[LK/LCM] %s enter\n", __func__);
 
 	SET_RESET_PIN(0);
 	MDELAY(20);
@@ -264,17 +292,16 @@ static void lcm_init_power(void)
 	SET_RESET_PIN(1);
 	MDELAY(20);
 #else
-	pr_err("[Kernel/LCM] lcm_init_power() enter\n");
+	pr_notice("[Kernel/LCM] %s enter\n", __func__);
 #endif
 }
 
 static void lcm_suspend_power(void)
 {
 #ifndef BUILD_LK
-	pr_err("[Kernel/LCM] lcm_suspend_power() enter\n");
+	pr_notice("[Kernel/LCM] %s enter\n", __func__);
 
-	SET_RESET_PIN(0);
-	MDELAY(20);
+	pinctrl_select_state(lcd_pinctrl1, lcd_disp_pwm_gpio);
 
 	lcm_set_gpio_output(GPIO_LCD_RST, GPIO_OUT_ZERO);
 	MDELAY(20);
@@ -290,33 +317,31 @@ static void lcm_suspend_power(void)
 static void lcm_resume_power(void)
 {
 #ifndef BUILD_LK
-	pr_err("[Kernel/LCM] lcm_resume_power() enter\n");
-
-	lcm_set_gpio_output(GPIO_LCD_PWR, GPIO_OUT_ONE);
-	MDELAY(20);
+	pr_notice("[Kernel/LCM] %s enter\n", __func__);
 
 	lcm_vgp_supply_enable();
 	MDELAY(20);
 
-	lcm_set_gpio_output(GPIO_LCD_RST, GPIO_OUT_ONE);
+	lcm_set_gpio_output(GPIO_LCD_PWR, GPIO_OUT_ONE);
 	MDELAY(20);
 
-	SET_RESET_PIN(1);
+	lcm_set_gpio_output(GPIO_LCD_RST, GPIO_OUT_ONE);
 	MDELAY(20);
+	pinctrl_select_state(lcd_pinctrl1, lcd_disp_pwm);
 #endif
 }
 
-/* --------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------- */
 /* LCM Driver Implementations */
-/* --------------------------------------------------------------------------- */
-static void lcm_set_util_funcs(const LCM_UTIL_FUNCS *util)
+/* ------------------------------------------------------------------- */
+static void lcm_set_util_funcs(const struct LCM_UTIL_FUNCS *util)
 {
-	memcpy(&lcm_util, util, sizeof(LCM_UTIL_FUNCS));
+	memcpy(&lcm_util, util, sizeof(struct LCM_UTIL_FUNCS));
 }
 
-static void lcm_get_params(LCM_PARAMS *params)
+static void lcm_get_params(struct LCM_PARAMS *params)
 {
-	memset(params, 0, sizeof(LCM_PARAMS));
+	memset(params, 0, sizeof(struct LCM_PARAMS));
 
 	params->type = LCM_TYPE_DPI;
 
@@ -353,27 +378,27 @@ static void lcm_get_params(LCM_PARAMS *params)
 static void lcm_init_lcm(void)
 {
 #ifdef BUILD_LK
-	printf("[LK/LCM] lcm_init() enter\n");
+	printf("[LK/LCM] %s enter\n", __func__);
 #else
-	pr_err("[Kernel/LCM] lcm_init() enter\n");
+	pr_notice("[Kernel/LCM] %s enter\n", __func__);
 #endif
 }
 
 void lcm_suspend(void)
 {
 #ifdef BUILD_LK
-	printf("[LK/LCM] lcm_suspend() enter\n");
+	printf("[LK/LCM] %s enter\n", __func__);
 #else
-	pr_err("[Kernel/LCM] lcm_suspend() enter\n");
+	pr_notice("[Kernel/LCM] %s enter\n", __func__);
 #endif
 }
 
 void lcm_resume(void)
 {
 #ifdef BUILD_LK
-	printf("[LK/LCM] lcm_resume() enter\n");
+	printf("[LK/LCM] %s enter\n", __func__);
 #else
-	pr_err("[Kernel/LCM] lcm_resume() enter\n");
+	pr_notice("[Kernel/LCM] %s enter\n", __func__);
 #endif
 }
 
@@ -382,7 +407,7 @@ static unsigned int lcm_ata_check(unsigned char *buffer)
 	return 0;
 }
 
-LCM_DRIVER kd070d5450nha6_rgb_dpi_lcm_drv = {
+struct LCM_DRIVER kd070d5450nha6_rgb_dpi_lcm_drv = {
 	.name = "kd070d5450nha6_rgb_dpi",
 	.set_util_funcs = lcm_set_util_funcs,
 	.get_params = lcm_get_params,

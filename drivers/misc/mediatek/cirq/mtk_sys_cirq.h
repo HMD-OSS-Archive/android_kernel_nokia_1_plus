@@ -64,8 +64,8 @@
 /*
  * Define macro
  */
-#define  IRQ_TO_CIRQ_NUM(irq)       ((irq) - (GIC_PRIVATE_SIGNALS + CIRQ_SPI_START))
-#define  CIRQ_TO_IRQ_NUM(cirq)      ((cirq) + (GIC_PRIVATE_SIGNALS + CIRQ_SPI_START))
+#define IRQ_TO_CIRQ_NUM(irq)  ((irq) - (GIC_PRIVATE_SIGNALS + CIRQ_SPI_START))
+#define CIRQ_TO_IRQ_NUM(cirq) ((cirq) + (GIC_PRIVATE_SIGNALS + CIRQ_SPI_START))
 
 #define print_func() pr_debug("[CIRQ] in %s\n", __func__)
 

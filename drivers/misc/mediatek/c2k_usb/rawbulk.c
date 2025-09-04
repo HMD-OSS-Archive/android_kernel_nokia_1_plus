@@ -1,25 +1,16 @@
 /*
- * Rawbulk Gadget Function Driver from VIA Telecom
+ * Copyright (C) 2017 MediaTek Inc.
  *
- * Copyright (C) 2011 VIA Telecom, Inc.
- * Author: Karfield Chen (kfchen@via-telecom.com)
- * Copyright (C) 2012 VIA Telecom, Inc.
- * Author: Juelun Guo (jlguo@via-telecom.com)
- * Changes:
- *
- * Sep 2012: Juelun Guo <jlguo@via-telecom.com>
- *           Version 1.0.2
- *           changed to support for sdio bypass.
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
+
 
 /* #define DEBUG */
 /* #define VERBOSE_DEBUG */
@@ -34,7 +25,6 @@
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/err.h>
-#include <linux/wakelock.h>
 #include <linux/interrupt.h>
 #include <linux/delay.h>
 #include <linux/wait.h>
@@ -121,10 +111,12 @@ EXPORT_SYMBOL_GPL(rawbulk_disable_function);
 
 
 #define port_to_rawbulk(p) container_of(p, struct rawbulk_function, port)
-#define function_to_rawbulk(f) container_of(f, struct rawbulk_function, function)
+#define function_to_rawbulk(f) container_of(f, struct rawbulk_function,\
+						function)
 
 
-static void init_endpoint_desc(struct usb_endpoint_descriptor *epdesc, int in, int maxpacksize)
+static void init_endpoint_desc(struct usb_endpoint_descriptor *epdesc, int in,
+				int maxpacksize)
 {
 	struct usb_endpoint_descriptor template = {
 		.bLength = USB_DT_ENDPOINT_SIZE,
@@ -162,8 +154,8 @@ static ssize_t rawbulk_attr_show(struct device *dev, struct device_attribute
 static ssize_t rawbulk_attr_store(struct device *dev, struct device_attribute
 				  *attr, const char *buf, size_t count);
 
-static inline void add_device_attr(struct rawbulk_function *fn, int n, const char
-				   *name, int mode)
+static inline void add_device_attr(struct rawbulk_function *fn, int n,
+				const char *name, int mode)
 {
 	if (n < MAX_ATTRIBUTES) {
 		sysfs_attr_init(&fn->attr[n].attr);
@@ -186,7 +178,8 @@ static int which_attr(struct rawbulk_function *fn, struct device_attribute
 	return -1;
 }
 
-static ssize_t rawbulk_attr_show(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t rawbulk_attr_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
 {
 	int n;
 	int idx;
@@ -218,7 +211,7 @@ static ssize_t rawbulk_attr_show(struct device *dev, struct device_attribute *at
 		break;
 #ifdef SUPPORT_LEGACY_CONTROL
 	case ATTR_ENABLE_C:
-		count = snprintf(buf, PAGE_SIZE, "%s", enab ? "gadget" : "tty");
+		count = snprintf(buf, PAGE_SIZE, "%s", en ? "gadget" : "tty");
 		break;
 #endif
 	case ATTR_AUTORECONN:
@@ -229,10 +222,13 @@ static ssize_t rawbulk_attr_show(struct device *dev, struct device_attribute *at
 		break;
 	case ATTR_NUPS:
 		count = snprintf(buf, PAGE_SIZE,
-			       "nups<%d>,udata<%d>,ucnt<%d>,drop<%d>,alloc_fail<%d>,tran<%d>\n",
-			       enab ? fn->nups : -1, upstream_data[fn->transfer_id],
-			       upstream_cnt[fn->transfer_id], total_drop[fn->transfer_id],
-			       alloc_fail[fn->transfer_id], total_tran[fn->transfer_id]);
+		"nups<%d>,udata<%d>,ucnt<%d>,drop<%d>,aloc_fai<%d>,tran<%d>\n",
+		enab ? fn->nups : -1,
+		upstream_data[fn->transfer_id],
+		upstream_cnt[fn->transfer_id],
+		total_drop[fn->transfer_id],
+		alloc_fail[fn->transfer_id],
+		total_tran[fn->transfer_id]);
 		break;
 	case ATTR_NDOWNS:
 		count = snprintf(buf, PAGE_SIZE, "%d", enab ? fn->ndowns : -1);
@@ -277,8 +273,9 @@ void do_push_upstream(int transfer_id, char *buf, int len)
 }
 #endif
 
-static ssize_t rawbulk_attr_store(struct device *dev, struct device_attribute *attr,
-				  const char *buf, size_t count)
+static ssize_t rawbulk_attr_store(struct device *dev,
+				struct device_attribute *attr, const char *buf,
+				size_t count)
 {
 	int n;
 	int rc = 0;
@@ -305,7 +302,8 @@ static ssize_t rawbulk_attr_store(struct device *dev, struct device_attribute *a
 	}
 
 	if (idx < 0) {
-		C2K_ERR("sorry, I cannot find rawbulk fn '%s'\n", attr->attr.name);
+		C2K_ERR("sorry, I cannot find rawbulk fn '%s'\n",
+			attr->attr.name);
 		goto exit;
 	}
 
@@ -354,7 +352,7 @@ static ssize_t rawbulk_attr_store(struct device *dev, struct device_attribute *a
 					len = SZ;
 #else
 					if (ut_err) {
-						C2K_NOTE("errrrrrrrrrrrrrrrrrrrrrrrr\n");
+						C2K_NOTE("errrrrrrrrrrrrrr\n");
 						break;
 					}
 					get_random_bytes(&len, sizeof(len));
@@ -367,7 +365,8 @@ static ssize_t rawbulk_attr_store(struct device *dev, struct device_attribute *a
 						buf[i] = buf[i - 1] + 1;
 					last_end = buf[i - 1];
 #endif
-					do_push_upstream(transfer_id, buf, len);
+					do_push_upstream(transfer_id, buf, len)
+						;
 #ifdef C2K_USB_PERF
 					/* simulate 4MB per sec */
 					udelay(delay_set);
@@ -393,7 +392,7 @@ static ssize_t rawbulk_attr_store(struct device *dev, struct device_attribute *a
 			else if (!strncmp(buf, "gadget", 6))
 				enable = 1;
 			else {
-				C2K_ERR("invalid option(%s) for bypass, try again...\n", buf);
+				C2K_ERR("invalid option(%s) for bypas\n", buf);
 				goto exit;
 			}
 		} else
@@ -407,10 +406,13 @@ static ssize_t rawbulk_attr_store(struct device *dev, struct device_attribute *a
 			C2K_NOTE("enable:%d\n", enable);
 			set_enable_state(fn, enable);
 			if (!!enable && fn->activated) {
-				C2K_NOTE("enable rawbulk %s channel, been activated? %s\n",
-					 fn->shortname, fn->activated ? "yes" : "no");
+				C2K_NOTE("enable rb %s channel,activated %s\n",
+					fn->shortname, fn->activated ?
+					"yes" : "no");
 				if (fn->transfer_id == RAWBULK_TID_MODEM) {
-					/* clear DTR to endup last session between AP and CP */
+					/* clear DTR to endup last session
+					 * between AP and CP
+					 */
 					modem_dtr_set(1, 1);
 					modem_dtr_set(0, 1);
 					modem_dtr_set(1, 1);
@@ -419,25 +421,30 @@ static ssize_t rawbulk_attr_store(struct device *dev, struct device_attribute *a
 
 
 				/* Start rawbulk transfer */
-				wake_lock(&fn->keep_awake);
-				rc = rawbulk_start_transactions(fn->transfer_id, nups,
-								ndowns, upsz, downsz);
+				__pm_stay_awake(&fn->keep_awake);
+				rc = rawbulk_start_transactions(
+					fn->transfer_id, nups, ndowns, upsz,
+					downsz);
 				if (rc < 0)
-					C2K_ERR("%s rc = %d bypass failed\n", __func__, rc);
+					C2K_ERR("%s rc = %d bypass failed\n",
+						__func__, rc);
 			} else {
 				/* Stop rawbulk transfer */
-				C2K_NOTE("disable rawbulk %s channel, been activated? %s\n",
-					 fn->shortname, fn->activated ? "yes" : "no");
+				C2K_NOTE("D.S rb %s chan,been activated %s\n",
+					fn->shortname,
+					fn->activated ? "yes" : "no");
 				rawbulk_stop_transactions(fn->transfer_id);
 				if (fn->transfer_id == RAWBULK_TID_MODEM) {
-					/* clear DTR automatically when disable modem rawbulk */
+					/* clear DTR automatically when disable
+					 * modem rawbulk
+					 */
 					modem_dtr_set(1, 1);
 					modem_dtr_set(0, 1);
 					modem_dtr_set(1, 1);
 					modem_dcd_state();
 				}
 
-				wake_unlock(&fn->keep_awake);
+				__pm_relax(&fn->keep_awake);
 			}
 		}
 	} else if (idx == ATTR_DTR) {
@@ -488,7 +495,8 @@ static ssize_t rawbulk_attr_store(struct device *dev, struct device_attribute *a
 			goto exit;
 
 		rawbulk_stop_transactions(fn->transfer_id);
-		rc = rawbulk_start_transactions(fn->transfer_id, nups, ndowns, upsz, downsz);
+		rc = rawbulk_start_transactions(fn->transfer_id, nups, ndowns,
+						upsz, downsz);
 		if (rc >= 0) {
 			fn->nups = nups;
 			fn->ndowns = ndowns;
@@ -496,7 +504,7 @@ static ssize_t rawbulk_attr_store(struct device *dev, struct device_attribute *a
 			fn->downsz = downsz;
 		} else {
 			rawbulk_stop_transactions(fn->transfer_id);
-			wake_unlock(&fn->keep_awake);
+			__pm_relax(&fn->keep_awake);
 			C2K_NOTE("enable to 0\n");
 			set_enable_state(fn, 0);
 		}
@@ -546,7 +554,7 @@ static void rawbulk_remove_files(struct rawbulk_function *fn)
 
 
 
-/******************************************************************************/
+/*****************************************************************************/
 static struct class *rawbulk_class;
 
 static struct _function_init_stuff {
@@ -562,7 +570,8 @@ static struct _function_init_stuff {
 } _init_params[] = {
 #ifdef CONFIG_EVDO_DT_VIA_SUPPORT
 	{
-	"rawbulk-modem", "data", "Modem Port", 32, 32, 4096, 4096, true, false}, {
+	"rawbulk-modem", "data", "Modem Port", 32, 32, 4096, 4096, true, false}
+	, {
 	"rawbulk-ets", "ets", "ETS Port", 32, 32, 4096, 4096, true, false}, {
 	"rawbulk-at", "atc", "AT Channel", 3, 3, 4096, 4096, true, false}, {
 	"rawbulk-pcv", "pcv", "PCM Voice", 1, 1, 4096, 4096, true, false}, {
@@ -571,7 +580,8 @@ static struct _function_init_stuff {
 #else
 	{
 	"rawbulk-pcv", "pcv", "PCM Voice", 1, 1, 4096, 4096, true, false}, {
-	"rawbulk-modem", "data", "Modem Port", 32, 32, 4096, 4096, true, false}, {
+	"rawbulk-modem", "data", "Modem Port", 32, 32, 4096, 4096, true, false}
+	, {
 	"rawbulk-dummy0", "dummy0", "DUMMY0", 1, 1, 4096, 4096, true, false}, {
 	"rawbulk-at", "atc", "AT Channel", 3, 3, 4096, 4096, true, false}, {
 	"rawbulk-gps", "gps", "LBS GPS Port", 1, 1, 4096, 4096, true, false}, {
@@ -614,13 +624,19 @@ static __init struct rawbulk_function *rawbulk_alloc_function(int transfer_id)
 	init_endpoint_desc(&fn->fs_bulkout_endpoint, 0, 512);
 	init_endpoint_desc(&fn->hs_bulkout_endpoint, 0, 512);
 
-	fn->fs_descs[INTF_DESC] = (struct usb_descriptor_header *)&fn->interface;
-	fn->fs_descs[BULKIN_DESC] = (struct usb_descriptor_header *)&fn->fs_bulkin_endpoint;
-	fn->fs_descs[BULKOUT_DESC] = (struct usb_descriptor_header *)&fn->fs_bulkout_endpoint;
+	fn->fs_descs[INTF_DESC] = (struct usb_descriptor_header *)
+				&fn->interface;
+	fn->fs_descs[BULKIN_DESC] = (struct usb_descriptor_header *)
+				&fn->fs_bulkin_endpoint;
+	fn->fs_descs[BULKOUT_DESC] = (struct usb_descriptor_header *)
+				&fn->fs_bulkout_endpoint;
 
-	fn->hs_descs[INTF_DESC] = (struct usb_descriptor_header *)&fn->interface;
-	fn->hs_descs[BULKIN_DESC] = (struct usb_descriptor_header *)&fn->hs_bulkin_endpoint;
-	fn->hs_descs[BULKOUT_DESC] = (struct usb_descriptor_header *)&fn->hs_bulkout_endpoint;
+	fn->hs_descs[INTF_DESC] = (struct usb_descriptor_header *)
+				&fn->interface;
+	fn->hs_descs[BULKIN_DESC] = (struct usb_descriptor_header *)
+				&fn->hs_bulkin_endpoint;
+	fn->hs_descs[BULKOUT_DESC] = (struct usb_descriptor_header *)
+				&fn->hs_bulkout_endpoint;
 
 	fn->string_table.language = 0x0409;
 	fn->string_table.strings = fn->string_defs;
@@ -654,7 +670,7 @@ static __init struct rawbulk_function *rawbulk_alloc_function(int transfer_id)
 	}
 
 	fn->dev = device_create(rawbulk_class, NULL, MKDEV(0,
-							   fn->transfer_id), NULL, fn->shortname);
+				fn->transfer_id), NULL, fn->shortname);
 	if (IS_ERR(fn->dev)) {
 		kfree(fn);
 		return NULL;
@@ -667,7 +683,7 @@ static __init struct rawbulk_function *rawbulk_alloc_function(int transfer_id)
 	}
 
 	spin_lock_init(&fn->lock);
-	wake_lock_init(&fn->keep_awake, WAKE_LOCK_SUSPEND, fn->longname);
+	wakeup_source_init(&fn->keep_awake, fn->longname);
 	return fn;
 }
 
@@ -677,7 +693,7 @@ static void rawbulk_destroy_function(struct rawbulk_function *fn)
 
 	if (!fn)
 		return;
-	wake_lock_destroy(&fn->keep_awake);
+	wakeup_source_trash(&fn->keep_awake);
 	rawbulk_remove_files(fn);
 	device_destroy(rawbulk_class, fn->dev->devt);
 	kfree(fn);
@@ -698,7 +714,7 @@ static int __init init(void)
 	int n;
 	int rc = 0;
 
-	C2K_NOTE("rawbulk functions init.\n");
+	C2K_NOTE("rawbulk functions go!!!\n");
 	rawbulk_class = class_create(THIS_MODULE, "usb_rawbulk");
 	if (IS_ERR(rawbulk_class))
 		return PTR_ERR(rawbulk_class);
@@ -708,7 +724,8 @@ static int __init init(void)
 
 		if (IS_ERR(fn)) {
 			while (n--)
-				rawbulk_destroy_function(prealloced_functions[n]);
+				rawbulk_destroy_function
+				(prealloced_functions[n]);
 			rc = PTR_ERR(fn);
 			break;
 		}
@@ -726,9 +743,10 @@ static int __init init(void)
 	/* make compatiable with old bypass sysfs access */
 	legacy_sysfs_stuff = kobject_create_and_add("usb_bypass", NULL);
 	if (legacy_sysfs_stuff) {
-		rc = sysfs_create_group(legacy_sysfs_stuff, &legacy_sysfs_group);
+		rc = sysfs_create_group(legacy_sysfs_stuff,
+					&legacy_sysfs_group);
 		if (rc < 0)
-			C2K_ERR("failed to create legacy bypass sys-stuff, but continue...\n");
+			C2K_ERR("failed to create legacy bypass,continue\n");
 	}
 #endif				/* SUPPORT_LEGACY_CONTROL */
 

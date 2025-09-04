@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 MediaTek Inc.
+ * Copyright (C) 2018 MediaTek Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -11,33 +11,31 @@
  * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
-
 #ifdef CONFIG_MTK_SCHED_BOOST
 /* For multi-scheduling boost support */
 enum {
 	SCHED_NO_BOOST = 0,
 	SCHED_ALL_BOOST,
 	SCHED_FG_BOOST,
-	SCHED_FORCE_BOOST,
-	SCHED_FORCE_STOP,
 	SCHED_UNKNOWN_BOOST
 };
 
-extern void set_user_space_global_cpuset(struct cpumask *global_cpus, int cgroup_id);
+#define SCHED_PREFER_NONE   0
+#define SCHED_PREFER_BIG    1
+#define SCHED_PREFER_LITTLE 2
+#define SCHED_PREFER_END    3
+
+extern void set_user_space_global_cpuset
+		(struct cpumask *global_cpus, int cgroup_id);
 extern void unset_user_space_global_cpuset(int cgroup_id);
-extern int sched_scheduler_switch(SCHED_LB_TYPE new_sched);
-int set_sched_boost(unsigned int val);
+extern int sched_scheduler_switch(enum SCHED_LB_TYPE new_sched);
 #endif
-
-extern int idle_prefer_mode;
-extern bool idle_prefer_need(void);
-
-#ifdef CONFIG_CPU_FREQ_GOV_SCHEDPLUS
-extern void temporary_dvfs_down_throttle_change(int change, unsigned long new_throttle);
-#endif
-
 #ifdef CONFIG_SCHED_TUNE
-extern int prefer_idle_for_perf_idx(int idx, int prefer_idle);
+extern int schedtune_task_boost(struct task_struct *tsk);
+#else
+#define schedtune_task_boost(tsk) 0
 #endif
 
-extern int display_set_wait_idle_time(unsigned int wait_idle_time);
+extern unsigned int hmp_cpu_is_slowest(int cpu);
+extern unsigned int hmp_cpu_is_fastest(int cpu);
+extern bool is_intra_domain(int prev, int target);

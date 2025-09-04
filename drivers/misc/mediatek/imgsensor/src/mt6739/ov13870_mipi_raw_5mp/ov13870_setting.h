@@ -15,33 +15,34 @@
 #define _OV13870MIPI_SETTING_H_
 
 
-/*******************************************************************************
+/********************************************************
  * Log
- *******************************************************************************/
+ ******************************************************/
 #define PFX "OV13870"
-#define LOG_INF_NEW(format, args...)    pr_debug(PFX "[%s] " format, __func__, ##args)
+#define LOG_INF_NEW(format, args...)    \
+	pr_debug(PFX "[%s] " format, __func__, ##args)
 #define LOG_INF LOG_INF_NEW
 #define LOG_1 LOG_INF("OV13870,MIPI 4LANE\n")
 #define SENSORDB LOG_INF
 
-/*******************************************************************************
+/*******************************************************
  * Proifling
- *******************************************************************************/
+ ************************************************/
 #define PROFILE 1
 #if PROFILE
 static struct timeval tv1, tv2;
 static DEFINE_SPINLOCK(kdsensor_drv_lock);
-/*******************************************************************************
+/******************************************
  *
- *******************************************************************************/
+ **********************************************/
 static void KD_SENSOR_PROFILE_INIT(void)
 {
 	do_gettimeofday(&tv1);
 }
 
-/*******************************************************************************
+/************************************
  *
- *******************************************************************************/
+ ******************************************/
 static void KD_SENSOR_PROFILE(char *tag)
 {
 	unsigned long TimeIntervalUS;
@@ -49,7 +50,8 @@ static void KD_SENSOR_PROFILE(char *tag)
 	spin_lock(&kdsensor_drv_lock);
 
 	do_gettimeofday(&tv2);
-	TimeIntervalUS = (tv2.tv_sec - tv1.tv_sec) * 1000000 + (tv2.tv_usec - tv1.tv_usec);
+	TimeIntervalUS = (tv2.tv_sec - tv1.tv_sec) * 1000000
+			+ (tv2.tv_usec - tv1.tv_usec);
 	tv1 = tv2;
 
 	spin_unlock(&kdsensor_drv_lock);

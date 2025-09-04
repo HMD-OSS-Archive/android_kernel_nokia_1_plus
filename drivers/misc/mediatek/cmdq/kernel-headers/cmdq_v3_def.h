@@ -216,6 +216,7 @@ enum CMDQ_SEC_ADDR_METADATA_TYPE {
 	CMDQ_SAM_H_2_PA = 0,	/* sec handle to sec PA */
 	CMDQ_SAM_H_2_MVA = 1,	/* sec handle to sec MVA */
 	CMDQ_SAM_NMVA_2_MVA = 2,	/* map normal MVA to secure world */
+	CMDQ_SAM_PH_2_MVA = 3,	/* protected handle to sec MVA */
 };
 
 struct cmdqSecAddrMetadataStruct {
@@ -248,6 +249,29 @@ struct cmdqSecAddrMetadataStruct {
 	uint32_t port;		/* hw port id (i.e. M4U port id) */
 };
 
+struct cmdqMetaBuf {
+	uint64_t va;
+	uint64_t size;
+};
+
+#define CMDQ_ISP_META_CNT	8
+
+struct cmdqSecIspMeta {
+	struct cmdqMetaBuf ispBufs[CMDQ_ISP_META_CNT];
+	uint64_t CqSecHandle;
+	uint32_t CqSecSize;
+	uint32_t CqDesOft;
+	uint32_t CqVirtOft;
+	uint64_t TpipeSecHandle;
+	uint32_t TpipeSecSize;
+	uint32_t TpipeOft;
+	uint64_t BpciHandle;
+	uint64_t LsciHandle;
+	uint64_t LceiHandle;
+	uint64_t DepiHandle;
+	uint64_t DmgiHandle;
+};
+
 struct cmdqSecDataStruct {
 	bool isSecure;		/* [IN]true for secure command */
 
@@ -268,6 +292,9 @@ struct cmdqSecDataStruct {
 	int32_t waitCookie;
 	/* reset HW thread in SWd */
 	bool resetExecCnt;
+
+	/* ISP metadata for secure camera */
+	struct cmdqSecIspMeta ispMeta;
 };
 
 struct cmdq_v3_replace_struct {

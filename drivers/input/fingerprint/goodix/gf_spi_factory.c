@@ -1,4 +1,5 @@
-/* Goodix's GF316M/GF318M/GF3118M/GF518M/GF5118M/GF516M/GF816M/GF3208/GF5206/GF5216/GF5208
+/* Goodix's GF316M/GF318M/GF3118M/GF518M/GF5118M/GF516M/GF816M/GF3208/
+ *  GF5206/GF5216/GF5208
  *  fingerprint sensor linux driver for factory test
  *
  * 2010 - 2015 Goodix Technology.
@@ -30,7 +31,6 @@
 #include "mtk_spi.h"
 #include "mtk_spi_hal.h"
 #endif
-#include "mtk_gpio.h"
 
 /* there is no this file on standardized GPIO platform */
 #ifdef CONFIG_MTK_GPIO
@@ -56,18 +56,22 @@ int  gf_ioctl_spi_init_cfg_cmd(struct mt_chip_conf *mcc, unsigned long arg)
 
 	/* gf_debug(ERR_LOG, "%s:enter\n", __func__); */
 	do {
-		if (copy_from_user(&gf_spi_cfg, (gf_spi_cfg_t *)arg, sizeof(gf_spi_cfg_t))) {
-		gf_debug(ERR_LOG, "%s: Failed to copy gf_spi_cfg_t data struct from user to kernel\n", __func__);
-		retval = -EFAULT;
-		break;
-	}
-
-		spi_clk_total_cycle_time = (uint32_t)(SPI_CLK_TOTAL_TIME / gf_spi_cfg.speed_hz + 1);
+		if (copy_from_user(&gf_spi_cfg, (gf_spi_cfg_t *)arg,
+			sizeof(gf_spi_cfg_t))) {
+			gf_debug(ERR_LOG,
+				"%s: Failed to copy gf_spi_cfg_t data struct\n",
+					__func__);
+			retval = -EFAULT;
+			break;
+		}
+		spi_clk_total_cycle_time =
+		(uint32_t)(SPI_CLK_TOTAL_TIME / gf_spi_cfg.speed_hz + 1);
 		mcc->setuptime = gf_spi_cfg.cs_setuptime;
 		mcc->holdtime = gf_spi_cfg.cs_holdtime;
 		mcc->cs_idletime = gf_spi_cfg.cs_idletime;
 		spi_duty_cycle = gf_spi_cfg.duty_cycle;
-		mcc->high_time = (uint32_t) (spi_clk_total_cycle_time * spi_duty_cycle / 100);
+		mcc->high_time =
+		(uint32_t) (spi_clk_total_cycle_time * spi_duty_cycle / 100);
 		mcc->low_time = spi_clk_total_cycle_time - mcc->high_time;
 		mcc->cpol = gf_spi_cfg.cpol;
 		mcc->cpha = gf_spi_cfg.cpha;
@@ -101,13 +105,14 @@ static void gf_spi_setup_conf_factory(struct gf_device *gf_dev, u32 high_time,
 #else
 
 /* gf_spi_setup_conf_ree, configure spi speed and transfer mode in REE mode
-  *
-  * speed: 1, 4, 6, 8 unit:MHz
-  * mode: DMA mode or FIFO mode
-  */
+ *
+ * speed: 1, 4, 6, 8 unit:MHz
+ * mode: DMA mode or FIFO mode
+ */
  /* non-upstream SPI driver */
 #ifndef CONFIG_SPI_MT65XX
-void gf_spi_setup_conf_factory(struct gf_device *gf_dev, u32 speed, enum spi_transfer_mode mode)
+void gf_spi_setup_conf_factory(struct gf_device *gf_dev, u32 speed,
+					enum spi_transfer_mode mode)
 {
 	struct mt_chip_conf *mcc = &gf_dev->spi_mcc;
 
@@ -152,7 +157,8 @@ void gf_spi_setup_conf_factory(struct gf_device *gf_dev, u32 speed, enum spi_tra
 #endif
 #endif
 
-static int gf_spi_transfer_raw_ree(struct gf_device *gf_dev, u8 *tx_buf, u8 *rx_buf, u32 len)
+static int gf_spi_transfer_raw_ree(struct gf_device *gf_dev, u8 *tx_buf,
+					u8 *rx_buf, u32 len)
 {
 	struct spi_message msg;
 	struct spi_transfer xfer;
@@ -172,7 +178,8 @@ static int gf_spi_transfer_raw_ree(struct gf_device *gf_dev, u8 *tx_buf, u8 *rx_
 	return 0;
 }
 
-int gf_ioctl_transfer_raw_cmd(struct gf_device *gf_dev, unsigned long arg, unsigned int bufsiz)
+int gf_ioctl_transfer_raw_cmd(struct gf_device *gf_dev, unsigned long arg,
+					unsigned int bufsiz)
 {
 	struct gf_ioc_transfer_raw ioc_xraw;
 	int retval = 0;
@@ -184,25 +191,32 @@ int gf_ioctl_transfer_raw_cmd(struct gf_device *gf_dev, unsigned long arg, unsig
 
 		/* gf_debug(ERR_LOG, "%s:enter\n", __func__); */
 
-		if (copy_from_user(&ioc_xraw, (struct gf_ioc_transfer_raw *)arg, sizeof(struct gf_ioc_transfer_raw))) {
-			gf_debug(ERR_LOG, "%s: Failed to copy gf_ioc_transfer_raw from user to kernel\n", __func__);
+		if (copy_from_user(&ioc_xraw,
+					(struct gf_ioc_transfer_raw *)arg,
+					sizeof(struct gf_ioc_transfer_raw))) {
+			gf_debug(ERR_LOG,
+				"%s: copy_from_user failed\n", __func__);
 			retval = -EFAULT;
 			break;
 		}
 
-		/* gf_debug(ERR_LOG, "%s:len:%d,read_buf:0x%p,write_buf:%p,high_time:%d,low_time:%d\n",
-		*__func__,ioc_xraw.len,ioc_xraw.read_buf,ioc_xraw.write_buf,ioc_xraw.high_time,ioc_xraw.low_time);
-		*/
+	/* gf_debug(ERR_LOG,
+	 * "%s:len:%d,read_buf:0x%p,write_buf:%p,high_time:%d,low_time:%d\n",
+	 * __func__,ioc_xraw.len,ioc_xraw.read_buf,ioc_xraw.write_buf,
+	 * ioc_xraw.high_time,ioc_xraw.low_time);
+	 */
 		if ((ioc_xraw.len > bufsiz) || (ioc_xraw.len == 0)) {
-			gf_debug(ERR_LOG, "%s: request transfer length larger than maximum buffer\n",
-			__func__);
+			gf_debug(ERR_LOG,
+				"%s:transfer len larger than max buffer\n",
+				__func__);
 			retval = -EINVAL;
 			break;
 		}
 
 		if (ioc_xraw.read_buf == NULL || ioc_xraw.write_buf == NULL) {
-			gf_debug(ERR_LOG, "%s: read buf and write buf can not equal to NULL simultaneously.\n",
-			__func__);
+			gf_debug(ERR_LOG,
+				"%s:buf can't equal NULL simultaneously\n",
+				__func__);
 			retval = -EINVAL;
 			break;
 		}
@@ -210,12 +224,16 @@ int gf_ioctl_transfer_raw_cmd(struct gf_device *gf_dev, unsigned long arg, unsig
 		/* change speed and set transfer mode */
 #ifndef CONFIG_SPI_MT65XX
 		if (ioc_xraw.len > 32)
-		gf_spi_setup_conf_factory(gf_dev, ioc_xraw.high_time, DMA_TRANSFER);
+			gf_spi_setup_conf_factory(gf_dev,
+				ioc_xraw.high_time, DMA_TRANSFER);
 		else
-		gf_spi_setup_conf_factory(gf_dev, ioc_xraw.high_time, FIFO_TRANSFER);
+			gf_spi_setup_conf_factory(gf_dev,
+				ioc_xraw.high_time, FIFO_TRANSFER);
 #else
 		gf_factory_SPIClk = ioc_xraw.high_time*1000000;
-		/* gf_debug(INFO_LOG, "%s, %d, now spi clock:%d\n", __func__, __LINE__, gf_factory_SPIClk); */
+		/* gf_debug(INFO_LOG, "%s, %d, now spi clock:%d\n",
+		 * __func__, __LINE__, gf_factory_SPIClk);
+		 */
 #endif
 
 		len = ioc_xraw.len;
@@ -224,7 +242,9 @@ int gf_ioctl_transfer_raw_cmd(struct gf_device *gf_dev, unsigned long arg, unsig
 
 		tx_buf = kzalloc(len, GFP_KERNEL);
 		if (tx_buf == NULL) {
-			/* gf_debug(ERR_LOG, "%s: failed to allocate raw tx buffer\n", __func__); */
+			/* gf_debug(ERR_LOG,
+			 * "%s: failed to allocate raw tx buffer\n", __func__);
+			 */
 			retval = -EMSGSIZE;
 			break;
 		}
@@ -232,7 +252,9 @@ int gf_ioctl_transfer_raw_cmd(struct gf_device *gf_dev, unsigned long arg, unsig
 		rx_buf = kzalloc(len, GFP_KERNEL);
 		if (rx_buf == NULL) {
 			kfree(tx_buf);
-			/* gf_debug(ERR_LOG, "%s: failed to allocate raw rx buffer\n", __func__); */
+			/* gf_debug(ERR_LOG,
+			 * "%s: failed to allocate raw rx buffer\n", __func__);
+			 */
 			retval = -EMSGSIZE;
 			break;
 		}
@@ -240,22 +262,26 @@ int gf_ioctl_transfer_raw_cmd(struct gf_device *gf_dev, unsigned long arg, unsig
 		if (copy_from_user(tx_buf, ioc_xraw.write_buf, ioc_xraw.len)) {
 			kfree(tx_buf);
 			kfree(rx_buf);
-			gf_debug(ERR_LOG, "Failed to copy gf_ioc_transfer from user to kernel\n");
-			/* gf_debug(ERR_LOG, "%s:Failed to copy gf_ioc_transfer from user to kernel:
-		* tx_buf:0x%p,write_buf:0x%p,len:%d\n",
-		* __func__,tx_buf, ioc_xraw.write_buf, ioc_xraw.len);
-			*/
-		retval = -EFAULT;
-		break;
+			gf_debug(ERR_LOG,
+				"gf_ioc_transfer copy_from_user failed\n");
+			/* gf_debug(ERR_LOG,
+			 * "%s:copy gf_ioc_transfer from user to kernel failed
+			 * tx_buf:0x%p,write_buf:0x%p,len:%d\n",
+			 *  __func__,tx_buf, ioc_xraw.write_buf, ioc_xraw.len);
+			 */
+			retval = -EFAULT;
+			break;
 		}
 
 		gf_spi_transfer_raw_ree(gf_dev, tx_buf, rx_buf, len);
 
 		if (copy_to_user(ioc_xraw.read_buf, rx_buf, ioc_xraw.len)) {
-			gf_debug(ERR_LOG, "Failed to copy gf_ioc_transfer_raw from kernel to user\n");
-			/* gf_debug(ERR_LOG, "Failed to copy gf_ioc_transfer_raw from kernel to user:0x%p\n",
-			* ioc_xraw.read_buf);
-			*/
+			gf_debug(ERR_LOG,
+				"gf_ioc_transfer_raw copy_to_user failed\n");
+			/* gf_debug(ERR_LOG,
+			 * "gf_ioc_transfer_raw copy_to_user:0x%p\n",
+			 * ioc_xraw.read_buf);
+			 */
 			retval = -EFAULT;
 		}
 

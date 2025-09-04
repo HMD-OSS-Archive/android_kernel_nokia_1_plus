@@ -60,11 +60,13 @@ static void ppm_sysboost_dump_final_limit(void *data)
 	int i;
 
 	if (!data) {
-		ppm_dbg(SYS_BOOST, "is_core_limited = %d, is_freq_limited = %d\n",
+		ppm_dbg(SYS_BOOST,
+			"is_core_limited = %d, is_freq_limited = %d\n",
 			sysboost_final_limit.is_core_limited_by_user,
 			sysboost_final_limit.is_freq_limited_by_user);
 		for_each_ppm_clusters(i) {
-			ppm_dbg(SYS_BOOST, "cluster %d = (%d)(%d)(%d)(%d)\n", i,
+			ppm_dbg(SYS_BOOST, "cluster %d = (%d)(%d)(%d)(%d)\n",
+				i,
 				sysboost_final_limit.limit[i].min_freq_idx,
 				sysboost_final_limit.limit[i].max_freq_idx,
 				sysboost_final_limit.limit[i].min_core_num,
@@ -99,13 +101,19 @@ static void ppm_sysboost_update_final_limit(void)
 
 		list_for_each_entry_reverse(data, &sysboost_user_list, link) {
 			min_core = MAX(min_core, data->limit[i].min_core_num);
-			max_core = (data->limit[i].max_core_num == -1) ? max_core
-				: (max_core == -1) ? data->limit[i].max_core_num
+			max_core = (data->limit[i].max_core_num == -1)
+				? max_core
+				: (max_core == -1)
+				? data->limit[i].max_core_num
 				: MIN(max_core, data->limit[i].max_core_num);
-			min_freq_idx = (data->limit[i].min_freq_idx == -1) ? min_freq_idx
-				: (min_freq_idx == -1) ? data->limit[i].min_freq_idx
-				: MIN(min_freq_idx, data->limit[i].min_freq_idx);
-			max_freq_idx = MAX(max_freq_idx, data->limit[i].max_freq_idx);
+			min_freq_idx = (data->limit[i].min_freq_idx == -1)
+				? min_freq_idx
+				: (min_freq_idx == -1)
+				? data->limit[i].min_freq_idx
+				: MIN(min_freq_idx,
+				data->limit[i].min_freq_idx);
+			max_freq_idx = MAX(max_freq_idx,
+				data->limit[i].max_freq_idx);
 		}
 
 		/* error check */
@@ -150,59 +158,7 @@ static void ppm_sysboost_update_final_limit(void)
 
 void mt_ppm_sysboost_core(enum ppm_sysboost_user user, unsigned int core_num)
 {
-#if 0
-	struct ppm_sysboost_data *data;
-	unsigned int i, tmp_core, target_core = core_num;
-
-	if (core_num > num_possible_cpus() || user >= NR_PPM_SYSBOOST_USER) {
-		ppm_err("@%s: Invalid input: user = %d, core_num = %d\n",
-			__func__, user, core_num);
-		return;
-	}
-
-	ppm_lock(&sysboost_policy.lock);
-
-	if (!sysboost_policy.is_enabled) {
-		ppm_err("@%s: sysboost policy is not enabled!\n", __func__);
-		ppm_unlock(&sysboost_policy.lock);
-		return;
-	}
-
-	ppm_info("sys boost by %s: req_core = %d\n", sysboost_data[user].user_name, core_num);
-
-	/* update user core setting */
-	list_for_each_entry_reverse(data, &sysboost_user_list, link) {
-		if (data->user == user) {
-			data->min_core_num = core_num;
-
-			/* clear previous setting */
-			if (core_num == 0) {
-				for_each_ppm_clusters(i)
-					data->limit[i].min_core_num = -1;
-				break;
-			}
-
-			/* dispatch boost core to each cluster */
-			for_each_ppm_clusters(i) {
-				if (target_core <= 0)
-					data->limit[i].min_core_num = -1;
-				else {
-					tmp_core = (sysboost_final_limit.limit[i].max_core_num == -1)
-						? MIN(target_core, get_cluster_max_cpu_core(i))
-						: MIN(target_core, sysboost_final_limit.limit[i].max_core_num);
-					data->limit[i].min_core_num = tmp_core;
-					target_core -= tmp_core;
-				}
-			}
-		}
-	}
-
-	ppm_sysboost_update_final_limit();
-
-	ppm_unlock(&sysboost_policy.lock);
-
-	mt_ppm_main();
-#endif
+	/* phase-out */
 }
 EXPORT_SYMBOL(mt_ppm_sysboost_core);
 
@@ -225,7 +181,8 @@ void mt_ppm_sysboost_freq(enum ppm_sysboost_user user, unsigned int freq)
 		return;
 	}
 
-	ppm_info("sys boost by %s: req_freq = %d\n", sysboost_data[user].user_name, freq);
+	ppm_info("sys boost by %s: req_freq = %d\n",
+		sysboost_data[user].user_name, freq);
 
 	/* update user freq setting */
 	list_for_each_entry_reverse(data, &sysboost_user_list, link) {
@@ -241,11 +198,14 @@ void mt_ppm_sysboost_freq(enum ppm_sysboost_user user, unsigned int freq)
 
 			for_each_ppm_clusters(i) {
 				freq_idx = (freq == -1) ? -1
-					: ppm_main_freq_to_idx(i, freq, CPUFREQ_RELATION_L);
+					: ppm_main_freq_to_idx(i, freq,
+					CPUFREQ_RELATION_L);
 
 				/* error check */
-				if (data->limit[i].max_freq_idx != -1 && freq_idx != -1
-					&& freq_idx < data->limit[i].max_freq_idx)
+				if (data->limit[i].max_freq_idx != -1
+					&& freq_idx != -1
+					&& freq_idx <
+					data->limit[i].max_freq_idx)
 					freq_idx = data->limit[i].max_freq_idx;
 
 				data->limit[i].min_freq_idx = freq_idx;
@@ -261,71 +221,29 @@ void mt_ppm_sysboost_freq(enum ppm_sysboost_user user, unsigned int freq)
 }
 EXPORT_SYMBOL(mt_ppm_sysboost_freq);
 
-void mt_ppm_sysboost_set_core_limit(enum ppm_sysboost_user user, unsigned int cluster,
-					int min_core, int max_core)
+void mt_ppm_sysboost_set_core_limit(enum ppm_sysboost_user user,
+	unsigned int cluster, int min_core, int max_core)
 {
-#if 0
-	struct ppm_sysboost_data *data;
-
-	if (cluster >= NR_PPM_CLUSTERS) {
-		ppm_err("@%s: Invalid input: cluster = %d\n", __func__, cluster);
-		return;
-	}
-
-	if ((max_core != -1 && max_core > get_cluster_max_cpu_core(cluster))
-		|| (min_core != -1 && min_core < get_cluster_min_cpu_core(cluster))
-		|| user >= NR_PPM_SYSBOOST_USER) {
-		ppm_err("@%s: Invalid input: user = %d, cluster = %d, max_core = %d, min_core = %d\n",
-			__func__, user, cluster, max_core, min_core);
-		return;
-	}
-
-	ppm_info("sys boost by %s: cluster %d min/max core = %d/%d\n",
-		sysboost_data[user].user_name, cluster, min_core, max_core);
-
-	if (min_core > max_core && max_core != -1)
-		min_core = max_core;
-
-	ppm_lock(&sysboost_policy.lock);
-
-	if (!sysboost_policy.is_enabled) {
-		ppm_err("@%s: sysboost policy is not enabled!\n", __func__);
-		ppm_unlock(&sysboost_policy.lock);
-		return;
-	}
-
-	/* update user core setting */
-	list_for_each_entry_reverse(data, &sysboost_user_list, link) {
-		if (data->user == user) {
-			data->limit[cluster].min_core_num = min_core;
-			data->limit[cluster].max_core_num = max_core;
-		}
-	}
-
-	ppm_sysboost_update_final_limit();
-
-	ppm_unlock(&sysboost_policy.lock);
-
-	mt_ppm_main();
-#endif
+	/* phase-out */
 }
 EXPORT_SYMBOL(mt_ppm_sysboost_set_core_limit);
 
-void mt_ppm_sysboost_set_freq_limit(enum ppm_sysboost_user user, unsigned int cluster,
-					int min_freq, int max_freq)
+void mt_ppm_sysboost_set_freq_limit(enum ppm_sysboost_user user,
+	unsigned int cluster, int min_freq, int max_freq)
 {
 	struct ppm_sysboost_data *data;
 
 	if (cluster >= NR_PPM_CLUSTERS) {
-		ppm_err("@%s: Invalid input: cluster = %d\n", __func__, cluster);
+		ppm_err("Invalid input: cluster = %d\n", cluster);
 		return;
 	}
 
 	if ((max_freq != -1 && max_freq > get_cluster_max_cpufreq(cluster))
-		|| (min_freq != -1 && min_freq < get_cluster_min_cpufreq(cluster))
+		|| (min_freq != -1
+		&& min_freq < get_cluster_min_cpufreq(cluster))
 		|| user >= NR_PPM_SYSBOOST_USER) {
-		ppm_err("@%s: Invalid input: user = %d, cluster = %d, max_freq = %d, min_freq = %d\n",
-			__func__, user, cluster, max_freq, min_freq);
+		ppm_err("Invalid input: user/cl=%d/%d, min/max freq=%d/%d\n",
+			user, cluster, min_freq, max_freq);
 		return;
 	}
 
@@ -347,14 +265,20 @@ void mt_ppm_sysboost_set_freq_limit(enum ppm_sysboost_user user, unsigned int cl
 	list_for_each_entry_reverse(data, &sysboost_user_list, link) {
 		if (data->user == user) {
 			data->limit[cluster].min_freq_idx = (min_freq == -1)
-				? -1 : ppm_main_freq_to_idx(cluster, min_freq, CPUFREQ_RELATION_L);
+				? -1
+				: ppm_main_freq_to_idx(cluster, min_freq,
+				CPUFREQ_RELATION_L);
 			data->limit[cluster].max_freq_idx = (max_freq == -1)
-				? -1 : ppm_main_freq_to_idx(cluster, max_freq, CPUFREQ_RELATION_H);
+				? -1
+				: ppm_main_freq_to_idx(cluster, max_freq,
+				CPUFREQ_RELATION_H);
 
 			/* error check */
 			if (data->limit[cluster].min_freq_idx != -1
-				&& data->limit[cluster].min_freq_idx < data->limit[cluster].max_freq_idx)
-				data->limit[cluster].min_freq_idx = data->limit[cluster].max_freq_idx;
+				&& data->limit[cluster].min_freq_idx
+				< data->limit[cluster].max_freq_idx)
+				data->limit[cluster].min_freq_idx =
+					data->limit[cluster].max_freq_idx;
 		}
 	}
 
@@ -370,35 +294,35 @@ static void ppm_sysboost_update_limit_cb(void)
 {
 	unsigned int i;
 	struct ppm_policy_req *req = &sysboost_policy.req;
+	struct ppm_userlimit_data *p = &sysboost_final_limit;
 
 	FUNC_ENTER(FUNC_LV_POLICY);
 
-	if (sysboost_final_limit.is_freq_limited_by_user || sysboost_final_limit.is_core_limited_by_user) {
+	if (p->is_freq_limited_by_user
+		|| p->is_core_limited_by_user) {
 		ppm_clear_policy_limit(&sysboost_policy);
 
 		for (i = 0; i < req->cluster_num; i++) {
-#if 0
-			req->limit[i].min_cpu_core = (sysboost_final_limit.limit[i].min_core_num == -1)
-				? req->limit[i].min_cpu_core
-				: sysboost_final_limit.limit[i].min_core_num;
-			req->limit[i].max_cpu_core = (sysboost_final_limit.limit[i].max_core_num == -1)
-				? req->limit[i].max_cpu_core
-				: sysboost_final_limit.limit[i].max_core_num;
-#endif
-			req->limit[i].min_cpufreq_idx = (sysboost_final_limit.limit[i].min_freq_idx == -1)
+			req->limit[i].min_cpufreq_idx =
+				(p->limit[i].min_freq_idx == -1)
 				? req->limit[i].min_cpufreq_idx
-				: sysboost_final_limit.limit[i].min_freq_idx;
-			req->limit[i].max_cpufreq_idx = (sysboost_final_limit.limit[i].max_freq_idx == -1)
+				: p->limit[i].min_freq_idx;
+			req->limit[i].max_cpufreq_idx =
+				(p->limit[i].max_freq_idx == -1)
 				? req->limit[i].max_cpufreq_idx
-				: sysboost_final_limit.limit[i].max_freq_idx;
+				: p->limit[i].max_freq_idx;
 		}
 
 		/* error check */
 		for (i = 0; i < req->cluster_num; i++) {
-			if (req->limit[i].max_cpu_core < req->limit[i].min_cpu_core)
-				req->limit[i].min_cpu_core = req->limit[i].max_cpu_core;
-			if (req->limit[i].max_cpufreq_idx > req->limit[i].min_cpufreq_idx)
-				req->limit[i].min_cpufreq_idx = req->limit[i].max_cpufreq_idx;
+			if (req->limit[i].max_cpu_core <
+				req->limit[i].min_cpu_core)
+				req->limit[i].min_cpu_core =
+				req->limit[i].max_cpu_core;
+			if (req->limit[i].max_cpufreq_idx >
+				req->limit[i].min_cpufreq_idx)
+				req->limit[i].min_cpufreq_idx =
+				req->limit[i].max_cpufreq_idx;
 		}
 	}
 
@@ -409,7 +333,7 @@ static void ppm_sysboost_status_change_cb(bool enable)
 {
 	FUNC_ENTER(FUNC_LV_POLICY);
 
-	ppm_ver("@%s: sysboost policy status changed to %d\n", __func__, enable);
+	ppm_ver("sysboost policy status changed to %d\n", enable);
 
 	FUNC_EXIT(FUNC_LV_POLICY);
 }
@@ -420,15 +344,16 @@ static int ppm_sysboost_freq_proc_show(struct seq_file *m, void *v)
 
 	/* update user freq setting */
 	list_for_each_entry_reverse(data, &sysboost_user_list, link)
-		seq_printf(m, "[%d] %s: %d\n", data->user, data->user_name, data->min_freq);
+		seq_printf(m, "[%d] %s: %d\n",
+			data->user, data->user_name, data->min_freq);
 
 	ppm_sysboost_dump_final_limit(m);
 
 	return 0;
 }
 
-static ssize_t ppm_sysboost_freq_proc_write(struct file *file, const char __user *buffer,
-					size_t count, loff_t *pos)
+static ssize_t ppm_sysboost_freq_proc_write(struct file *file,
+	const char __user *buffer, size_t count, loff_t *pos)
 {
 	int user, freq;
 
@@ -446,16 +371,20 @@ static ssize_t ppm_sysboost_freq_proc_write(struct file *file, const char __user
 	return count;
 }
 
-static int ppm_sysboost_cluster_freq_limit_proc_show(struct seq_file *m, void *v)
+static int ppm_sysboost_cluster_freq_limit_proc_show(
+	struct seq_file *m, void *v)
 {
 	struct ppm_sysboost_data *data;
 	int i;
 
 	/* update user freq setting */
 	list_for_each_entry_reverse(data, &sysboost_user_list, link) {
-		seq_printf(m, "[%d] %s: %d\t", data->user, data->user_name, data->min_freq);
+		seq_printf(m, "[%d] %s: %d\t",
+			data->user, data->user_name, data->min_freq);
 		for_each_ppm_clusters(i)
-			seq_printf(m, "(%d)(%d)", data->limit[i].min_freq_idx, data->limit[i].max_freq_idx);
+			seq_printf(m, "(%d)(%d)",
+				data->limit[i].min_freq_idx,
+				data->limit[i].max_freq_idx);
 		seq_puts(m, "\n");
 	}
 
@@ -465,7 +394,7 @@ static int ppm_sysboost_cluster_freq_limit_proc_show(struct seq_file *m, void *v
 }
 
 static ssize_t ppm_sysboost_cluster_freq_limit_proc_write(struct file *file,
-				const char __user *buffer, size_t count, loff_t *pos)
+			const char __user *buffer, size_t count, loff_t *pos)
 {
 	int user, min_freq, max_freq, cluster;
 
@@ -474,8 +403,10 @@ static ssize_t ppm_sysboost_cluster_freq_limit_proc_write(struct file *file,
 	if (!buf)
 		return -EINVAL;
 
-	if (sscanf(buf, "%d %d %d %d", &user, &cluster, &min_freq, &max_freq) == 4)
-		mt_ppm_sysboost_set_freq_limit((enum ppm_sysboost_user)user, cluster, min_freq, max_freq);
+	if (sscanf(buf, "%d %d %d %d",
+		&user, &cluster, &min_freq, &max_freq) == 4)
+		mt_ppm_sysboost_set_freq_limit((enum ppm_sysboost_user)user,
+			cluster, min_freq, max_freq);
 	else
 		ppm_err("@%s: Invalid input!\n", __func__);
 
@@ -483,16 +414,20 @@ static ssize_t ppm_sysboost_cluster_freq_limit_proc_write(struct file *file,
 	return count;
 }
 
-static int ppm_sysboost_cluster_freqidx_limit_proc_show(struct seq_file *m, void *v)
+static int ppm_sysboost_cluster_freqidx_limit_proc_show(
+	struct seq_file *m, void *v)
 {
 	struct ppm_sysboost_data *data;
 	int i;
 
 	/* update user freq setting */
 	list_for_each_entry_reverse(data, &sysboost_user_list, link) {
-		seq_printf(m, "[%d] %s: %d\t", data->user, data->user_name, data->min_freq);
+		seq_printf(m, "[%d] %s: %d\t",
+			data->user, data->user_name, data->min_freq);
 		for_each_ppm_clusters(i)
-			seq_printf(m, "(%d)(%d)", data->limit[i].min_freq_idx, data->limit[i].max_freq_idx);
+			seq_printf(m, "(%d)(%d)",
+				data->limit[i].min_freq_idx,
+				data->limit[i].max_freq_idx);
 		seq_puts(m, "\n");
 	}
 
@@ -502,27 +437,35 @@ static int ppm_sysboost_cluster_freqidx_limit_proc_show(struct seq_file *m, void
 }
 
 static ssize_t ppm_sysboost_cluster_freqidx_limit_proc_write(struct file *file,
-				const char __user *buffer, size_t count, loff_t *pos)
+			const char __user *buffer, size_t count, loff_t *pos)
 {
-	int user, min_freq_idx, max_freq_idx, cluster;
-
+	int user, min_freq_idx, max_freq_idx, cl;
+	struct ppm_data *p = &ppm_main_info;
 	char *buf = ppm_copy_from_user_for_proc(buffer, count);
 
 	if (!buf)
 		return -EINVAL;
 
-	if (sscanf(buf, "%d %d %d %d", &user, &cluster, &min_freq_idx, &max_freq_idx) == 4) {
+	if (sscanf(buf, "%d %d %d %d",
+			&user, &cl, &min_freq_idx, &max_freq_idx) == 4) {
 		int min_freq, max_freq;
 
-		if (cluster < 0 || cluster >= NR_PPM_CLUSTERS)
+		if (cl < 0 || cl >= NR_PPM_CLUSTERS)
 			goto end;
 
-		min_freq = (min_freq_idx < 0 || min_freq_idx >= DVFS_OPP_NUM)
-			? -1 : ppm_main_info.cluster_info[cluster].dvfs_tbl[min_freq_idx].frequency;
-		max_freq = (max_freq_idx < 0 || max_freq_idx >= DVFS_OPP_NUM)
-			? -1 : ppm_main_info.cluster_info[cluster].dvfs_tbl[max_freq_idx].frequency;
+		if (!ppm_main_info.cluster_info[cl].dvfs_tbl)
+			goto end;
 
-		mt_ppm_sysboost_set_freq_limit((enum ppm_sysboost_user)user, cluster, min_freq, max_freq);
+
+		min_freq = (min_freq_idx < 0 || min_freq_idx >= DVFS_OPP_NUM)
+			? -1
+			: p->cluster_info[cl].dvfs_tbl[min_freq_idx].frequency;
+		max_freq = (max_freq_idx < 0 || max_freq_idx >= DVFS_OPP_NUM)
+			? -1
+			: p->cluster_info[cl].dvfs_tbl[max_freq_idx].frequency;
+
+		mt_ppm_sysboost_set_freq_limit((enum ppm_sysboost_user)user,
+			cl, min_freq, max_freq);
 	} else
 		ppm_err("@%s: Invalid input!\n", __func__);
 
@@ -554,8 +497,10 @@ static int __init ppm_sysboost_policy_init(void)
 
 	/* create procfs */
 	for (i = 0; i < ARRAY_SIZE(entries); i++) {
-		if (!proc_create(entries[i].name, S_IRUGO | S_IWUSR | S_IWGRP, policy_dir, entries[i].fops)) {
-			ppm_err("%s(), create /proc/ppm/policy/%s failed\n", __func__, entries[i].name);
+		if (!proc_create(entries[i].name, 0644,
+			policy_dir, entries[i].fops)) {
+			ppm_err("%s(), create /proc/ppm/policy/%s failed\n",
+				__func__, entries[i].name);
 			ret = -EINVAL;
 			goto out;
 		}
@@ -563,7 +508,8 @@ static int __init ppm_sysboost_policy_init(void)
 
 	/* allocate mem and init policy limit_data */
 	sysboost_final_limit.limit =
-		kcalloc(ppm_main_info.cluster_num, sizeof(*sysboost_final_limit.limit), GFP_KERNEL);
+		kcalloc(ppm_main_info.cluster_num,
+			sizeof(*sysboost_final_limit.limit), GFP_KERNEL);
 	if (!sysboost_final_limit.limit) {
 		ret = -ENOMEM;
 		goto out;
@@ -627,6 +573,7 @@ static int __init ppm_sysboost_policy_init(void)
 	ppm_info("@%s: register %s done!\n", __func__, sysboost_policy.name);
 
 out:
+	sysboost_policy.is_enabled = false;
 	FUNC_EXIT(FUNC_LV_POLICY);
 
 	return ret;

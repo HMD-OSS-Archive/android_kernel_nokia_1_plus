@@ -15,17 +15,25 @@
 #define __MMDVFS_MGR_H__
 
 #include <linux/plist.h>
+#include <linux/of_address.h>
 #include <aee.h>
 #include "mtk_smi.h"
 
-#define _BIT_(_bit_) (unsigned)(1 << (_bit_))
-#define _BITS_(_bits_, _val_) ((((unsigned) -1 >> (31 - ((1) ? _bits_))) \
-				& ~((1U << ((0) ? _bits_)) - 1)) & ((_val_)<<((0) ? _bits_)))
-#define _BITMASK_(_bits_) (((unsigned) -1 >> (31 - ((1) ? _bits_))) & ~((1U << ((0) ? _bits_)) - 1))
-#define _GET_BITS_VAL_(_bits_, _val_) (((_val_) & (_BITMASK_(_bits_))) >> ((0) ? _bits_))
+#define _BIT_(_bit_) (unsigned int)(1 << (_bit_))
+#define _BITS_(_bits_, _val_) ((((unsigned int) -1 >> (31 - ((1) ? _bits_))) \
+& ~((1U << ((0) ? _bits_)) - 1)) & ((_val_)<<((0) ? _bits_)))
+#define _BITMASK_(_bits_) \
+(((unsigned int) -1 >> (31 - ((1) ? _bits_))) & ~((1U << ((0) ? _bits_)) - 1))
+#define _GET_BITS_VAL_(_bits_, _val_) \
+(((_val_) & (_BITMASK_(_bits_))) >> ((0) ? _bits_))
 
 /* MMDVFS extern APIs */
-extern void mmdvfs_init(struct MTK_SMI_BWC_MM_INFO *info);
+extern int set_mm_info_ioctl_wrapper(
+struct file *pFile, unsigned int cmd, unsigned long param);
+extern int get_mm_info_ioctl_wrapper(
+struct file *pFile, unsigned int cmd, unsigned long param);
+extern void mmdvfs_clks_init(struct device_node *of_node);
+extern void mmdvfs_init(void);
 extern void mmdvfs_handle_cmd(struct MTK_MMDVFS_CMD *cmd);
 extern void mmdvfs_notify_scenario_enter(enum MTK_SMI_BWC_SCEN scen);
 extern void mmdvfs_notify_scenario_exit(enum MTK_SMI_BWC_SCEN scen);
@@ -50,9 +58,12 @@ extern unsigned int DISP_GetScreenHeight(void);
 
 #define QOS_ALL_SCENARIO 99
 enum {
-	MMDVFS_CAM_MON_SCEN = SMI_BWC_SCEN_CNT, MMDVFS_SCEN_MHL, MMDVFS_SCEN_MJC, MMDVFS_SCEN_DISP,
-	MMDVFS_SCEN_ISP, MMDVFS_SCEN_VP_HIGH_RESOLUTION, MMDVFS_SCEN_VPU, MMDVFS_MGR,
-	MMDVFS_SCEN_VPU_KERNEL, MMDVFS_PMQOS_ISP, MMDVFS_SCEN_VP_WFD, MMDVFS_SCEN_COUNT
+	MMDVFS_CAM_MON_SCEN = SMI_BWC_SCEN_CNT,
+	MMDVFS_SCEN_MHL, MMDVFS_SCEN_MJC, MMDVFS_SCEN_DISP,
+	MMDVFS_SCEN_ISP, MMDVFS_SCEN_VP_HIGH_RESOLUTION,
+	MMDVFS_SCEN_VPU, MMDVFS_MGR,
+	MMDVFS_SCEN_VPU_KERNEL, MMDVFS_PMQOS_ISP,
+	MMDVFS_SCEN_VP_WFD, MMDVFS_SCEN_COUNT
 };
 
 #define LEGACY_CAM_SCENS ((1 << SMI_BWC_SCEN_VR) | \
@@ -64,15 +75,15 @@ enum {
 	(1 << MMDVFS_SCEN_ISP))
 
 enum mmdvfs_vpu_clk {
-		vpu_clk_0, vpu_clk_1, vpu_clk_2, vpu_clk_3
+	vpu_clk_0, vpu_clk_1, vpu_clk_2, vpu_clk_3
 };
 
 enum mmdvfs_vpu_if_clk {
-		vpu_if_clk_0, vpu_if_clk_1, vpu_if_clk_2, vpu_if_clk_3
+	vpu_if_clk_0, vpu_if_clk_1, vpu_if_clk_2, vpu_if_clk_3
 };
 
 enum mmdvfs_vimvo_vol {
-		vimvo_vol_0, vimvo_vol_1, vimvo_vol_2, vimvo_vol_3
+	vimvo_vol_0, vimvo_vol_1, vimvo_vol_2, vimvo_vol_3
 };
 
 
@@ -102,10 +113,13 @@ struct mmdvfs_prepare_action_event {
 	int event_type;
 };
 
-typedef int (*clk_switch_cb)(int ori_mmsys_clk_mode, int update_mmsys_clk_mode);
+typedef int (*clk_switch_cb)(
+	int ori_mmsys_clk_mode, int update_mmsys_clk_mode);
 typedef int (*vdec_ctrl_cb)(void);
-typedef int (*mmdvfs_state_change_cb)(struct mmdvfs_state_change_event *event);
-typedef int (*mmdvfs_prepare_action_cb)(struct mmdvfs_prepare_action_event *event);
+typedef int (*mmdvfs_state_change_cb)(
+	struct mmdvfs_state_change_event *event);
+typedef int (*mmdvfs_prepare_action_cb)(
+	struct mmdvfs_prepare_action_event *event);
 /* num: Display HRT capability drop times 100 */
 /* ex: 150 => display HRT capability decrease 1.5 layer */
 typedef int (*disp_hrt_change_cb)(int num);
@@ -116,7 +130,8 @@ extern int mmdvfs_raise_mmsys_by_mux(void);
 extern int mmdvfs_lower_mmsys_by_mux(void);
 extern int register_mmclk_switch_cb(clk_switch_cb notify_cb,
 clk_switch_cb notify_cb_nolock);
-extern int mmdvfs_register_mmclk_switch_cb(clk_switch_cb notify_cb, int mmdvfs_client_id);
+extern int mmdvfs_register_mmclk_switch_cb(
+	clk_switch_cb notify_cb, int mmdvfs_client_id);
 extern void dump_mmdvfs_info(void);
 
 
@@ -153,7 +168,8 @@ extern void mmdvfs_set_md_on(bool to_on);
 
 #ifdef MMDVFS_WQHD_1_0V
 #include "disp_session.h"
-extern int primary_display_switch_mode_for_mmdvfs(int sess_mode, unsigned int session, int blocking);
+extern int primary_display_switch_mode_for_mmdvfs(
+	int sess_mode, unsigned int session, int blocking);
 #endif
 
 /* D2 plus only */
@@ -198,7 +214,8 @@ extern int primary_display_switch_mode_for_mmdvfs(int sess_mode, unsigned int se
 #define MMDVFS_DISPLAY_SIZE_FHD (1920 * 1216)
 
 enum mmdvfs_lcd_size_enum {
-	MMDVFS_LCD_SIZE_HD, MMDVFS_LCD_SIZE_FHD, MMDVFS_LCD_SIZE_WQHD, MMDVFS_LCD_SIZE_END_OF_ENUM
+	MMDVFS_LCD_SIZE_HD, MMDVFS_LCD_SIZE_FHD,
+	MMDVFS_LCD_SIZE_WQHD, MMDVFS_LCD_SIZE_END_OF_ENUM
 };
 
 
@@ -206,17 +223,23 @@ enum mmdvfs_lcd_size_enum {
 #define mmdvfs_set_step(scenario, step)
 #define mmdvfs_set_fine_step(scenario, step)
 #else
-int mmdvfs_set_step(enum MTK_SMI_BWC_SCEN scenario, enum mmdvfs_voltage_enum step);
-int mmdvfs_set_fine_step(enum MTK_SMI_BWC_SCEN smi_scenario, int mmdvfs_fine_step);
+int mmdvfs_set_step(enum MTK_SMI_BWC_SCEN scenario,
+	enum mmdvfs_voltage_enum step);
+int mmdvfs_set_fine_step(enum MTK_SMI_BWC_SCEN smi_scenario,
+	int mmdvfs_fine_step);
 #endif /* CONFIG_MTK_SMI_EXT */
 
 extern int mmdvfs_get_mmdvfs_profile(void);
 extern int is_mmdvfs_supported(void);
-extern int mmdvfs_set_mmsys_clk(enum MTK_SMI_BWC_SCEN scenario, int mmsys_clk_mode);
+extern int mmdvfs_set_mmsys_clk(enum MTK_SMI_BWC_SCEN scenario,
+	int mmsys_clk_mode);
 extern enum mmdvfs_lcd_size_enum mmdvfs_get_lcd_resolution(void);
-extern int register_mmdvfs_state_change_cb(int mmdvfs_client_id, mmdvfs_state_change_cb func);
-extern void mmdvfs_notify_prepare_action(struct mmdvfs_prepare_action_event *event);
-extern int register_mmdvfs_prepare_cb(int mmdvfs_client_id, mmdvfs_prepare_action_cb func);
+extern int register_mmdvfs_state_change_cb(int mmdvfs_client_id,
+	mmdvfs_state_change_cb func);
+extern void mmdvfs_notify_prepare_action(
+	struct mmdvfs_prepare_action_event *event);
+extern int register_mmdvfs_prepare_cb(int mmdvfs_client_id,
+	mmdvfs_prepare_action_cb func);
 
 /* The following interface can only used by mmdvfs itself for */
 /* default step configuration */
@@ -232,9 +255,12 @@ u32 mmdvfs_pm_qos_class, u32 new_value);
 extern void mmdvfs_pm_qos_remove_request(struct mmdvfs_pm_qos_request *req);
 extern void mmdvfs_pm_qos_add_request(struct mmdvfs_pm_qos_request *req,
 u32 mmdvfs_pm_qos_class, u32 value);
-extern u32 mmdvfs_qos_get_thres_count(struct mmdvfs_pm_qos_request *req, u32 mmdvfs_pm_qos_class);
-extern u32 mmdvfs_qos_get_thres_value(struct mmdvfs_pm_qos_request *req, u32 mmdvfs_pm_qos_class, u32 thres_idx);
-extern u32 mmdvfs_qos_get_cur_thres(struct mmdvfs_pm_qos_request *req, u32 mmdvfs_pm_qos_class);
+extern u32 mmdvfs_qos_get_thres_count(struct mmdvfs_pm_qos_request *req,
+	u32 mmdvfs_pm_qos_class);
+extern u32 mmdvfs_qos_get_thres_value(struct mmdvfs_pm_qos_request *req,
+	u32 mmdvfs_pm_qos_class, u32 thres_idx);
+extern u32 mmdvfs_qos_get_cur_thres(struct mmdvfs_pm_qos_request *req,
+	u32 mmdvfs_pm_qos_class);
 
 #include "mmdvfs_config_util.h"
 

@@ -28,32 +28,32 @@
 /**************************************************************************
  *  Operating System Abstract Layer - External Function
  **************************************************************************/
-extern void osal_kfree(void *buf);
-extern void *osal_kmalloc(unsigned int size);
-extern unsigned long osal_copy_from_user(void *to, void *from, unsigned long size);
-extern unsigned long osal_copy_to_user(void *to, void *from, unsigned long size);
-extern int osal_hacc_lock(void);
-extern void osal_hacc_unlock(void);
-extern int osal_verify_lock(void);
-extern void osal_verify_unlock(void);
-extern int osal_secro_lock(void);
-extern void osal_secro_unlock(void);
-extern int osal_secro_v5_lock(void);
-extern void osal_secro_v5_unlock(void);
-extern int osal_mtd_lock(void);
-extern void osal_mtd_unlock(void);
-extern int osal_rid_lock(void);
-extern void osal_rid_unlock(void);
-extern void osal_msleep(unsigned int msec);
-extern void osal_assert(unsigned int val);
-extern int osal_set_kernel_fs(void);
-extern void osal_restore_fs(void);
-extern void *osal_get_filp_struct(int fp_id);
-extern long long osal_filp_seek_set(int fp_id, long long off);
-extern long long osal_filp_seek_end(int fp_id, long long off);
-extern long long osal_filp_pos(int fp_id);
-extern long osal_filp_read(int fp_id, char *buf, unsigned long len);
-extern long osal_is_err(int fp_id);
+void osal_kfree(void *buf);
+void *osal_kmalloc(unsigned int size);
+unsigned long osal_copy_from_user(void *to, void *from, unsigned long size);
+unsigned long osal_copy_to_user(void *to, void *from, unsigned long size);
+int osal_hacc_lock(void);
+void osal_hacc_unlock(void);
+int osal_verify_lock(void);
+void osal_verify_unlock(void);
+int osal_secro_lock(void);
+void osal_secro_unlock(void);
+int osal_secro_v5_lock(void);
+void osal_secro_v5_unlock(void);
+int osal_mtd_lock(void);
+void osal_mtd_unlock(void);
+int osal_rid_lock(void);
+void osal_rid_unlock(void);
+void osal_msleep(unsigned int msec);
+void osal_assert(unsigned int val);
+int osal_set_kernel_fs(void);
+void osal_restore_fs(void);
+void *osal_get_filp_struct(int fp_id);
+long long osal_filp_seek_set(int fp_id, long long off);
+long long osal_filp_seek_end(int fp_id, long long off);
+long long osal_filp_pos(int fp_id);
+long osal_filp_read(int fp_id, char *buf, unsigned long len);
+long osal_is_err(int fp_id);
 
 /**************************************************************************
  *  Operating System Abstract Layer - Macro

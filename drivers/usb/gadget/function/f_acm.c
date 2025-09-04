@@ -23,6 +23,8 @@
 #include "u_serial.h"
 
 #define ACM_LOG "USB_ACM"
+
+
 /*
  * This CDC ACM function support just wraps control functions and
  * notifications around the generic serial-over-usb code.
@@ -333,10 +335,11 @@ static void acm_complete_set_line_coding(struct usb_ep *ep,
 		 * nothing unless we control a real RS232 line.
 		 */
 		acm->port_line_coding = *value;
-
-		pr_notice("[XLOG_INFO][USB_ACM] %s: rate=%d, stop=%d, parity=%d, data=%d\n", __func__,
-				acm->port_line_coding.dwDTERate, acm->port_line_coding.bCharFormat,
-				acm->port_line_coding.bParityType, acm->port_line_coding.bDataBits);
+		pr_notice("[XLOG_INFO][USB_ACM] %s: rate=%d, stop=%d, parity=%d, data=%d\n",
+				__func__, acm->port_line_coding.dwDTERate,
+				acm->port_line_coding.bCharFormat,
+				acm->port_line_coding.bParityType,
+				acm->port_line_coding.bDataBits);
 	}
 }
 
@@ -363,14 +366,15 @@ static int acm_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 		static int skip_cnt;
 
 		if (__ratelimit(&ratelimit)) {
-			pr_notice("[USB_ACM]%s: ttyGS%d req%02x.%02x v%04x i%04x len=%d, skip_cnt:%d\n", __func__,
-					acm->port_num, ctrl->bRequestType, ctrl->bRequest,
+			pr_notice("[USB_ACM]%s:ttyGS%d req%x.%x v%x i%x len=%d,skip:%d\n",
+					__func__,
+					acm->port_num,
+					ctrl->bRequestType, ctrl->bRequest,
 					w_value, w_index, w_length, skip_cnt);
 			skip_cnt = 0;
 		} else
 			skip_cnt++;
 	}
-
 	switch ((ctrl->bRequestType << 8) | ctrl->bRequest) {
 
 	/* SET_LINE_CODING ... just read and save what the host sends */
@@ -394,21 +398,28 @@ static int acm_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 		value = min_t(unsigned, w_length,
 				sizeof(struct usb_cdc_line_coding));
 		memcpy(req->buf, &acm->port_line_coding, value);
-
 		{
 			static DEFINE_RATELIMIT_STATE(ratelimit, 1 * HZ, 10);
 			static int skip_cnt;
+			int rate, stop, parity, data;
+
+			rate = acm->port_line_coding.dwDTERate;
+			stop = acm->port_line_coding.bCharFormat;
+			parity = acm->port_line_coding.bParityType;
+			data = acm->port_line_coding.bDataBits;
 
 			if (__ratelimit(&ratelimit)) {
-				pr_notice("[USB_ACM]%s: rate=%d,stop=%d,parity=%d,data=%d, skip_cnt:%d\n", __func__,
-						acm->port_line_coding.dwDTERate, acm->port_line_coding.bCharFormat,
-						acm->port_line_coding.bParityType, acm->port_line_coding.bDataBits,
+				pr_notice("[USB_ACM]%s:rate=%d,stop=%d,parity=%d,data=%d,skip:%d\n",
+						__func__,
+						rate,
+						stop,
+						parity,
+						data,
 						skip_cnt);
 				skip_cnt = 0;
 			} else
 				skip_cnt++;
 		}
-
 		break;
 
 	/* SET_CONTROL_LINE_STATE ... save what the host sent */
@@ -720,7 +731,7 @@ acm_bind(struct usb_configuration *c, struct usb_function *f)
 	acm_ss_out_desc.bEndpointAddress = acm_fs_out_desc.bEndpointAddress;
 
 	status = usb_assign_descriptors(f, acm_fs_function, acm_hs_function,
-			acm_ss_function);
+			acm_ss_function, NULL);
 	if (status)
 		goto fail;
 
@@ -728,8 +739,9 @@ acm_bind(struct usb_configuration *c, struct usb_function *f)
 			__func__, acm->port_num,
 			gadget_is_superspeed(c->cdev->gadget) ? "super" :
 			gadget_is_dualspeed(c->cdev->gadget) ? "dual" : "full",
-			acm->port.in->name, acm->port.out->name, acm->notify->name);
-
+			acm->port.in->name,
+			acm->port.out->name,
+			acm->notify->name);
 	dev_dbg(&cdev->gadget->dev,
 		"acm ttyGS%d: %s speed IN/%s OUT/%s NOTIFY/%s\n",
 		acm->port_num,
@@ -818,10 +830,10 @@ static ssize_t f_acm_port_num_show(struct config_item *item, char *page)
 	return sprintf(page, "%u\n", to_f_serial_opts(item)->port_num);
 }
 
-CONFIGFS_ATTR_RO(f_acm_port_, num);
+CONFIGFS_ATTR_RO(f_acm_, port_num);
 
 static struct configfs_attribute *acm_attrs[] = {
-	&f_acm_port_attr_num,
+	&f_acm_attr_port_num,
 	NULL,
 };
 

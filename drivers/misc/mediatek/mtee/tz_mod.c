@@ -53,14 +53,12 @@
 #include "tz_secure_clock.h"
 #define MTEE_MOD_TAG "MTEE_MOD"
 
-#define TZ_PAGESIZE 0x1000	/* fix me!!!! need global define */
-
-#define PAGE_SHIFT 12		/* fix me!!!! need global define */
+#define MAX_TAG_SIZE   32
 
 #define TZ_DEVNAME "mtk_tz"
 
 /**Used for mapping user space address to physical memory
-*/
+ */
 struct MTIOMMU_PIN_RANGE_T {
 	void *start;
 	void *pageArray;
@@ -197,8 +195,8 @@ struct device *mtee_pmdev_get(const char *pm_name)
 #endif
 
 /*****************************************************************************
-* FUNCTION DEFINITION
-*****************************************************************************/
+ * FUNCTION DEFINITION
+ *****************************************************************************/
 static struct cdev tz_client_cdev;
 static dev_t tz_client_dev;
 
@@ -221,7 +219,7 @@ static void tz_client_free_client_info(struct file *file);
 struct tz_sharedmem_info {
 	KREE_SHAREDMEM_HANDLE mem_handle;
 	KREE_SESSION_HANDLE session_handle;
-	uint32_t *resouce;
+	uint32_t *resource;
 };
 
 struct tz_client_info {
@@ -263,11 +261,10 @@ static long _map_user_pages(struct MTIOMMU_PIN_RANGE_T *pinRange,
 				uint32_t control)
 {
 	int nr_pages;
-	unsigned long first, last;
+	unsigned long first, last, gup_flags;
 	struct page **pages;
 	struct vm_area_struct *vma;
 	int res, j;
-	uint32_t write;
 
 	if ((uaddr == 0) || (size == 0))
 		return -EFAULT;
@@ -283,7 +280,7 @@ static long _map_user_pages(struct MTIOMMU_PIN_RANGE_T *pinRange,
 		return -ENOMEM;
 
 	pinRange->pageArray = (void *) pages;
-	write = (control == 0) ? 1 : 0;
+	gup_flags = (control == 0) ? FOLL_WRITE  : 0;
 
 	/* Try to fault in all of the necessary pages */
 	down_read(&current->mm->mmap_sem);
@@ -295,13 +292,10 @@ static long _map_user_pages(struct MTIOMMU_PIN_RANGE_T *pinRange,
 	if (!(vma->vm_flags & (VM_IO | VM_PFNMAP))) {
 		pinRange->isPage = 1;
 #if defined(CONFIG_MTEE_CMA_SECURE_MEMORY)
-		res = get_user_pages_durable(current, current->mm,
-					uaddr, nr_pages,
-					write, 0,/* don't force */
+		res = get_user_pages_durable(uaddr, nr_pages, gup_flags,
 					pages, NULL);
 #else
-		res = get_user_pages(current, current->mm, uaddr, nr_pages,
-					write, 0,/* don't force */
+		res = get_user_pages(uaddr, nr_pages, gup_flags,
 					pages, NULL);
 #endif
 	} else {
@@ -333,7 +327,7 @@ static long _map_user_pages(struct MTIOMMU_PIN_RANGE_T *pinRange,
  out:
 	up_read(&current->mm->mmap_sem);
 	if (res < 0) {
-		pr_warn("_map_user_pages error = %d\n", res);
+		pr_warn("%s error = %d\n", __func__, res);
 		goto out_free;
 	}
 
@@ -345,7 +339,7 @@ static long _map_user_pages(struct MTIOMMU_PIN_RANGE_T *pinRange,
 	return 0;
 
  out_unmap:
-	pr_warn("_map_user_pages fail\n");
+	pr_warn("%s fail\n", __func__);
 	if (pinRange->isPage) {
 		for (j = 0; j < res; j++)
 			put_page(pages[j]);
@@ -399,8 +393,8 @@ static struct tz_sharedmem_info *tz_get_sharedmem(struct tz_client_info *info,
 
 
 /**************************************************************************
-*  DEV tz_client_info handling
-**************************************************************************/
+ *  DEV tz_client_info handling
+ **************************************************************************/
 static int tz_client_register_session(struct file *file,
 					KREE_SESSION_HANDLE handle)
 {
@@ -533,7 +527,7 @@ tz_client_register_sharedmem(struct file *file, KREE_SESSION_HANDLE handle,
 	if (ret >= 0) {
 		info->shm_info[ret].mem_handle = mem_handle;
 		info->shm_info[ret].session_handle = handle;
-		info->shm_info[ret].resouce = resource;
+		info->shm_info[ret].resource = resource;
 	}
 	/* unlock */
 	mutex_unlock(&info->mux);
@@ -559,7 +553,7 @@ static int tz_client_unregister_sharedmem(struct file *file,
 	if ((shm_info == NULL) || (shm_info->mem_handle == 0))
 		ret = -EINVAL;
 	else {
-		pin = (struct MTIOMMU_PIN_RANGE_T *) shm_info->resouce;
+		pin = (struct MTIOMMU_PIN_RANGE_T *) shm_info->resource;
 		_unmap_user_pages(pin);
 		kfree(pin);
 		memset(shm_info, 0, sizeof(struct tz_sharedmem_info));
@@ -581,7 +575,7 @@ static int tz_client_init_client_info(struct file *file)
 	if (!info)
 		return -ENOMEM;
 
-	info->handles = kzalloc(TZ_CLIENT_INIT_HANDLE_SPACE *
+	info->handles = kcalloc(TZ_CLIENT_INIT_HANDLE_SPACE,
 				sizeof(KREE_SESSION_HANDLE), GFP_KERNEL);
 	if (!info->handles) {
 		kfree(info);
@@ -590,7 +584,7 @@ static int tz_client_init_client_info(struct file *file)
 	info->handle_num = TZ_CLIENT_INIT_HANDLE_SPACE;
 
 	/* init shared memory */
-	info->shm_info = kzalloc(TZ_CLIENT_INIT_SHAREDMEM_SPACE *
+	info->shm_info = kcalloc(TZ_CLIENT_INIT_SHAREDMEM_SPACE,
 				 sizeof(struct tz_sharedmem_info), GFP_KERNEL);
 	if (!info->shm_info) {
 		kfree(info->handles);
@@ -635,7 +629,7 @@ static void tz_client_free_client_info(struct file *file)
 		if (shm_info == NULL)
 			continue;
 
-		pin = (struct MTIOMMU_PIN_RANGE_T *) shm_info->resouce;
+		pin = (struct MTIOMMU_PIN_RANGE_T *) shm_info->resource;
 
 		_unmap_user_pages(pin);
 		kfree(pin);
@@ -650,14 +644,14 @@ static void tz_client_free_client_info(struct file *file)
 }
 
 /**************************************************************************
-*  DEV DRIVER IOCTL
-**************************************************************************/
+ *  DEV DRIVER IOCTL
+ **************************************************************************/
 static KREE_SESSION_HANDLE tz_client_open_session_impl(int with_tag,
 				unsigned long arg,
 				struct kree_session_tag_cmd_param *pparam)
 {
 	size_t param_size;
-	TZ_RESULT ret;
+	int ret;
 	unsigned long cret;
 	char uuid[40];
 	long len;
@@ -772,7 +766,7 @@ static long tz_client_close_session(struct file *file, unsigned long arg)
 {
 	struct kree_session_cmd_param param;
 	unsigned long cret;
-	TZ_RESULT ret;
+	int ret;
 	KREE_SESSION_HANDLE handle;
 
 	cret = copy_from_user(&param, (void *)arg, sizeof(param));
@@ -802,7 +796,7 @@ static long tz_client_tee_service(struct file *file, unsigned long arg,
 	uint32_t tmpTypes;
 	union MTEEC_PARAM param[4], oparam[4];
 	int i;
-	TZ_RESULT ret;
+	int ret;
 	KREE_SESSION_HANDLE handle;
 	void __user *ubuf;
 	uint32_t ubuf_sz;
@@ -1010,7 +1004,7 @@ static long __tz_reg_sharedmem(struct file *file, unsigned long arg,
 	uint32_t mem_handle;
 	struct MTIOMMU_PIN_RANGE_T *pin;
 	uint64_t *map_p;
-	TZ_RESULT ret;
+	int ret;
 	struct page **page;
 	int i;
 	long errcode;
@@ -1150,6 +1144,9 @@ static long tz_client_reg_sharedmem_with_tag(struct file *file,
 	if (cret)
 		return -EFAULT;
 
+	if (cparam.tag_size > MAX_TAG_SIZE)
+		cparam.tag_size = MAX_TAG_SIZE;
+
 	return __tz_reg_sharedmem(file, arg, &cparam);
 }
 
@@ -1174,7 +1171,7 @@ static long tz_client_unreg_sharedmem(struct file *file, unsigned long arg)
 	unsigned long cret;
 	struct kree_sharedmemory_cmd_param cparam;
 	KREE_SESSION_HANDLE session;
-	TZ_RESULT ret;
+	int ret;
 
 	cret = copy_from_user(&cparam, (void *)arg, sizeof(cparam));
 	if (cret)
@@ -1189,7 +1186,7 @@ static long tz_client_unreg_sharedmem(struct file *file, unsigned long arg)
 	 */
 	ret = kree_unregister_sharedmem(session, (uint32_t) cparam.mem_handle);
 	if (ret != TZ_RESULT_SUCCESS) {
-		pr_warn("tz_client_unreg_sharedmem: 0x%x\n", ret);
+		pr_warn("%s: 0x%x\n", __func__, ret);
 		cparam.ret = ret;
 		cret = copy_to_user((void *)arg, &cparam, sizeof(cparam));
 		return -EFAULT;
@@ -1199,8 +1196,7 @@ static long tz_client_unreg_sharedmem(struct file *file, unsigned long arg)
 	 */
 	ret = tz_client_unregister_sharedmem(file, cparam.mem_handle);
 	if (ret != TZ_RESULT_SUCCESS) {
-		pr_warn("tz_client_unreg_sharedmem: unregister shm = 0x%x\n",
-			ret);
+		pr_warn("%s: unregister shm = 0x%x\n", __func__, ret);
 		return -EFAULT;
 	}
 
@@ -1308,14 +1304,14 @@ static int securetime_savefile(void)
 
 static void st_shutdown(struct platform_device *pdev)
 {
-	pr_warn("[securetime]st_shutdown: kickoff\n");
+	pr_info("[securetime]%s: kickoff\n", __func__);
 }
 #endif
 
 #ifdef CONFIG_PM_SLEEP
 static int tz_suspend(struct device *pdev)
 {
-	TZ_RESULT tzret;
+	int tzret;
 
 	tzret = kree_pm_device_ops(MTEE_SUSPEND);
 	return (tzret != TZ_RESULT_SUCCESS) ? (-EBUSY) : (0);
@@ -1323,7 +1319,7 @@ static int tz_suspend(struct device *pdev)
 
 static int tz_resume(struct device *pdev)
 {
-	TZ_RESULT tzret;
+	int tzret;
 
 	tzret = kree_pm_device_ops(MTEE_RESUME);
 	return (tzret != TZ_RESULT_SUCCESS) ? (-EBUSY) : (0);
@@ -1332,7 +1328,7 @@ static int tz_resume(struct device *pdev)
 
 static int tz_suspend_late(struct device *pdev)
 {
-	TZ_RESULT tzret;
+	int tzret;
 
 	tzret = kree_pm_device_ops(MTEE_SUSPEND_LATE);
 	return (tzret != TZ_RESULT_SUCCESS) ? (-EBUSY) : (0);
@@ -1340,7 +1336,7 @@ static int tz_suspend_late(struct device *pdev)
 
 static int tz_resume_early(struct device *pdev)
 {
-	TZ_RESULT tzret;
+	int tzret;
 
 	tzret = kree_pm_device_ops(MTEE_RESUME_EARLY);
 	return (tzret != TZ_RESULT_SUCCESS) ? (-EBUSY) : (0);
@@ -1366,8 +1362,8 @@ static struct page *secure_pages;
 static size_t secure_size;
 
 /* TEE chunk memory allocate by REE service
-*/
-TZ_RESULT KREE_ServGetChunkmemPool(u32 op,
+ */
+int KREE_ServGetChunkmemPool(u32 op,
 			u8 uparam[REE_SERVICE_BUFFER_SIZE])
 {
 	struct ree_service_chunk_mem *chunkmem;
@@ -1393,7 +1389,7 @@ TZ_RESULT KREE_ServGetChunkmemPool(u32 op,
 	chunkmem->size = secure_size;
 	chunkmem->chunkmem_pa = (uint64_t)page_to_phys(secure_pages);
 
-	pr_warn("%s() get @%llx [0x%zx]\n", __func__,
+	pr_info("%s() get @%llx [0x%zx]\n", __func__,
 			chunkmem->chunkmem_pa, secure_size);
 
 	/* flush cache to avoid writing secure memory after allocation. */
@@ -1402,7 +1398,7 @@ TZ_RESULT KREE_ServGetChunkmemPool(u32 op,
 	return TZ_RESULT_SUCCESS;
 }
 
-TZ_RESULT KREE_ServReleaseChunkmemPool(u32 op,
+int KREE_ServReleaseChunkmemPool(u32 op,
 			u8 uparam[REE_SERVICE_BUFFER_SIZE])
 {
 	if (secure_pages != NULL) {
@@ -1410,7 +1406,7 @@ TZ_RESULT KREE_ServReleaseChunkmemPool(u32 op,
 
 		cma_release(tz_cma, secure_pages,
 				cma_get_size(tz_cma)>>PAGE_SHIFT);
-		pr_warn("%s() release @%pax [0x%zx]\n", __func__,
+		pr_info("%s() release @%pax [0x%zx]\n", __func__,
 				&addr, secure_size);
 		secure_pages = NULL;
 		secure_size = 0;
@@ -1421,9 +1417,9 @@ TZ_RESULT KREE_ServReleaseChunkmemPool(u32 op,
 
 #ifndef NO_CMA_RELEASE_THROUGH_SHRINKER_FOR_EARLY_STAGE
 
-TZ_RESULT KREE_TeeReleseChunkmemPool(void)
+int KREE_TeeReleseChunkmemPool(void)
 {
-	TZ_RESULT ret;
+	int ret;
 	KREE_SESSION_HANDLE mem_session;
 
 	ret = KREE_CreateSession(TZ_TA_MEM_UUID, &mem_session);
@@ -1456,16 +1452,14 @@ int tz_cm_shrinker_thread(void *data)
 		/* ree-service call to do cma_release() */
 		if (KREE_TeeReleseChunkmemPool() != TZ_RESULT_SUCCESS)
 			pr_warn("Can't free tz chunk memory\n");
-		else
-			pr_debug("free tz chunk memory successfully\n");
 
 		complete(&tz_cm_shrinker_finish_work);
 	} while (1);
 }
 
-static TZ_RESULT KREE_IsTeeChunkmemPoolReleasable(int *releasable)
+static int KREE_IsTeeChunkmemPoolReleasable(int *releasable)
 {
-	TZ_RESULT ret;
+	int ret;
 	KREE_SESSION_HANDLE mem_session;
 	union MTEEC_PARAM param[4];
 
@@ -1531,9 +1525,9 @@ static struct shrinker tz_cm_shrinker = {
 
 #else
 
-static TZ_RESULT KREE_TeeTriggerChunkmemAllocation(void)
+static int KREE_TeeTriggerChunkmemAllocation(void)
 {
-	TZ_RESULT ret;
+	int ret;
 	KREE_SESSION_HANDLE mem_session;
 	KREE_SECUREMEM_HANDLE cm_handle;
 
@@ -1566,7 +1560,7 @@ static TZ_RESULT KREE_TeeTriggerChunkmemAllocation(void)
 static int mtee_probe(struct platform_device *pdev)
 {
 	int ret;
-	TZ_RESULT tzret;
+	int tzret;
 #ifdef ENABLE_INC_ONLY_COUNTER
 	struct task_struct *thread;
 #endif
@@ -1676,6 +1670,7 @@ static int mtee_probe(struct platform_device *pdev)
 
 static const struct of_device_id mtee_of_match[] = {
 	{ .compatible = "mediatek,mtee", },
+	{}
 };
 MODULE_DEVICE_TABLE(of, mtee_of_match);
 
@@ -1716,7 +1711,7 @@ static int __init rmem_tz_sec_setup(struct reserved_mem *rmem)
 		return -EINVAL;
 	}
 
-	err = cma_init_reserved_mem(rmem->base, rmem->size, 0, &cma);
+	err = cma_init_reserved_mem(rmem->base, rmem->size, 0, "tz_cma", &cma);
 	if (err) {
 		pr_err("Reserved memory: unable to setup CMA region\n");
 		return err;
@@ -1780,7 +1775,7 @@ static int __init register_tz_driver(void)
 
 static void st_early_suspend(struct early_suspend *h)
 {
-	pr_debug("st_early_suspend: start\n");
+	pr_debug("%s: start\n", __func__);
 	securetime_savefile();
 }
 

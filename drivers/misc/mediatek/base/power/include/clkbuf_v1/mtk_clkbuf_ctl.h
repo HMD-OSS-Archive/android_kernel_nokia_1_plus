@@ -12,10 +12,10 @@
  */
 
 /**
-* @file    mtk_clk_buf_ctl.h
-* @brief   Driver for clock buffer control
-*
-*/
+ * @file    mtk_clk_buf_ctl.h
+ * @brief   Driver for clock buffer control
+ *
+ */
 #ifndef __MTK_CLK_BUF_CTL_H__
 #define __MTK_CLK_BUF_CTL_H__
 
@@ -36,6 +36,14 @@
 #include "mt6739/mtk_clkbuf_hw.h"
 #elif defined(CONFIG_MACH_MT6771)
 #include "mt6771/mtk_clkbuf_hw.h"
+#elif defined(CONFIG_MACH_MT6765)
+#include "mt6765/mtk_clkbuf_hw.h"
+#elif defined(CONFIG_MACH_MT6768)
+#include "mt6768/mtk_clkbuf_hw.h"
+#elif defined(CONFIG_MACH_MT6785)
+#include "mt6785/mtk_clkbuf_hw.h"
+#elif defined(CONFIG_MACH_MT8168)
+#include "mt8168/mtk_clkbuf_hw.h"
 #endif
 
 enum CLK_BUF_SWCTRL_STATUS_T {
@@ -60,6 +68,9 @@ u32 clk_buf_bblpm_enter_cond(void);
 void clk_buf_dump_clkbuf_log(void);
 bool is_clk_buf_under_flightmode(void);
 bool is_clk_buf_from_pmic(void);
+void clk_buf_get_aux_out(void);
+u8 clk_buf_get_xo_en_sta(enum xo_id id);
+void clk_buf_show_status_info(void);
 
 #endif
 

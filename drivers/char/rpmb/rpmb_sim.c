@@ -165,7 +165,7 @@ static int rpmb_sim_calc_hmac(struct rpmb_sim_dev *rsdev,
 	ret = crypto_shash_final(desc, mac);
 out:
 	if (ret)
-		dev_err(rsdev->dev, "digest error = %d", ret);
+		dev_notice(rsdev->dev, "digest error = %d", ret);
 
 	return ret;
 }
@@ -177,7 +177,7 @@ static int rpmb_op_not_programmed(struct rpmb_sim_dev *rsdev, u16 req)
 	res_frame->req_resp = req_to_resp(req);
 	res_frame->result = op_result(rsdev, RPMB_ERR_NO_KEY);
 
-	dev_err(rsdev->dev, "not programmed\n");
+	dev_notice(rsdev->dev, "not programmed\n");
 
 	return 0;
 }
@@ -196,19 +196,19 @@ static int rpmb_op_program_key(struct rpmb_sim_dev *rsdev,
 		return -EINVAL;
 
 	if (cnt != 1) {
-		dev_err(rsdev->dev, "wrong number of frames %d != 1\n", cnt);
+		dev_notice(rsdev->dev, "wrong number of frames %d != 1\n", cnt);
 		return -EINVAL;
 	}
 
 	if (rsdev->auth_key_set) {
-		dev_err(rsdev->dev, "key allread set\n");
+		dev_notice(rsdev->dev, "key allread set\n");
 		err = RPMB_ERR_WRITE;
 		goto out;
 	}
 
 	ret = crypto_shash_setkey(rsdev->hash_tfm, in_frame[0].key_mac, 32);
 	if (ret) {
-		dev_err(rsdev->dev, "set key failed = %d\n", ret);
+		dev_notice(rsdev->dev, "set key failed = %d\n", ret);
 		err = RPMB_ERR_GENERAL;
 		goto out;
 	}
@@ -240,7 +240,7 @@ static int rpmb_op_get_wr_counter(struct rpmb_sim_dev *rsdev,
 		return -EINVAL;
 
 	if (cnt != 1) {
-		dev_err(rsdev->dev, "wrong number of frames %d != 1\n", cnt);
+		dev_notice(rsdev->dev, "wrong number of frames %d != 1\n", cnt);
 		return -EINVAL;
 	}
 
@@ -291,7 +291,7 @@ static int rpmb_op_write_data(struct rpmb_sim_dev *rsdev,
 
 	blks = be16_to_cpu(in_frame[0].block_count);
 	if (blks == 0 || blks > cnt) {
-		dev_err(rsdev->dev, "wrong number of frames %u > %u\n",
+		dev_notice(rsdev->dev, "wrong number of frames %u > %u\n",
 			blks, cnt);
 		ret = -EINVAL;
 		err = RPMB_ERR_GENERAL;
@@ -372,7 +372,7 @@ static int rpmb_do_read_data(struct rpmb_sim_dev *rsdev,
 	blks = be16_to_cpu(in_frame->block_count);
 	blks = blks ?: cnt;
 	if (blks > cnt) {
-		dev_err(rsdev->dev, "wrong number of frames cnt %u\n", blks);
+		dev_notice(rsdev->dev, "wrong number of frames cnt %u\n", blks);
 		ret = -EINVAL;
 		err = RPMB_ERR_GENERAL;
 		goto out;
@@ -461,7 +461,8 @@ static int rpmb_op_result_read(struct rpmb_sim_dev *rsdev,
 		return -EINVAL;
 
 	if (blks != 0) {
-		dev_err(rsdev->dev, "wrong number of frames %u != 0\n",  blks);
+		dev_notice(rsdev->dev, "wrong number of frames %u != 0\n",
+				blks);
 		return -EINVAL;
 	}
 
@@ -505,7 +506,7 @@ static int rpmb_sim_write(struct rpmb_sim_dev *rsdev,
 		ret = rpmb_op_result_read(rsdev, frames, cnt);
 		break;
 	default:
-		dev_err(rsdev->dev, "unsupported command %u\n", req);
+		dev_notice(rsdev->dev, "unsupported command %u\n", req);
 		ret = -EINVAL;
 		break;
 	}
@@ -524,7 +525,7 @@ static int rpmb_sim_read(struct rpmb_sim_dev *rsdev,
 		return -EINVAL;
 
 	if (!rsdev->out_frames || rsdev->out_frames_cnt == 0) {
-		dev_err(rsdev->dev, "out_frames are not set\n");
+		dev_notice(rsdev->dev, "out_frames are not set\n");
 		return -EINVAL;
 	}
 
@@ -555,7 +556,7 @@ static int rpmb_sim_cmd_seq(struct device *dev,
 	if (!dev)
 		return -EINVAL;
 
-	dev_err(dev, "rpmb_cmd_seq\n");
+	dev_notice(dev, "rpmb_cmd_seq\n");
 
 	rsdev = dev_get_drvdata(dev);
 
@@ -706,14 +707,14 @@ static int __init rpmb_sim_init(void)
 	dev_set_name(dev, "%s", "rpmb_sim");
 	ret = device_register(dev);
 	if (ret) {
-		pr_err("device register failed %d\n", ret);
+		pr_notice("device register failed %d\n", ret);
 		goto err_device;
 	}
 
 	drv->bus = &rpmb_sim_bus;
 	ret = driver_register(drv);
 	if (ret) {
-		pr_err("driver register failed %d\n", ret);
+		pr_notice("driver register failed %d\n", ret);
 		goto err_driver;
 	}
 

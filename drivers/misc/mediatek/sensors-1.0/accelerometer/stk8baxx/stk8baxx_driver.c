@@ -1707,7 +1707,7 @@ static ssize_t stk_delay_show(struct device_driver *ddri, char *buf)
 static ssize_t stk_delay_store(struct device_driver *ddri, const char *buf, size_t count)
 {
     struct stk8baxx_data *stk = stk_data;
-    long long data;
+    unsigned long long data;
     int error;
     error = kstrtoll(buf, 10, &data);
 
@@ -1717,7 +1717,7 @@ static ssize_t stk_delay_store(struct device_driver *ddri, const char *buf, size
         return error;
     }
 
-    stk_set_delay(stk, (int)do_div(data, 1000));
+    stk_set_delay(stk, (u32)do_div(data, 1000));
     return count;
 }
 

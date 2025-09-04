@@ -14,29 +14,16 @@
 #ifndef _MTK_UDI_H_
 #define _MTK_UDI_H_
 
-#if defined(CONFIG_MACH_MT6775)
+#if defined(CONFIG_MACH_MT6785)
 
-#include "udi_v1/mtk_udi_mt6775.h"
+#include "udi_v2/mtk_udi_mt6785.h"
 
-#elif defined(CONFIG_MACH_MT6771)
+#elif defined(CONFIG_MACH_MT6768)
 
-#include "udi_v1/mtk_udi_mt6771.h"
+#include "udi_v2/mtk_udi_mt6768.h"
+#elif defined(CONFIG_MACH_MT6765)
 
-#elif defined(CONFIG_MACH_MT6758)
-
-#include "udi_v1/mtk_udi_mt6758.h"
-
-#elif defined(CONFIG_MACH_MT6763)
-
-#include "udi_v1/mtk_udi_mt6763.h"
-
-#elif defined(CONFIG_MACH_MT6759)
-
-#include "udi_v1/mtk_udi_mt6759.h"
-
-#elif defined(CONFIG_MACH_MT6799)
-
-#include "../mt6799/mtk_udi.h"
+#include "udi_v1/mtk_udi_mt6765.h"
 
 #else
 

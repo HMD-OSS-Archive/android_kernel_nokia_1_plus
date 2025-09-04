@@ -33,9 +33,11 @@ void masp_hal_secure_algo(unsigned char Direction, unsigned char *ContentAddr,
 			  unsigned char *ResText);
 unsigned int masp_hal_sp_hacc_init(unsigned char *sec_seed, unsigned int size);
 unsigned int masp_hal_sp_hacc_blk_sz(void);
-unsigned char *masp_hal_sp_hacc_enc(unsigned char *buf, unsigned int size, unsigned char bAC,
+unsigned char *masp_hal_sp_hacc_enc(unsigned char *buf, unsigned int size,
+				    unsigned char bAC,
 				    enum hacc_user user, unsigned char bDoLock);
-unsigned char *masp_hal_sp_hacc_dec(unsigned char *buf, unsigned int size, unsigned char bAC,
+unsigned char *masp_hal_sp_hacc_dec(unsigned char *buf, unsigned int size,
+				    unsigned char bAC,
 				    enum hacc_user user, unsigned char bDoLock);
 
 #endif				/* !__MT_SEC_HAL_H__ */

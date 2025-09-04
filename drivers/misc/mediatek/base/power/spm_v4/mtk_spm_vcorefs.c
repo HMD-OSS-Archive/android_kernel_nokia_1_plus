@@ -44,7 +44,7 @@
 /* #include <ext_wd_drv.h> */
 #include "mtk_devinfo.h"
 
-#ifdef CONFIG_MTK_SMI_EXT
+#ifdef CONFIG_MTK_MMDVFS
 #include <mmdvfs_mgr.h>
 #endif
 
@@ -56,11 +56,12 @@
 /*
  * only for internal debug
  */
-#define SPM_VCOREFS_TAG	"[VcoreFS] "
+#define SPM_VCOREFS_TAG	"[name:spm&][VcoreFS] "
 #define spm_vcorefs_err spm_vcorefs_info
 #define spm_vcorefs_warn spm_vcorefs_info
 #define spm_vcorefs_debug spm_vcorefs_info
-#define spm_vcorefs_info(fmt, args...)	pr_notice(SPM_VCOREFS_TAG fmt, ##args)
+#define spm_vcorefs_info(fmt, args...)	\
+	printk_deferred(SPM_VCOREFS_TAG fmt, ##args)
 
 void __iomem *dvfsrc_base;
 
@@ -68,7 +69,7 @@ u32 plat_channel_num;
 u32 plat_chip_ver;
 u32 dram_issue;
 
-#ifdef CONFIG_MTK_SMI_EXT
+#ifdef CONFIG_MTK_MMDVFS
 enum mmdvfs_lcd_size_enum plat_lcd_resolution;
 #else
 int plat_lcd_resolution;
@@ -96,121 +97,207 @@ char *spm_vcorefs_dump_dvfs_regs(char *p)
 		#else
 		p += sprintf(p, "dram_issue: 0x%x\n", dram_issue);
 		#endif
-		/* p += sprintf(p, "(v:%d)(r:%d)(c:%d)\n", plat_chip_ver, plat_lcd_resolution, plat_channel_num); */
+/*
+ * p += sprintf(p, "(v:%d)(r:%d)(c:%d)\n",
+ * plat_chip_ver, plat_lcd_resolution, plat_channel_num);
+ */
 		#if 1
 		/* DVFSRC */
-		p += sprintf(p, "DVFSRC_RECORD_COUNT    : 0x%x\n", spm_read(DVFSRC_RECORD_COUNT));
-		p += sprintf(p, "DVFSRC_LAST            : 0x%x\n", spm_read(DVFSRC_LAST));
-		p += sprintf(p, "DVFSRC_RECORD_0_1~3_1  : 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
-							spm_read(DVFSRC_RECORD_0_1), spm_read(DVFSRC_RECORD_1_1),
-							spm_read(DVFSRC_RECORD_2_1), spm_read(DVFSRC_RECORD_3_1));
-		p += sprintf(p, "DVFSRC_RECORD_4_1~7_1  : 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
-							spm_read(DVFSRC_RECORD_4_1), spm_read(DVFSRC_RECORD_5_1),
-							spm_read(DVFSRC_RECORD_6_1), spm_read(DVFSRC_RECORD_7_1));
-		p += sprintf(p, "DVFSRC_RECORD_0_0~3_0  : 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
-							spm_read(DVFSRC_RECORD_0_0), spm_read(DVFSRC_RECORD_1_0),
-							spm_read(DVFSRC_RECORD_2_0), spm_read(DVFSRC_RECORD_3_0));
-		p += sprintf(p, "DVFSRC_RECORD_4_0~7_0  : 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
-							spm_read(DVFSRC_RECORD_4_0), spm_read(DVFSRC_RECORD_5_0),
-							spm_read(DVFSRC_RECORD_6_0), spm_read(DVFSRC_RECORD_7_0));
-		p += sprintf(p, "DVFSRC_RECORD_MD_0~3   : 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
-							spm_read(DVFSRC_RECORD_MD_0), spm_read(DVFSRC_RECORD_MD_1),
-							spm_read(DVFSRC_RECORD_MD_2), spm_read(DVFSRC_RECORD_MD_3));
-		p += sprintf(p, "DVFSRC_RECORD_MD_4~7   : 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
-							spm_read(DVFSRC_RECORD_MD_4), spm_read(DVFSRC_RECORD_MD_5),
-							spm_read(DVFSRC_RECORD_MD_6), spm_read(DVFSRC_RECORD_MD_7));
-		p += sprintf(p, "DVFSRC_LEVEL           : 0x%x\n", spm_read(DVFSRC_LEVEL));
-		p += sprintf(p, "DVFSRC_VCORE_REQUEST   : 0x%x\n", spm_read(DVFSRC_VCORE_REQUEST));
-		p += sprintf(p, "DVFSRC_EMI_REQUEST     : 0x%x\n", spm_read(DVFSRC_EMI_REQUEST));
-		p += sprintf(p, "DVFSRC_MD_REQUEST      : 0x%x\n", spm_read(DVFSRC_MD_REQUEST));
-		p += sprintf(p, "DVFSRC_RSRV_0          : 0x%x\n", spm_read(DVFSRC_RSRV_0));
+		p += sprintf(p, "DVFSRC_RECORD_COUNT    : 0x%x\n",
+			spm_read(DVFSRC_RECORD_COUNT));
+		p += sprintf(p, "DVFSRC_LAST            : 0x%x\n",
+			spm_read(DVFSRC_LAST));
+		p += sprintf(p,
+			"DVFSRC_RECORD_0_1~3_1: 0x%08x,0x%08x,0x%08x,0x%08x\n",
+			spm_read(DVFSRC_RECORD_0_1),
+			spm_read(DVFSRC_RECORD_1_1),
+			spm_read(DVFSRC_RECORD_2_1),
+			spm_read(DVFSRC_RECORD_3_1));
+		p += sprintf(p,
+			"DVFSRC_RECORD_4_1~7_1: 0x%08x,0x%08x,0x%08x,0x%08x\n",
+			spm_read(DVFSRC_RECORD_4_1),
+			spm_read(DVFSRC_RECORD_5_1),
+			spm_read(DVFSRC_RECORD_6_1),
+			spm_read(DVFSRC_RECORD_7_1));
+		p += sprintf(p,
+			"DVFSRC_RECORD_0_0~3_0: 0x%08x,0x%08x,0x%08x,0x%08x\n",
+			spm_read(DVFSRC_RECORD_0_0),
+			spm_read(DVFSRC_RECORD_1_0),
+			spm_read(DVFSRC_RECORD_2_0),
+			spm_read(DVFSRC_RECORD_3_0));
+		p += sprintf(p,
+			"DVFSRC_RECORD_4_0~7_0: 0x%08x,0x%08x,0x%08x,0x%08x\n",
+			spm_read(DVFSRC_RECORD_4_0),
+			spm_read(DVFSRC_RECORD_5_0),
+			spm_read(DVFSRC_RECORD_6_0),
+			spm_read(DVFSRC_RECORD_7_0));
+		p += sprintf(p,
+			"DVFSRC_RECORD_MD_0~3: 0x%08x, 0x%08x,0x%08x,0x%08x\n",
+			spm_read(DVFSRC_RECORD_MD_0),
+			spm_read(DVFSRC_RECORD_MD_1),
+			spm_read(DVFSRC_RECORD_MD_2),
+			spm_read(DVFSRC_RECORD_MD_3));
+		p += sprintf(p,
+			"DVFSRC_RECORD_MD_4~7:0x%08x,0x%08x,0x%08x,0x%08x\n",
+			spm_read(DVFSRC_RECORD_MD_4),
+			spm_read(DVFSRC_RECORD_MD_5),
+			spm_read(DVFSRC_RECORD_MD_6),
+			spm_read(DVFSRC_RECORD_MD_7));
+		p += sprintf(p, "DVFSRC_LEVEL           : 0x%x\n",
+			spm_read(DVFSRC_LEVEL));
+		p += sprintf(p, "DVFSRC_VCORE_REQUEST   : 0x%x\n",
+			spm_read(DVFSRC_VCORE_REQUEST));
+		p += sprintf(p, "DVFSRC_EMI_REQUEST     : 0x%x\n",
+			spm_read(DVFSRC_EMI_REQUEST));
+		p += sprintf(p, "DVFSRC_MD_REQUEST      : 0x%x\n",
+			spm_read(DVFSRC_MD_REQUEST));
+		p += sprintf(p, "DVFSRC_RSRV_0          : 0x%x\n",
+			spm_read(DVFSRC_RSRV_0));
 		/* SPM */
-		p += sprintf(p, "SPM_SW_FLAG            : 0x%x\n", spm_read(SPM_SW_FLAG));
-		p += sprintf(p, "SPM_SW_RSV_5           : 0x%x\n", spm_read(SPM_SW_RSV_5));
-		p += sprintf(p, "DVFSRC_MD_GEAR         : 0x%x\n", spm_read(DVFSRC_MD_GEAR));
-		p += sprintf(p, "MD2SPM_DVFS_CON        : 0x%x\n", spm_read(MD2SPM_DVFS_CON));
-		p += sprintf(p, "SPM_DVFS_EVENT_STA     : 0x%x\n", spm_read(SPM_DVFS_EVENT_STA));
-		p += sprintf(p, "SPM_DVFS_LEVEL         : 0x%x\n", spm_read(SPM_DVFS_LEVEL));
-		p += sprintf(p, "SPM_DFS_LEVEL          : 0x%x\n", spm_read(SPM_DFS_LEVEL));
-		p += sprintf(p, "SPM_DVS_LEVEL          : 0x%x\n", spm_read(SPM_DVS_LEVEL));
+		p += sprintf(p, "SPM_SW_FLAG            : 0x%x\n",
+			spm_read(SPM_SW_FLAG));
+		p += sprintf(p, "SPM_SW_RSV_5           : 0x%x\n",
+			spm_read(SPM_SW_RSV_5));
+		p += sprintf(p, "DVFSRC_MD_GEAR         : 0x%x\n",
+			spm_read(DVFSRC_MD_GEAR));
+		p += sprintf(p, "MD2SPM_DVFS_CON        : 0x%x\n",
+			spm_read(MD2SPM_DVFS_CON));
+		p += sprintf(p, "SPM_DVFS_EVENT_STA     : 0x%x\n",
+			spm_read(SPM_DVFS_EVENT_STA));
+		p += sprintf(p, "SPM_DVFS_LEVEL         : 0x%x\n",
+			spm_read(SPM_DVFS_LEVEL));
+		p += sprintf(p, "SPM_DFS_LEVEL          : 0x%x\n",
+			spm_read(SPM_DFS_LEVEL));
+		p += sprintf(p, "SPM_DVS_LEVEL          : 0x%x\n",
+			spm_read(SPM_DVS_LEVEL));
 
-		p += sprintf(p, "SPM_DVS_LEVEL          : 0x%x\n", spm_read(SPM_DVS_LEVEL));
+		p += sprintf(p, "SPM_DVS_LEVEL          : 0x%x\n",
+			spm_read(SPM_DVS_LEVEL));
 
-		p += sprintf(p, "PCM_REG_DATA_0~3       : 0x%x, 0x%x, 0x%x, 0x%x\n",
-							spm_read(PCM_REG0_DATA), spm_read(PCM_REG1_DATA),
-							spm_read(PCM_REG2_DATA), spm_read(PCM_REG3_DATA));
-		p += sprintf(p, "PCM_REG_DATA_4~7       : 0x%x, 0x%x, 0x%x, 0x%x\n",
-							spm_read(PCM_REG4_DATA), spm_read(PCM_REG5_DATA),
-							spm_read(PCM_REG6_DATA), spm_read(PCM_REG7_DATA));
-		p += sprintf(p, "PCM_REG_DATA_8~11      : 0x%x, 0x%x, 0x%x, 0x%x\n",
-							spm_read(PCM_REG8_DATA), spm_read(PCM_REG9_DATA),
-							spm_read(PCM_REG10_DATA), spm_read(PCM_REG11_DATA));
-		p += sprintf(p, "PCM_REG_DATA_12~15     : 0x%x, 0x%x, 0x%x, 0x%x\n",
-							spm_read(PCM_REG12_DATA), spm_read(PCM_REG13_DATA),
-							spm_read(PCM_REG14_DATA), spm_read(PCM_REG15_DATA));
-		p += sprintf(p, "MDPTP_VMODEM_SPM_DVFS_CMD16~19   : 0x%x, 0x%x, 0x%x, 0x%x\n",
-				spm_read(SLEEP_REG_MD_SPM_DVFS_CMD16), spm_read(SLEEP_REG_MD_SPM_DVFS_CMD17),
-				spm_read(SLEEP_REG_MD_SPM_DVFS_CMD18), spm_read(SLEEP_REG_MD_SPM_DVFS_CMD19));
+		p += sprintf(p, "PCM_REG_DATA_0~3: 0x%x, 0x%x, 0x%x, 0x%x\n",
+			spm_read(PCM_REG0_DATA), spm_read(PCM_REG1_DATA),
+			spm_read(PCM_REG2_DATA), spm_read(PCM_REG3_DATA));
+		p += sprintf(p, "PCM_REG_DATA_4~7: 0x%x, 0x%x, 0x%x, 0x%x\n",
+			spm_read(PCM_REG4_DATA), spm_read(PCM_REG5_DATA),
+			spm_read(PCM_REG6_DATA), spm_read(PCM_REG7_DATA));
+		p += sprintf(p, "PCM_REG_DATA_8~11: 0x%x, 0x%x, 0x%x, 0x%x\n",
+			spm_read(PCM_REG8_DATA),
+			spm_read(PCM_REG9_DATA),
+			spm_read(PCM_REG10_DATA),
+			spm_read(PCM_REG11_DATA));
+		p += sprintf(p, "PCM_REG_DATA_12~15: 0x%x, 0x%x, 0x%x, 0x%x\n",
+			spm_read(PCM_REG12_DATA),
+			spm_read(PCM_REG13_DATA),
+			spm_read(PCM_REG14_DATA),
+			spm_read(PCM_REG15_DATA));
+		p += sprintf(p,
+			"MDPTP_VMODEM_SPM_DVFS_CMD16~19: 0x%x,0x%x,0x%x,0x%x\n",
+			spm_read(SLEEP_REG_MD_SPM_DVFS_CMD16),
+			spm_read(SLEEP_REG_MD_SPM_DVFS_CMD17),
+			spm_read(SLEEP_REG_MD_SPM_DVFS_CMD18),
+			spm_read(SLEEP_REG_MD_SPM_DVFS_CMD19));
 		p += sprintf(p, "SPM_DVFS_CMD0~1        : 0x%x, 0x%x\n",
-							spm_read(SPM_DVFS_CMD0), spm_read(SPM_DVFS_CMD1));
-		p += sprintf(p, "PCM_IM_PTR             : 0x%x (%u)\n", spm_read(PCM_IM_PTR), spm_read(PCM_IM_LEN));
+			spm_read(SPM_DVFS_CMD0), spm_read(SPM_DVFS_CMD1));
+		p += sprintf(p, "PCM_IM_PTR             : 0x%x (%u)\n",
+			spm_read(PCM_IM_PTR), spm_read(PCM_IM_LEN));
 		#endif
 	} else {
-		/* spm_vcorefs_warn("(v:%d)(r:%d)(c:%d)\n", plat_chip_ver, plat_lcd_resolution, plat_channel_num); */
+/*
+ * spm_vcorefs_warn("(v:%d)(r:%d)(c:%d)\n",
+ * plat_chip_ver, plat_lcd_resolution, plat_channel_num);
+ */
 		#if 1
 		/* DVFSRC */
-		spm_vcorefs_warn("DVFSRC_RECORD_COUNT    : 0x%x\n", spm_read(DVFSRC_RECORD_COUNT));
-		spm_vcorefs_warn("DVFSRC_LAST            : 0x%x\n", spm_read(DVFSRC_LAST));
+		spm_vcorefs_warn("DVFSRC_RECORD_COUNT    : 0x%x\n",
+			spm_read(DVFSRC_RECORD_COUNT));
+		spm_vcorefs_warn("DVFSRC_LAST            : 0x%x\n",
+			spm_read(DVFSRC_LAST));
 		spm_vcorefs_warn("DVFSRC_RECORD_0_1~3_1  : 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
-							spm_read(DVFSRC_RECORD_0_1), spm_read(DVFSRC_RECORD_1_1),
-							spm_read(DVFSRC_RECORD_2_1), spm_read(DVFSRC_RECORD_3_1));
+			spm_read(DVFSRC_RECORD_0_1),
+			spm_read(DVFSRC_RECORD_1_1),
+			spm_read(DVFSRC_RECORD_2_1),
+			spm_read(DVFSRC_RECORD_3_1));
 		spm_vcorefs_warn("DVFSRC_RECORD_4_1~7_1  : 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
-							spm_read(DVFSRC_RECORD_4_1), spm_read(DVFSRC_RECORD_5_1),
-							spm_read(DVFSRC_RECORD_6_1), spm_read(DVFSRC_RECORD_7_1));
+			spm_read(DVFSRC_RECORD_4_1),
+			spm_read(DVFSRC_RECORD_5_1),
+			spm_read(DVFSRC_RECORD_6_1),
+			spm_read(DVFSRC_RECORD_7_1));
 		spm_vcorefs_warn("DVFSRC_RECORD_0_0~3_0  : 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
-							spm_read(DVFSRC_RECORD_0_0), spm_read(DVFSRC_RECORD_1_0),
-							spm_read(DVFSRC_RECORD_2_0), spm_read(DVFSRC_RECORD_3_0));
+			spm_read(DVFSRC_RECORD_0_0),
+			spm_read(DVFSRC_RECORD_1_0),
+			spm_read(DVFSRC_RECORD_2_0),
+			spm_read(DVFSRC_RECORD_3_0));
 		spm_vcorefs_warn("DVFSRC_RECORD_4_0~7_0  : 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
-							spm_read(DVFSRC_RECORD_4_0), spm_read(DVFSRC_RECORD_5_0),
-							spm_read(DVFSRC_RECORD_6_0), spm_read(DVFSRC_RECORD_7_0));
+			spm_read(DVFSRC_RECORD_4_0),
+			spm_read(DVFSRC_RECORD_5_0),
+			spm_read(DVFSRC_RECORD_6_0),
+			spm_read(DVFSRC_RECORD_7_0));
 		spm_vcorefs_warn("DVFSRC_RECORD_MD_0~3   : 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
-							spm_read(DVFSRC_RECORD_MD_0), spm_read(DVFSRC_RECORD_MD_1),
-							spm_read(DVFSRC_RECORD_MD_2), spm_read(DVFSRC_RECORD_MD_3));
+			spm_read(DVFSRC_RECORD_MD_0),
+			spm_read(DVFSRC_RECORD_MD_1),
+			spm_read(DVFSRC_RECORD_MD_2),
+			spm_read(DVFSRC_RECORD_MD_3));
 		spm_vcorefs_warn("DVFSRC_RECORD_MD_4~7   : 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
-							spm_read(DVFSRC_RECORD_MD_4), spm_read(DVFSRC_RECORD_MD_5),
-							spm_read(DVFSRC_RECORD_MD_6), spm_read(DVFSRC_RECORD_MD_7));
-		spm_vcorefs_warn("DVFSRC_LEVEL           : 0x%x\n", spm_read(DVFSRC_LEVEL));
-		spm_vcorefs_warn("DVFSRC_VCORE_REQUEST   : 0x%x\n", spm_read(DVFSRC_VCORE_REQUEST));
-		spm_vcorefs_warn("DVFSRC_EMI_REQUEST     : 0x%x\n", spm_read(DVFSRC_EMI_REQUEST));
-		spm_vcorefs_warn("DVFSRC_MD_REQUEST      : 0x%x\n", spm_read(DVFSRC_MD_REQUEST));
+			spm_read(DVFSRC_RECORD_MD_4),
+			spm_read(DVFSRC_RECORD_MD_5),
+			spm_read(DVFSRC_RECORD_MD_6),
+			spm_read(DVFSRC_RECORD_MD_7));
+		spm_vcorefs_warn("DVFSRC_LEVEL           : 0x%x\n",
+			spm_read(DVFSRC_LEVEL));
+		spm_vcorefs_warn("DVFSRC_VCORE_REQUEST   : 0x%x\n",
+			spm_read(DVFSRC_VCORE_REQUEST));
+		spm_vcorefs_warn("DVFSRC_EMI_REQUEST     : 0x%x\n",
+			spm_read(DVFSRC_EMI_REQUEST));
+		spm_vcorefs_warn("DVFSRC_MD_REQUEST      : 0x%x\n",
+			spm_read(DVFSRC_MD_REQUEST));
 		/* SPM */
-		spm_vcorefs_warn("SPM_SW_FLAG            : 0x%x\n", spm_read(SPM_SW_FLAG));
-		spm_vcorefs_warn("SPM_SW_RSV_5           : 0x%x\n", spm_read(SPM_SW_RSV_5));
-		spm_vcorefs_warn("SPM_SW_RSV_11          : 0x%x\n", spm_read(SPM_SW_RSV_11));
-		spm_vcorefs_warn("DVFSRC_MD_GEAR         : 0x%x\n", spm_read(DVFSRC_MD_GEAR));
-		spm_vcorefs_warn("MD2SPM_DVFS_CON        : 0x%x\n", spm_read(MD2SPM_DVFS_CON));
-		spm_vcorefs_warn("SPM_DVFS_EVENT_STA     : 0x%x\n", spm_read(SPM_DVFS_EVENT_STA));
-		spm_vcorefs_warn("SPM_DVFS_LEVEL         : 0x%x\n", spm_read(SPM_DVFS_LEVEL));
-		spm_vcorefs_warn("SPM_DFS_LEVEL          : 0x%x\n", spm_read(SPM_DFS_LEVEL));
-		spm_vcorefs_warn("SPM_DVS_LEVEL          : 0x%x\n", spm_read(SPM_DVS_LEVEL));
+		spm_vcorefs_warn("SPM_SW_FLAG            : 0x%x\n",
+			spm_read(SPM_SW_FLAG));
+		spm_vcorefs_warn("SPM_SW_RSV_5           : 0x%x\n",
+			spm_read(SPM_SW_RSV_5));
+		spm_vcorefs_warn("SPM_SW_RSV_11          : 0x%x\n",
+			spm_read(SPM_SW_RSV_11));
+		spm_vcorefs_warn("DVFSRC_MD_GEAR         : 0x%x\n",
+			spm_read(DVFSRC_MD_GEAR));
+		spm_vcorefs_warn("MD2SPM_DVFS_CON        : 0x%x\n",
+			spm_read(MD2SPM_DVFS_CON));
+		spm_vcorefs_warn("SPM_DVFS_EVENT_STA     : 0x%x\n",
+			spm_read(SPM_DVFS_EVENT_STA));
+		spm_vcorefs_warn("SPM_DVFS_LEVEL         : 0x%x\n",
+			spm_read(SPM_DVFS_LEVEL));
+		spm_vcorefs_warn("SPM_DFS_LEVEL          : 0x%x\n",
+			spm_read(SPM_DFS_LEVEL));
+		spm_vcorefs_warn("SPM_DVS_LEVEL          : 0x%x\n",
+			spm_read(SPM_DVS_LEVEL));
 		spm_vcorefs_warn("PCM_REG_DATA_0~3       : 0x%x, 0x%x, 0x%x, 0x%x\n",
-							spm_read(PCM_REG0_DATA), spm_read(PCM_REG1_DATA),
-							spm_read(PCM_REG2_DATA), spm_read(PCM_REG3_DATA));
+				spm_read(PCM_REG0_DATA),
+				spm_read(PCM_REG1_DATA),
+				spm_read(PCM_REG2_DATA),
+				spm_read(PCM_REG3_DATA));
 		spm_vcorefs_warn("PCM_REG_DATA_4~7       : 0x%x, 0x%x, 0x%x, 0x%x\n",
-							spm_read(PCM_REG4_DATA), spm_read(PCM_REG5_DATA),
-							spm_read(PCM_REG6_DATA), spm_read(PCM_REG7_DATA));
+				spm_read(PCM_REG4_DATA),
+				spm_read(PCM_REG5_DATA),
+				spm_read(PCM_REG6_DATA),
+				spm_read(PCM_REG7_DATA));
 		spm_vcorefs_warn("PCM_REG_DATA_8~11      : 0x%x, 0x%x, 0x%x, 0x%x\n",
-							spm_read(PCM_REG8_DATA), spm_read(PCM_REG9_DATA),
-							spm_read(PCM_REG10_DATA), spm_read(PCM_REG11_DATA));
+				spm_read(PCM_REG8_DATA),
+				spm_read(PCM_REG9_DATA),
+				spm_read(PCM_REG10_DATA),
+				spm_read(PCM_REG11_DATA));
 		spm_vcorefs_warn("PCM_REG_DATA_12~15     : 0x%x, 0x%x, 0x%x, 0x%x\n",
-							spm_read(PCM_REG12_DATA), spm_read(PCM_REG13_DATA),
-							spm_read(PCM_REG14_DATA), spm_read(PCM_REG15_DATA));
+				spm_read(PCM_REG12_DATA),
+				spm_read(PCM_REG13_DATA),
+				spm_read(PCM_REG14_DATA),
+				spm_read(PCM_REG15_DATA));
 		spm_vcorefs_warn("MDPTP_VMODEM_SPM_DVFS_CMD16~19   : 0x%x, 0x%x, 0x%x, 0x%x\n",
-				spm_read(SLEEP_REG_MD_SPM_DVFS_CMD16), spm_read(SLEEP_REG_MD_SPM_DVFS_CMD17),
-				spm_read(SLEEP_REG_MD_SPM_DVFS_CMD18), spm_read(SLEEP_REG_MD_SPM_DVFS_CMD19));
+				spm_read(SLEEP_REG_MD_SPM_DVFS_CMD16),
+				spm_read(SLEEP_REG_MD_SPM_DVFS_CMD17),
+				spm_read(SLEEP_REG_MD_SPM_DVFS_CMD18),
+				spm_read(SLEEP_REG_MD_SPM_DVFS_CMD19));
 		spm_vcorefs_warn("SPM_DVFS_CMD0~1        : 0x%x, 0x%x\n",
-							spm_read(SPM_DVFS_CMD0), spm_read(SPM_DVFS_CMD1));
-		spm_vcorefs_warn("PCM_IM_PTR             : 0x%x (%u)\n", spm_read(PCM_IM_PTR), spm_read(PCM_IM_LEN));
+			spm_read(SPM_DVFS_CMD0), spm_read(SPM_DVFS_CMD1));
+		spm_vcorefs_warn("PCM_IM_PTR             : 0x%x (%u)\n",
+			spm_read(PCM_IM_PTR), spm_read(PCM_IM_LEN));
 		#endif
 	}
 
@@ -252,7 +339,8 @@ static void spm_dvfsfw_init(int curr_opp)
 
 	spin_lock_irqsave(&__spm_lock, flags);
 
-	mt_secure_call(MTK_SIP_KERNEL_SPM_VCOREFS_ARGS, VCOREFS_SMC_CMD_0, curr_opp, dram_issue);
+	mt_secure_call(MTK_SIP_KERNEL_SPM_VCOREFS_ARGS,
+		VCOREFS_SMC_CMD_0, curr_opp, dram_issue, 0);
 
 	spin_unlock_irqrestore(&__spm_lock, flags);
 }
@@ -269,22 +357,31 @@ int spm_vcorefs_pwarp_cmd(void)
 	spin_lock_irqsave(&__spm_lock, flags);
 
 	for (opp = 0; opp < NUM_OPP; opp++)
-		mt_secure_call(MTK_SIP_KERNEL_SPM_VCOREFS_ARGS, VCOREFS_SMC_CMD_2, opp, get_vcore_ptp_volt(opp));
+		mt_secure_call(MTK_SIP_KERNEL_SPM_VCOREFS_ARGS,
+			VCOREFS_SMC_CMD_2, opp, get_vcore_ptp_volt(opp), 0);
 
 	spin_unlock_irqrestore(&__spm_lock, flags);
 
-	spm_vcorefs_warn("spm_vcorefs_pwarp_cmd: atf\n");
+	spm_vcorefs_warn("%s: atf\n", __func__);
 
 #else
 	/* PMIC_WRAP_PHASE_ALLINONE */
-	mt_spm_pmic_wrap_set_cmd(PMIC_WRAP_PHASE_ALLINONE, CMD_0, get_vcore_ptp_volt(OPP_3)); /* 0.7 */
-	/* mt_spm_pmic_wrap_set_cmd(PMIC_WRAP_PHASE_ALLINONE, CMD_0, get_vcore_ptp_volt(OPP_2)); */ /* 0.7 */
-	/* mt_spm_pmic_wrap_set_cmd(PMIC_WRAP_PHASE_ALLINONE, CMD_1, get_vcore_ptp_volt(OPP_1)); */ /* 0.8 */
-	mt_spm_pmic_wrap_set_cmd(PMIC_WRAP_PHASE_ALLINONE, CMD_1, get_vcore_ptp_volt(OPP_0)); /* 0.8 */
+	mt_spm_pmic_wrap_set_cmd(PMIC_WRAP_PHASE_ALLINONE,
+		CMD_0, get_vcore_ptp_volt(OPP_3)); /* 0.7 */
+/*
+ * mt_spm_pmic_wrap_set_cmd(PMIC_WRAP_PHASE_ALLINONE, CMD_0,
+ * get_vcore_ptp_volt(OPP_2));
+ */ /* 0.7 */
+/*
+ * mt_spm_pmic_wrap_set_cmd(PMIC_WRAP_PHASE_ALLINONE, CMD_1,
+ * get_vcore_ptp_volt(OPP_1));
+ */ /* 0.8 */
+	mt_spm_pmic_wrap_set_cmd(PMIC_WRAP_PHASE_ALLINONE,
+		CMD_1, get_vcore_ptp_volt(OPP_0)); /* 0.8 */
 
 	mt_spm_pmic_wrap_set_phase(PMIC_WRAP_PHASE_ALLINONE);
 
-	spm_vcorefs_warn("spm_vcorefs_pwarp_cmd: kernel\n");
+	spm_vcorefs_warn("%s: kernel\n", __func__);
 
 #endif
 #else
@@ -302,7 +399,7 @@ int spm_vcorefs_pwarp_cmd(void)
 	if (ret < 0)
 		spm_crit2("ret %d", ret);
 
-	spm_vcorefs_warn("spm_vcorefs_pwarp_cmd: sspm\n");
+	spm_vcorefs_warn("%s: sspm\n", __func__);
 #endif
 #endif
 	return 0;
@@ -362,7 +459,8 @@ int spm_vcorefs_get_opp(void)
 #if defined(CONFIG_MACH_MT6739)
 void dvfsrc_msdc_autok_finish(void)
 {
-	spm_write(DVFSRC_VCORE_REQUEST, spm_read(DVFSRC_VCORE_REQUEST) | (0x3 << 26));
+	spm_write(DVFSRC_VCORE_REQUEST,
+		spm_read(DVFSRC_VCORE_REQUEST) | (0x3 << 26));
 }
 #endif
 
@@ -370,41 +468,66 @@ static void dvfsrc_hw_policy_mask(bool force)
 {
 #if defined(CONFIG_MACH_MT6739)
 	if (force || vcorefs_i_hwpath_en()) {
-		spm_write(DVFSRC_EMI_REQUEST, spm_read(DVFSRC_EMI_REQUEST) & ~(0xf << 0));
-		spm_write(DVFSRC_EMI_REQUEST, spm_read(DVFSRC_EMI_REQUEST) & ~(0xf << 16));
-		spm_write(DVFSRC_MD_SW_CONTROL, spm_read(DVFSRC_MD_SW_CONTROL) | (0x1 << 3));
-		spm_write(DVFSRC_MD_SW_CONTROL, spm_read(DVFSRC_MD_SW_CONTROL) | (0x1 << 0));
-		spm_write(DVFSRC_MD_SW_CONTROL, spm_read(DVFSRC_MD_SW_CONTROL) | (0x1 << 5));
-		spm_write(DVFSRC_VCORE_REQUEST, spm_read(DVFSRC_VCORE_REQUEST) & ~(0x3 << 26));
+		spm_write(DVFSRC_EMI_REQUEST,
+			spm_read(DVFSRC_EMI_REQUEST) & ~(0xf << 0));
+		spm_write(DVFSRC_EMI_REQUEST,
+			spm_read(DVFSRC_EMI_REQUEST) & ~(0xf << 16));
+		spm_write(DVFSRC_MD_SW_CONTROL,
+			spm_read(DVFSRC_MD_SW_CONTROL) | (0x1 << 3));
+		spm_write(DVFSRC_MD_SW_CONTROL,
+			spm_read(DVFSRC_MD_SW_CONTROL) | (0x1 << 0));
+		spm_write(DVFSRC_MD_SW_CONTROL,
+			spm_read(DVFSRC_MD_SW_CONTROL) | (0x1 << 5));
+		spm_write(DVFSRC_VCORE_REQUEST,
+			spm_read(DVFSRC_VCORE_REQUEST) & ~(0x3 << 26));
 		spm_write(DVFSRC_MD_REQUEST, 0x0);
 	} else {
-		spm_write(DVFSRC_EMI_REQUEST, spm_read(DVFSRC_EMI_REQUEST) | (0x1 << 0));
-		spm_write(DVFSRC_EMI_REQUEST, spm_read(DVFSRC_EMI_REQUEST) | (0x1 << 16));
-		spm_write(DVFSRC_MD_SW_CONTROL, spm_read(DVFSRC_MD_SW_CONTROL) & ~(0x1 << 3));
-		spm_write(DVFSRC_MD_SW_CONTROL, spm_read(DVFSRC_MD_SW_CONTROL) & ~(0x1 << 0));
-		spm_write(DVFSRC_MD_SW_CONTROL, spm_read(DVFSRC_MD_SW_CONTROL) & ~(0x1 << 5));
+		spm_write(DVFSRC_EMI_REQUEST,
+			spm_read(DVFSRC_EMI_REQUEST) | (0x1 << 0));
+		spm_write(DVFSRC_EMI_REQUEST,
+			spm_read(DVFSRC_EMI_REQUEST) | (0x1 << 16));
+		spm_write(DVFSRC_MD_SW_CONTROL,
+			spm_read(DVFSRC_MD_SW_CONTROL) & ~(0x1 << 3));
+		spm_write(DVFSRC_MD_SW_CONTROL,
+			spm_read(DVFSRC_MD_SW_CONTROL) & ~(0x1 << 0));
+		spm_write(DVFSRC_MD_SW_CONTROL,
+			spm_read(DVFSRC_MD_SW_CONTROL) & ~(0x1 << 5));
 	}
 #else
 
 	if (force || vcorefs_i_hwpath_en()) {
-		spm_write(DVFSRC_EMI_REQUEST, spm_read(DVFSRC_EMI_REQUEST) & ~(0xf << 0));
-		spm_write(DVFSRC_EMI_REQUEST, spm_read(DVFSRC_EMI_REQUEST) & ~(0xf << 4));
-		spm_write(DVFSRC_EMI_REQUEST, spm_read(DVFSRC_EMI_REQUEST) & ~(0xf << 8));
-		spm_write(DVFSRC_EMI_REQUEST, spm_read(DVFSRC_EMI_REQUEST) & ~(0xf << 16));
-		spm_write(DVFSRC_MD_SW_CONTROL, spm_read(DVFSRC_MD_SW_CONTROL) | (0x1 << 3));
-		spm_write(DVFSRC_MD_SW_CONTROL, spm_read(DVFSRC_MD_SW_CONTROL) | (0x1 << 0));
-		spm_write(DVFSRC_MD_SW_CONTROL, spm_read(DVFSRC_MD_SW_CONTROL) | (0x1 << 5));
+		spm_write(DVFSRC_EMI_REQUEST,
+			spm_read(DVFSRC_EMI_REQUEST) & ~(0xf << 0));
+		spm_write(DVFSRC_EMI_REQUEST,
+			spm_read(DVFSRC_EMI_REQUEST) & ~(0xf << 4));
+		spm_write(DVFSRC_EMI_REQUEST,
+			spm_read(DVFSRC_EMI_REQUEST) & ~(0xf << 8));
+		spm_write(DVFSRC_EMI_REQUEST,
+			spm_read(DVFSRC_EMI_REQUEST) & ~(0xf << 16));
+		spm_write(DVFSRC_MD_SW_CONTROL,
+			spm_read(DVFSRC_MD_SW_CONTROL) | (0x1 << 3));
+		spm_write(DVFSRC_MD_SW_CONTROL,
+			spm_read(DVFSRC_MD_SW_CONTROL) | (0x1 << 0));
+		spm_write(DVFSRC_MD_SW_CONTROL,
+			spm_read(DVFSRC_MD_SW_CONTROL) | (0x1 << 5));
 		spm_write(DVFSRC_VCORE_MD2SPM0, 0x0);
 		spm_write(DVFSRC_MD_REQUEST, 0x0);
 		spm_request_dvfs_opp(0, OPP_3);
 	} else {
-		spm_write(DVFSRC_EMI_REQUEST, spm_read(DVFSRC_EMI_REQUEST) | (0x9 << 0));
-		spm_write(DVFSRC_EMI_REQUEST, spm_read(DVFSRC_EMI_REQUEST) | (0x9 << 4));
-		spm_write(DVFSRC_EMI_REQUEST, spm_read(DVFSRC_EMI_REQUEST) | (0x2 << 8));
-		spm_write(DVFSRC_EMI_REQUEST, spm_read(DVFSRC_EMI_REQUEST) | (0x9 << 16));
-		spm_write(DVFSRC_MD_SW_CONTROL, spm_read(DVFSRC_MD_SW_CONTROL) & ~(0x1 << 3));
-		spm_write(DVFSRC_MD_SW_CONTROL, spm_read(DVFSRC_MD_SW_CONTROL) & ~(0x1 << 0));
-		spm_write(DVFSRC_MD_SW_CONTROL, spm_read(DVFSRC_MD_SW_CONTROL) & ~(0x1 << 5));
+		spm_write(DVFSRC_EMI_REQUEST,
+			spm_read(DVFSRC_EMI_REQUEST) | (0x9 << 0));
+		spm_write(DVFSRC_EMI_REQUEST,
+			spm_read(DVFSRC_EMI_REQUEST) | (0x9 << 4));
+		spm_write(DVFSRC_EMI_REQUEST,
+			spm_read(DVFSRC_EMI_REQUEST) | (0x2 << 8));
+		spm_write(DVFSRC_EMI_REQUEST,
+			spm_read(DVFSRC_EMI_REQUEST) | (0x9 << 16));
+		spm_write(DVFSRC_MD_SW_CONTROL,
+			spm_read(DVFSRC_MD_SW_CONTROL) & ~(0x1 << 3));
+		spm_write(DVFSRC_MD_SW_CONTROL,
+			spm_read(DVFSRC_MD_SW_CONTROL) & ~(0x1 << 0));
+		spm_write(DVFSRC_MD_SW_CONTROL,
+			spm_read(DVFSRC_MD_SW_CONTROL) & ~(0x1 << 5));
 		spm_write(DVFSRC_VCORE_MD2SPM0, 0x8000C0C0);
 	}
 #endif
@@ -438,30 +561,44 @@ static int spm_trigger_dvfs(int kicker, int opp, bool fix)
 		dvfsrc_hw_policy_mask(0);
 #if 1
 	/* check DVFS idle */
-	r = wait_spm_complete_by_condition(is_dvfs_in_progress() == 0, SPM_DVFS_TIMEOUT);
+	r = wait_spm_complete_by_condition(is_dvfs_in_progress() == 0,
+		SPM_DVFS_TIMEOUT);
 	if (r < 0) {
 		spm_vcorefs_dump_dvfs_regs(NULL);
-		/* aee_kernel_warning("SPM Warring", "Vcore DVFS timeout warning"); */
+/* aee_kernel_warning("SPM Warring", "Vcore DVFS timeout warning"); */
 		return -1;
 	}
 #endif
-	spm_write(DVFSRC_VCORE_REQUEST, (spm_read(DVFSRC_VCORE_REQUEST) & ~(0x3 << 20)) | (vcore_req[opp] << 20));
-	spm_write(DVFSRC_EMI_REQUEST, (spm_read(DVFSRC_EMI_REQUEST) & ~(0x3 << 20)) | (emi_req[opp] << 20));
-	/* spm_write(DVFSRC_MD_REQUEST, (spm_read(DVFSRC_MD_REQUEST) & ~(0x7 << 3)) | (md_req[opp] << 3)); */
+	spm_write(DVFSRC_VCORE_REQUEST,
+		(spm_read(DVFSRC_VCORE_REQUEST) & ~(0x3 << 20))
+		| (vcore_req[opp] << 20));
+	spm_write(DVFSRC_EMI_REQUEST,
+		(spm_read(DVFSRC_EMI_REQUEST) & ~(0x3 << 20))
+		| (emi_req[opp] << 20));
+/*
+ * spm_write(DVFSRC_MD_REQUEST, (spm_read(DVFSRC_MD_REQUEST)
+ * & ~(0x7 << 3)) | (md_req[opp] << 3));
+ */
 
-	vcorefs_crit_mask(log_mask(), kicker, "[%s] fix: %d, opp: %d, vcore: 0x%x, emi: 0x%x, md: 0x%x\n",
-			__func__, fix, opp,
-			spm_read(DVFSRC_VCORE_REQUEST), spm_read(DVFSRC_EMI_REQUEST), spm_read(DVFSRC_MD_REQUEST));
+	vcorefs_crit_mask(log_mask(), kicker,
+		"[%s] fix: %d, opp: %d, vcore: 0x%x, emi: 0x%x, md: 0x%x\n",
+		__func__, fix, opp,
+		spm_read(DVFSRC_VCORE_REQUEST), spm_read(DVFSRC_EMI_REQUEST),
+		spm_read(DVFSRC_MD_REQUEST));
 #if 1
 	/* check DVFS timer */
 	if (fix)
-		r = wait_spm_complete_by_condition(get_dvfs_level() == dvfsrc_level[opp], SPM_DVFS_TIMEOUT);
+		r = wait_spm_complete_by_condition(
+			get_dvfs_level() == dvfsrc_level[opp],
+			SPM_DVFS_TIMEOUT);
 	else
-		r = wait_spm_complete_by_condition(get_dvfs_level() >= dvfsrc_level[opp], SPM_DVFS_TIMEOUT);
+		r = wait_spm_complete_by_condition(
+			get_dvfs_level() >= dvfsrc_level[opp],
+			SPM_DVFS_TIMEOUT);
 
 	if (r < 0) {
 		spm_vcorefs_dump_dvfs_regs(NULL);
-		/* aee_kernel_warning("SPM Warring", "Vcore DVFS timeout warning"); */
+	/* aee_kernel_warning("SPM Warring", "Vcore DVFS timeout warning"); */
 		return -1;
 	}
 #endif
@@ -477,7 +614,10 @@ int spm_dvfs_flag_init(void)
 	if (!vcorefs_dram_dfs_en())
 		flag |= SPM_FLAG_DIS_VCORE_DFS;
 
-	/* flag = SPM_FLAG_RUN_COMMON_SCENARIO | SPM_FLAG_DIS_VCORE_DVS | SPM_FLAG_DIS_VCORE_DFS; */
+/*
+ * flag = SPM_FLAG_RUN_COMMON_SCENARIO | SPM_FLAG_DIS_VCORE_DVS
+ * | SPM_FLAG_DIS_VCORE_DFS;
+ */
 
 	return flag;
 }
@@ -487,7 +627,8 @@ void dvfsrc_md_scenario_update(bool suspend)
 #if defined(CONFIG_MACH_MT6739)
 
 #else
-	if (__spm_get_dram_type() == SPMFW_LP4X_2CH) {
+	if (__spm_get_dram_type() == SPMFW_LP4X_2CH ||
+			__spm_get_dram_type() == SPMFW_LP4_2CH_2400) {
 		/* LP4 2CH */
 		if (suspend) {
 			spm_write(DVFSRC_EMI_MD2SPM0, 0x00000000);
@@ -517,9 +658,11 @@ void dvfsrc_md_scenario_update(bool suspend)
 void dvfsrc_mdsrclkena_control_nolock(bool on)
 {
 	if (on)
-		spm_write(DVFSRC_VCORE_REQUEST, spm_read(DVFSRC_VCORE_REQUEST) | (0x3 << 26));
+		spm_write(DVFSRC_VCORE_REQUEST,
+			spm_read(DVFSRC_VCORE_REQUEST) | (0x3 << 26));
 	else
-		spm_write(DVFSRC_VCORE_REQUEST, spm_read(DVFSRC_VCORE_REQUEST) & ~(0x3 << 26));
+		spm_write(DVFSRC_VCORE_REQUEST,
+			spm_read(DVFSRC_VCORE_REQUEST) & ~(0x3 << 26));
 }
 
 void dvfsrc_mdsrclkena_control(bool on)
@@ -532,7 +675,8 @@ void dvfsrc_mdsrclkena_control(bool on)
 
 	spin_unlock_irqrestore(&__spm_lock, flags);
 
-	spm_vcorefs_warn("mdsrclkena_control (%d)(0x%x)\n", on, spm_read(DVFSRC_VCORE_REQUEST));
+	spm_vcorefs_warn("mdsrclkena_control (%d)(0x%x)\n",
+		on, spm_read(DVFSRC_VCORE_REQUEST));
 }
 #endif
 
@@ -568,7 +712,8 @@ static void dvfsrc_init(void)
 	spm_write(DVFSRC_BASIC_CONTROL, 0x0000023B);
 #else
 
-	if (__spm_get_dram_type() == SPMFW_LP4X_2CH) {
+	if (__spm_get_dram_type() == SPMFW_LP4X_2CH ||
+			__spm_get_dram_type() == SPMFW_LP4_2CH_2400) {
 		/* LP4 2CH */
 		spm_write(DVFSRC_LEVEL_LABEL_0_1, 0x00100000);
 		spm_write(DVFSRC_LEVEL_LABEL_2_3, 0x00210020);
@@ -638,7 +783,8 @@ static void dvfsrc_register_init(void)
 
 dvfsrc_exit:
 
-	spm_vcorefs_warn("spm_dvfsrc_register_init: dvfsrc_base = %p\n", dvfsrc_base);
+	spm_vcorefs_warn("spm_dvfsrc_register_init: dvfsrc_base = %p\n",
+		dvfsrc_base);
 }
 
 static void spm_check_status_before_dvfs(void)
@@ -660,8 +806,9 @@ int spm_set_vcore_dvfs(struct kicker_config *krconf)
 	unsigned long flags;
 	int r = 0;
 	u32 autok_kir_group = AUTOK_KIR_GROUP;
-	bool fix = (((1U << krconf->kicker) & autok_kir_group) || krconf->kicker == KIR_SYSFSX) &&
-									krconf->opp != OPP_UNREQ;
+	bool fix = (((1U << krconf->kicker) & autok_kir_group)
+			|| krconf->kicker == KIR_SYSFSX)
+			&& krconf->opp != OPP_UNREQ;
 	int opp = fix ? krconf->opp : krconf->dvfs_opp;
 
 	spm_check_status_before_dvfs();
@@ -693,7 +840,8 @@ void spm_go_to_vcorefs(int spm_flags)
 
 	spin_lock_irqsave(&__spm_lock, flags);
 
-	mt_secure_call(MTK_SIP_KERNEL_SPM_VCOREFS_ARGS, VCOREFS_SMC_CMD_1, spm_flags, 0);
+	mt_secure_call(MTK_SIP_KERNEL_SPM_VCOREFS_ARGS,
+		VCOREFS_SMC_CMD_1, spm_flags, 0, 0);
 
 	spin_unlock_irqrestore(&__spm_lock, flags);
 
@@ -710,13 +858,15 @@ void spm_request_dvfs_opp(int id, enum dvfs_opp opp)
 
 	switch (id) {
 	case 0: /* ZQTX */
-		if (__spm_get_dram_type() != SPMFW_LP4X_2CH)
+		if (__spm_get_dram_type() != SPMFW_LP4X_2CH &&
+				__spm_get_dram_type() != SPMFW_LP4_2CH_2400)
 			return;
 
 		dram_request_opp = (unsigned int)opp;
 		opp = MIN(dram_request_opp, cmmgr_request_opp);
 
-		mt_secure_call(MTK_SIP_KERNEL_SPM_VCOREFS_ARGS, VCOREFS_SMC_CMD_2, id, emi_req[opp]);
+		mt_secure_call(MTK_SIP_KERNEL_SPM_VCOREFS_ARGS,
+			VCOREFS_SMC_CMD_2, id, emi_req[opp], 0);
 		/* spm_vcorefs_warn("DRAM ZQTX tracking request: %d\n", opp); */
 		break;
 	case 1: /* CMMGR */
@@ -724,9 +874,11 @@ void spm_request_dvfs_opp(int id, enum dvfs_opp opp)
 		opp = MIN(dram_request_opp, cmmgr_request_opp);
 
 		if (__spm_get_dram_type() == SPMFW_LP3_1CH)
-			mt_secure_call(MTK_SIP_KERNEL_SPM_VCOREFS_ARGS, VCOREFS_SMC_CMD_2, 0, emi_req_lp3[opp]);
+			mt_secure_call(MTK_SIP_KERNEL_SPM_VCOREFS_ARGS,
+				VCOREFS_SMC_CMD_2, 0, emi_req_lp3[opp], 0);
 		else
-			mt_secure_call(MTK_SIP_KERNEL_SPM_VCOREFS_ARGS, VCOREFS_SMC_CMD_2, 0, emi_req[opp]);
+			mt_secure_call(MTK_SIP_KERNEL_SPM_VCOREFS_ARGS,
+				VCOREFS_SMC_CMD_2, 0, emi_req[opp], 0);
 		break;
 	default:
 		break;
@@ -741,14 +893,14 @@ static void plat_info_init(void)
 	plat_chip_ver = mt_get_chip_sw_ver();
 
 	/* lcd resolution */
-	#ifdef CONFIG_MTK_SMI_EXT
+	#ifdef CONFIG_MTK_MMDVFS
 	plat_lcd_resolution = mmdvfs_get_lcd_resolution();
 	#else
 	plat_lcd_resolution = 46;
 	#endif
 
 	spm_vcorefs_warn("chip_ver: %d, lcd_resolution: %d channel_num: %d\n",
-						plat_chip_ver, plat_lcd_resolution, plat_channel_num);
+		plat_chip_ver, plat_lcd_resolution, plat_channel_num);
 #endif
 	dram_issue = get_devinfo_with_index(138);
 	dram_issue = (dram_issue & (1U << 8));
@@ -774,7 +926,8 @@ void spm_vcorefs_init(void)
 		spm_vcorefs_warn("[%s] DONE\n", __func__);
 	} else {
 		#if VMODEM_VCORE_COBUCK
-		flag = SPM_FLAG_RUN_COMMON_SCENARIO | SPM_FLAG_DIS_VCORE_DVS | SPM_FLAG_DIS_VCORE_DFS;
+		flag = SPM_FLAG_RUN_COMMON_SCENARIO |
+			SPM_FLAG_DIS_VCORE_DVS | SPM_FLAG_DIS_VCORE_DFS;
 		spm_dvfsfw_init(spm_vcorefs_get_opp());
 		spm_go_to_vcorefs(flag);
 		dvfsrc_init();

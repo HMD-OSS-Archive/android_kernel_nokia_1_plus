@@ -23,8 +23,8 @@
 #endif
 
 /*
-*   enforce kernel log enable
-*/
+ *   enforce kernel log enable
+ */
 #define KERNEL_LOG  /* enable debug log flag if defined */
 
 #define _SUPPORT_MAX_WPE_FRAME_REQUEST_ 32
@@ -32,24 +32,24 @@
 
 
 #define SIG_ERESTARTSYS 512 /* ERESTARTSYS */
-/*******************************************************************************
-*
-********************************************************************************/
+/***********************************************************************
+ *
+ ***********************************************************************/
 #define WPE_DEV_MAJOR_NUMBER    251
 /*TODO: r selected*/
 #define WPE_MAGIC               'w'
 
 #define WPE_REG_RANGE           (0x1000)
 /*TODO: WPE base address : 0x1502a000
-*       for GCE to access physical register addresses
-*/
+ *       for GCE to access physical register addresses
+ */
 #define WPE_BASE_HW     0x1502a000
 #define WPE_B_BASE_HW   0x1502d000
 
 /*This macro is for setting irq status represnted
-* by a local variable,WPEInfo.IrqInfo.Status[WPE_IRQ_TYPE_INT_WPE_ST]
-*/
-#define WPE_INT_ST                 ((unsigned int)1<<0)
+ * by a local variable,WPEInfo.IrqInfo.Status[WPE_IRQ_TYPE_INT_WPE_ST]
+ */
+#define WPE_INT_ST                 (1<<0)
 
 
 struct WPE_REG_STRUCT {
@@ -64,22 +64,27 @@ struct WPE_REG_IO_STRUCT {
 };
 
 /*
-*    interrupt clear type
-*/
+ *    interrupt clear type
+ */
 enum WPE_IRQ_CLEAR_ENUM {
-	WPE_IRQ_CLEAR_NONE,     /* non-clear wait, clear after wait */
-	WPE_IRQ_CLEAR_WAIT,     /* clear wait, clear before and after wait */
-	WPE_IRQ_WAIT_CLEAR,     /* wait the signal and clear it, avoid the hw executime is too s hort. */
-	WPE_IRQ_CLEAR_STATUS,   /* clear specific status only */
-	WPE_IRQ_CLEAR_ALL       /* clear all status */
+	WPE_IRQ_CLEAR_NONE,
+	/* non-clear wait, clear after wait */
+	WPE_IRQ_CLEAR_WAIT,
+	/* clear wait, clear before and after wait */
+	WPE_IRQ_WAIT_CLEAR,
+	/* wait the signal and clear it, avoid the hw executime is too short. */
+	WPE_IRQ_CLEAR_STATUS,
+	/* clear specific status only */
+	WPE_IRQ_CLEAR_ALL
+	/* clear all status */
 };
 
 
 /*
-*    module's interrupt , each module should have its own isr.
-*    note:
-*        mapping to isr table,ISR_TABLE when using no device tree
-*/
+ *    module's interrupt , each module should have its own isr.
+ *    note:
+ *        mapping to isr table,ISR_TABLE when using no device tree
+ */
 enum WPE_IRQ_TYPE_ENUM {
 	WPE_IRQ_TYPE_INT_WPE_ST,    /* WPE */
 	WPE_IRQ_TYPE_INT_WPEB_ST,
@@ -89,28 +94,41 @@ enum WPE_IRQ_TYPE_ENUM {
 struct WPE_WAIT_IRQ_STRUCT {
 	enum WPE_IRQ_CLEAR_ENUM  Clear;
 	enum WPE_IRQ_TYPE_ENUM   Type;
-	unsigned int        Status;         /*IRQ Status*/
+	unsigned int        Status;
+	/*IRQ Status*/
 	unsigned int        Timeout;
-	int                 UserKey;        /* user key for doing interrupt operation */
-	int                 ProcessID;      /* user ProcessID (will filled in kernel) */
-	unsigned int        bDumpReg;       /* check dump register or not*/
+	int                 UserKey;
+	/* user key for doing interrupt operation */
+	int                 ProcessID;
+	/* user ProcessID (will filled in kernel) */
+	unsigned int        bDumpReg;
+	/* check dump register or not*/
 };
 
 struct WPE_CLEAR_IRQ_STRUCT {
 	enum WPE_IRQ_TYPE_ENUM      Type;
-	int                    UserKey;        /* user key for doing interrupt operation */
-	unsigned int           Status; /* Input */
+	int                    UserKey;
+	/* user key for doing interrupt operation */
+	unsigned int           Status;
+	/* Input */
 };
 
 /* struct for enqueue/dequeue control in ihalpipe wrapper */
 enum ISP_WPE_BUFQUE_CTRL_ENUM {
-	ISP_WPE_BUFQUE_CTRL_ENQUE_FRAME = 0, /* 0,signal that a specific buffer is enqueued */
-	ISP_WPE_BUFQUE_CTRL_WAIT_DEQUE, /* 1,a dequeue thread is waiting to do dequeue */
-	ISP_WPE_BUFQUE_CTRL_DEQUE_SUCCESS, /* 2,signal that a buffer is dequeued (success) */
-	ISP_WPE_BUFQUE_CTRL_DEQUE_FAIL, /* 3,signal that a buffer is dequeued (fail) */
-	ISP_WPE_BUFQUE_CTRL_WAIT_FRAME, /* 4,wait for a specific buffer */
-	ISP_WPE_BUFQUE_CTRL_WAKE_WAITFRAME, /* 5,wake all slept users to check buffer is dequeued or not */
-	ISP_WPE_BUFQUE_CTRL_CLAER_ALL, /* 6,free all recored dequeued buffer */
+	ISP_WPE_BUFQUE_CTRL_ENQUE_FRAME = 0,
+		/* 0,signal that a specific buffer is enqueued */
+	ISP_WPE_BUFQUE_CTRL_WAIT_DEQUE,
+	/* 1,a dequeue thread is waiting to do dequeue */
+	ISP_WPE_BUFQUE_CTRL_DEQUE_SUCCESS,
+	/* 2,signal that a buffer is dequeued (success) */
+	ISP_WPE_BUFQUE_CTRL_DEQUE_FAIL,
+	/* 3,signal that a buffer is dequeued (fail) */
+	ISP_WPE_BUFQUE_CTRL_WAIT_FRAME,
+	/* 4,wait for a specific buffer */
+	ISP_WPE_BUFQUE_CTRL_WAKE_WAITFRAME,
+	/* 5,wake all slept users to check buffer is dequeued or not */
+	ISP_WPE_BUFQUE_CTRL_CLAER_ALL,
+	/* 6,free all recored dequeued buffer */
 	ISP_WPE_BUFQUE_CTRL_MAX
 };
 
@@ -126,7 +144,8 @@ struct ISP_WPE_BUFQUE_STRUCT {
 	enum ISP_WPE_BUFQUE_CTRL_ENUM ctrl;
 	enum ISP_WPE_BUFQUE_PROPERTY property;
 	unsigned int processID; /* judge multi-process */
-	unsigned int callerID; /* judge multi-thread and different kinds of buffer type */
+	unsigned int callerID;
+	/* judge multi-thread and different kinds of buffer type */
 	int frameNum; /* total frame number in the enque request */
 	int cQIdx; /* cq index */
 	int dupCQIdx; /* dup cq index */
@@ -292,9 +311,9 @@ struct WPE_Config {
 	unsigned int WPE_DMA_DEBUG_SEL;
 };
 
-/*******************************************************************************
-*
-********************************************************************************/
+/***********************************************************************
+ *
+ ***********************************************************************/
 enum WPE_CMD_ENUM {
 	WPE_CMD_RESET,            /* Reset */
 	WPE_CMD_DUMP_REG,         /* Dump WPE Register */
@@ -321,10 +340,6 @@ struct WPE_Request {
 };
 
 
-
-
-
-
 #ifdef CONFIG_COMPAT
 struct compat_WPE_REG_IO_STRUCT {
 	compat_uptr_t pData;
@@ -340,17 +355,19 @@ struct compat_WPE_Request {
 #endif
 
 
-
-
 #define WPE_RESET           _IO(WPE_MAGIC, WPE_CMD_RESET)
 #define WPE_DUMP_REG        _IO(WPE_MAGIC, WPE_CMD_DUMP_REG)
 #define WPE_DUMP_ISR_LOG    _IO(WPE_MAGIC, WPE_CMD_DUMP_ISR_LOG)
 
 
-#define WPE_READ_REGISTER   _IOWR(WPE_MAGIC, WPE_CMD_READ_REG, struct WPE_REG_IO_STRUCT)
-#define WPE_WRITE_REGISTER  _IOWR(WPE_MAGIC, WPE_CMD_WRITE_REG, struct WPE_REG_IO_STRUCT)
-#define WPE_WAIT_IRQ        _IOW(WPE_MAGIC, WPE_CMD_WAIT_IRQ, struct WPE_WAIT_IRQ_STRUCT)
-#define WPE_CLEAR_IRQ       _IOW(WPE_MAGIC, WPE_CMD_CLEAR_IRQ, struct WPE_CLEAR_IRQ_STRUCT)
+#define WPE_READ_REGISTER \
+	_IOWR(WPE_MAGIC, WPE_CMD_READ_REG, struct WPE_REG_IO_STRUCT)
+#define WPE_WRITE_REGISTER \
+	_IOWR(WPE_MAGIC, WPE_CMD_WRITE_REG, struct WPE_REG_IO_STRUCT)
+#define WPE_WAIT_IRQ \
+	_IOW(WPE_MAGIC, WPE_CMD_WAIT_IRQ, struct WPE_WAIT_IRQ_STRUCT)
+#define WPE_CLEAR_IRQ \
+	_IOW(WPE_MAGIC, WPE_CMD_CLEAR_IRQ, struct WPE_CLEAR_IRQ_STRUCT)
 
 #define WPE_ENQNUE_NUM  _IOW(WPE_MAGIC, WPE_CMD_ENQUE_NUM, int)
 #define WPE_ENQUE      _IOWR(WPE_MAGIC, WPE_CMD_ENQUE, struct WPE_Config)
@@ -360,20 +377,29 @@ struct compat_WPE_Request {
 #define WPE_DEQUE      _IOWR(WPE_MAGIC, WPE_CMD_DEQUE, struct WPE_Config)
 #define WPE_DEQUE_REQ  _IOWR(WPE_MAGIC, WPE_CMD_DEQUE_REQ, struct WPE_Request)
 #define WPE_DEQUE_DONE  _IOWR(WPE_MAGIC, WPE_CMD_DEQUE_DONE, struct WPE_Request)
-#define WPE_WAIT_DEQUE           _IO(WPE_MAGIC, WPE_CMD_WAIT_DEQUE)
-#define WPE_BUFQUE_CTRL     _IOWR(WPE_MAGIC, WPE_CMD_BUFQUE_CTRL, struct ISP_WPE_BUFQUE_STRUCT)
+#define WPE_WAIT_DEQUE  _IO(WPE_MAGIC, WPE_CMD_WAIT_DEQUE)
+#define WPE_BUFQUE_CTRL \
+	_IOWR(WPE_MAGIC, WPE_CMD_BUFQUE_CTRL, struct ISP_WPE_BUFQUE_STRUCT)
 
 
 #ifdef CONFIG_COMPAT
-#define COMPAT_WPE_WRITE_REGISTER   _IOWR(WPE_MAGIC, WPE_CMD_WRITE_REG, struct compat_WPE_REG_IO_STRUCT)
-#define COMPAT_WPE_READ_REGISTER    _IOWR(WPE_MAGIC, WPE_CMD_READ_REG, struct compat_WPE_REG_IO_STRUCT)
-#define COMPAT_WPE_BUFFER_CTRL     _IOWR(WPE_MAGIC, WPE_CMD_BUFQUE_CTRL, struct ISP_WPE_BUFQUE_STRUCT)
+#define COMPAT_WPE_WRITE_REGISTER \
+	_IOWR(WPE_MAGIC, WPE_CMD_WRITE_REG, struct compat_WPE_REG_IO_STRUCT)
+#define COMPAT_WPE_READ_REGISTER \
+	_IOWR(WPE_MAGIC, WPE_CMD_READ_REG, struct compat_WPE_REG_IO_STRUCT)
+#define COMPAT_WPE_BUFFER_CTRL \
+	_IOWR(WPE_MAGIC, WPE_CMD_BUFQUE_CTRL, struct ISP_WPE_BUFQUE_STRUCT)
 
-#define COMPAT_WPE_ENQUE_REQ   _IOWR(WPE_MAGIC, WPE_CMD_ENQUE_REQ, struct compat_WPE_Request)
-#define COMPAT_WPE_DEQUE_REQ   _IOWR(WPE_MAGIC, WPE_CMD_DEQUE_REQ, struct compat_WPE_Request)
-#define COMPAT_WPE_DEQUE_DONE   _IOWR(WPE_MAGIC, WPE_CMD_DEQUE_DONE, struct compat_WPE_Request)
-#define COMPAT_WPE_WAIT_DEQUE   _IO(WPE_MAGIC, WPE_CMD_WAIT_DEQUE)
-#define COMPAT_WPE_BUFQUE_CTRL     _IOWR(WPE_MAGIC, WPE_CMD_BUFQUE_CTRL, struct ISP_WPE_BUFQUE_STRUCT)
+#define COMPAT_WPE_ENQUE_REQ \
+	_IOWR(WPE_MAGIC, WPE_CMD_ENQUE_REQ, struct compat_WPE_Request)
+#define COMPAT_WPE_DEQUE_REQ \
+	_IOWR(WPE_MAGIC, WPE_CMD_DEQUE_REQ, struct compat_WPE_Request)
+#define COMPAT_WPE_DEQUE_DONE \
+	_IOWR(WPE_MAGIC, WPE_CMD_DEQUE_DONE, struct compat_WPE_Request)
+#define COMPAT_WPE_WAIT_DEQUE \
+	_IO(WPE_MAGIC, WPE_CMD_WAIT_DEQUE)
+#define COMPAT_WPE_BUFQUE_CTRL \
+	_IOWR(WPE_MAGIC, WPE_CMD_BUFQUE_CTRL, struct ISP_WPE_BUFQUE_STRUCT)
 
 #endif
 

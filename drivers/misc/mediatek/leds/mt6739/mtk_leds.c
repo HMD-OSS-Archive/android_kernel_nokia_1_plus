@@ -20,10 +20,10 @@
 #include <linux/of.h>
 /* #include <linux/leds-mt65xx.h> */
 #include <linux/workqueue.h>
-#include <linux/wakelock.h>
+/* #include <linux/wakelock.h> */
 #include <linux/slab.h>
 #include <linux/delay.h>
-
+#include <linux/sched/clock.h>
 #include <ddp_aal.h>
 /* #include <linux/aee.h> */
 
@@ -32,6 +32,7 @@
 #include <mt-plat/mtk_pwm.h>
 #include <mt-plat/upmu_common.h>
 
+#include "../mtk_leds_drv.h"
 #include "mtk_leds_sw.h"
 #include "mtk_leds_hal.h"
 #include "ddp_pwm.h"
@@ -86,9 +87,9 @@ static int button_flag_isink0;
 #endif
 static int button_flag_isink1;
 
-struct wake_lock leds_suspend_lock;
+struct wakeup_source leds_suspend_lock;
 
-char *leds_name[MT65XX_LED_TYPE_TOTAL] = {
+char *leds_name[TYPE_TOTAL] = {
 	"red",
 	"green",
 	"blue",
@@ -121,7 +122,7 @@ static unsigned int backlight_PWM_div_hal = CLK_DIV1;	/* this para come from cus
 /****************************************************************************
  * func:return global variables
  ***************************************************************************/
-static unsigned long long current_time, last_time;
+static unsigned long long current_t, last_time;
 static int count;
 static char buffer[4096] = "[BL] Set Backlight directly ";
 
@@ -130,8 +131,8 @@ static void backlight_debug_log(int level, int mappingLevel)
 	unsigned long cur_time_mod = 0;
 	unsigned long long cur_time_display = 0;
 
-	current_time = sched_clock();
-	cur_time_display = current_time;
+	current_t = sched_clock();
+	cur_time_display = current_t;
 	cur_time_mod = do_div(cur_time_display, 1000000000);
 
 	sprintf(buffer + strlen(buffer), "T:%lld.%ld,L:%d map:%d    ",
@@ -139,7 +140,7 @@ static void backlight_debug_log(int level, int mappingLevel)
 
 	count++;
 
-	if (level == 0 || count >= 5 || (current_time - last_time) > 1000000000) {
+	if (level == 0 || count >= 5 || (current_t - last_time) > 1000000000) {
 		LEDS_DEBUG("%s", buffer);
 		count = 0;
 		buffer[strlen("[BL] Set Backlight directly ")] = '\0';
@@ -150,7 +151,7 @@ static void backlight_debug_log(int level, int mappingLevel)
 
 void mt_leds_wake_lock_init(void)
 {
-	wake_lock_init(&leds_suspend_lock, WAKE_LOCK_SUSPEND, "leds wakelock");
+	wakeup_source_init(&leds_suspend_lock, "leds wakelock");
 }
 
 unsigned int mt_get_bl_brightness(void)
@@ -205,16 +206,15 @@ struct cust_mt65xx_led *get_cust_led_dtsi(void)
 
 	if (pled_dtsi == NULL) {
 		/* this can allocat an new struct array */
-		pled_dtsi = kmalloc(MT65XX_LED_TYPE_TOTAL *
-						      sizeof(struct
-							     cust_mt65xx_led),
-						      GFP_KERNEL);
+		pled_dtsi = kmalloc_array(TYPE_TOTAL,
+				sizeof(struct cust_mt65xx_led),
+				GFP_KERNEL);
 		if (pled_dtsi == NULL) {
 			LEDS_DEBUG("get_cust_led_dtsi kmalloc fail\n");
 			goto out;
 		}
 
-		for (i = 0; i < MT65XX_LED_TYPE_TOTAL; i++) {
+		for (i = 0; i < TYPE_TOTAL; i++) {
 			char node_name[32] = "mediatek,";
 
 			if (strlen(node_name) + strlen(leds_name[i]) + 1 > sizeof(node_name)) {
@@ -1009,7 +1009,7 @@ int mt_mt65xx_blink_set(struct led_classdev *led_cdev,
 						  &nled_tmp_setting);
 				return 0;
 			} else if (!got_wake_lock) {
-				wake_lock(&leds_suspend_lock);
+				__pm_stay_awake(&leds_suspend_lock);
 				got_wake_lock = 1;
 			}
 		} else if (!led_data->delay_on && !led_data->delay_off) {	/* disable blink */
@@ -1029,7 +1029,7 @@ int mt_mt65xx_blink_set(struct led_classdev *led_cdev,
 						       0);
 				return 0;
 			} else if (got_wake_lock) {
-				wake_unlock(&leds_suspend_lock);
+				__pm_relax(&leds_suspend_lock);
 				got_wake_lock = 0;
 			}
 		}

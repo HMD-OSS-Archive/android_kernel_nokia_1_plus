@@ -1,19 +1,19 @@
 /*
-* Copyright (C) 2015 MediaTek Inc.
-*
-* This program is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.
-* If not, see <http://www.gnu.org/licenses/>.
-*/
+ * Copyright (C) 2015 MediaTek Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.
+ * If not, see <http://www.gnu.org/licenses/>.
+ */
 
 
 /*******************************************************************************
@@ -37,7 +37,7 @@
  *------------------------------------------------------------------------------
  *
  *
- *******************************************************************************/
+ ******************************************************************************/
 
 
 /*****************************************************************************
@@ -48,6 +48,9 @@
 /*****************************************************************************
  *                E X T E R N A L   R E F E R E N C E S
  *****************************************************************************/
+#include <linux/types.h>
+#include <linux/kernel.h>
+
 #include "mtk-auddrv-ana.h"
 #include "mtk-soc-codec-63xx.h"
 
@@ -72,7 +75,6 @@ unsigned int Ana_Get_Reg(unsigned int offset)
 	int ret = 0;
 
 	ret = pwrap_read(offset, &Rdata);
-	PRINTK_ANA_REG("Ana_Get_Reg offset=0x%x,Rdata=0x%x,ret=%d\n", offset, Rdata, ret);
 #endif
 
 	return Rdata;
@@ -88,8 +90,6 @@ void Ana_Set_Reg(unsigned int offset, unsigned int value, unsigned int mask)
 	unsigned int Reg_Value;
 	unsigned long flags = 0;
 
-	PRINTK_ANA_REG("Ana_Set_Reg offset= 0x%x , value = 0x%x mask = 0x%x\n", offset, value,
-		       mask);
 	spin_lock_irqsave(&ana_set_reg_lock, flags);
 	Reg_Value = Ana_Get_Reg(offset);
 	Reg_Value &= (~mask);
@@ -530,8 +530,6 @@ void Ana_Log_Print(void)
 	pr_debug("DRV_CON3 = 0x%x\n", Ana_Get_Reg(DRV_CON3));
 
 	audckbufEnable(false);
-
-	pr_debug("-Ana_Log_Print\n");
 }
 EXPORT_SYMBOL(Ana_Log_Print);
 
@@ -567,9 +565,11 @@ int Ana_Debug_Read(char *buffer, const int size)
 		       Ana_Get_Reg(AUD_TOP_CKTST_CON0));
 	n += scnprintf(buffer + n, size - n, "AUD_TOP_CLK_HWEN_CON0 = 0x%x\n",
 		       Ana_Get_Reg(AUD_TOP_CLK_HWEN_CON0));
-	n += scnprintf(buffer + n, size - n, "AUD_TOP_CLK_HWEN_CON0_SET = 0x%x\n",
+	n += scnprintf(buffer + n, size - n,
+		       "AUD_TOP_CLK_HWEN_CON0_SET = 0x%x\n",
 		       Ana_Get_Reg(AUD_TOP_CLK_HWEN_CON0_SET));
-	n += scnprintf(buffer + n, size - n, "AUD_TOP_CLK_HWEN_CON0_CLR = 0x%x\n",
+	n += scnprintf(buffer + n, size - n,
+		       "AUD_TOP_CLK_HWEN_CON0_CLR = 0x%x\n",
 		       Ana_Get_Reg(AUD_TOP_CLK_HWEN_CON0_CLR));
 	n += scnprintf(buffer + n, size - n, "AUD_TOP_RST_CON0 = 0x%x\n",
 		       Ana_Get_Reg(AUD_TOP_RST_CON0));
@@ -587,9 +587,11 @@ int Ana_Debug_Read(char *buffer, const int size)
 		       Ana_Get_Reg(AUD_TOP_INT_CON0_CLR));
 	n += scnprintf(buffer + n, size - n, "AUD_TOP_INT_MASK_CON0 = 0x%x\n",
 		       Ana_Get_Reg(AUD_TOP_INT_MASK_CON0));
-	n += scnprintf(buffer + n, size - n, "AUD_TOP_INT_MASK_CON0_SET = 0x%x\n",
+	n += scnprintf(buffer + n, size - n,
+		       "AUD_TOP_INT_MASK_CON0_SET = 0x%x\n",
 		       Ana_Get_Reg(AUD_TOP_INT_MASK_CON0_SET));
-	n += scnprintf(buffer + n, size - n, "AUD_TOP_INT_MASK_CON0_CLR = 0x%x\n",
+	n += scnprintf(buffer + n, size - n,
+		       "AUD_TOP_INT_MASK_CON0_CLR = 0x%x\n",
 		       Ana_Get_Reg(AUD_TOP_INT_MASK_CON0_CLR));
 	n += scnprintf(buffer + n, size - n, "AUD_TOP_INT_STATUS0 = 0x%x\n",
 		       Ana_Get_Reg(AUD_TOP_INT_STATUS0));
@@ -649,9 +651,11 @@ int Ana_Debug_Read(char *buffer, const int size)
 		       Ana_Get_Reg(AFUNC_AUD_MON0));
 	n += scnprintf(buffer + n, size - n, "AUDRC_TUNE_MON0 = 0x%x\n",
 		       Ana_Get_Reg(AUDRC_TUNE_MON0));
-	n += scnprintf(buffer + n, size - n, "AFE_ADDA_MTKAIF_FIFO_CFG0 = 0x%x\n",
+	n += scnprintf(buffer + n, size - n,
+		       "AFE_ADDA_MTKAIF_FIFO_CFG0 = 0x%x\n",
 		       Ana_Get_Reg(AFE_ADDA_MTKAIF_FIFO_CFG0));
-	n += scnprintf(buffer + n, size - n, "AFE_ADDA_MTKAIF_FIFO_LOG_MON1 = 0x%x\n",
+	n += scnprintf(buffer + n, size - n,
+		       "AFE_ADDA_MTKAIF_FIFO_LOG_MON1 = 0x%x\n",
 		       Ana_Get_Reg(AFE_ADDA_MTKAIF_FIFO_LOG_MON1));
 	n += scnprintf(buffer + n, size - n, "AFE_ADDA_MTKAIF_MON0 = 0x%x\n",
 		       Ana_Get_Reg(PMIC_AFE_ADDA_MTKAIF_MON0));
@@ -959,7 +963,6 @@ int Ana_Debug_Read(char *buffer, const int size)
 		       Ana_Get_Reg(ACCDET_CON27));
 	n += scnprintf(buffer + n, size - n, "ACCDET_CON28 = 0x%x\n",
 		       Ana_Get_Reg(ACCDET_CON28));
-
 
 	n += scnprintf(buffer + n, size - n, "GPIO_MODE2  = 0x%x\n",
 		       Ana_Get_Reg(GPIO_MODE2));

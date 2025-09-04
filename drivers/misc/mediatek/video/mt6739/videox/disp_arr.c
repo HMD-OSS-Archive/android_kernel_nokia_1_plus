@@ -23,7 +23,7 @@
 #include <linux/of.h>
 #include <linux/of_irq.h>
 #include <linux/slab.h>
-#include <linux/switch.h>
+/*#include <linux/switch.h>*/
 
 #include "disp_drv_platform.h"
 #include "debug.h"
@@ -50,7 +50,6 @@
 #include "disp_arr.h"
 #include "primary_display.h"
 
-
 /* used by ARR2.0 */
 int primary_display_get_cur_refresh_rate(void)
 {
@@ -60,7 +59,7 @@ int primary_display_get_cur_refresh_rate(void)
 int primary_display_get_max_refresh_rate(void)
 {
 	int ret = -1;
-	LCM_PARAMS *lcm_params = DISP_GetLcmPara();
+	struct LCM_PARAMS *lcm_params = DISP_GetLcmPara();
 
 	/* _primary_path_lock(__func__); */
 	if (lcm_params && (lcm_params->max_refresh_rate != 0))
@@ -75,7 +74,7 @@ int primary_display_get_max_refresh_rate(void)
 int primary_display_get_min_refresh_rate(void)
 {
 	int ret = -1;
-	LCM_PARAMS *lcm_params = DISP_GetLcmPara();
+	struct LCM_PARAMS *lcm_params = DISP_GetLcmPara();
 
 	/* _primary_path_lock(__func__); */
 	if (lcm_params && (lcm_params->min_refresh_rate != 0))
@@ -97,11 +96,10 @@ int primary_display_set_refresh_rate(unsigned int refresh_rate)
 	temp_refresh_rate_max = primary_display_get_max_refresh_rate();
 
 	if ((refresh_rate > temp_refresh_rate_max) ||
-		(refresh_rate < temp_refresh_rate_min))
+	    (refresh_rate < temp_refresh_rate_min))
 		return ret;
 
 	/* AP set refresh rate */
 	ret = primary_display_force_set_vsync_fps(refresh_rate, 0);
 	return ret;
 }
-

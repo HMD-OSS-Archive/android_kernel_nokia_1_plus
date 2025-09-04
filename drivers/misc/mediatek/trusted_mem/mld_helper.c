@@ -82,7 +82,7 @@ static void mld_destroy(const void *mem_ptr)
 	MLD_LOCK();
 
 	list_for_each_entry_safe(mem_item, tmp, &g_mld_context.tcore_list.list,
-				  list) {
+				 list) {
 		if (mem_item->mem_ptr == mem_ptr) {
 			list_del(&mem_item->list);
 			if (g_mld_context.malloc_total_size
@@ -148,7 +148,7 @@ enum MLD_CHECK_STATUS mld_stamp_check(size_t previous_stamped_size)
 	pr_err("[MLD_CHECK] current: 0x%zx\n", current_size);
 	pr_err("[MLD_CHECK] diff: 0x%zx\n",
 	       (current_size - previous_stamped_size));
-	pr_err("[MLD_CHECK] memory leak is deteced!\n");
+	pr_err("[MLD_CHECK] memory leak is detected!\n");
 
 	return MLD_CHECK_FAIL;
 }

@@ -45,3 +45,4 @@ config CONSOLE_LOCK_DURATION_DETECT
 	  if log is too much. This may Trigger HWT.
 	  We should better detect the duration in console.
 	  If the duration is over criteria, it will Report DB.
+

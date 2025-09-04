@@ -21,7 +21,7 @@ uint32_t TEE_update_gb_time_intee(KREE_SESSION_HANDLE session,
 {
 	union MTEEC_PARAM param[4];
 	uint32_t paramTypes;
-	TZ_RESULT ret = TZ_RESULT_SUCCESS;
+	int ret = TZ_RESULT_SUCCESS;
 	uint32_t file_result = GB_TIME_FILE_OK_SIGN;
 	struct file *file = NULL;
 	UINT64 u8Offset = 0;
@@ -34,7 +34,7 @@ uint32_t TEE_update_gb_time_intee(KREE_SESSION_HANDLE session,
 	struct TZ_GB_SECURETIME_INFO secure_time;
 	DRM_UINT64 cur_counter;
 
-	pr_warn("enter  TEE_update_gb_time_intee\n");
+	pr_info("enter %s\n", __func__);
 	rtc = rtc_class_open(CONFIG_RTC_HCTOSYS_DEVICE);
 
 	if (rtc == NULL) {
@@ -50,7 +50,7 @@ uint32_t TEE_update_gb_time_intee(KREE_SESSION_HANDLE session,
 	param[1].mem.buffer = (void *) &cur_counter;
 	param[1].mem.size = sizeof(DRM_UINT64);
 
-	file = FILE_Open(GB_TIME_FILE_SAVE_PATH, O_RDWR, S_IRWXU);
+	file = FILE_Open(GB_TIME_FILE_SAVE_PATH, O_RDWR, 0770);
 	if (file) {
 		FILE_Read(file, (void *) &secure_time,
 			sizeof(struct TZ_GB_SECURETIME_INFO), &u8Offset);
@@ -60,8 +60,8 @@ uint32_t TEE_update_gb_time_intee(KREE_SESSION_HANDLE session,
 		goto err_read;
 	}
 	for (i = 0; i < sizeof(struct TZ_GB_SECURETIME_INFO); i++)
-		pr_warn("%02x", ((char *)&secure_time)[i]);
-	pr_warn("\n");
+		pr_info("%02x", ((char *)&secure_time)[i]);
+	pr_info("\n");
 
 	err = rtc_read_time(rtc, &tm);
 	if (err) {
@@ -117,11 +117,11 @@ uint32_t TEE_update_gb_time_infile(KREE_SESSION_HANDLE session,
 	uint32_t *shm_p;
 	union MTEEC_PARAM param[4];
 	uint32_t paramTypes;
-	TZ_RESULT ret = TZ_RESULT_SUCCESS;
+	int ret = TZ_RESULT_SUCCESS;
 	struct file *file = NULL;
 	UINT64 u8Offset = 0;
 
-	pr_warn("enter  TEE_update_gb_time_infile\n");
+	pr_info("enter %s\n", __func__);
 	shm_p = kmalloc(sizeof(struct TZ_GB_SECURETIME_INFO), GFP_KERNEL);
 
 	paramTypes = TZ_ParamTypes3(TZPT_MEM_OUTPUT, TZPT_VALUE_INPUT,
@@ -137,7 +137,7 @@ uint32_t TEE_update_gb_time_infile(KREE_SESSION_HANDLE session,
 		goto tz_error;
 	}
 
-	file = FILE_Open(GB_TIME_FILE_SAVE_PATH, O_RDWR|O_CREAT, S_IRWXU);
+	file = FILE_Open(GB_TIME_FILE_SAVE_PATH, O_RDWR|O_CREAT, 0770);
 	if (file) {
 		FILE_Write(file, (void *)shm_p,
 			sizeof(struct TZ_GB_SECURETIME_INFO), &u8Offset);
@@ -161,7 +161,7 @@ uint32_t TEE_Icnt_time(KREE_SESSION_HANDLE session,
 	uint32_t *shm_p;
 	union MTEEC_PARAM param[4];
 	uint32_t paramTypes;
-	TZ_RESULT ret;
+	int ret;
 	unsigned long time_count = 1392967151;
 	struct rtc_device *rtc = NULL;
 	struct rtc_time tm;
@@ -267,7 +267,7 @@ static int securetime_savefile_gb(void)
 
 static void st_early_suspend_gb(struct early_suspend *h)
 {
-	pr_debug("[securetime]st_early_suspend_gb error\n");
+	pr_debug("[securetime]%s error\n", __func__);
 
 	/*pr_debug("st_early_suspend: start\n"); */
 	securetime_savefile_gb();
@@ -308,7 +308,7 @@ static struct early_suspend securetime_early_suspend_gb = {
 
 int update_securetime_thread_gb(void *data)
 {
-	TZ_RESULT ret;
+	int ret;
 	unsigned int update_ret = 0;
 	uint32_t nsec = THREAD_COUNT_FREQ;
 

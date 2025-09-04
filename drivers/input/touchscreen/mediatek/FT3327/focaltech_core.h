@@ -41,6 +41,7 @@
 #include <linux/i2c.h>
 #include <linux/vmalloc.h>
 #include <linux/gpio.h>
+#include <uapi/linux/sched/types.h>
 #include <linux/delay.h>
 #include <linux/mutex.h>
 #include <linux/interrupt.h>

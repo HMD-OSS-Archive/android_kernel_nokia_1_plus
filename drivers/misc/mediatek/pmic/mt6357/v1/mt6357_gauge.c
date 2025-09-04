@@ -31,7 +31,7 @@
 #include "include/pmic_throttling_dlpt.h"
 #include <linux/proc_fs.h>
 #include <linux/math64.h>
-
+#include <linux/of.h>
 #include <mtk_gauge_class.h>
 #include <mtk_charger.h>
 #include <mtk_battery_internal.h>
@@ -81,7 +81,7 @@ int MV_to_REG_12_value(signed int _reg)
 {
 	int ret = (_reg * 4096) / (VOLTAGE_FULL_RANGE * 10 * R_VAL_TEMP_3);
 
-	bm_trace("[MV_to_REG_12_value] %d => %d\n", _reg, ret);
+	bm_trace("[%s] %d => %d\n", __func__, _reg, ret);
 	return ret;
 }
 
@@ -89,7 +89,7 @@ int MV_to_REG_12_temp_value(signed int _reg)
 {
 	int ret = (_reg * 4096) / (VOLTAGE_FULL_RANGE * 10 * R_VAL_TEMP_2);
 
-	bm_trace("[MV_to_REG_12_temp_value] %d => %d\n", _reg, ret);
+	bm_trace("[%s] %d => %d\n", __func__, _reg, ret);
 	return ret;
 }
 
@@ -107,7 +107,7 @@ static signed int REG_to_MV_value(signed int _reg)
 #endif
 	ret = _reg64;
 
-	bm_trace("[REG_to_MV_value] %lld => %d\n", _reg64, ret);
+	bm_trace("[%s] %lld => %d\n", __func__, _reg64, ret);
 	return ret;
 }
 
@@ -126,12 +126,12 @@ static signed int MV_to_REG_value(signed int _mv)
 
 	if (ret <= 0) {
 		bm_err(
-			"[fg_bat_nafg][MV_to_REG_value] mv=%d,%lld => %d,\n",
-			_mv, _reg64, ret);
+			"[fg_bat_nafg][%s] mv=%d,%lld => %d,\n",
+			__func__, _mv, _reg64, ret);
 		return ret;
 	}
 
-	bm_trace("[MV_to_REG_value] mv=%d,%lld => %d,\n", _mv, _reg64, ret);
+	bm_trace("[%s] mv=%d,%lld => %d,\n", __func__, _mv, _reg64, ret);
 	return ret;
 }
 
@@ -187,8 +187,8 @@ static int fgauge_set_info(
 				0x01FF,
 				0x7);
 
-			bm_err("[fgauge_set_info]: write invalid value to GAUGE_SHUTDOWN_CAR ret:%d\n",
-				ret);
+			bm_err("[%s]: write invalid value to GAUGE_SHUTDOWN_CAR ret:%d\n",
+				__func__, ret);
 
 			return 0;
 		}
@@ -205,8 +205,8 @@ static int fgauge_set_info(
 			PMIC_RG_SYSTEM_INFO_CON1_ADDR, sign_bit, 0x0001, 0xf);
 
 		bm_err(
-		"[fgauge_set_info]: GAUGE_SHUTDOWN_CAR:%d,0x%x,sign:%d, 0x%x,0x%x\n",
-			value, value, sign_bit, value_mask,
+			"[%s]: GAUGE_SHUTDOWN_CAR:%d,0x%x,sign:%d, 0x%x,0x%x\n",
+			__func__, value, value, sign_bit, value_mask,
 			pmic_get_register_value(PMIC_RG_SYSTEM_INFO_CON1));
 	} else
 		ret = -1;
@@ -248,8 +248,8 @@ static int fgauge_get_info(
 			PMIC_RG_SYSTEM_INFO_CON1_ADDR, value, 0xff, 0x7);
 
 		if (sign_bit == 1 && *value == 0xff) {
-			bm_err("[fgauge_get_info]: GAUGE_SHUTDOWN_CAR: invalid, sign:%d value:0x%x\n",
-				sign_bit, *value);
+			bm_err("[%s]: GAUGE_SHUTDOWN_CAR: invalid, sign:%d value:0x%x\n",
+				__func__, sign_bit, *value);
 			sign_bit = 0;
 			*value = 0;
 		} else if (sign_bit == 1)
@@ -280,9 +280,9 @@ static void fgauge_read_RTC_boot_status(struct gauge_device *gauge_dev)
 		rtc_invalid = 0;
 
 	bm_err(
-	"[fgauge_read_RTC_boot_status] rtc_invalid %d plugout %d plugout_time %d spare3 0x%x\n",
-			rtc_invalid, is_bat_plugout, bat_plug_out_time,
-			spare3_reg);
+		"[%s] rtc_invalid %d plugout %d plugout_time %d spare3 0x%x\n",
+		__func__, rtc_invalid, is_bat_plugout, bat_plug_out_time,
+		spare3_reg);
 }
 
 
@@ -353,7 +353,8 @@ static int fgauge_read_current(
 			m++;
 			if (m > 1000) {
 				bm_err(
-				"[fgauge_read_current] fg_get_data_ready_status timeout 1 !\r\n");
+					"[%s] fg_get_data_ready_status timeout 1 !\r\n",
+					__func__);
 				break;
 			}
 		}
@@ -362,7 +363,7 @@ static int fgauge_read_current(
 	 *(4)    Read FG_CURRENT_OUT[07:00]
 	 */
 	uvalue16 = pmic_get_register_value(PMIC_FG_CURRENT_OUT);
-	bm_trace("[fgauge_read_current] : FG_CURRENT = %x\r\n", uvalue16);
+	bm_trace("[%s] : FG_CURRENT = %x\r\n", __func__, uvalue16);
 	/*
 	 *(5)    (Read other data)
 	 *(6)    Clear status to 0
@@ -377,7 +378,8 @@ static int fgauge_read_current(
 			m++;
 			if (m > 1000) {
 				bm_err(
-					"[fgauge_read_current] fg_get_data_ready_status timeout 2 !\r\n");
+					"[%s] fg_get_data_ready_status timeout 2 !\r\n",
+					__func__);
 				break;
 			}
 		}
@@ -405,36 +407,37 @@ static int fgauge_read_current(
 
 	if (*fg_is_charging == true)
 		bm_trace(
-		"[fgauge_read_current] current(charging) = %d mA\r\n",
+		"[%s] current(charging) = %d mA\r\n", __func__,
 			 dvalue);
 	else
 		bm_trace(
-		"[fgauge_read_current] current(discharging) = %d mA\r\n",
+		"[%s] current(discharging) = %d mA\r\n", __func__,
 			 dvalue);
 
 		/* Auto adjust value */
 		if (gauge_dev->fg_cust_data->r_fg_value != 100) {
 			bm_trace(
-			"[fgauge_read_current] Auto adjust value due to the Rfg is %d\n Ori current=%d, ",
-			gauge_dev->fg_cust_data->r_fg_value, dvalue);
+			"[%s] Auto adjust value due to the Rfg is %d\n Ori current=%d, ",
+			__func__, gauge_dev->fg_cust_data->r_fg_value, dvalue);
 
 			dvalue =
 				(dvalue * 100) /
 				gauge_dev->fg_cust_data->r_fg_value;
 
 			bm_trace(
-				"[fgauge_read_current] new current=%d\n",
+				"[%s] new current=%d\n", __func__,
 				dvalue);
 		}
 
-		bm_trace("[fgauge_read_current] ori current=%d\n", dvalue);
+		bm_trace("[%s] ori current=%d\n", __func__, dvalue);
 
 		dvalue =
 			((dvalue * gauge_dev->fg_cust_data->car_tune_value)
 			/ 1000);
 
-		bm_debug("[fgauge_read_current] final current=%d (ratio=%d)\n",
-			 dvalue, gauge_dev->fg_cust_data->car_tune_value);
+		bm_debug("[%s] final current=%d (ratio=%d)\n",
+			__func__, dvalue,
+			gauge_dev->fg_cust_data->car_tune_value);
 
 		*data = dvalue;
 
@@ -590,7 +593,8 @@ static int fgauge_get_coulomb(struct gauge_device *gauge_dev, int *data)
 		((dvalue_CAR *
 		gauge_dev->fg_cust_data->car_tune_value) / 1000);
 
-	bm_debug("[fgauge_read_columb_internal] CAR=%d r_fg_value=%d car_tune_value=%d\n",
+	bm_debug("[%s] CAR=%d r_fg_value=%d car_tune_value=%d\n",
+		__func__,
 		dvalue_CAR,
 		gauge_dev->fg_cust_data->r_fg_value,
 		gauge_dev->fg_cust_data->car_tune_value);
@@ -607,18 +611,18 @@ static int fgauge_reset_hw(struct gauge_device *gauge_dev)
 	unsigned int val_car_temp = 1;
 	unsigned int ret = 0;
 
-	bm_trace("[fgauge_hw_reset] : Start \r\n");
+	bm_trace("[%s] : Start \r\n", __func__);
 
 	while (val_car != 0x0) {
 		ret = pmic_config_interface(
 			MT6357_FGADC_CON1, 0x0600, 0x1F00, 0x0);
-		bm_err("[fgauge_hw_reset] reset fgadc 0x0600\n");
+		bm_err("[%s] reset fgadc 0x0600\n", __func__);
 
 		fgauge_get_coulomb(gauge_dev, &val_car_temp);
 		val_car = val_car_temp;
 	}
 
-	bm_trace("[fgauge_hw_reset] : End \r\n");
+	bm_trace("[%s] : End \r\n", __func__);
 
 	return 0;
 }
@@ -637,8 +641,8 @@ static int read_hw_ocv_6357_plug_in(void)
 			pmic_get_register_value(
 				PMIC_AUXADC_ADC_OUT_BAT_PLUGIN_SWCHR);
 		adc_result = REG_to_MV_value(adc_result_reg);
-		bm_debug("[oam] read_hw_ocv_6357_plug_in (swchr) : adc_result_reg=%d, adc_result=%d, start_sel=%d, rdy=%d\n",
-			adc_result_reg, adc_result,
+		bm_debug("[oam] %s (swchr) : adc_result_reg=%d, adc_result=%d, start_sel=%d, rdy=%d\n",
+			__func__, adc_result_reg, adc_result,
 			pmic_get_register_value(
 			PMIC_RG_STRUP_AUXADC_START_SEL),
 			adc_rdy);
@@ -649,8 +653,8 @@ static int read_hw_ocv_6357_plug_in(void)
 			pmic_get_register_value(
 				PMIC_AUXADC_ADC_OUT_BAT_PLUGIN_PCHR);
 		adc_result = REG_to_MV_value(adc_result_reg);
-		bm_debug("[oam] read_hw_ocv_6357_plug_in (pchr) : adc_result_reg=%d, adc_result=%d, start_sel=%d, rdy=%d\n",
-			 adc_result_reg, adc_result,
+		bm_debug("[oam] %s (pchr) : adc_result_reg=%d, adc_result=%d, start_sel=%d, rdy=%d\n",
+			 __func__, adc_result_reg, adc_result,
 			 pmic_get_register_value(
 				PMIC_RG_STRUP_AUXADC_START_SEL),
 				adc_rdy);
@@ -682,8 +686,8 @@ static int read_hw_ocv_6357_power_on(void)
 			pmic_get_register_value(
 				PMIC_AUXADC_ADC_OUT_PWRON_SWCHR);
 		adc_result = REG_to_MV_value(adc_result_reg);
-		bm_debug("[oam] read_hw_ocv_6357_power_on (swchr) : adc_result_reg=%d, adc_result=%d, start_sel=%d, rdy=%d\n",
-			 adc_result_reg, adc_result,
+		bm_debug("[oam] %s (swchr) : adc_result_reg=%d, adc_result=%d, start_sel=%d, rdy=%d\n",
+			 __func__, adc_result_reg, adc_result,
 			 pmic_get_register_value(
 				PMIC_RG_STRUP_AUXADC_START_SEL),
 				adc_result_rdy);
@@ -701,8 +705,8 @@ static int read_hw_ocv_6357_power_on(void)
 		adc_result_reg =
 			pmic_get_register_value(PMIC_AUXADC_ADC_OUT_PWRON_PCHR);
 		adc_result = REG_to_MV_value(adc_result_reg);
-		bm_debug("[oam] read_hw_ocv_6357_power_on (pchr) : adc_result_reg=%d, adc_result=%d, start_sel=%d, rdy=%d\n",
-			 adc_result_reg, adc_result,
+		bm_debug("[oam] %s (pchr) : adc_result_reg=%d, adc_result=%d, start_sel=%d, rdy=%d\n",
+			 __func__, adc_result_reg, adc_result,
 			 pmic_get_register_value(
 			 PMIC_RG_STRUP_AUXADC_START_SEL),
 			 adc_result_rdy);
@@ -733,8 +737,8 @@ static int read_hw_ocv_6357_power_on_rdy(void)
 			pmic_get_register_value(PMIC_AUXADC_ADC_RDY_PWRON_PCHR);
 
 	bm_err(
-		"[read_hw_ocv_6357_power_on_rdy] 0x%x pon_rdy %d\n",
-		hw_id, pon_rdy);
+		"[%s] 0x%x pon_rdy %d\n",
+		__func__, hw_id, pon_rdy);
 
 	return pon_rdy;
 }
@@ -856,8 +860,8 @@ int read_hw_ocv(struct gauge_device *gauge_dev, int *data)
 	/* final chance to check hwocv */
 	if (_hw_ocv < 30000) {
 		bm_err(
-			"[read_hw_ocv] ERROR, _hw_ocv=%d, force use swocv\n",
-			_hw_ocv);
+			"[%s] ERROR, _hw_ocv=%d, force use swocv\n",
+			__func__, _hw_ocv);
 		_hw_ocv = _sw_ocv;
 		_hw_ocv_src = FROM_SW_OCV;
 	}
@@ -888,16 +892,16 @@ int read_hw_ocv(struct gauge_device *gauge_dev, int *data)
 	gauge_dev->fg_hw_info.charger_zcv = _hw_ocv_chgin;
 	gauge_dev->fg_hw_info.hw_zcv = _hw_ocv;
 
-	bm_err("[read_hw_ocv] g_fg_is_charger_exist %d _hw_ocv_chgin_rdy %d\n",
-		g_fg_is_charger_exist, _hw_ocv_chgin_rdy);
-	bm_err("[read_hw_ocv] _hw_ocv %d _sw_ocv %d now_thr %d\n",
-		_prev_hw_ocv, _sw_ocv, now_thr);
-	bm_err("[read_hw_ocv] _hw_ocv %d _hw_ocv_src %d _prev_hw_ocv %d _prev_hw_ocv_src %d _flag_unreliable %d\n",
-		_hw_ocv, _hw_ocv_src,
+	bm_err("[%s] g_fg_is_charger_exist %d _hw_ocv_chgin_rdy %d\n",
+		__func__, g_fg_is_charger_exist, _hw_ocv_chgin_rdy);
+	bm_err("[%s] _hw_ocv %d _sw_ocv %d now_thr %d\n",
+		__func__, _prev_hw_ocv, _sw_ocv, now_thr);
+	bm_err("[%s] _hw_ocv %d _hw_ocv_src %d _prev_hw_ocv %d _prev_hw_ocv_src %d _flag_unreliable %d\n",
+		__func__, _hw_ocv, _hw_ocv_src,
 		_prev_hw_ocv, _prev_hw_ocv_src,
 		_flag_unreliable);
-	bm_debug("[read_hw_ocv] _hw_ocv_35_pon_rdy %d _hw_ocv_35_pon %d _hw_ocv_35_plugin %d _hw_ocv_chgin %d _sw_ocv %d now_temp %d now_thr %d\n",
-		_hw_ocv_35_pon_rdy, _hw_ocv_35_pon,
+	bm_debug("[%s] _hw_ocv_35_pon_rdy %d _hw_ocv_35_pon %d _hw_ocv_35_plugin %d _hw_ocv_chgin %d _sw_ocv %d now_temp %d now_thr %d\n",
+		__func__, _hw_ocv_35_pon_rdy, _hw_ocv_35_pon,
 		_hw_ocv_35_plugin, _hw_ocv_chgin,
 		_sw_ocv, now_temp, now_thr);
 
@@ -918,9 +922,9 @@ int fgauge_set_coulomb_interrupt1_ht(
 	signed int value32_CAR;
 	long long car = car_value;
 
-	bm_trace("fgauge_set_coulomb_interrupt1_ht car=%d\n", car_value);
+	bm_trace("%s car=%d\n", __func__, car_value);
 	if (car == 0) {
-		pmic_enable_interrupt(FG_BAT1_INT_H_NO, 0, "GM30");
+		gauge_enable_interrupt(FG_BAT1_INT_H_NO, 0);
 		return 0;
 	}
 /*
@@ -940,7 +944,7 @@ int fgauge_set_coulomb_interrupt1_ht(
 	} else {
 		ret = pmic_config_interface(
 				MT6357_FGADC_CON1, 0x1F05, 0xFF0F, 0x0);
-		bm_err("[fgauge_set_coulomb_interrupt1_ht] reset fgadc 0x1F05\n");
+		bm_err("[%s] reset fgadc 0x1F05\n", __func__);
 	}
 
 	/*(2)    Keep i2c read when status = 1 (0x06) */
@@ -949,7 +953,8 @@ int fgauge_set_coulomb_interrupt1_ht(
 		m++;
 		if (m > 1000) {
 			bm_err(
-				 "[fgauge_set_coulomb_interrupt1_ht] fg_get_data_ready_status timeout 1 !");
+				"[%s] fg_get_data_ready_status timeout 1 !",
+				__func__);
 			break;
 		}
 	}
@@ -965,8 +970,8 @@ int fgauge_set_coulomb_interrupt1_ht(
 		(pmic_get_register_value(PMIC_FG_CAR_31_16) & 0x8000) >> 15;
 
 	bm_trace(
-		"[fgauge_set_coulomb_interrupt1_ht] FG_CAR = 0x%x:%d   uvalue32_CAR_MSB:0x%x 0x%x 0x%x\r\n",
-		value32_CAR,
+		"[%s] FG_CAR = 0x%x:%d   uvalue32_CAR_MSB:0x%x 0x%x 0x%x\r\n",
+		__func__, value32_CAR,
 		value32_CAR,
 		uvalue32_CAR_MSB,
 		(pmic_get_register_value(PMIC_FG_CAR_15_00)),
@@ -979,7 +984,8 @@ int fgauge_set_coulomb_interrupt1_ht(
 		m++;
 		if (m > 1000) {
 			bm_err(
-				 "[fgauge_set_coulomb_interrupt1_ht] fg_get_data_ready_status timeout 2 !");
+				"[%s] fg_get_data_ready_status timeout 2 !",
+				__func__);
 			break;
 		}
 	}
@@ -1010,8 +1016,8 @@ int fgauge_set_coulomb_interrupt1_ht(
 	upperbound = value32_CAR >> CAR_TO_REG_SHIFT;
 
 	bm_trace(
-		"[fgauge_set_coulomb_interrupt1_ht] upper = 0x%x:%d diff_car=0x%llx:%lld\r\n",
-		 upperbound, upperbound, car, car);
+		"[%s] upper = 0x%x:%d diff_car=0x%llx:%lld\r\n",
+		__func__, upperbound, upperbound, car, car);
 
 	upperbound = upperbound + car;
 
@@ -1020,24 +1026,24 @@ int fgauge_set_coulomb_interrupt1_ht(
 
 
 	bm_trace(
-		"[fgauge_set_coulomb_interrupt1_ht]final upper = 0x%x:%d car=0x%llx:%lld\r\n",
-		 upperbound, upperbound, car, car);
+		"[%s]final upper = 0x%x:%d car=0x%llx:%lld\r\n",
+		__func__, upperbound, upperbound, car, car);
 
 	bm_trace(
-		"[fgauge_set_coulomb_interrupt1_ht]final upper 0x%x 0x%x 0x%x car=0x%llx\n",
-		 upperbound, upperbound_31_16, upperbound_15_00, car);
+		"[%s]final upper 0x%x 0x%x 0x%x car=0x%llx\n",
+		__func__, upperbound, upperbound_31_16, upperbound_15_00, car);
 
-	pmic_enable_interrupt(FG_BAT1_INT_H_NO, 0, "GM30");
+	gauge_enable_interrupt(FG_BAT1_INT_H_NO, 0);
 
 	pmic_set_register_value(PMIC_FG_BAT0_HTH_15_00, upperbound_15_00);
 	pmic_set_register_value(PMIC_FG_BAT0_HTH_31_16, upperbound_31_16);
 	mdelay(1);
 
-	pmic_enable_interrupt(FG_BAT1_INT_H_NO, 1, "GM30");
+	gauge_enable_interrupt(FG_BAT1_INT_H_NO, 1);
 
 	bm_debug(
-		"[fgauge_set_coulomb_interrupt1_ht] high:0x%x 0x%x car_value:%d car:%d\r\n",
-		pmic_get_register_value(PMIC_FG_BAT0_HTH_15_00),
+		"[%s] high:0x%x 0x%x car_value:%d car:%d\r\n",
+		__func__, pmic_get_register_value(PMIC_FG_BAT0_HTH_15_00),
 		pmic_get_register_value(PMIC_FG_BAT0_HTH_31_16),
 		car_value, value32_CAR);
 
@@ -1057,9 +1063,9 @@ int fgauge_set_coulomb_interrupt1_lt(
 	signed int value32_CAR;
 	long long car = car_value;
 
-	bm_trace("fgauge_set_coulomb_interrupt1_lt car=%d\n", car_value);
+	bm_trace("%s car=%d\n", __func__, car_value);
 	if (car == 0) {
-		pmic_enable_interrupt(FG_BAT1_INT_L_NO, 0, "GM30");
+		gauge_enable_interrupt(FG_BAT1_INT_L_NO, 0);
 		return 0;
 	}
 /*
@@ -1081,7 +1087,7 @@ int fgauge_set_coulomb_interrupt1_lt(
 		ret =
 			pmic_config_interface(
 				MT6357_FGADC_CON1, 0x1F05, 0xFF0F, 0x0);
-		bm_err("[fgauge_set_coulomb_interrupt1_lt] reset fgadc 0x1F05\n");
+		bm_err("[%s] reset fgadc 0x1F05\n", __func__);
 	}
 
 	/*(2)    Keep i2c read when status = 1 (0x06) */
@@ -1090,7 +1096,8 @@ int fgauge_set_coulomb_interrupt1_lt(
 		m++;
 		if (m > 1000) {
 			bm_err(
-				 "[fgauge_set_coulomb_interrupt1_lt] fg_get_data_ready_status timeout 1 !");
+				"[%s] fg_get_data_ready_status timeout 1 !",
+				__func__);
 			break;
 		}
 	}
@@ -1107,8 +1114,8 @@ int fgauge_set_coulomb_interrupt1_lt(
 		(pmic_get_register_value(PMIC_FG_CAR_31_16) & 0x8000) >> 15;
 
 	bm_trace(
-		"[fgauge_set_coulomb_interrupt1_lt] FG_CAR = 0x%x:%d   uvalue32_CAR_MSB:0x%x 0x%x 0x%x\r\n",
-		value32_CAR, value32_CAR, uvalue32_CAR_MSB,
+		"[%s] FG_CAR = 0x%x:%d   uvalue32_CAR_MSB:0x%x 0x%x 0x%x\r\n",
+		__func__, value32_CAR, value32_CAR, uvalue32_CAR_MSB,
 		(pmic_get_register_value(PMIC_FG_CAR_15_00)),
 		(pmic_get_register_value(PMIC_FG_CAR_31_16)));
 
@@ -1119,7 +1126,8 @@ int fgauge_set_coulomb_interrupt1_lt(
 		m++;
 		if (m > 1000) {
 			bm_err(
-				 "[fgauge_set_coulomb_interrupt1_lt] fg_get_data_ready_status timeout 2 !");
+				"[%s] fg_get_data_ready_status timeout 2 !",
+				__func__);
 			break;
 		}
 	}
@@ -1150,8 +1158,8 @@ int fgauge_set_coulomb_interrupt1_lt(
 	lowbound = value32_CAR >> CAR_TO_REG_SHIFT;
 
 	bm_trace(
-		"[fgauge_set_coulomb_interrupt1_lt]low=0x%x:%d  diff_car=0x%llx:%lld\r\n",
-		 lowbound, lowbound, car, car);
+		"[%s]low=0x%x:%d  diff_car=0x%llx:%lld\r\n",
+		__func__, lowbound, lowbound, car, car);
 
 	lowbound = lowbound - car;
 
@@ -1159,23 +1167,23 @@ int fgauge_set_coulomb_interrupt1_lt(
 	lowbound_15_00 = (lowbound & 0xffff);
 
 	bm_trace(
-		"[fgauge_set_coulomb_interrupt1_lt]final low=0x%x:%d  car=0x%llx:%lld\r\n",
-		 lowbound, lowbound, car, car);
+		"[%s]final low=0x%x:%d  car=0x%llx:%lld\r\n",
+		__func__, lowbound, lowbound, car, car);
 
 	bm_trace(
-		"[fgauge_set_coulomb_interrupt1_lt]final low 0x%x 0x%x 0x%x car=0x%llx\n",
-		 lowbound, lowbound_31_16, lowbound_15_00, car);
+		"[%s]final low 0x%x 0x%x 0x%x car=0x%llx\n",
+		__func__, lowbound, lowbound_31_16, lowbound_15_00, car);
 
-	pmic_enable_interrupt(FG_BAT1_INT_L_NO, 0, "GM30");
+	gauge_enable_interrupt(FG_BAT1_INT_L_NO, 0);
 	pmic_set_register_value(PMIC_FG_BAT0_LTH_15_00, lowbound_15_00);
 	pmic_set_register_value(PMIC_FG_BAT0_LTH_31_16, lowbound_31_16);
 	mdelay(1);
 
-	pmic_enable_interrupt(FG_BAT1_INT_L_NO, 1, "GM30");
+	gauge_enable_interrupt(FG_BAT1_INT_L_NO, 1);
 
 	bm_debug(
-		"[fgauge_set_coulomb_interrupt1_lt] low:0x%x 0x%x car_value:%d car:%d\r\n",
-		pmic_get_register_value(PMIC_FG_BAT0_LTH_15_00),
+		"[%s] low:0x%x 0x%x car_value:%d car:%d\r\n",
+		__func__, pmic_get_register_value(PMIC_FG_BAT0_LTH_15_00),
 		pmic_get_register_value(PMIC_FG_BAT0_LTH_31_16),
 		car_value, value32_CAR);
 
@@ -1206,7 +1214,7 @@ static int fgauge_get_ptim_current(
 		/*unsigned int ret = 0;*/
 
 		uvalue16 = pmic_get_register_value(PMIC_FG_R_CURR);
-		bm_trace("[fgauge_get_ptim_current] : FG_CURRENT = %x\r\n",
+		bm_trace("[%s] : FG_CURRENT = %x\r\n", __func__,
 			 uvalue16);
 
 		/*calculate the real world data    */
@@ -1323,14 +1331,14 @@ static int fgauge_get_zcv(struct gauge_device *gauge_dev, int *zcv)
 			pmic_get_register_value(
 				PMIC_AUXADC_ADC_OUT_FGADC_SWCHR);
 		adc_result = REG_to_MV_value(adc_result_reg);
-		bm_debug("[oam] fgauge_get_zcv ISENSE (swchr) : adc_result_reg=%d, adc_result=%d\n",
-			 adc_result_reg, adc_result);
+		bm_debug("[oam] %s ISENSE (swchr) : adc_result_reg=%d, adc_result=%d\n",
+			 __func__, adc_result_reg, adc_result);
 	} else {
 		adc_result_reg =
 			pmic_get_register_value(PMIC_AUXADC_ADC_OUT_FGADC_PCHR);
 		adc_result = REG_to_MV_value(adc_result_reg);
-		bm_debug("[oam] fgauge_get_zcv BATSNS  (pchr) : adc_result_reg=%d, adc_result=%d\n",
-			 adc_result_reg, adc_result);
+		bm_debug("[oam] %s BATSNS  (pchr) : adc_result_reg=%d, adc_result=%d\n",
+			 __func__, adc_result_reg, adc_result);
 	}
 	adc_result += g_hw_ocv_tune_value;
 	*zcv = adc_result;
@@ -1382,8 +1390,8 @@ static void fgauge_set_nafg_intr_internal(int _prd, int _zcv_mv, int _thr_mv)
 			PMIC_AUXADC_NAG_VBAT1_SEL, 0);	/* use Batsns */
 	}
 
-	bm_debug("[fg_bat_nafg][fgauge_set_nafg_interrupt_internal] time[%d] zcv[%d:%d] thr[%d:%d] 26_16[0x%x] 15_00[0x%x] %d\n",
-		_prd, _zcv_mv,
+	bm_debug("[fg_bat_nafg][%s] time[%d] zcv[%d:%d] thr[%d:%d] 26_16[0x%x] 15_00[0x%x] %d\n",
+		__func__, _prd, _zcv_mv,
 		_zcv_reg, _thr_mv, _thr_reg,
 		NAG_C_DLTV_Threashold_26_16,
 		NAG_C_DLTV_Threashold_15_0,
@@ -1413,7 +1421,7 @@ static int fgauge_enable_nag_interrupt(struct gauge_device *gauge_dev, int en)
 {
 	if (en != 0)
 		en = 1;
-	pmic_enable_interrupt(FG_RG_INT_EN_NAG_C_DLTV, en, "GM30");
+	gauge_enable_interrupt(FG_RG_INT_EN_NAG_C_DLTV, en);
 	pmic_set_register_value(PMIC_AUXADC_NAG_IRQ_EN, en);
 	pmic_set_register_value(PMIC_AUXADC_NAG_EN, en);
 
@@ -1433,8 +1441,8 @@ static int fgauge_get_nag_cnt(struct gauge_device *gauge_dev, int *nag_cnt)
 	*nag_cnt =
 		(NAG_C_DLTV_CNT & 0xffff) +
 		((NAG_C_DLTV_CNT_H & 0x3ff) << 16);
-	bm_debug("[fg_bat_nafg][fgauge_get_nafg_cnt] %d [25_16 %d 15_0 %d]\n",
-			*nag_cnt, NAG_C_DLTV_CNT_H, NAG_C_DLTV_CNT);
+	bm_debug("[fg_bat_nafg][%s] %d [25_16 %d 15_0 %d]\n",
+			__func__, *nag_cnt, NAG_C_DLTV_CNT_H, NAG_C_DLTV_CNT);
 
 	return 0;
 }
@@ -1450,8 +1458,8 @@ static int fgauge_get_nag_dltv(struct gauge_device *gauge_dev, int *nag_dltv)
 	NAG_DLTV_mV_value = REG_to_MV_value(NAG_DLTV_reg_value);
 	*nag_dltv = NAG_DLTV_mV_value;
 
-	bm_debug("[fg_bat_nafg][fgauge_get_nafg_dltv] mV:Reg [%d:%d]\n",
-		NAG_DLTV_mV_value, NAG_DLTV_reg_value);
+	bm_debug("[fg_bat_nafg][%s] mV:Reg [%d:%d]\n",
+		__func__, NAG_DLTV_mV_value, NAG_DLTV_reg_value);
 
 	return 0;
 }
@@ -1486,8 +1494,8 @@ static int fgauge_get_nag_c_dltv(
 	NAG_C_DLTV_mV_value = REG_to_MV_value(NAG_C_DLTV_reg_value);
 	*nag_c_dltv = NAG_C_DLTV_mV_value;
 
-	bm_debug("[fg_bat_nafg][fgauge_get_nafg_c_dltv] mV:Reg[%d:%d][b10:%d][26_16(0x%04x) 15_00(0x%04x)]\n",
-		NAG_C_DLTV_mV_value, NAG_C_DLTV_reg_value,
+	bm_debug("[fg_bat_nafg][%s] mV:Reg[%d:%d][b10:%d][26_16(0x%04x) 15_00(0x%04x)]\n",
+		__func__, NAG_C_DLTV_mV_value, NAG_C_DLTV_reg_value,
 		bcheckbit10, NAG_C_DLTV_value_H,
 		NAG_C_DLTV_value);
 
@@ -1546,8 +1554,8 @@ static void fgauge_set_zcv_intr_internal(
 	pmic_set_register_value(PMIC_FG_ZCV_CAR_TH_31_16,
 				fg_zcv_car_thr_h_reg);
 
-	bm_debug("[FG_ZCV_INT][fg_set_zcv_intr_internal] det_time %d mv %d reg %lld 31_16 0x%x 15_00 0x%x UNIT_FGCAR_ZCV:%d\n",
-		fg_zcv_det_time, fg_zcv_car_th, fg_zcv_car_th_reg,
+	bm_debug("[FG_ZCV_INT][%s] det_time %d mv %d reg %lld 31_16 0x%x 15_00 0x%x UNIT_FGCAR_ZCV:%d\n",
+		__func__, fg_zcv_det_time, fg_zcv_car_th, fg_zcv_car_th_reg,
 		fg_zcv_car_thr_h_reg, fg_zcv_car_thr_l_reg,
 		UNIT_FGCAR_ZCV);
 }
@@ -1555,7 +1563,8 @@ static void fgauge_set_zcv_intr_internal(
 static int fgauge_enable_zcv_interrupt(struct gauge_device *gauge_dev, int en)
 {
 	pmic_set_register_value(PMIC_FG_ZCV_DET_EN, en);
-	pmic_enable_interrupt(FG_ZCV_NO, en, "GM30");
+	gauge_enable_interrupt(FG_ZCV_NO, en);
+	mdelay(3);
 	return 0;
 }
 
@@ -1587,9 +1596,8 @@ void battery_dump_nag(void)
 	vbat_val = nag_vbat_reg & 0x7fff;
 	nag_vbat_mv = REG_to_MV_value(vbat_val);
 
-	bm_err("[read_nafg_vbat] i:%d nag_vbat_reg 0x%x nag_vbat_mv %d:%d %d\n",
-		i, nag_vbat_reg, nag_vbat_mv, vbat_val,
-		pmic_get_battery_voltage()
+	bm_err("[read_nafg_vbat] i:%d nag_vbat_reg 0x%x nag_vbat_mv %d:%d\n",
+		i, nag_vbat_reg, nag_vbat_mv, vbat_val
 		);
 
 	bm_err("[read_nafg_vbat1] %d %d %d %d %d %d %d %d %d\n",
@@ -1750,7 +1758,7 @@ void Intr_Number_to_Name(char *intr_name, int intr_no)
 
 	default:
 		sprintf(intr_name, "FG_INTR_UNKNOWN");
-		bm_err("[Intr_Number_to_Name] unknown intr %d\n", intr_no);
+		bm_err("[%s] unknown intr %d\n", __func__, intr_no);
 		break;
 	}
 }
@@ -1902,7 +1910,8 @@ static signed int fgauge_get_AUXADC_current_rawdata(unsigned short *uvalue16)
 		m++;
 		if (m > 1000) {
 			bm_err(
-			"[fgauge_get_AUXADC_current_rawdata] fg_get_data_ready_status timeout 1 !\r\n");
+			"[%s] fg_get_data_ready_status timeout 1!\n",
+			__func__);
 			break;
 		}
 	}
@@ -1921,7 +1930,8 @@ static signed int fgauge_get_AUXADC_current_rawdata(unsigned short *uvalue16)
 		m++;
 		if (m > 1000) {
 			bm_err(
-			 "[fgauge_get_AUXADC_current_rawdata] fg_get_data_ready_status timeout 2 !\r\n");
+			"[%s] fg_get_data_ready_status timeout 2!\n",
+			__func__);
 			break;
 		}
 	}
@@ -2064,8 +2074,8 @@ static int fgauge_get_rtc_ui_soc(struct gauge_device *gauge_dev, int *ui_soc)
 	rtc_ui_soc = (spare3_reg & 0x7f);
 
 	*ui_soc = rtc_ui_soc;
-	bm_notice("[fgauge_get_rtc_ui_soc] rtc_ui_soc %d spare3_reg 0x%x\n",
-		rtc_ui_soc, spare3_reg);
+	bm_notice("[%s] rtc_ui_soc %d spare3_reg 0x%x\n",
+		__func__, rtc_ui_soc, spare3_reg);
 
 	return 0;
 }
@@ -2101,7 +2111,7 @@ int fgauge_set_reset_status(struct gauge_device *gauge_dev, int reset)
 
 }
 
-static int fgauge_dump(struct gauge_device *gauge_dev, struct seq_file *m)
+static void fgauge_dump_type0(struct seq_file *m)
 {
 	if (m != NULL) {
 		seq_puts(m, "fgauge dump\n");
@@ -2183,12 +2193,30 @@ static int fgauge_dump(struct gauge_device *gauge_dev, struct seq_file *m)
 		charger_zcv, pmic_rdy,
 		pmic_zcv, pmic_in_zcv,
 		swocv, zcv_from, zcv_tmp);
+}
+
+static int fgauge_dump(
+	struct gauge_device *gauge_dev, struct seq_file *m, int type)
+{
+
+	if (type == 0)
+		fgauge_dump_type0(m);
+	else if (type == 1)
+		battery_dump_nag();
+
 	return 0;
 }
 
 static int fgauge_get_hw_version(struct gauge_device *gauge_dev)
 {
 	return GAUGE_HW_V1000;
+}
+
+int fgauge_notify_event(
+	struct gauge_device *gauge_dev,
+	enum gauge_event evt, int value)
+{
+	return 0;
 }
 
 static struct gauge_ops mt6357_gauge_ops = {
@@ -2241,6 +2269,7 @@ static struct gauge_ops mt6357_gauge_ops = {
 	.gauge_get_hw_version = fgauge_get_hw_version,
 	.gauge_set_info = fgauge_set_info,
 	.gauge_get_info = fgauge_get_info,
+	.gauge_notify_event = fgauge_notify_event,
 };
 
 static int mt6357_parse_dt(struct mt6357_gauge *info, struct device *dev)

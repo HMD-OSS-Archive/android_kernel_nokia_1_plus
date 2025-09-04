@@ -1,19 +1,19 @@
 /*
-* Copyright (C) 2015 MediaTek Inc.
-*
-* This program is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.
-* If not, see <http://www.gnu.org/licenses/>.
-*/
+ * Copyright (C) 2015 MediaTek Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.
+ * If not, see <http://www.gnu.org/licenses/>.
+ */
 
 
 /*******************************************************************************
@@ -37,7 +37,7 @@
  *------------------------------------------------------------------------------
  *
  *
- *******************************************************************************/
+ ******************************************************************************/
 
 #ifndef _AUDIO_ANALOG_TYPE_H
 #define _AUDIO_ANALOG_TYPE_H
@@ -48,27 +48,27 @@
  *****************************************************************************/
 
 
-enum audio_analog_volume_type {
-	AUDIO_ANALOG_VOLUME_HSOUTL = 0,
-	AUDIO_ANALOG_VOLUME_HSOUTR,
-	AUDIO_ANALOG_VOLUME_HPOUTL,
-	AUDIO_ANALOG_VOLUME_HPOUTR,
-	AUDIO_ANALOG_VOLUME_SPKL,
-	AUDIO_ANALOG_VOLUME_SPKR,
-	AUDIO_ANALOG_VOLUME_SPEAKER_HEADSET_R,
-	AUDIO_ANALOG_VOLUME_SPEAKER_HEADSET_L,
-	AUDIO_ANALOG_VOLUME_IV_BUFFER,
-	AUDIO_ANALOG_VOLUME_LINEOUTL,
-	AUDIO_ANALOG_VOLUME_LINEOUTR,
-	AUDIO_ANALOG_VOLUME_LINEINL,
-	AUDIO_ANALOG_VOLUME_LINEINR,
-	AUDIO_ANALOG_VOLUME_MICAMP1,
-	AUDIO_ANALOG_VOLUME_MICAMP2,
-	AUDIO_ANALOG_VOLUME_MICAMP3,
-	AUDIO_ANALOG_VOLUME_MICAMP4,
-	AUDIO_ANALOG_VOLUME_LEVELSHIFTL,
-	AUDIO_ANALOG_VOLUME_LEVELSHIFTR,
-	AUDIO_ANALOG_VOLUME_TYPE_MAX
+enum ANA_GAIN_type {
+	ANA_GAIN_HSOUTL = 0,
+	ANA_GAIN_HSOUTR,
+	ANA_GAIN_HPOUTL,
+	ANA_GAIN_HPOUTR,
+	ANA_GAIN_SPKL,
+	ANA_GAIN_SPKR,
+	ANA_GAIN_SPEAKER_HEADSET_R,
+	ANA_GAIN_SPEAKER_HEADSET_L,
+	ANA_GAIN_IV_BUFFER,
+	ANA_GAIN_LINEOUTL,
+	ANA_GAIN_LINEOUTR,
+	ANA_GAIN_LINEINL,
+	ANA_GAIN_LINEINR,
+	ANA_GAIN_MICAMP1,
+	ANA_GAIN_MICAMP2,
+	ANA_GAIN_MICAMP3,
+	ANA_GAIN_MICAMP4,
+	ANA_GAIN_LEVELSHIFTL,
+	ANA_GAIN_LEVELSHIFTR,
+	ANA_GAIN_TYPE_MAX
 };
 
 /* mux seleciotn */
@@ -90,10 +90,10 @@ enum audio_analog_mux_type {
 	AUDIO_ANALOG_MUX_IN_PREAMP_2,
 	AUDIO_ANALOG_MUX_IN_PREAMP_3,
 	AUDIO_ANALOG_MUX_IN_PREAMP_4,
-	AUDIO_MICSOURCE_MUX_IN_1,
-	AUDIO_MICSOURCE_MUX_IN_2,
-	AUDIO_MICSOURCE_MUX_IN_3,
-	AUDIO_MICSOURCE_MUX_IN_4,
+	MICSOURCE_MUX_IN_1,
+	MICSOURCE_MUX_IN_2,
+	MICSOURCE_MUX_IN_3,
+	MICSOURCE_MUX_IN_4,
 	AUDIO_ANALOG_MUX_IN_LEVEL_SHIFT_BUFFER,
 	AUDIO_ANALOG_MUX_MUTE,
 	AUDIO_ANALOG_MUX_OPEN,
@@ -102,36 +102,36 @@ enum audio_analog_mux_type {
 
 /* device power */
 enum audio_analog_device_type {
-	AUDIO_ANALOG_DEVICE_OUT_EARPIECER = 0,
-	AUDIO_ANALOG_DEVICE_OUT_EARPIECEL = 1,
-	AUDIO_ANALOG_DEVICE_OUT_HEADSETR = 2,
-	AUDIO_ANALOG_DEVICE_OUT_HEADSETL = 3,
-	AUDIO_ANALOG_DEVICE_OUT_SPEAKERR = 4,
-	AUDIO_ANALOG_DEVICE_OUT_SPEAKERL = 5,
-	AUDIO_ANALOG_DEVICE_OUT_SPEAKER_HEADSET_R = 6,
-	AUDIO_ANALOG_DEVICE_OUT_SPEAKER_HEADSET_L = 7,
-	AUDIO_ANALOG_DEVICE_OUT_LINEOUTR = 8,
-	AUDIO_ANALOG_DEVICE_OUT_LINEOUTL = 9,
-	AUDIO_ANALOG_DEVICE_OUT_EXTSPKAMP = 10,
-	AUDIO_ANALOG_DEVICE_2IN1_SPK = 11,
+	ANA_DEV_OUT_EARPIECER = 0,
+	ANA_DEV_OUT_EARPIECEL = 1,
+	ANA_DEV_OUT_HEADSETR = 2,
+	ANA_DEV_OUT_HEADSETL = 3,
+	ANA_DEV_OUT_SPEAKERR = 4,
+	ANA_DEV_OUT_SPEAKERL = 5,
+	ANA_DEV_OUT_SPEAKER_HEADSET_R = 6,
+	ANA_DEV_OUT_SPEAKER_HEADSET_L = 7,
+	ANA_DEV_OUT_LINEOUTR = 8,
+	ANA_DEV_OUT_LINEOUTL = 9,
+	ANA_DEV_OUT_EXTSPKAMP = 10,
+	ANA_DEV_2IN1_SPK = 11,
 	/* DEVICE_IN_LINEINR = 11, */
 	/* DEVICE_IN_LINEINL = 12, */
-	AUDIO_ANALOG_DEVICE_IN_ADC1 = 13,
-	AUDIO_ANALOG_DEVICE_IN_ADC2 = 14,
-	AUDIO_ANALOG_DEVICE_IN_ADC3 = 15,
-	AUDIO_ANALOG_DEVICE_IN_ADC4 = 16,
-	AUDIO_ANALOG_DEVICE_IN_PREAMP_L = 17,
-	AUDIO_ANALOG_DEVICE_IN_PREAMP_R = 18,
-	AUDIO_ANALOG_DEVICE_IN_DIGITAL_MIC = 19,
-	AUDIO_ANALOG_DEVICE_RECEIVER_SPEAKER_SWITCH = 20,
-	AUDIO_ANALOG_DEVICE_MAX
+	ANA_DEV_IN_ADC1 = 13,
+	ANA_DEV_IN_ADC2 = 14,
+	ANA_DEV_IN_ADC3 = 15,
+	ANA_DEV_IN_ADC4 = 16,
+	ANA_DEV_IN_PREAMP_L = 17,
+	ANA_DEV_IN_PREAMP_R = 18,
+	ANA_DEV_IN_DIGITAL_MIC = 19,
+	ANA_DEV_RECEIVER_SPEAKER_SWITCH = 20,
+	ANA_DEV_MAX
 };
 
 enum audio_analog_device_sample_rate {
-	AUDIO_ANALOG_DEVICE_OUT_DAC,
-	AUDIO_ANALOG_DEVICE_IN_ADC,
-	AUDIO_ANALOG_DEVICE_IN_ADC_2,
-	AUDIO_ANALOG_DEVICE_INOUT_MAX
+	ANA_DEV_OUT_DAC,
+	ANA_DEV_IN_ADC,
+	ANA_DEV_IN_ADC_2,
+	ANA_DEV_IN_OUT_MAX
 };
 
 enum audio_analog_audio_analog_input {
@@ -155,11 +155,11 @@ enum audio_analog_loopback {
 };
 
 enum audio_analog_ul_mode {
-	AUDIO_ANALOGUL_MODE_ACC = 0,
-	AUDIO_ANALOGUL_MODE_DCC,
-	AUDIO_ANALOGUL_MODE_DMIC,
-	AUDIO_ANALOGUL_MODE_DCCECMDIFF,
-	AUDIO_ANALOGUL_MODE_DCCECMSINGLE,
+	ANA_UL_MODE_ACC = 0,
+	ANA_UL_MODE_DCC,
+	ANA_UL_MODE_DMIC,
+	ANA_UL_MODE_DCCECMDIFF,
+	ANA_UL_MODE_DCCECMSINGLE,
 };
 
 enum audio_offset_trim_mux {
@@ -178,10 +178,10 @@ enum audio_offset_trim_mux {
 };
 
 struct mt6358_codec_priv {
-	int mAudio_Ana_Volume[AUDIO_ANALOG_VOLUME_TYPE_MAX];
-	int mAudio_Ana_Mux[AUDIO_ANALOG_MAX_MUX_TYPE];
-	int mAudio_Ana_DevicePower[AUDIO_ANALOG_DEVICE_MAX];
-	int mAudio_BackUpAna_DevicePower[AUDIO_ANALOG_DEVICE_MAX];
+	int ana_gain[ANA_GAIN_TYPE_MAX];
+	int ana_mux[AUDIO_ANALOG_MAX_MUX_TYPE];
+	int dev_power[ANA_DEV_MAX];
+	int backup_dev_power[ANA_DEV_MAX];
 };
 
 #endif

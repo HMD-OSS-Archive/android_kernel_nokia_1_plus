@@ -105,10 +105,10 @@
 #define MC3XXX_PCODE_RESERVE_10    0x99
 
 /* fix me: batch register
-* #define MC3410_ACCEL_ODR_400HZ          0x0A
-* #define MC3410_ACCEL_ODR_200HZ          0x0B
-* #define MC3410_ACCEL_ODR_100HZ         0x0C
-*/
+ * #define MC3410_ACCEL_ODR_400HZ          0x0A
+ * #define MC3410_ACCEL_ODR_200HZ          0x0B
+ * #define MC3410_ACCEL_ODR_100HZ         0x0C
+ */
 
 #ifdef CONFIG_CUSTOM_KERNEL_ACCELEROMETER_MODULE
 extern bool success_Flag;

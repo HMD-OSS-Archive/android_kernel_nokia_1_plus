@@ -48,7 +48,9 @@ struct mtk_idle_recent_ratio {
 	do { (idle).p_idx = (idle).buf; (idle).buf[0] = '\0'; } while (0)
 #define get_idle_buf(idle)   ((idle).buf)
 #define idle_buf_append(idle, fmt, args...) \
-	((idle).p_idx += scnprintf((idle).p_idx, IDLE_LOG_BUF_LEN - strlen((idle).buf), fmt, ##args))
+	((idle).p_idx += scnprintf((idle).p_idx, \
+				   IDLE_LOG_BUF_LEN - strlen((idle).buf), \
+				   fmt, ##args))
 
 void mtk_idle_twam_callback(struct twam_sig *ts);
 void mtk_idle_twam_disable(void);
@@ -64,12 +66,15 @@ void mtk_idle_enable_ratio_calc(void);
 void mtk_idle_dump_cnt_in_interval(void);
 
 bool mtk_idle_select_state(int type, int reason);
-void mtk_idle_block_setting(int type, unsigned long *cnt, unsigned long *block_cnt, unsigned int *block_mask);
+void mtk_idle_block_setting(
+	int type, unsigned long *cnt,
+	unsigned long *block_cnt, unsigned int *block_mask);
 void mtk_idle_twam_init(void);
 
 u64 idle_get_current_time_ms(void);
 
-void mtk_idle_recent_ratio_get(int *window_length_ms, struct mtk_idle_recent_ratio *ratio);
+void mtk_idle_recent_ratio_get(
+	int *window_length_ms, struct mtk_idle_recent_ratio *ratio);
 
 enum {
 	DPIDLE_PROFILE_IDLE_SELECT_START = 0,

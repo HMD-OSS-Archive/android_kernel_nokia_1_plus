@@ -26,18 +26,13 @@ static int tasks_all_show(struct seq_file *m, void *v)
 	struct task_struct *g, *p;
 	unsigned long flags;
 	int cpu;
-#if 0
-	u64 localtime = local_clock();
-#endif
 
-#if 0
-	seq_printf(m, "%5llu.%06llu\n", localtime/NSEC_PER_SEC, localtime/NSEC_PER_MSEC);
-#endif
 	read_lock_irqsave(&tasklist_lock, flags);
 	for_each_online_cpu(cpu) {
 		seq_printf(m, "cpu%d: ", cpu);
 		do_each_thread(g, p) {
-			if (p->flags == PF_KTHREAD || !p->mm || task_cpu(p) != cpu)
+			if (p->flags == PF_KTHREAD || !p->mm ||
+					task_cpu(p) != cpu)
 				continue;
 			seq_printf(m, "%d ", task_pid_nr(p));
 		} while_each_thread(g, p);
@@ -66,18 +61,13 @@ static int tasks_rq_show(struct seq_file *m, void *v)
 	struct task_struct *g, *p;
 	unsigned long flags;
 	int cpu;
-#if 0
-	u64 localtime = local_clock();
-#endif
 
-#if 0
-	seq_printf(m, "%5llu.%06llu\n", localtime/NSEC_PER_SEC, localtime/NSEC_PER_MSEC);
-#endif
 	read_lock_irqsave(&tasklist_lock, flags);
 	for_each_online_cpu(cpu) {
 		seq_printf(m, "cpu%d: ", cpu);
 		do_each_thread(g, p) {
-			if (!p->on_rq || p->flags == PF_KTHREAD || !p->mm || task_cpu(p) != cpu)
+			if (!p->on_rq || p->flags == PF_KTHREAD || !p->mm ||
+					task_cpu(p) != cpu)
 				continue;
 			seq_printf(m, "%d ", task_pid_nr(p));
 		} while_each_thread(g, p);
@@ -128,7 +118,9 @@ static ssize_t is_multi_cluster_show(struct kobject *kobj,
 {
 	return snprintf(buf, MAX_LONG_SIZE, "%u\n", arch_is_multi_cluster());
 }
-static struct kobj_attribute is_multi_cluster_attr = __ATTR_RO(is_multi_cluster);
+
+static
+struct kobj_attribute is_multi_cluster_attr = __ATTR_RO(is_multi_cluster);
 
 /*
  * glbinfo attribute
@@ -147,7 +139,9 @@ static ssize_t glbinfo_show(struct kobject *kobj,
 					arch_get_nr_clusters());
 	for (i = 0; i < arch_get_nr_clusters(); i++) {
 		arch_get_cluster_cpus(&cpus, i);
-		len += snprintf(buf + len, PAGE_SIZE - len - 1, "cluster%d: %0lx\n", i, *cpumask_bits(&cpus));
+		len += snprintf(buf + len, PAGE_SIZE - len - 1,
+				"cluster%d: %0lx\n",
+				i, *cpumask_bits(&cpus));
 	}
 
 	return len;
@@ -165,12 +159,15 @@ static ssize_t cpus_per_cluster_show(struct kobject *kobj,
 
 	for (i = 0; i < arch_get_nr_clusters(); i++) {
 		arch_get_cluster_cpus(&cpus, i);
-		len += snprintf(buf + len, PAGE_SIZE - len - 1, "cluster%d: %0lx\n", i, *cpumask_bits(&cpus));
+		len += snprintf(buf + len, PAGE_SIZE - len - 1,
+				"cluster%d: %0lx\n",
+				i, *cpumask_bits(&cpus));
 	}
 
 	return len;
 }
-static struct kobj_attribute cpus_per_cluster_attr = __ATTR_RO(cpus_per_cluster);
+static
+struct kobj_attribute cpus_per_cluster_attr = __ATTR_RO(cpus_per_cluster);
 
 static struct attribute *cputopo_attrs[] = {
 	&nr_clusters_attr.attr,
@@ -191,7 +188,8 @@ static int init_cputopo_attribs(void)
 	struct proc_dir_entry *pe;
 
 	/* Create /sys/devices/system/cpu/cputopo/... */
-	cputopo_glb_kobj = kobject_create_and_add("cputopo", &cpu_subsys.dev_root->kobj);
+	cputopo_glb_kobj = kobject_create_and_add("cputopo",
+					&cpu_subsys.dev_root->kobj);
 	if (!cputopo_glb_kobj)
 		return -ENOMEM;
 

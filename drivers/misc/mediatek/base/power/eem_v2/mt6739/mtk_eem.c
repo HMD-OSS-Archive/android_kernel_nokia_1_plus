@@ -75,12 +75,11 @@
 /* local includes (kernel-4.4)*/
 #ifdef __KERNEL__
 	#include <mt-plat/mtk_chip.h>
-	#include <mt-plat/mtk_gpio.h>
 	#include "mtk_eem_config.h"
 #ifndef CONFIG_MACH_MT6739
 	#include "upmu_common.h"
 #endif
-	#include "mach/mtk_freqhopping.h"
+	#include "mtk_freqhopping_drv.h"
 	#include "mtk_thermal.h"
 	#include "mtk_ppm_api.h"
 
@@ -104,7 +103,7 @@
 	#include <regulator/consumer.h>
 	#if defined(CONFIG_MTK_PMIC_CHIP_MT6356) || defined(CONFIG_MTK_PMIC_CHIP_MT6357)
 		#include "pmic_regulator.h"
-		#include "mtk_pmic_regulator.h"
+		#include "mt6357/mtk_pmic_regulator.h"
 		#include "mt6311-i2c.h"
 		#include "pmic_api_buck.h"
 	#endif
@@ -3752,9 +3751,12 @@ int mt_eem_status(enum eem_det_id id)
 
 	FUNC_ENTER(FUNC_LV_API);
 
-	WARN_ON(!det); /*BUG_ON(!det);*/
-	WARN_ON(!det->ops); /*BUG_ON(!det->ops);*/
-	WARN_ON(!det->ops->get_status); /* BUG_ON(!det->ops->get_status);*/
+	if (det == NULL)
+		return 0;
+	else if (det->ops == NULL)
+		return 0;
+	else if (det->ops->get_status == NULL)
+		return 0;
 
 	FUNC_EXIT(FUNC_LV_API);
 

@@ -25,7 +25,8 @@ extern int init_vcorefs_sysfs(void);
 extern u32 log_mask(void);
 
 /* MET */
-typedef void (*vcorefs_req_handler_t) (enum dvfs_kicker kicker, enum dvfs_opp opp);
+typedef void (*vcorefs_req_handler_t) (enum dvfs_kicker kicker,
+		enum dvfs_opp opp);
 extern void vcorefs_register_req_notify(vcorefs_req_handler_t handler);
 
 /* AEE */

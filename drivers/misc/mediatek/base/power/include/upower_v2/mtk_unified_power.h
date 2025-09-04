@@ -14,6 +14,7 @@
 #ifndef MTK_UNIFIED_POWER_H
 #define MTK_UNIFIED_POWER_H
 
+#include <linux/sched/topology.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -34,12 +35,28 @@ extern "C" {
 #include "mtk_unified_power_mt6739.h"
 #endif
 
+#if defined(CONFIG_MACH_MT6765)
+#include "mtk_unified_power_mt6765.h"
+#endif
+
 #if defined(CONFIG_MACH_MT6771)
 #include "mtk_unified_power_mt6771.h"
 #endif
 
 #if defined(CONFIG_MACH_MT6775)
 #include "mtk_unified_power_mt6775.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6768)
+#include "mtk_unified_power_mt6768.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6785)
+#include "mtk_unified_power_mt6785.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6885)
+#include "mtk_unified_power_mt6885.h"
 #endif
 
 #define UPOWER_TAG "[UPOWER]"
@@ -59,9 +76,10 @@ extern "C" {
 /* but compiler will align to 40 bytes for computing more faster */
 /* if a table has 16 opps --> 40*16= 640 bytes*/
 struct upower_tbl_row {
-	unsigned long long cap;
+	unsigned long cap;
 	unsigned int volt; /* 10uv */
 	unsigned int dyn_pwr; /* uw */
+	unsigned int pwr_efficiency; /* uw */
 	unsigned int lkg_pwr[NR_UPOWER_DEGREE]; /* uw */
 };
 
@@ -71,8 +89,11 @@ struct upower_tbl {
 	struct upower_tbl_row row[UPOWER_OPP_NUM];
 	unsigned int lkg_idx;
 	unsigned int row_num;
+	unsigned int max_efficiency;
+	unsigned int min_efficiency;
 	struct idle_state idle_states[NR_UPOWER_DEGREE][NR_UPOWER_CSTATES];
 	unsigned int nr_idle_states;
+	int turn_point;
 };
 
 struct upower_tbl_info {
@@ -85,22 +106,27 @@ struct upower_tbl_info {
  **************************/
 extern struct upower_tbl *upower_tbl_ref; /* upower table reference to sram*/
 extern int degree_set[NR_UPOWER_DEGREE];
-extern struct upower_tbl_info *upower_tbl_infos; /* collect all the raw tables */
-extern struct upower_tbl_info *p_upower_tbl_infos; /* points to upower_tbl_infos[] */
+/* collect all the raw tables */
+extern struct upower_tbl_info *upower_tbl_infos;
+/* points to upower_tbl_infos[] */
+extern struct upower_tbl_info *p_upower_tbl_infos;
 extern unsigned char upower_enable;
 extern unsigned char upower_recognize_by_eem[NR_UPOWER_BANK];
+void set_sched_turn_point_cap(void);
 
 /***************************
  * APIs                    *
  **************************/
 /* PPM */
-extern unsigned int upower_get_power(enum upower_bank bank, unsigned int opp, enum
-upower_dtype type);
+extern unsigned int upower_get_power(enum upower_bank bank, unsigned int opp,
+		enum upower_dtype type);
 /* EAS */
 extern struct upower_tbl_info **upower_get_tbl(void);
+extern int upower_get_turn_point(void);
 extern struct upower_tbl *upower_get_core_tbl(unsigned int cpu);
 /* EEM */
-extern void upower_update_volt_by_eem(enum upower_bank bank, unsigned int *volt, unsigned int opp_num);
+extern void upower_update_volt_by_eem(enum upower_bank bank, unsigned int *volt,
+		unsigned int opp_num);
 extern void upower_update_degree_by_eem(enum upower_bank bank, int deg);
 
 /* platform part */

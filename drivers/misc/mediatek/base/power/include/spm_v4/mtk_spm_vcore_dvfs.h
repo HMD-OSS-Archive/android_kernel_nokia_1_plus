@@ -19,26 +19,26 @@
 
 /* Feature will disable both of DVS/DFS are 0 */
 #if defined(CONFIG_MACH_MT6739)
-#define SPM_VCORE_DVS_EN       1
-#define SPM_DDR_DFS_EN         1
-#define SPM_MM_CLK_EN          0
-#define VMODEM_VCORE_COBUCK    1
+#define SPM_VCORE_DVS_EN 1
+#define SPM_DDR_DFS_EN 1
+#define SPM_MM_CLK_EN 0
+#define VMODEM_VCORE_COBUCK 1
 #elif defined(CONFIG_MACH_MT6771)
-#define SPM_VCORE_DVS_EN       0 /* SB disabled */
-#define SPM_DDR_DFS_EN         0 /* SB disabled */
-#define SPM_MM_CLK_EN          0
-#define VMODEM_VCORE_COBUCK    0 /* SB disabled */
+#define SPM_VCORE_DVS_EN 0 /* SB disabled */
+#define SPM_DDR_DFS_EN 0   /* SB disabled */
+#define SPM_MM_CLK_EN 0
+#define VMODEM_VCORE_COBUCK 0 /* SB disabled */
 #else
-#define SPM_VCORE_DVS_EN       1
-#define SPM_DDR_DFS_EN         1
-#define SPM_MM_CLK_EN          0
-#define VMODEM_VCORE_COBUCK    1
+#define SPM_VCORE_DVS_EN 1
+#define SPM_DDR_DFS_EN 1
+#define SPM_MM_CLK_EN 0
+#define VMODEM_VCORE_COBUCK 1
 #endif
 
 #if defined(CONFIG_MACH_MT6739)
-#define SPM_DVFS_TIMEOUT       5000	/* 5ms */
+#define SPM_DVFS_TIMEOUT 5000 /* 5ms */
 #else
-#define SPM_DVFS_TIMEOUT       1000	/* 1ms */
+#define SPM_DVFS_TIMEOUT 1000 /* 1ms */
 #endif
 
 enum vcorefs_smc_cmd {
@@ -58,9 +58,9 @@ extern int spm_vcorefs_pwarp_cmd(void);
 extern int spm_vcorefs_get_opp(void);
 extern void spm_request_dvfs_opp(int id, enum dvfs_opp opp);
 extern u32 spm_vcorefs_get_md_srcclkena(void);
-extern void dvfsrc_md_scenario_update(bool);
-void dvfsrc_mdsrclkena_control(bool);
-void dvfsrc_mdsrclkena_control_nolock(bool);
+extern void dvfsrc_md_scenario_update(bool param);
+void dvfsrc_mdsrclkena_control(bool param);
+void dvfsrc_mdsrclkena_control_nolock(bool param);
 void dvfsrc_msdc_autok_finish(void);
 
 #endif /* __MTK_SPM_VCORE_DVFS_H__ */

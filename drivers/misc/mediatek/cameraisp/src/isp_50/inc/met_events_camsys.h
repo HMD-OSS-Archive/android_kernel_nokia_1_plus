@@ -25,13 +25,22 @@
 #include <linux/tracepoint.h>
 
 TRACE_EVENT(ISP__Pass1_CAM_enter,
-	TP_PROTO(unsigned int hw_module, int imgo_en, int rrzo_en, int imgo_bpp, int rrzo_bpp,
-		int imgo_w_in_byte, int imgo_h_in_byte, int rrzo_w_in_byte, int rrzo_h_in_byte, int rrz_src_w,
-		int rrz_src_h, int rrz_dst_w, int rrz_dst_h, int rrz_hori_step, int rrz_vert_step, u32 ctl_en,
-		u32 ctl_dma_en, u32 ctl_en2),
-	TP_ARGS(hw_module, imgo_en, rrzo_en, imgo_bpp, rrzo_bpp, imgo_w_in_byte, imgo_h_in_byte,
-		rrzo_w_in_byte, rrzo_h_in_byte, rrz_src_w, rrz_src_h, rrz_dst_w, rrz_dst_h, rrz_hori_step,
-		rrz_vert_step, ctl_en, ctl_dma_en, ctl_en2),
+	TP_PROTO(unsigned int hw_module, int imgo_en, int rrzo_en,
+		int imgo_bpp, int rrzo_bpp,
+		int imgo_w_in_byte, int imgo_h_in_byte,
+		int rrzo_w_in_byte, int rrzo_h_in_byte,
+		int rrz_src_w, int rrz_src_h,
+		int rrz_dst_w, int rrz_dst_h,
+		int rrz_hori_step, int rrz_vert_step,
+		u32 ctl_en, u32 ctl_dma_en, u32 ctl_en2),
+	TP_ARGS(hw_module, imgo_en, rrzo_en,
+		imgo_bpp, rrzo_bpp,
+		imgo_w_in_byte, imgo_h_in_byte,
+		rrzo_w_in_byte, rrzo_h_in_byte,
+		rrz_src_w, rrz_src_h,
+		rrz_dst_w, rrz_dst_h,
+		rrz_hori_step, rrz_vert_step,
+		ctl_en, ctl_dma_en, ctl_en2),
 	TP_STRUCT__entry(
 		__field(unsigned int, hw_module)
 		__field(int, imgo_en)
@@ -72,10 +81,8 @@ TRACE_EVENT(ISP__Pass1_CAM_enter,
 		__entry->ctl_dma_en = ctl_dma_en;
 		__entry->ctl_en2 = ctl_en2;
 	),
-	TP_printk("_id=%d, imgo_en=%d, rrzo_en=%d, imgo_bpp=%d, rrzo_bpp=%d,imgo_xsize=%d,"
-		"imgo_ysize=%d, rrzo_xsize=%d, rrzo_ysize=%d, rrz_src_w=%d, rrz_src_h=%d,"
-		"rrz_dst_w=%d, rrz_dst_h=%d, rrz_hori_step=%d, rrz_vert_step=%d, CAM_A__CTL_EN=%d,"
-		"CAM_A__CTL_DMA_EN=%d, CAM_A__CTL_EN2=%d\n",
+	TP_printk(
+		"_id=%d, imgo_en=%d, rrzo_en=%d, imgo_bpp=%d, rrzo_bpp=%d,imgo_xsize=%d,imgo_ysize=%d, rrzo_xsize=%d, rrzo_ysize=%d, rrz_src_w=%d, rrz_src_h=%d,rrz_dst_w=%d, rrz_dst_h=%d, rrz_hori_step=%d, rrz_vert_step=%d, CAM_A__CTL_EN=%d,CAM_A__CTL_DMA_EN=%d, CAM_A__CTL_EN2=%d\n",
 		__entry->hw_module,
 		__entry->imgo_en,
 		__entry->rrzo_en,

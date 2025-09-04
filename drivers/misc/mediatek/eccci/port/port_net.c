@@ -1,15 +1,15 @@
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ * Copyright (C) 2016 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ */
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/ip.h>
@@ -37,7 +37,8 @@
 #define NET_ACK_TXQ_INDEX(p) ((p)->txq_exp_index&0x0F)
 #define GET_CCMNI_IDX(p) ((p)->minor - CCCI_NET_MINOR_BASE)
 
-static atomic_t mbim_ccmni_index[MAX_MD_NUM]; /* now we only support MBIM Tx/Rx in CCMNI_U context */
+/* now we only support MBIM Tx/Rx in CCMNI_U context */
+static atomic_t mbim_ccmni_index[MAX_MD_NUM];
 
 int ccci_get_ccmni_channel(int md_id, int ccmni_idx, struct ccmni_ch *channel)
 {
@@ -221,7 +222,8 @@ int ccci_get_ccmni_channel(int md_id, int ccmni_idx, struct ccmni_ch *channel)
 		channel->multiq = 0;
 		break;
 	default:
-		CCCI_ERROR_LOG(md_id, NET, "invalid ccmni index=%d\n", ccmni_idx);
+		CCCI_ERROR_LOG(md_id, NET,
+			"invalid ccmni index=%d\n", ccmni_idx);
 		ret = -1;
 		break;
 	}
@@ -263,15 +265,19 @@ int ccmni_send_pkt(int md_id, int ccmni_idx, void *data, int is_ack)
 		return CCMNI_ERR_TX_INVAL;
 	}
 
-	ccci_h = (struct ccci_header *)skb_push(skb, sizeof(struct ccci_header));
+	ccci_h = (struct ccci_header *)skb_push(skb,
+		sizeof(struct ccci_header));
 	ccci_h = (struct ccci_header *)skb->data;
 	ccci_h->channel = tx_ch;
 	ccci_h->data[0] = ccmni_idx;
-	ccci_h->data[1] = skb->len;	/* as skb->len already included ccci_header after skb_push */
+	/* as skb->len already included ccci_header after skb_push */
+	ccci_h->data[1] = skb->len;
 	ccci_h->reserved = 0;
 
-	CCCI_DEBUG_LOG(md_id, NET, "port %s send: %08X, %08X, %08X, %08X\n", port->name,
-		     ccci_h->data[0], ccci_h->data[1], ccci_h->channel, ccci_h->reserved);
+	CCCI_DEBUG_LOG(md_id, NET,
+		"port %s send: %08X, %08X, %08X, %08X\n", port->name,
+		ccci_h->data[0], ccci_h->data[1], ccci_h->channel,
+		ccci_h->reserved);
 #ifdef PORT_NET_TRACE
 	send_time = sched_clock();
 #endif
@@ -281,7 +287,9 @@ int ccmni_send_pkt(int md_id, int ccmni_idx, void *data, int is_ack)
 #endif
 	if (ret) {
 		skb_pull(skb, sizeof(struct ccci_header));
-			/* undo header, in next retry, we'll reserve header again */
+		/* undo header, in next retry,
+		 * we'll reserve header again
+		 */
 		ret = CCMNI_ERR_TX_BUSY;
 	} else {
 		ret = CCMNI_ERR_TX_OK;
@@ -289,18 +297,23 @@ int ccmni_send_pkt(int md_id, int ccmni_idx, void *data, int is_ack)
 #ifdef PORT_NET_TRACE
 	if (ret == CCMNI_ERR_TX_OK) {
 		total_time = sched_clock() - total_time;
-		trace_port_net_tx(md_id, -1, tx_ch, (unsigned int)get_port_time, (unsigned int)send_time,
-				  (unsigned int)(total_time));
+		trace_port_net_tx(md_id, -1, tx_ch,
+			(unsigned int)get_port_time,
+			(unsigned int)send_time,
+			(unsigned int)(total_time));
 	} else {
-		trace_port_net_error(port->md_id, -1, tx_ch, port->tx_busy_count, __LINE__);
+		trace_port_net_error(port->md_id, -1, tx_ch,
+			port->tx_busy_count, __LINE__);
 	}
 #endif
 	return ret;
 }
 
-int ccmni_napi_poll(int md_id, int ccmni_idx, struct napi_struct *napi, int weight)
+int ccmni_napi_poll(int md_id, int ccmni_idx,
+	struct napi_struct *napi, int weight)
 {
-	CCCI_ERROR_LOG(md_id, NET, "ccmni%d NAPI is not supported\n", ccmni_idx);
+	CCCI_ERROR_LOG(md_id, NET,
+		"ccmni%d NAPI is not supported\n", ccmni_idx);
 	return -ENODEV;
 }
 
@@ -308,7 +321,8 @@ struct ccmni_ccci_ops eccci_ccmni_ops = {
 	.ccmni_ver = CCMNI_DRV_V0,
 	.ccmni_num = 21,
 	.name = "ccmni",
-	.md_ability = MODEM_CAP_DATA_ACK_DVD | MODEM_CAP_CCMNI_MQ | MODEM_CAP_DIRECT_TETHERING,
+	.md_ability = MODEM_CAP_DATA_ACK_DVD | MODEM_CAP_CCMNI_MQ
+		| MODEM_CAP_DIRECT_TETHERING,
 	.irat_md_id = -1,
 	.napi_poll_weigh = NAPI_POLL_WEIGHT,
 	.send_pkt = ccmni_send_pkt,
@@ -369,7 +383,8 @@ static int port_net_init(struct port_t *port)
 
 		eccci_ccmni_ops.md_ability |= per_md_data->md_capability;
 #if defined CONFIG_MTK_MD3_SUPPORT
-		CCCI_INIT_LOG(port->md_id, NET, "clear MODEM_CAP_SGIO flag for IRAT enable\n");
+		CCCI_INIT_LOG(port->md_id, NET,
+			"clear MODEM_CAP_SGIO flag for IRAT enable\n");
 		eccci_ccmni_ops.md_ability &= (~(MODEM_CAP_SGIO));
 #endif
 		if (port->md_id == MD_SYS1)
@@ -402,12 +417,15 @@ static int port_net_recv_skb(struct port_t *port, struct sk_buff *skb)
 
 #if MD_GENERATION >= (6293)
 	skb_pull(skb, sizeof(struct lhif_header));
-	CCCI_DEBUG_LOG(port->md_id, NET, "port %s recv: 0x%08X, 0x%08X, %08X, 0x%08X\n", port->name,
-		     lhif_h->netif, lhif_h->f, lhif_h->flow, lhif_h->pdcp_count);
+	CCCI_DEBUG_LOG(port->md_id, NET,
+		"port %s recv: 0x%08X, 0x%08X, %08X, 0x%08X\n", port->name,
+		lhif_h->netif, lhif_h->f, lhif_h->flow, lhif_h->pdcp_count);
 #else
 	skb_pull(skb, sizeof(struct ccci_header));
-	CCCI_DEBUG_LOG(port->md_id, NET, "port %s recv: 0x%08X, 0x%08X, %08X, 0x%08X\n", port->name,
-		     ccci_h->data[0], ccci_h->data[1], ccci_h->channel, ccci_h->reserved);
+	CCCI_DEBUG_LOG(port->md_id, NET,
+		"port %s recv: 0x%08X, 0x%08X, %08X, 0x%08X\n", port->name,
+		ccci_h->data[0], ccci_h->data[1], ccci_h->channel,
+		ccci_h->reserved);
 #endif
 
 	mbim_ccmni_current = atomic_read(&mbim_ccmni_index[port->md_id]);
@@ -421,8 +439,9 @@ static int port_net_recv_skb(struct port_t *port, struct sk_buff *skb)
 #endif
 
 #ifdef CCCI_SKB_TRACE
-	netif_rx_profile[4] = sched_clock() - (unsigned long long)skb->tstamp.tv64;
-	skb->tstamp.tv64 = 0;
+	netif_rx_profile[4] = sched_clock() -
+		(unsigned long long)skb->tstamp;
+	skb->tstamp = 0;
 	netif_time = sched_clock();
 #endif
 	ccmni_ops.rx_callback(port->md_id, GET_CCMNI_IDX(port), skb, NULL);
@@ -434,33 +453,40 @@ static int port_net_recv_skb(struct port_t *port, struct sk_buff *skb)
 #ifdef PORT_NET_TRACE
 	rx_cb_time = sched_clock() - rx_cb_time;
 	total_time = sched_clock() - total_time;
-	trace_port_net_rx(port->md_id, PORT_RXQ_INDEX(port), port->rx_ch, (unsigned int)rx_cb_time,
-			  (unsigned int)total_time);
+	trace_port_net_rx(port->md_id, PORT_RXQ_INDEX(port), port->rx_ch,
+		(unsigned int)rx_cb_time, (unsigned int)total_time);
 #endif
 	return 0;
 }
 
-static void port_net_queue_state_notify(struct port_t *port, int dir, int qno, unsigned int state)
+static void port_net_queue_state_notify(struct port_t *port, int dir,
+	int qno, unsigned int state)
 {
 	int is_ack = 0;
 
-	if (dir == OUT && qno == NET_ACK_TXQ_INDEX(port) && port->txq_index != qno)
+	if (dir == OUT && qno == NET_ACK_TXQ_INDEX(port)
+		&& port->txq_index != qno)
 		is_ack = 1;
 
 	if (port->md_id != MD_SYS3) {
 		if (((state == TX_IRQ) &&
-				((!is_ack && ((port->flags & PORT_F_TX_DATA_FULLED) == 0)) ||
-				(is_ack && ((port->flags & PORT_F_TX_ACK_FULLED) == 0)))))
+			((!is_ack && ((port->flags &
+			PORT_F_TX_DATA_FULLED) == 0)) ||
+			(is_ack && ((port->flags &
+			PORT_F_TX_ACK_FULLED) == 0)))))
 			return;
 	}
-	ccmni_ops.queue_state_callback(port->md_id, GET_CCMNI_IDX(port), state, is_ack);
+	ccmni_ops.queue_state_callback(port->md_id,
+		GET_CCMNI_IDX(port), state, is_ack);
 
 	switch (state) {
 	case TX_IRQ:
-		port->flags &= ~(is_ack ? PORT_F_TX_ACK_FULLED : PORT_F_TX_DATA_FULLED);
+		port->flags &= ~(is_ack ? PORT_F_TX_ACK_FULLED :
+			PORT_F_TX_DATA_FULLED);
 		break;
 	case TX_FULL:
-		port->flags |= (is_ack ? PORT_F_TX_ACK_FULLED : PORT_F_TX_DATA_FULLED);
+		port->flags |= (is_ack ? PORT_F_TX_ACK_FULLED :
+			PORT_F_TX_DATA_FULLED);
 		break;
 	default:
 		break;
@@ -475,11 +501,12 @@ static void port_net_md_state_notify(struct port_t *port, unsigned int state)
 void port_net_md_dump_info(struct port_t *port, unsigned int flag)
 {
 	if (port == NULL) {
-		CCCI_ERROR_LOG(0, NET, "port_net_md_dump_info: port==NULL\n");
+		CCCI_ERROR_LOG(0, NET, "%s: port==NULL\n", __func__);
 		return;
 	}
 	if (ccmni_ops.dump == NULL) {
-		CCCI_ERROR_LOG(port->md_id, NET, "port_net_md_dump_info: ccmni_ops.dump== null\n");
+		CCCI_ERROR_LOG(port->md_id, NET,
+			"%s: ccmni_ops.dump== null\n", __func__);
 		return;
 	}
 	ccmni_ops.dump(port->md_id, GET_CCMNI_IDX(port), 0);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 MediaTek Inc.
+ * Copyright (C) 2017 MediaTek Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -44,9 +44,6 @@ enum {
 };
 
 struct ufs_mtk_bio_context_task {
-	int task_id;
-	int cpu_id;
-	pid_t pid;
 	__u32 qid;
 	__u16 cmd;
 	__u16 len;
@@ -59,15 +56,13 @@ struct ufs_mtk_bio_context {
 	int id;
 	int state;
 	pid_t pid;
-	__u32 qid;
+	__u16 qid;
+	__u16 q_depth;
 	spinlock_t lock;
 	uint64_t busy_start_t;
 	uint64_t period_start_t;
 	uint64_t period_end_t;
-	uint64_t period_busy;
-	uint64_t period_end_since_start_t;
-	uint64_t period_end_in_window_t;
-	uint64_t period_start_in_window_t;
+	uint64_t period_usage;
 	struct ufs_mtk_bio_context_task task[UFS_BIOLOG_CONTEXT_TASKS];
 	struct mtk_btag_workload workload;
 	struct mtk_btag_throughput throughput;

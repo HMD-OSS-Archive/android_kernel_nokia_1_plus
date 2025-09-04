@@ -15,24 +15,15 @@
 #define AEE_COMMON_H
 #include <linux/console.h>
 
-int in_fiq_handler(void);
-
-int aee_dump_stack_top_binary(char *buf, int buf_len, unsigned long bottom, unsigned long top);
 #ifdef CONFIG_MTK_RAM_CONSOLE
-extern void ram_console_write(struct console *console, const char *s, unsigned int count);
+extern void ram_console_write(struct console *console, const char *s,
+				unsigned int count);
 #endif
 
-#ifdef CONFIG_MTK_AEE_IPANIC
-extern void aee_dumpnative(void);
-#endif
-#ifdef CONFIG_SCHED_DEBUG
-extern void sysrq_sched_debug_show(void);
-extern void sysrq_sched_debug_show_at_AEE(void);
-#endif
 extern int aee_rr_reboot_reason_show(struct seq_file *m, void *v);
 extern int aee_rr_last_fiq_step(void);
 extern void aee_rr_rec_exp_type(unsigned int type);
-extern void mrdump_mini_per_cpu_regs(int cpu, struct pt_regs *regs, struct task_struct *tsk);
+
 extern int debug_locks;
 #ifdef WDT_DEBUG_VERBOSE
 extern int dump_localtimer_info(char *buffer, int size);
@@ -45,8 +36,5 @@ extern void irq_raise_softirq(const struct cpumask *mask, unsigned int irq);
 
 /* for test case only */
 extern int no_zap_locks;
-
-/* dedicated reboot flow for exception */
-extern void aee_exception_reboot(void);
 
 #endif				/* AEE_COMMON_H */

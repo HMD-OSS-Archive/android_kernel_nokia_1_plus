@@ -27,7 +27,7 @@ static KREE_SESSION_HANDLE pm_session;
 
 void kree_pm_init(void)
 {
-	TZ_RESULT ret;
+	int ret;
 
 	ret = KREE_CreateSession(TZ_TA_PM_UUID, &pm_session);
 	if (ret != TZ_RESULT_SUCCESS)
@@ -38,7 +38,7 @@ void kree_pm_init(void)
 void kree_pm_cpu_lowpower(int *ppen_release, int logical_cpuid)
 {
 	union MTEEC_PARAM param[4];
-	TZ_RESULT ret;
+	int ret;
 
 	param[0].mem.buffer = (void *)ppen_release;
 	param[0].mem.size = sizeof(int);
@@ -54,7 +54,7 @@ void kree_pm_cpu_lowpower(int *ppen_release, int logical_cpuid)
 int kree_pm_cpu_dormant(int mode)
 {
 	union MTEEC_PARAM param[4];
-	TZ_RESULT ret;
+	int ret;
 
 	param[0].value.a = mode;
 	ret = KREE_TeeServiceCall(pm_session, TZCMD_PM_CPU_DORMANT,
@@ -68,7 +68,7 @@ int kree_pm_cpu_dormant(int mode)
 int kree_pm_cpu_dormant_workaround_wake(int workaround_wake)
 {
 	union MTEEC_PARAM param[4];
-	TZ_RESULT ret;
+	int ret;
 
 	param[0].value.a = workaround_wake;
 	ret = KREE_TeeServiceCall(pm_session, TZCMD_PM_CPU_ERRATA_802022_WA,
@@ -83,7 +83,7 @@ int kree_pm_cpu_dormant_workaround_wake(int workaround_wake)
 int kree_pm_device_ops(int state)
 {
 	union MTEEC_PARAM param[4];
-	TZ_RESULT ret;
+	int ret;
 
 	param[0].value.a = (uint32_t) state;
 	ret = KREE_TeeServiceCall(pm_session, TZCMD_PM_DEVICE_OPS,
@@ -94,7 +94,7 @@ int kree_pm_device_ops(int state)
 	return ret;
 }
 
-TZ_RESULT KREE_ServPMGet(u32 op, u8 uparam[REE_SERVICE_BUFFER_SIZE])
+int KREE_ServPMGet(u32 op, u8 uparam[REE_SERVICE_BUFFER_SIZE])
 {
 	struct device *dev;
 	int *res = (int *)uparam;
@@ -109,7 +109,7 @@ TZ_RESULT KREE_ServPMGet(u32 op, u8 uparam[REE_SERVICE_BUFFER_SIZE])
 	return TZ_RESULT_ERROR_GENERIC;
 }
 
-TZ_RESULT KREE_ServPMPut(u32 op, u8 uparam[REE_SERVICE_BUFFER_SIZE])
+int KREE_ServPMPut(u32 op, u8 uparam[REE_SERVICE_BUFFER_SIZE])
 {
 	struct device *dev;
 	int *res = (int *)uparam;

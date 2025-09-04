@@ -1,23 +1,25 @@
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ * Copyright (C) 2016 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ */
 
-/******************************************************************************
+
+
+/**************************************************************
  * camera_dip.c - MT6799 Linux DIP Device Driver
  *
  * DESCRIPTION:
  *     This file provid the other drivers DIP relative functions
  *
- ******************************************************************************/
+ **************************************************************/
 /* MET: define to enable MET*/
 
 #include <linux/types.h>
@@ -38,33 +40,38 @@
 #include <linux/seq_file.h>
 
 /*#include <mach/irqs.h>*/
-/*#include <mach/mt_clkmgr.h>*/     /* For clock mgr APIS. enable_clock()/disable_clock(). */
-#include <mt-plat/sync_write.h> /* For mt65xx_reg_sync_writel(). */
-/* #include <mach/mt_spm_idle.h> */   /* For spm_enable_sodi()/spm_disable_sodi(). */
+/* For clock mgr APIS. enable_clock()/disable_clock(). */
+/*#include <mach/mt_clkmgr.h>*/
+#include <mt-plat/sync_write.h> /* For reg_sync_writel(). */
+/* For spm_enable_sodi()/spm_disable_sodi(). */
+/* #include <mach/mt_spm_idle.h> */
 
 #include <linux/of_platform.h>
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
 
-#ifdef COFNIG_MTK_IOMMU
+#ifdef CONFIG_MTK_IOMMU
 #include <mtk_iommu.h>
+#elif defined(CONFIG_MTK_IOMMU_V2)
+#include <mach/mt_iommu.h>
 #else
 #include <m4u.h>
 #endif
 
-/* #define EP_CODE_MARK_CMDQ */
 #ifndef EP_CODE_MARK_CMDQ
 #include <cmdq_core.h>
 #endif
 
+#define EP_CODE_MARK_KERNEL414
+
+#ifndef EP_CODE_MARK_SMI
 #include <smi_public.h>
+#endif
 
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 
-/*for SMI BW debug log*/
-#include"../../../smi/smi_debug.h"
 
 /*for kernel log count*/
 #define _K_LOG_ADJUST (1)
@@ -83,10 +90,6 @@
 #else
 #include <linux/wakelock.h>
 #endif
-
-/*for kernel log reduction*/
-#include <linux/printk.h>
-
 
 #ifdef CONFIG_OF
 #include <linux/of_platform.h>  /* for device tree */
@@ -121,10 +124,11 @@
 #define MFALSE              0
 #endif
 
-#define DIP_DEV_NAME                "camera-dip"
-#define DUMMY_INT                   (0)   /*for early if load dont need to use camera*/
+#define DIP_DEV_NAME        "camera-dip"
+#define DUMMY_INT           (0) /*for early if load dont need to use camera*/
 
-/* #define EP_NO_CLKMGR *//* Clkmgr is not ready in early porting, en/disable clock  by hardcode */
+/* Clkmgr is not ready in early porting, en/disable clock  by hardcode */
+/* #define EP_NO_CLKMGR */
 
 #define DIP_BOTTOMHALF_WORKQ		(1)
 
@@ -132,35 +136,42 @@
 #include <linux/workqueue.h>
 #endif
 
-/* ---------------------------------------------------------------------------- */
+/* ----------------------------------------------------------- */
 
 #define MyTag "[DIP]"
 #define IRQTag "KEEPER"
 
-#define LOG_VRB(format, args...)    pr_debug(MyTag "[%s] " format, __func__, ##args)
+#define LOG_VRB(format, args...) \
+pr_debug(MyTag "[%s] " format, __func__, ##args)
 
 #define DIP_DEBUG
 #ifdef DIP_DEBUG
-#define LOG_DBG(format, args...)    pr_info(MyTag "[%s] " format, __func__, ##args)
+#define LOG_DBG(format, args...) \
+pr_info(MyTag "[%s] " format, __func__, ##args)
 #else
 #define LOG_DBG(format, args...)
 #endif
 
-#define LOG_INF(format, args...)    pr_info(MyTag "[%s] " format, __func__, ##args)
-#define LOG_NOTICE(format, args...) pr_notice(MyTag "[%s] " format, __func__, ##args)
-#define LOG_WRN(format, args...)    pr_info(MyTag "[%s] " format, __func__, ##args)
-#define LOG_ERR(format, args...)    pr_info(MyTag "[%s] " format, __func__, ##args)
-#define LOG_AST(format, args...)    pr_debug(MyTag "[%s] " format, __func__, ##args)
+#define LOG_INF(format, args...) \
+pr_info(MyTag "[%s] " format, __func__, ##args)
+#define LOG_NOTICE(format, args...) \
+pr_notice(MyTag "[%s] " format, __func__, ##args)
+#define LOG_WRN(format, args...) \
+pr_info(MyTag "[%s] " format, __func__, ##args)
+#define LOG_ERR(format, args...) \
+pr_info(MyTag "[%s] " format, __func__, ##args)
+#define LOG_AST(format, args...) \
+pr_debug(MyTag "[%s] " format, __func__, ##args)
 
-/*******************************************************************************
-*
-********************************************************************************/
-/* #define DIP_WR32(addr, data)    iowrite32(data, addr) // For other projects. */
-#define DIP_WR32(addr, data)    mt_reg_sync_writel(data, addr)  /* For 89     Only.*/   /* NEED_TUNING_BY_PROJECT */
+/**************************************************************
+ *
+ **************************************************************/
+/* #define DIP_WR32(addr, data)    iowrite32(data, addr) */
+#define DIP_WR32(addr, data)    mt_reg_sync_writel(data, addr)
 #define DIP_RD32(addr)                  ioread32((void *)addr)
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 /* dynamic log level */
 #define DIP_DBG_INT                 (0x00000001)
 #define DIP_DBG_READ_REG            (0x00000004)
@@ -175,9 +186,9 @@
 #define DIP_DBG_INT_3               (0x00000800)
 #define DIP_DBG_HW_DON              (0x00001000)
 #define DIP_DBG_ION_CTRL            (0x00002000)
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 #define DUMP_GCE_TPIPE  0
 
 static irqreturn_t DIP_Irq_DIP_A(signed int  Irq, void *DeviceId);
@@ -209,13 +220,14 @@ const struct ISR_TABLE DIP_IRQ_CB_TBL[DIP_IRQ_TYPE_AMOUNT] = {
  */
 static const struct of_device_id dip_of_ids[] = {
 	{ .compatible = "mediatek,imgsys", },
-	{ .compatible = "mediatek,dip1", }, /* Remider: Add this device node manually in .dtsi */
+	{ .compatible = "mediatek,dip1", },
 	{}
 };
 
 #endif
-/* //////////////////////////////////////////////////////////////////////////////////////////// */
-/*  */
+/**************************************************************
+ *
+ **************************************************************/
 typedef void (*tasklet_cb)(unsigned long);
 struct Tasklet_table {
 	tasklet_cb tkt_cb;
@@ -304,20 +316,24 @@ static unsigned int DumpBufferField;
 static bool g_bDumpPhyDIPBuf = MFALSE;
 static unsigned int g_tdriaddr = 0xffffffff;
 static unsigned int g_cmdqaddr = 0xffffffff;
-static struct DIP_GET_DUMP_INFO_STRUCT g_dumpInfo = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF};
+static struct DIP_GET_DUMP_INFO_STRUCT g_dumpInfo =	{
+	0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF};
 static struct DIP_MEM_INFO_STRUCT g_TpipeBaseAddrInfo = {0x0, 0x0, NULL, 0x0};
 static struct DIP_MEM_INFO_STRUCT g_CmdqBaseAddrInfo = {0x0, 0x0, NULL, 0x0};
 static unsigned int m_CurrentPPB;
 
 #ifdef CONFIG_PM_WAKELOCKS
 struct wakeup_source dip_wake_lock;
+struct wakeup_source isp_mdp_wake_lock;
 #else
 struct wake_lock dip_wake_lock;
+struct wakeup_source isp_mdp_wake_lock;
 #endif
 static int g_bWaitLock;
+static unsigned int g_dip1sterr = DIP_GCE_EVENT_NONE;
 
 /* Get HW modules' base address from device nodes */
-#define DIP_IMGSYS_CONFIG_BASE          (dip_devs[DIP_IMGSYS_CONFIG_IDX].regs)
+#define DIP_IMGSYS_CONFIG_BASE      (dip_devs[DIP_IMGSYS_CONFIG_IDX].regs)
 #define DIP_A_BASE                  (dip_devs[DIP_DIP_A_IDX].regs)
 
 #else
@@ -342,7 +358,8 @@ struct S_START_T {
 };
 
 /* QQ, remove later */
-/* record remain node count(success/fail) excludes head when enque/deque control */
+/* record remain node count(success/fail) */
+/* excludes head when enque/deque control */
 static unsigned int g_regScen = 0xa5a5a5a5; /* remove later */
 
 
@@ -352,7 +369,8 @@ static /*volatile*/ wait_queue_head_t P2WaitQueueHead_WaitFrameEQDforDQ;
 static spinlock_t      SpinLock_P2FrameList;
 #define _MAX_SUPPORT_P2_FRAME_NUM_ 512
 #define _MAX_SUPPORT_P2_BURSTQ_NUM_ 8
-#define _MAX_SUPPORT_P2_PACKAGE_NUM_ (_MAX_SUPPORT_P2_FRAME_NUM_/_MAX_SUPPORT_P2_BURSTQ_NUM_)
+#define _MAX_SUPPORT_P2_PACKAGE_NUM_ \
+(_MAX_SUPPORT_P2_FRAME_NUM_/_MAX_SUPPORT_P2_BURSTQ_NUM_)
 struct DIP_P2_BUFQUE_IDX_STRUCT {
 	signed int start; /* starting index for frames in the ring list */
 	signed int curr; /* current index for running frame in the ring list */
@@ -360,26 +378,32 @@ struct DIP_P2_BUFQUE_IDX_STRUCT {
 };
 
 struct DIP_P2_FRAME_UNIT_STRUCT {
-	unsigned int               processID;  /* caller process ID */
-	unsigned int               callerID;   /* caller thread ID */
-	unsigned int               cqMask; /* QQ. optional -> to judge cq combination(for judging frame) */
+	unsigned int               processID; /* caller process ID */
+	unsigned int               callerID; /* caller thread ID */
+	unsigned int               cqMask;  /*Judge cq combination*/
 
-	enum DIP_P2_BUF_STATE_ENUM  bufSts;     /* buffer status */
+	enum DIP_P2_BUF_STATE_ENUM  bufSts; /* buffer status */
 };
 
-static struct DIP_P2_BUFQUE_IDX_STRUCT P2_FrameUnit_List_Idx[DIP_P2_BUFQUE_PROPERTY_NUM];
-static struct DIP_P2_FRAME_UNIT_STRUCT P2_FrameUnit_List[DIP_P2_BUFQUE_PROPERTY_NUM][_MAX_SUPPORT_P2_FRAME_NUM_];
+static struct DIP_P2_BUFQUE_IDX_STRUCT
+	P2_FrameUnit_List_Idx[DIP_P2_BUFQUE_PROPERTY_NUM];
+static struct DIP_P2_FRAME_UNIT_STRUCT
+	P2_FrameUnit_List[DIP_P2_BUFQUE_PROPERTY_NUM]
+		[_MAX_SUPPORT_P2_FRAME_NUM_];
 
 struct DIP_P2_FRAME_PACKAGE_STRUCT {
 	unsigned int                processID;  /* caller process ID */
 	unsigned int                callerID;   /* caller thread ID */
-	unsigned int                dupCQIdx;       /* to judge it belongs to which frame package */
+	unsigned int                dupCQIdx;
 	signed int                   frameNum;
-	signed int                   dequedNum;  /* number of dequed buffer no matter deque success or fail */
+	/* number of dequed buffer no matter deque success or fail */
+	signed int                   dequedNum;
 };
-static struct DIP_P2_BUFQUE_IDX_STRUCT P2_FramePack_List_Idx[DIP_P2_BUFQUE_PROPERTY_NUM];
+static struct DIP_P2_BUFQUE_IDX_STRUCT
+	P2_FramePack_List_Idx[DIP_P2_BUFQUE_PROPERTY_NUM];
 static struct DIP_P2_FRAME_PACKAGE_STRUCT
-	P2_FramePackage_List[DIP_P2_BUFQUE_PROPERTY_NUM][_MAX_SUPPORT_P2_PACKAGE_NUM_];
+	P2_FramePackage_List[DIP_P2_BUFQUE_PROPERTY_NUM]
+		[_MAX_SUPPORT_P2_PACKAGE_NUM_];
 
 
 
@@ -392,9 +416,9 @@ static  spinlock_t      SpinLockRegScen;
 static  spinlock_t      SpinLock_UserKey;
 
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 /* internal data */
 /* pointer to the kmalloc'd area, rounded up to a page boundary */
 static int *pTbl_RTBuf[DIP_IRQ_TYPE_AMOUNT];
@@ -410,17 +434,17 @@ static unsigned int g_u4DipCnt;
 
 int DIP_pr_detect_count;
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 struct DIP_USER_INFO_STRUCT {
 	pid_t   Pid;
 	pid_t   Tid;
 };
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 #define DIP_BUF_SIZE            (4096)
 #define DIP_BUF_SIZE_WRITE      1024
 #define DIP_BUF_WRITE_AMOUNT    6
@@ -443,18 +467,22 @@ struct DIP_BUF_INFO_STRUCT {
 };
 
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 #define DIP_ISR_MAX_NUM 32
 #define INT_ERR_WARN_TIMER_THREAS 1000
 #define INT_ERR_WARN_MAX_TIME 1
 
 struct DIP_IRQ_ERR_WAN_CNT_STRUCT {
-	unsigned int m_err_int_cnt[DIP_IRQ_TYPE_AMOUNT][DIP_ISR_MAX_NUM]; /* cnt for each err int # */
-	unsigned int m_warn_int_cnt[DIP_IRQ_TYPE_AMOUNT][DIP_ISR_MAX_NUM]; /* cnt for each warning int # */
-	unsigned int m_err_int_mark[DIP_IRQ_TYPE_AMOUNT]; /* mark for err int, where its cnt > threshold */
-	unsigned int m_warn_int_mark[DIP_IRQ_TYPE_AMOUNT]; /* mark for warn int, where its cnt > threshold */
+	/* cnt for each err int # */
+	unsigned int m_err_int_cnt[DIP_IRQ_TYPE_AMOUNT][DIP_ISR_MAX_NUM];
+	/* cnt for each warning int # */
+	unsigned int m_warn_int_cnt[DIP_IRQ_TYPE_AMOUNT][DIP_ISR_MAX_NUM];
+	/* mark for err int, where its cnt > threshold */
+	unsigned int m_err_int_mark[DIP_IRQ_TYPE_AMOUNT];
+	/* mark for warn int, where its cnt > threshold */
+	unsigned int m_warn_int_mark[DIP_IRQ_TYPE_AMOUNT];
 	unsigned long m_int_usec[DIP_IRQ_TYPE_AMOUNT];
 };
 
@@ -462,14 +490,13 @@ static signed int FirstUnusedIrqUserKey = 1;
 #define USERKEY_STR_LEN 128
 
 struct UserKeyInfo {
-	char userName[USERKEY_STR_LEN]; /* name for the user that register a userKey */
-	int userKey;    /* the user key for that user */
+	char userName[USERKEY_STR_LEN];
+	int userKey;
 };
 /* array for recording the user name for a specific user key */
 static struct UserKeyInfo IrqUserKey_UserInfo[IRQ_USER_NUM_MAX];
 
 struct DIP_IRQ_INFO_STRUCT {
-	/* Add an extra index for status type in Everest -> signal or dma */
 	unsigned int    Status[DIP_IRQ_TYPE_AMOUNT][IRQ_USER_NUM_MAX];
 	unsigned int    Mask[DIP_IRQ_TYPE_AMOUNT];
 };
@@ -483,38 +510,38 @@ struct DIP_TIME_LOG_STRUCT {
 	unsigned int     TaskletExpdone;
 };
 
-/**********************************************************************/
+/**************************************************************/
 #define my_get_pow_idx(value)      \
-	({                                                          \
-		int i = 0, cnt = 0;                                  \
-		for (i = 0; i < 32; i++) {                            \
+	({                                                  \
+		int i = 0, cnt = 0;                         \
+		for (i = 0; i < 32; i++) {                  \
 			if ((value>>i) & (0x00000001)) {   \
-				break;                                      \
-			} else {                                            \
+				break;                       \
+			} else {                             \
 				cnt++;  \
-			}                                      \
-		}                                                    \
-		cnt;                                                \
+			}                                    \
+		}                                            \
+		cnt;                                         \
 	})
 
 
 #define SUPPORT_MAX_IRQ 32
 struct DIP_INFO_STRUCT {
-	spinlock_t                      SpinLockIspRef;
-	spinlock_t                      SpinLockIsp;
-	spinlock_t                      SpinLockIrq[DIP_IRQ_TYPE_AMOUNT];
-	spinlock_t                      SpinLockIrqCnt[DIP_IRQ_TYPE_AMOUNT];
-	spinlock_t                      SpinLockRTBC;
-	spinlock_t                      SpinLockClock;
-	wait_queue_head_t               WaitQueueHead[DIP_IRQ_TYPE_AMOUNT];
-	/* wait_queue_head_t*              WaitQHeadList; */
-	wait_queue_head_t      WaitQHeadList[SUPPORT_MAX_IRQ];
-	unsigned int                         UserCount;
-	unsigned int                         DebugMask;
-	signed int							IrqNum;
-	struct DIP_IRQ_INFO_STRUCT			IrqInfo;
-	struct DIP_IRQ_ERR_WAN_CNT_STRUCT		IrqCntInfo;
-	struct DIP_TIME_LOG_STRUCT             TimeLog;
+	spinlock_t			SpinLockIspRef;
+	spinlock_t			SpinLockIsp;
+	spinlock_t			SpinLockIrq[DIP_IRQ_TYPE_AMOUNT];
+	spinlock_t			SpinLockIrqCnt[DIP_IRQ_TYPE_AMOUNT];
+	spinlock_t			SpinLockRTBC;
+	spinlock_t			SpinLockClock;
+	wait_queue_head_t		WaitQueueHead[DIP_IRQ_TYPE_AMOUNT];
+	/* wait_queue_head_t*		WaitQHeadList; */
+	wait_queue_head_t		WaitQHeadList[SUPPORT_MAX_IRQ];
+	unsigned int			UserCount;
+	unsigned int			DebugMask;
+	signed int			IrqNum;
+	struct DIP_IRQ_INFO_STRUCT	IrqInfo;
+	struct DIP_IRQ_ERR_WAN_CNT_STRUCT	IrqCntInfo;
+	struct DIP_TIME_LOG_STRUCT	TimeLog;
 };
 
 
@@ -522,7 +549,7 @@ struct DIP_INFO_STRUCT {
 static struct DIP_INFO_STRUCT IspInfo;
 
 enum _eLOG_TYPE {
-	_LOG_DBG = 0,   /* currently, only used at ipl_buf_ctrl. to protect critical section */
+	_LOG_DBG = 0,
 	_LOG_INF = 1,
 	_LOG_ERR = 2,
 	_LOG_MAX = 3,
@@ -585,132 +612,135 @@ static struct SV_LOG_STR gSvLog[DIP_IRQ_TYPE_AMOUNT];
 	} else {\
 		str_leng = 0;\
 	} \
-	ptr = pDes = (char *)&(gSvLog[irq]._str[ppb][logT][gSvLog[irq]._cnt[ppb][logT]]);    \
+	ptr = pDes = \
+	(char *)&(gSvLog[irq]._str[ppb][logT][gSvLog[irq]._cnt[ppb][logT]]);\
 	avaLen = str_leng - 1 - gSvLog[irq]._cnt[ppb][logT];\
 	if (avaLen > 1) {\
 		snprintf((char *)(pDes), avaLen, "[%d.%06d]" fmt,\
-			gSvLog[irq]._lastIrqTime.sec, gSvLog[irq]._lastIrqTime.usec,\
-			##__VA_ARGS__);   \
-		if ('\0' != gSvLog[irq]._str[ppb][logT][str_leng - 1]) {\
-			LOG_ERR("log str over flow(%d)", irq);\
-		} \
-		while (*ptr++ != '\0') {        \
-			(*ptr2)++;\
-		}     \
+		gSvLog[irq]._lastIrqTime.sec, gSvLog[irq]._lastIrqTime.usec,\
+		##__VA_ARGS__);   \
+	if ('\0' != gSvLog[irq]._str[ppb][logT][str_leng - 1]) {\
+		LOG_ERR("log str over flow(%d)", irq);\
+	} \
+	while (*ptr++ != '\0') {        \
+		(*ptr2)++;\
+	}     \
 	} else { \
 		LOG_INF("(%d)(%d)log str avalible=0, print log\n", irq, logT);\
-		ptr = pSrc->_str[ppb][logT];\
-		if (pSrc->_cnt[ppb][logT] != 0) {\
-			if (logT == _LOG_DBG) {\
-				for (i = 0; i < DBG_PAGE; i++) {\
-					if (ptr[NORMAL_STR_LEN*(i+1) - 1] != '\0') {\
-						ptr[NORMAL_STR_LEN*(i+1) - 1] = '\0';\
-						LOG_DBG("%s", &ptr[NORMAL_STR_LEN*i]);\
-					} else{\
-						LOG_DBG("%s", &ptr[NORMAL_STR_LEN*i]);\
-						break;\
-					} \
+	ptr = pSrc->_str[ppb][logT];\
+	if (pSrc->_cnt[ppb][logT] != 0) {\
+		if (logT == _LOG_DBG) {\
+			for (i = 0; i < DBG_PAGE; i++) {\
+				if (ptr[NORMAL_STR_LEN*(i+1) - 1] != '\0') {\
+					ptr[NORMAL_STR_LEN*(i+1) - 1] = '\0';\
+					LOG_DBG("%s", &ptr[NORMAL_STR_LEN*i]);\
+				} else{\
+					LOG_DBG("%s", &ptr[NORMAL_STR_LEN*i]);\
+					break;\
 				} \
-			} \
-			else if (logT == _LOG_INF) {\
-				for (i = 0; i < INF_PAGE; i++) {\
-					if (ptr[NORMAL_STR_LEN*(i+1) - 1] != '\0') {\
-						ptr[NORMAL_STR_LEN*(i+1) - 1] = '\0';\
-						LOG_INF("%s", &ptr[NORMAL_STR_LEN*i]);\
-					} else{\
-						LOG_INF("%s", &ptr[NORMAL_STR_LEN*i]);\
-						break;\
-					} \
-				} \
-			} \
-			else if (logT == _LOG_ERR) {\
-				for (i = 0; i < ERR_PAGE; i++) {\
-					if (ptr[NORMAL_STR_LEN*(i+1) - 1] != '\0') {\
-						ptr[NORMAL_STR_LEN*(i+1) - 1] = '\0';\
-						LOG_ERR("%s", &ptr[NORMAL_STR_LEN*i]);\
-					} else{\
-						LOG_ERR("%s", &ptr[NORMAL_STR_LEN*i]);\
-						break;\
-					} \
-				} \
-			} \
-			else {\
-				LOG_ERR("N.S.%d", logT);\
-			} \
-			ptr[0] = '\0';\
-			pSrc->_cnt[ppb][logT] = 0;\
-			avaLen = str_leng - 1;\
-			ptr = pDes = (char *)&(pSrc->_str[ppb][logT][pSrc->_cnt[ppb][logT]]);\
-			ptr2 = &(pSrc->_cnt[ppb][logT]);\
-			snprintf((char *)(pDes), avaLen, fmt, ##__VA_ARGS__);   \
-			while (*ptr++ != '\0') {\
-				(*ptr2)++;\
 			} \
 		} \
+		else if (logT == _LOG_INF) {\
+			for (i = 0; i < INF_PAGE; i++) {\
+				if (ptr[NORMAL_STR_LEN*(i+1) - 1] != '\0') {\
+					ptr[NORMAL_STR_LEN*(i+1) - 1] = '\0';\
+					LOG_INF("%s", &ptr[NORMAL_STR_LEN*i]);\
+				} else{\
+					LOG_INF("%s", &ptr[NORMAL_STR_LEN*i]);\
+					break;\
+				} \
+			} \
+		} \
+		else if (logT == _LOG_ERR) {\
+			for (i = 0; i < ERR_PAGE; i++) {\
+				if (ptr[NORMAL_STR_LEN*(i+1) - 1] != '\0') {\
+					ptr[NORMAL_STR_LEN*(i+1) - 1] = '\0';\
+					LOG_ERR("%s", &ptr[NORMAL_STR_LEN*i]);\
+				} else{\
+					LOG_ERR("%s", &ptr[NORMAL_STR_LEN*i]);\
+					break;\
+				} \
+			} \
+		} \
+		else {\
+			LOG_ERR("N.S.%d", logT);\
+		} \
+		ptr[0] = '\0';\
+		pSrc->_cnt[ppb][logT] = 0;\
+		avaLen = str_leng - 1;\
+		ptr = pDes = \
+		(char *)&(pSrc->_str[ppb][logT][pSrc->_cnt[ppb][logT]]);\
+		ptr2 = &(pSrc->_cnt[ppb][logT]);\
+		snprintf((char *)(pDes), avaLen, fmt, ##__VA_ARGS__);   \
+		while (*ptr++ != '\0') {\
+			(*ptr2)++;\
+		} \
+	} \
 	} \
 } while (0)
 #else
-#define IRQ_LOG_KEEPER(irq, ppb, logT, fmt, args...)    pr_debug(IRQTag fmt,  ##args)
+#define IRQ_LOG_KEEPER(irq, ppb, logT, fmt, args...) \
+pr_debug(IRQTag fmt,  ##args)
 #endif
 
 #if 1
 #define IRQ_LOG_PRINTER(irq, ppb_in, logT_in) do {\
-		struct SV_LOG_STR *pSrc = &gSvLog[irq];\
-		char *ptr;\
-		unsigned int i;\
-		signed int ppb = 0;\
-		signed int logT = 0;\
-		if (ppb_in > 1) {\
-			ppb = 1;\
-		} else{\
-			ppb = ppb_in;\
-		} \
-		if (logT_in > _LOG_ERR) {\
-			logT = _LOG_ERR;\
-		} else{\
-			logT = logT_in;\
-		} \
-		ptr = pSrc->_str[ppb][logT];\
-		if (pSrc->_cnt[ppb][logT] != 0) {\
-			if (logT == _LOG_DBG) {\
-				for (i = 0; i < DBG_PAGE; i++) {\
-					if (ptr[NORMAL_STR_LEN*(i+1) - 1] != '\0') {\
-						ptr[NORMAL_STR_LEN*(i+1) - 1] = '\0';\
-						LOG_DBG("%s", &ptr[NORMAL_STR_LEN*i]);\
-					} else{\
-						LOG_DBG("%s", &ptr[NORMAL_STR_LEN*i]);\
-						break;\
-					} \
+	struct SV_LOG_STR *pSrc = &gSvLog[irq];\
+	char *ptr;\
+	unsigned int i;\
+	signed int ppb = 0;\
+	signed int logT = 0;\
+	if (ppb_in > 1) {\
+		ppb = 1;\
+	} else{\
+		ppb = ppb_in;\
+	} \
+	if (logT_in > _LOG_ERR) {\
+		logT = _LOG_ERR;\
+	} else{\
+		logT = logT_in;\
+	} \
+	ptr = pSrc->_str[ppb][logT];\
+	if (pSrc->_cnt[ppb][logT] != 0) {\
+		if (logT == _LOG_DBG) {\
+			for (i = 0; i < DBG_PAGE; i++) {\
+				if (ptr[NORMAL_STR_LEN*(i+1) - 1] != '\0') {\
+					ptr[NORMAL_STR_LEN*(i+1) - 1] = '\0';\
+					LOG_DBG("%s", &ptr[NORMAL_STR_LEN*i]);\
+				} else{\
+					LOG_DBG("%s", &ptr[NORMAL_STR_LEN*i]);\
+					break;\
 				} \
 			} \
-			else if (logT == _LOG_INF) {\
-				for (i = 0; i < INF_PAGE; i++) {\
-					if (ptr[NORMAL_STR_LEN*(i+1) - 1] != '\0') {\
-						ptr[NORMAL_STR_LEN*(i+1) - 1] = '\0';\
-						LOG_INF("%s", &ptr[NORMAL_STR_LEN*i]);\
-					} else{\
-						LOG_INF("%s", &ptr[NORMAL_STR_LEN*i]);\
-						break;\
-					} \
-				} \
-			} \
-			else if (logT == _LOG_ERR) {\
-				for (i = 0; i < ERR_PAGE; i++) {\
-					if (ptr[NORMAL_STR_LEN*(i+1) - 1] != '\0') {\
-						ptr[NORMAL_STR_LEN*(i+1) - 1] = '\0';\
-						LOG_ERR("%s", &ptr[NORMAL_STR_LEN*i]);\
-					} else{\
-						LOG_ERR("%s", &ptr[NORMAL_STR_LEN*i]);\
-						break;\
-					} \
-				} \
-			} \
-			else {\
-				LOG_ERR("N.S.%d", logT);\
-			} \
-			ptr[0] = '\0';\
-			pSrc->_cnt[ppb][logT] = 0;\
 		} \
+		else if (logT == _LOG_INF) {\
+			for (i = 0; i < INF_PAGE; i++) {\
+				if (ptr[NORMAL_STR_LEN*(i+1) - 1] != '\0') {\
+					ptr[NORMAL_STR_LEN*(i+1) - 1] = '\0';\
+					LOG_INF("%s", &ptr[NORMAL_STR_LEN*i]);\
+				} else{\
+					LOG_INF("%s", &ptr[NORMAL_STR_LEN*i]);\
+					break;\
+				} \
+			} \
+		} \
+		else if (logT == _LOG_ERR) {\
+			for (i = 0; i < ERR_PAGE; i++) {\
+				if (ptr[NORMAL_STR_LEN*(i+1) - 1] != '\0') {\
+					ptr[NORMAL_STR_LEN*(i+1) - 1] = '\0';\
+					LOG_ERR("%s", &ptr[NORMAL_STR_LEN*i]);\
+				} else{\
+					LOG_ERR("%s", &ptr[NORMAL_STR_LEN*i]);\
+					break;\
+				} \
+			} \
+		} \
+		else {\
+			LOG_ERR("N.S.%d", logT);\
+		} \
+		ptr[0] = '\0';\
+		pSrc->_cnt[ppb][logT] = 0;\
+	} \
 	} while (0)
 
 
@@ -718,7 +748,6 @@ static struct SV_LOG_STR gSvLog[DIP_IRQ_TYPE_AMOUNT];
 #define IRQ_LOG_PRINTER(irq, ppb, logT)
 #endif
 
-/* Everest top registers */
 /*#define CAMSYS_REG_CG_CON               (DIP_CAMSYS_CONFIG_BASE + 0x0)*/
 #define IMGSYS_REG_CG_CON               (DIP_IMGSYS_CONFIG_BASE + 0x0)
 /*#define CAMSYS_REG_CG_SET               (DIP_CAMSYS_CONFIG_BASE + 0x4)*/
@@ -726,25 +755,25 @@ static struct SV_LOG_STR gSvLog[DIP_IRQ_TYPE_AMOUNT];
 /*#define CAMSYS_REG_CG_CLR               (DIP_CAMSYS_CONFIG_BASE + 0x8)*/
 #define IMGSYS_REG_CG_CLR               (DIP_IMGSYS_CONFIG_BASE + 0x8)
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static inline unsigned int DIP_MsToJiffies(unsigned int Ms)
 {
 	return ((Ms * HZ + 512) >> 10);
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static inline unsigned int DIP_UsToJiffies(unsigned int Us)
 {
 	return (((Us / 1000) * HZ + 512) >> 10);
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static inline unsigned int DIP_JiffiesToMs(unsigned int Jiffies)
 {
 	return ((Jiffies * 1000) / HZ);
@@ -753,7 +782,10 @@ static inline unsigned int DIP_JiffiesToMs(unsigned int Jiffies)
 static signed int DIP_DumpDIPReg(void)
 {
 	signed int Ret = 0;
-	unsigned int i, cmdqidx = 0;
+#ifndef EP_CODE_MARK_CMDQ
+	unsigned int i, cmdqidx = 0, dipdmacmd = 0;
+	unsigned int smidmacmd = 0, dmaidx = 0;
+	unsigned int fifodmacmd = 0;
 #ifdef AEE_DUMP_REDUCE_MEMORY
 	unsigned int offset = 0;
 	uintptr_t OffsetAddr = 0;
@@ -761,226 +793,321 @@ static signed int DIP_DumpDIPReg(void)
 #endif
 	/*  */
 	CMDQ_ERR("- E.");
-	CMDQ_ERR("g_bDumpPhyDIPBuf:(0x%x), g_pPhyDIPBuffer:(0x%p), g_bIonBuf:(0x%x)\n", g_bDumpPhyDIPBuf,
-	g_pPhyDIPBuffer, g_bIonBufferAllocated);
+	CMDQ_ERR("g_bDumpPhyDIPBuf:(0x%x), g_pPhyDIPBuffer:(0x%p)\n",
+		g_bDumpPhyDIPBuf, g_pPhyDIPBuffer);
+	CMDQ_ERR("g_bIonBuf:(0x%x)\n", g_bIonBufferAllocated);
 #ifdef AEE_DUMP_REDUCE_MEMORY
 	if (g_bDumpPhyDIPBuf == MFALSE) {
 		ctrl_start = DIP_RD32(DIP_A_BASE + 0x0000);
 		if (g_bIonBufferAllocated == MFALSE) {
 			if (g_pPhyDIPBuffer != NULL) {
-				CMDQ_ERR("g_pPhyDIPBuffer is not NULL:(0x%pK)\n", g_pPhyDIPBuffer);
+				CMDQ_ERR("g_pPhyDIPBuffer isn't NULL(0x%pK)\n",
+					g_pPhyDIPBuffer);
 				vfree(g_pPhyDIPBuffer);
 				g_pPhyDIPBuffer = NULL;
 			}
 			g_pPhyDIPBuffer = vmalloc(DIP_REG_RANGE);
 			if (g_pPhyDIPBuffer == NULL)
-				CMDQ_ERR("ERROR: g_pPhyDIPBuffer kmalloc failed\n");
+				CMDQ_ERR("g_pPhyDIPBuffer kmalloc failed\n");
 
 			if (g_pKWTpipeBuffer != NULL) {
-				CMDQ_ERR("g_pKWTpipeBuffer is not NULL:(0x%pK)\n", g_pKWTpipeBuffer);
-				vfree(g_pKWTpipeBuffer);
-				g_pKWTpipeBuffer = NULL;
+				CMDQ_ERR("g_pKWTpipeBuffer isn't NULL(0x%pK)\n",
+					g_pKWTpipeBuffer);
+					vfree(g_pKWTpipeBuffer);
+					g_pKWTpipeBuffer = NULL;
 			}
 			g_pKWTpipeBuffer = vmalloc(MAX_ISP_TILE_TDR_HEX_NO);
 			if (g_pKWTpipeBuffer == NULL)
-				CMDQ_ERR("ERROR: g_pKWTpipeBuffer kmalloc failed\n");
+				CMDQ_ERR("g_pKWTpipeBuffer kmalloc failed\n");
 
 			if (g_pKWCmdqBuffer != NULL) {
-				CMDQ_ERR("g_KWCmdqBuffer is not NULL:(0x%pK)\n", g_pKWCmdqBuffer);
+				CMDQ_ERR("g_KWCmdqBuffer isn't NULL(0x%pK)\n",
+					g_pKWCmdqBuffer);
 				vfree(g_pKWCmdqBuffer);
 				g_pKWCmdqBuffer = NULL;
 			}
 			g_pKWCmdqBuffer = vmalloc(MAX_DIP_CMDQ_BUFFER_SIZE);
 			if (g_pKWCmdqBuffer == NULL)
-				CMDQ_ERR("ERROR: g_KWCmdqBuffer kmalloc failed\n");
+				CMDQ_ERR("g_KWCmdqBuffer kmalloc failed\n");
 
 			if (g_pKWVirDIPBuffer != NULL) {
-				CMDQ_ERR("g_KWVirDIPBuffer is not NULL:(0x%pK)\n", g_pKWVirDIPBuffer);
+				CMDQ_ERR("g_KWVirDIPBuffer isn't NULL(0x%pK)\n",
+					g_pKWVirDIPBuffer);
 				vfree(g_pKWVirDIPBuffer);
 				g_pKWVirDIPBuffer = NULL;
 			}
 			g_pKWVirDIPBuffer = vmalloc(DIP_REG_RANGE);
 			if (g_pKWVirDIPBuffer == NULL)
-				CMDQ_ERR("ERROR: g_KWVirDIPBuffer kmalloc failed\n");
+				CMDQ_ERR("g_KWVirDIPBuffer kmalloc failed\n");
 		}
 
 		if (g_pPhyDIPBuffer != NULL) {
 			for (i = 0; i < (DIP_REG_RANGE >> 2); i = i + 4) {
-				g_pPhyDIPBuffer[i] = DIP_RD32(DIP_A_BASE + (i*4));
-				g_pPhyDIPBuffer[i+1] = DIP_RD32(DIP_A_BASE + ((i+1)*4));
-				g_pPhyDIPBuffer[i+2] = DIP_RD32(DIP_A_BASE + ((i+2)*4));
-				g_pPhyDIPBuffer[i+3] = DIP_RD32(DIP_A_BASE + ((i+3)*4));
+				g_pPhyDIPBuffer[i] =
+					DIP_RD32(DIP_A_BASE + (i*4));
+				g_pPhyDIPBuffer[i+1] =
+					DIP_RD32(DIP_A_BASE + ((i+1)*4));
+				g_pPhyDIPBuffer[i+2] =
+					DIP_RD32(DIP_A_BASE + ((i+2)*4));
+				g_pPhyDIPBuffer[i+3] =
+					DIP_RD32(DIP_A_BASE + ((i+3)*4));
 			}
 		} else {
 			CMDQ_ERR("g_pPhyDIPBuffer:(0x%pK)\n", g_pPhyDIPBuffer);
 		}
-		g_dumpInfo.tdri_baseaddr = DIP_RD32(DIP_A_BASE + 0x304);/* 0x15022304 */
-		g_dumpInfo.imgi_baseaddr = DIP_RD32(DIP_A_BASE + 0x500);/* 0x15022500 */
-		g_dumpInfo.dmgi_baseaddr = DIP_RD32(DIP_A_BASE + 0x620);/* 0x15022620 */
+		g_dumpInfo.tdri_baseaddr = DIP_RD32(DIP_A_BASE + 0x304);
+		g_dumpInfo.imgi_baseaddr = DIP_RD32(DIP_A_BASE + 0x500);
+		g_dumpInfo.dmgi_baseaddr = DIP_RD32(DIP_A_BASE + 0x620);
 		g_tdriaddr = g_dumpInfo.tdri_baseaddr;
 		/*0x15022208, DIP_X_CQ_THR0_BASEADDR*/
 		for (cmdqidx = 0; cmdqidx < 32 ; cmdqidx++) {
 			if (ctrl_start & (0x1<<cmdqidx)) {
-				g_cmdqaddr = DIP_RD32(DIP_A_BASE + 0x208 + (cmdqidx*DIP_CMDQ_BASEADDR_OFFSET));
+				g_cmdqaddr = DIP_RD32(DIP_A_BASE + 0x208 +
+					(cmdqidx*DIP_CMDQ_BASEADDR_OFFSET));
 				break;
 			}
 		}
-		if ((g_TpipeBaseAddrInfo.MemPa != 0) && (g_TpipeBaseAddrInfo.MemVa != NULL)
-			&& (g_pKWTpipeBuffer != NULL)) {
-			/* to get frame tdri baseaddress, otherwide  you possible get one of the tdr bade addr*/
-			offset = ((g_tdriaddr & (~(g_TpipeBaseAddrInfo.MemSizeDiff-1)))-g_TpipeBaseAddrInfo.MemPa);
-			OffsetAddr = ((uintptr_t)g_TpipeBaseAddrInfo.MemVa)+offset;
-			if (copy_from_user(g_pKWTpipeBuffer, (void __user *)(OffsetAddr),
+		g_dumpInfo.cmdq_baseaddr = g_cmdqaddr;
+		if ((g_TpipeBaseAddrInfo.MemPa != 0) &&
+			(g_TpipeBaseAddrInfo.MemVa != NULL) &&
+			(g_pKWTpipeBuffer != NULL)) {
+			/* to get frame tdri baseaddress, */
+			/* otherwise you may get one of the tdr bade addr*/
+			offset = ((g_tdriaddr &
+				(~(g_TpipeBaseAddrInfo.MemSizeDiff-1)))-
+				g_TpipeBaseAddrInfo.MemPa);
+			OffsetAddr = ((uintptr_t)g_TpipeBaseAddrInfo.MemVa)+
+				offset;
+			if (copy_from_user(g_pKWTpipeBuffer,
+					(void __user *)(OffsetAddr),
 				MAX_ISP_TILE_TDR_HEX_NO) != 0) {
-				CMDQ_ERR("cpy tpipe fail. tdriaddr:0x%x, MemVa:0x%lx,MemPa:0x%x, offset:0x%x\n",
-				g_tdriaddr, (uintptr_t)g_TpipeBaseAddrInfo.MemVa, g_TpipeBaseAddrInfo.MemPa, offset);
+				CMDQ_ERR("cpy tpipe fail. tdriaddr:0x%x\n",
+				g_tdriaddr);
+			CMDQ_ERR("MemVa:0x%lx, MemPa:0x%x, offset:0x%x\n",
+				(uintptr_t)g_TpipeBaseAddrInfo.MemVa,
+				g_TpipeBaseAddrInfo.MemPa,
+				offset);
 			}
 		}
-		CMDQ_ERR("tdraddr:0x%x,MemVa:0x%lx,MemPa:0x%x,MemSizeDiff:0x%x,offset:0x%x,g_pKWTpipeBuffer:0x%pK\n",
-		g_tdriaddr, (uintptr_t)g_TpipeBaseAddrInfo.MemVa, g_TpipeBaseAddrInfo.MemPa,
-		g_TpipeBaseAddrInfo.MemSizeDiff, offset, g_pKWTpipeBuffer);
-		if ((g_CmdqBaseAddrInfo.MemPa != 0) && (g_CmdqBaseAddrInfo.MemVa != NULL)
-				&& (g_pKWCmdqBuffer != NULL) && (g_pKWVirDIPBuffer != NULL)) {
+		CMDQ_ERR("tdraddr:0x%x,MemVa:0x%lx,MemPa:0x%x\n",
+			g_tdriaddr,
+			(uintptr_t)g_TpipeBaseAddrInfo.MemVa,
+			g_TpipeBaseAddrInfo.MemPa);
+		CMDQ_ERR("MemSizeDiff:0x%x,offset:0x%x\n",
+			g_TpipeBaseAddrInfo.MemSizeDiff, offset);
+		CMDQ_ERR("g_pKWTpipeBuffer:0x%pK\n", g_pKWTpipeBuffer);
+
+		if ((g_CmdqBaseAddrInfo.MemPa != 0) &&
+			(g_CmdqBaseAddrInfo.MemVa != NULL) &&
+			(g_pKWCmdqBuffer != NULL) &&
+			(g_pKWVirDIPBuffer != NULL)) {
 			offset = (g_cmdqaddr-g_CmdqBaseAddrInfo.MemPa);
-			OffsetAddr = ((uintptr_t)g_CmdqBaseAddrInfo.MemVa)+(g_cmdqaddr-g_CmdqBaseAddrInfo.MemPa);
-			if (copy_from_user(g_pKWCmdqBuffer, (void __user *)(OffsetAddr),
+			OffsetAddr = ((uintptr_t)g_CmdqBaseAddrInfo.MemVa)+
+				(g_cmdqaddr-g_CmdqBaseAddrInfo.MemPa);
+			if (copy_from_user(g_pKWCmdqBuffer,
+				(void __user *)(OffsetAddr),
 				MAX_DIP_CMDQ_BUFFER_SIZE) != 0) {
-				CMDQ_ERR("cpy cmdq fail. cmdqaddr:0x%x, MemVa:0x%lx, MemPa:0x%x, offset:0x%x\n",
-					g_cmdqaddr, (uintptr_t)g_CmdqBaseAddrInfo.MemVa,
-					g_CmdqBaseAddrInfo.MemPa, offset);
+				CMDQ_ERR("cpy cmdq fail. cmdqaddr:0x%x\n",
+					g_cmdqaddr);
+				CMDQ_ERR("MemVa:0x%lx,MemPa:0x%x,offset:0x%x\n",
+					(uintptr_t)g_CmdqBaseAddrInfo.MemVa,
+					g_CmdqBaseAddrInfo.MemPa,
+					offset);
 			}
-			CMDQ_ERR("cmdqidx:0x%x, cmdqaddr:0x%x, MemVa:0x%lx, MemPa:0x%x, offset:0x%x\n",
-			cmdqidx, g_cmdqaddr, (uintptr_t)g_CmdqBaseAddrInfo.MemVa, g_CmdqBaseAddrInfo.MemPa, offset);
+			CMDQ_ERR("cmdqidx:0x%x, cmdqaddr:0x%x\n",
+				cmdqidx,
+				g_cmdqaddr);
+			CMDQ_ERR("MemVa:0x%lx,MemPa:0x%x, offset:0x%x\n",
+				(uintptr_t)g_CmdqBaseAddrInfo.MemVa,
+				g_CmdqBaseAddrInfo.MemPa,
+				offset);
 			offset = offset+g_CmdqBaseAddrInfo.MemSizeDiff;
-			OffsetAddr = ((uintptr_t)g_CmdqBaseAddrInfo.MemVa)+offset;
-			if (copy_from_user(g_pKWVirDIPBuffer, (void __user *)(OffsetAddr),
+			OffsetAddr = ((uintptr_t)g_CmdqBaseAddrInfo.MemVa) +
+				offset;
+			if (copy_from_user(g_pKWVirDIPBuffer,
+				(void __user *)(OffsetAddr),
 				DIP_REG_RANGE) != 0) {
-				CMDQ_ERR("cpy vir dip fail.cmdqaddr:0x%x,MVa:0x%lx,MPa:0x%x,MSzDiff:0x%x,offset:0x%x\n",
-				g_cmdqaddr, (uintptr_t)g_CmdqBaseAddrInfo.MemVa, g_CmdqBaseAddrInfo.MemPa,
-				g_CmdqBaseAddrInfo.MemSizeDiff, offset);
+				CMDQ_ERR("cpy vir dip fail.\n");
+				CMDQ_ERR("cmdqaddr:0x%x,MVa:0x%lx,MPa:0x%x\n",
+				g_cmdqaddr,
+				(uintptr_t)g_CmdqBaseAddrInfo.MemVa,
+				g_CmdqBaseAddrInfo.MemPa);
+				CMDQ_ERR("MSzDiff:0x%x,offset:0x%x\n",
+				g_CmdqBaseAddrInfo.MemSizeDiff,
+				offset);
+
 			}
-			CMDQ_ERR("cmdqaddr:0x%x,MVa:0x%lx,MPa:0x%x,MSzDiff:0x%x\n",
-			g_cmdqaddr, (uintptr_t)g_CmdqBaseAddrInfo.MemVa, g_CmdqBaseAddrInfo.MemPa,
-			g_CmdqBaseAddrInfo.MemSizeDiff);
+			CMDQ_ERR("cmdqaddr:0x%x,MVa:0x%lx,MPa:0x%x\n",
+				g_cmdqaddr,
+				(uintptr_t)g_CmdqBaseAddrInfo.MemVa,
+				g_CmdqBaseAddrInfo.MemPa);
+			CMDQ_ERR("MSzDiff:0x%x\n",
+				g_CmdqBaseAddrInfo.MemSizeDiff);
 			CMDQ_ERR("ofset:0x%x,KWCmdBuf:0x%pK,KWTdrBuf:0x%pK\n",
-			offset, g_pKWCmdqBuffer, g_pKWTpipeBuffer);
+				offset, g_pKWCmdqBuffer, g_pKWTpipeBuffer);
 		} else {
-			CMDQ_ERR("cmdqadd:0x%x,MVa:0x%lx,MPa:0x%x,MSzDiff:0x%x,KWCmdBuf:0x%pK,KWTdrBuf:0x%pK\n",
-			g_cmdqaddr, (uintptr_t)g_CmdqBaseAddrInfo.MemVa, g_CmdqBaseAddrInfo.MemPa,
-			g_CmdqBaseAddrInfo.MemSizeDiff, g_pKWCmdqBuffer, g_pKWTpipeBuffer);
+			CMDQ_ERR("cmdqadd:0x%x,MVa:0x%lx,MPa:0x%x\n",
+				g_cmdqaddr,
+				(uintptr_t)g_CmdqBaseAddrInfo.MemVa,
+				g_CmdqBaseAddrInfo.MemPa);
+			CMDQ_ERR("MSzDiff:0x%x,KWCmdBuf:0x%pK,KWTdrBuf:0x%pK\n",
+				g_CmdqBaseAddrInfo.MemSizeDiff,
+				g_pKWCmdqBuffer,
+				g_pKWTpipeBuffer);
 		}
 		g_bDumpPhyDIPBuf = MTRUE;
 	}
 #endif
 
-	CMDQ_ERR("direct link:g_bDumpPhyDIPBuf:(0x%x),cmdqidx(0x%x),cmdqaddr(0x%x),tdriaddr(0x%x)\n",
-		g_bDumpPhyDIPBuf, cmdqidx, g_cmdqaddr, g_tdriaddr);
+	CMDQ_ERR("direct link: g_bDumpPhyDIPBuf:(0x%x), cmdqidx(0x%x)\n",
+		g_bDumpPhyDIPBuf, cmdqidx);
+	CMDQ_ERR("direct link: cmdqaddr(0x%x), tdriaddr(0x%x)\n",
+		g_cmdqaddr, g_tdriaddr);
 
     /*top control*/
-	CMDQ_ERR("dip: 15022000(0x%x)-15022004(0x%x)-15022008(0x%x)-1502200C(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x0000), DIP_RD32(DIP_A_BASE + 0x0004),
+	CMDQ_ERR("dip: 15022000(0x%x)-15022004(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0000), DIP_RD32(DIP_A_BASE + 0x0004));
+	CMDQ_ERR("dip: 15022008(0x%x)-1502200C(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x0008), DIP_RD32(DIP_A_BASE + 0x000C));
-	CMDQ_ERR("dip: 15022010(0x%x)-15022014(0x%x)-15022018(0x%x)-1502201C(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x0010), DIP_RD32(DIP_A_BASE + 0x0014),
+	CMDQ_ERR("dip: 15022010(0x%x)-15022014(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0010), DIP_RD32(DIP_A_BASE + 0x0014));
+	CMDQ_ERR("dip: 15022018(0x%x)-1502201C(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x0018), DIP_RD32(DIP_A_BASE + 0x001C));
 	CMDQ_ERR("dip: 150220E8(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x00E8));
     /*mdp crop1 and mdp crop2*/
-	CMDQ_ERR("dip: 0x15027500(0x%x)-0x15027504(0x%x) crop2:-0x15024B80(0x%x)-0x15024B84(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x5500), DIP_RD32(DIP_A_BASE + 0x5504),
+	CMDQ_ERR("dip: 0x15027500(0x%x)-0x15027504(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x5500), DIP_RD32(DIP_A_BASE + 0x5504));
+	CMDQ_ERR("crop2: 0x15024B80(0x%x)-0x15024B84(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x2B80), DIP_RD32(DIP_A_BASE + 0x2B84));
     /*imgi and tdri offset address*/
-	CMDQ_ERR("dip: 15022508(0x%x)-15022304(0x%x)-15022308(0x%x)-1502230C(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x0508), DIP_RD32(DIP_A_BASE + 0x0304),
+	CMDQ_ERR("dip: 15022508(0x%x)-15022304(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0508), DIP_RD32(DIP_A_BASE + 0x0304));
+	CMDQ_ERR("dip: 15022308(0x%x)-1502230C(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x0308), DIP_RD32(DIP_A_BASE + 0x030C));
     /*tdr ctrl*/
-	CMDQ_ERR("dip: 15022050(0x%x)-15022054(0x%x)-15022058(0x%x)-1502205C(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x0050), DIP_RD32(DIP_A_BASE + 0x0054),
+	CMDQ_ERR("dip: 15022050(0x%x)-15022054(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0050), DIP_RD32(DIP_A_BASE + 0x0054));
+	CMDQ_ERR("dip: 15022058(0x%x)-1502205C(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x0058), DIP_RD32(DIP_A_BASE + 0x005C));
-	CMDQ_ERR("dip: 15022060(0x%x)-15022064(0x%x)-15022068(0x%x)-150220e0(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x0060), DIP_RD32(DIP_A_BASE + 0x0064),
+	CMDQ_ERR("dip: 15022060(0x%x)-15022064(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0060), DIP_RD32(DIP_A_BASE + 0x0064));
+	CMDQ_ERR("dip: 15022068(0x%x)-150220e0(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x0068), DIP_RD32(DIP_A_BASE + 0x00E0));
 	CMDQ_ERR("dip: 150220E4(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x00E4));
 
     /*Request and Ready Signal*/
-	CMDQ_ERR("dip: 150220B8(0x%x)-150220BC(0x%x)-150220C0(0x%x)-150220C4(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x00B8), DIP_RD32(DIP_A_BASE + 0x00BC),
+	CMDQ_ERR("dip: 150220B8(0x%x)-150220BC(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x00B8), DIP_RD32(DIP_A_BASE + 0x00BC));
+	CMDQ_ERR("dip: 150220C0(0x%x)-150220C4(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x00C0), DIP_RD32(DIP_A_BASE + 0x00C4));
-	CMDQ_ERR("dip: 150220C8(0x%x)-150220CC(0x%x)-150220D0(0x%x)-150220D4(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x00C8), DIP_RD32(DIP_A_BASE + 0x00CC),
+	CMDQ_ERR("dip: 150220C8(0x%x)-150220CC(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x00C8), DIP_RD32(DIP_A_BASE + 0x00CC));
+	CMDQ_ERR("dip: 150220D0(0x%x)-150220D4(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x00D0), DIP_RD32(DIP_A_BASE + 0x00D4));
-	CMDQ_ERR("dip: 150220D8(0x%x)-150220DC(0x%x)-150220F4(0x%x)-150220F8(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x00D8), DIP_RD32(DIP_A_BASE + 0x00DC),
+	CMDQ_ERR("dip: 150220D8(0x%x)-150220DC(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x00D8), DIP_RD32(DIP_A_BASE + 0x00DC));
+	CMDQ_ERR("dip: 150220F4(0x%x)-150220F8(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x00F4), DIP_RD32(DIP_A_BASE + 0x00F8));
+	CMDQ_ERR("dip: 0x150220A4(0x%x)-0x150220A8(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x00A4), DIP_RD32(DIP_A_BASE + 0x00A8));
+	CMDQ_ERR("dip: 0x150220AC(0x%x)-0x150220B0(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x00AC), DIP_RD32(DIP_A_BASE + 0x00B0));
+	CMDQ_ERR("dip: 0x150220B4(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x00B4));
 	/*CQ_THR info*/
 	CMDQ_ERR("dip: 15022204(0x%x)-15022208(0x%x)-1502220C(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x0204), DIP_RD32(DIP_A_BASE + 0x0208),
 		DIP_RD32(DIP_A_BASE + 0x020C));
-	CMDQ_ERR("dip: 15022210(0x%x)-15022214(0x%x)-15022218(0x%x)-0x1502231C(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x0210), DIP_RD32(DIP_A_BASE + 0x0214),
+	CMDQ_ERR("dip: 15022210(0x%x)-15022214(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0210), DIP_RD32(DIP_A_BASE + 0x0214));
+	CMDQ_ERR("dip: 15022218(0x%x)-0x1502231C(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x0218), DIP_RD32(DIP_A_BASE + 0x031C));
 
 	/* 0080, 0x15022080, DIP_A_CTL_DBG_SET */
 	DIP_WR32(DIP_A_BASE + 0x80, 0x0);
-	CMDQ_ERR("0x0007BC : dip: 0x150227BC(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x7BC));
+	CMDQ_ERR("0x0007BC : dip: 0x150227BC(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x7BC));
 	/* 07BC, 0x150227BC, DIP_A_DMA_DEBUG_SEL */
 	DIP_WR32(DIP_A_BASE + 0x7BC, 0x000013);
 	/* 0084, 0x15022084, DIP_A_CTL_DBG_PORT */
-	CMDQ_ERR("0x000013 : dip: 0x15022084(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x084));
+	CMDQ_ERR("0x000013 : dip: 0x15022084(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x084));
 	DIP_WR32(DIP_A_BASE + 0x7BC, 0x000113);
-	CMDQ_ERR("0x000113 : dip: 0x15022084(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x084));
+	CMDQ_ERR("0x000113 : dip: 0x15022084(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x084));
 	DIP_WR32(DIP_A_BASE + 0x7BC, 0x000213);
-	CMDQ_ERR("0x000213 : dip: 0x15022084(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x084));
+	CMDQ_ERR("0x000213 : dip: 0x15022084(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x084));
 	DIP_WR32(DIP_A_BASE + 0x7BC, 0x000313);
-	CMDQ_ERR("0x000313 : dip: 0x15022084(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x084));
+	CMDQ_ERR("0x000313 : dip: 0x15022084(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x084));
 	/* IMG2O */
 	/* 07BC, 0x150227BC, DIP_A_DMA_DEBUG_SEL */
 	DIP_WR32(DIP_A_BASE + 0x7BC, 0x001013);
 	/* 0084, 0x15022084, DIP_A_CTL_DBG_PORT */
-	CMDQ_ERR("0x001013 : dip: 0x15022084(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x084));
+	CMDQ_ERR("0x001013 : dip: 0x15022084(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x084));
 	DIP_WR32(DIP_A_BASE + 0x7BC, 0x001113);
-	CMDQ_ERR("0x001113 : dip: 0x15022084(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x084));
+	CMDQ_ERR("0x001113 : dip: 0x15022084(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x084));
 	DIP_WR32(DIP_A_BASE + 0x7BC, 0x001213);
-	CMDQ_ERR("0x001213 : dip: 0x15022084(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x084));
+	CMDQ_ERR("0x001213 : dip: 0x15022084(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x084));
 	DIP_WR32(DIP_A_BASE + 0x7BC, 0x001313);
-	CMDQ_ERR("0x001313 : dip: 0x15022084(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x084));
+	CMDQ_ERR("0x001313 : dip: 0x15022084(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x084));
 	/*IMG3O */
 	/* 07BC, 0x150227BC, DIP_A_DMA_DEBUG_SEL */
 	DIP_WR32(DIP_A_BASE + 0x7BC, 0x001813);
 	/* 0084, 0x15022084, DIP_A_CTL_DBG_PORT */
-	CMDQ_ERR("0x001813 : dip: 0x15022084(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x084));
+	CMDQ_ERR("0x001813 : dip: 0x15022084(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x084));
 	DIP_WR32(DIP_A_BASE + 0x7BC, 0x001913);
-	CMDQ_ERR("0x001913 : dip: 0x15022084(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x084));
+	CMDQ_ERR("0x001913 : dip: 0x15022084(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x084));
 	DIP_WR32(DIP_A_BASE + 0x7BC, 0x001A13);
-	CMDQ_ERR("0x001A13 : dip: 0x15022084(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x084));
+	CMDQ_ERR("0x001A13 : dip: 0x15022084(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x084));
 	DIP_WR32(DIP_A_BASE + 0x7BC, 0x001B13);
-	CMDQ_ERR("0x001B13 : dip: 0x15022084(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x084));
+	CMDQ_ERR("0x001B13 : dip: 0x15022084(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x084));
 	/* UFDI */
 	/* 07BC, 0x150227BC, DIP_A_DMA_DEBUG_SEL */
 	DIP_WR32(DIP_A_BASE + 0x7BC, 0x01020A);
 	/* 0084, 0x15022084, DIP_A_CTL_DBG_PORT */
-	CMDQ_ERR("0x01020A : dip: 0x15022084(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x084));
+	CMDQ_ERR("0x01020A : dip: 0x15022084(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x084));
 
 	/* 07BC, 0x150227BC, DIP_A_DMA_DEBUG_SEL */
 	DIP_WR32(DIP_A_BASE + 0x7BC, 0x000301);
 	/* 0084, 0x15022084, DIP_A_CTL_DBG_PORT */
-	CMDQ_ERR("0x000301 : dip: 0x15022084(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x084));
+	CMDQ_ERR("0x000301 : dip: 0x15022084(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x084));
 
 	/* 07BC, 0x150227BC, DIP_A_DMA_DEBUG_SEL */
 	DIP_WR32(DIP_A_BASE + 0x7BC, 0x000101);
 	/* 0084, 0x15022084, DIP_A_CTL_DBG_PORT */
-	CMDQ_ERR("0x000101 : dip: 0x15022084(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x084));
+	CMDQ_ERR("0x000101 : dip: 0x15022084(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x084));
 
 	DIP_WR32(DIP_A_BASE + 0x80, 0x003016);
-	CMDQ_ERR("0x003016 : dip: 0x15022084(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x084));
+	CMDQ_ERR("0x003016 : dip: 0x15022084(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x084));
 	DIP_WR32(DIP_A_BASE + 0x80, 0x003017);
-	CMDQ_ERR("0x003017 : dip: 0x15022084(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x084));
+	CMDQ_ERR("0x003017 : dip: 0x15022084(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x084));
 	DIP_WR32(DIP_A_BASE + 0x80, 0x003018);
-	CMDQ_ERR("0x003018 : dip: 0x15022084(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x084));
+	CMDQ_ERR("0x003018 : dip: 0x15022084(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x084));
 	DIP_WR32(DIP_A_BASE + 0x80, 0x003019);
-	CMDQ_ERR("0x003019 : dip: 0x15022084(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x084));
+	CMDQ_ERR("0x003019 : dip: 0x15022084(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x084));
 	DIP_WR32(DIP_A_BASE + 0x80, 0x005100);
-	CMDQ_ERR("0x005100 : dip: 0x15022084(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x084));
+	CMDQ_ERR("0x005100 : dip: 0x15022084(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x084));
 
+		DIP_WR32(DIP_A_BASE + 0x80, 0x030514);
+	CMDQ_ERR("0x030514 : dip: 0x15022084(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x084));
 
 	/* DMA Error */
 	CMDQ_ERR("img2o  0x15022744(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x744));
@@ -989,7 +1116,8 @@ static signed int DIP_DumpDIPReg(void)
 	CMDQ_ERR("img3bo 0x15022750(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x750));
 	CMDQ_ERR("img3Co 0x15022754(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x754));
 	CMDQ_ERR("feo    0x15022758(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x758));
-	CMDQ_ERR("mfbo/pak2o  0x1502275C(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x75C));
+	CMDQ_ERR("mfbo/pak2o 0x1502275C(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x75C));
 	CMDQ_ERR("imgi   0x15022760(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x760));
 	CMDQ_ERR("imgbi  0x15022764(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x764));
 	CMDQ_ERR("imgci  0x15022768(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x768));
@@ -1010,158 +1138,555 @@ static signed int DIP_DumpDIPReg(void)
 	CMDQ_ERR("smx4i  0x150227A4(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x7A4));
 
 	/* Interrupt Status */
-	CMDQ_ERR("CTL_INT_STATUSX      0x15022040(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x040));
-	CMDQ_ERR("CTL_CQ_INT_STATUSX   0x15022044(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x044));
-	CMDQ_ERR("CTL_CQ_INT2_STATUSX  0x15022048(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x048));
-	CMDQ_ERR("CTL_CQ_INT3_STATUSX  0x1502204C(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x04C));
+	CMDQ_ERR("CTL_INT_STATUSX      0x15022040(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x040));
+	CMDQ_ERR("CTL_CQ_INT_STATUSX   0x15022044(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x044));
+	CMDQ_ERR("CTL_CQ_INT2_STATUSX  0x15022048(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x048));
+	CMDQ_ERR("CTL_CQ_INT3_STATUSX  0x1502204C(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x04C));
 
-    /* IMG3O DMA*/
-	CMDQ_ERR("img3o: 0x15022390(0x%x)-0x15022398(0x%x)-0x150223A0(0x%x)-0x150223A4(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x390), DIP_RD32(DIP_A_BASE + 0x0398),
+	CMDQ_ERR("hfg crop: 0x150272B0(0x%x)-0x150272B4(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x52B0), DIP_RD32(DIP_A_BASE + 0x52B4));
+
+	CMDQ_ERR("dcm: 0x150220A4(0x%x)-0x150220A8(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0A4), DIP_RD32(DIP_A_BASE + 0x0A8));
+	CMDQ_ERR("dcm: 0x150220AC(0x%x)-0x150220B0(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0AC), DIP_RD32(DIP_A_BASE + 0x0B0));
+	CMDQ_ERR("dcm: 0x150220B4(0x%x)-0x150220F0(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0B4), DIP_RD32(DIP_A_BASE + 0x0F0));
+	/* IMG3O DMA*/
+	CMDQ_ERR("img3o: 0x15022390(0x%x)-0x15022398(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x390), DIP_RD32(DIP_A_BASE + 0x0398));
+	CMDQ_ERR("img3o: 0x150223A0(0x%x)-0x150223A4(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x3A0), DIP_RD32(DIP_A_BASE + 0x03A4));
-	CMDQ_ERR("img3o: 0x150223A8(0x%x)-0x150223AC(0x%x)-0x150223B0(0x%x)-0x150223B4(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x03A8), DIP_RD32(DIP_A_BASE + 0x03AC),
+	CMDQ_ERR("img3o: 0x150223A8(0x%x)-0x150223AC(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x03A8), DIP_RD32(DIP_A_BASE + 0x03AC));
+	CMDQ_ERR("img3o: 0x150223B0(0x%x)-0x150223B4(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x03B0), DIP_RD32(DIP_A_BASE + 0x03B4));
 	CMDQ_ERR("img3o: 0x150223B8(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x03B8));
+	CMDQ_ERR("img3bo: 0x150223C0(0x%x)-0x150223C8(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x3C0), DIP_RD32(DIP_A_BASE + 0x03C8));
+	CMDQ_ERR("img3bo: 0x150223D0(0x%x)-0x150223D4(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x3D0), DIP_RD32(DIP_A_BASE + 0x03D4));
+	CMDQ_ERR("img3bo: 0x150223D8(0x%x)-0x150223DC(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x03D8), DIP_RD32(DIP_A_BASE + 0x03DC));
+	CMDQ_ERR("img3bo: 0x150223E0(0x%x)-0x150223E4(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x03E0), DIP_RD32(DIP_A_BASE + 0x03E4));
+	CMDQ_ERR("img3bo: 0x150223E8(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x03E8));
 
-    /* IMGI DMA*/
-	CMDQ_ERR("imgi: 0x15022500(0x%x)-0x15022508(0x%x)-0x15022510(0x%x)-0x15022514(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x500), DIP_RD32(DIP_A_BASE + 0x508),
+	CMDQ_ERR("img3co: 0x150223F0(0x%x)-0x150223F8(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x3F0), DIP_RD32(DIP_A_BASE + 0x03F8));
+	CMDQ_ERR("img3co: 0x15022400(0x%x)-0x15022404(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x400), DIP_RD32(DIP_A_BASE + 0x0404));
+	CMDQ_ERR("img3co: 0x15022408(0x%x)-0x1502240C(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0408), DIP_RD32(DIP_A_BASE + 0x040C));
+	CMDQ_ERR("img3co: 0x15022410(0x%x)-0x15022414(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0410), DIP_RD32(DIP_A_BASE + 0x0414));
+	CMDQ_ERR("img3co: 0x15022418(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x0418));
+
+	/* IMGI DMA*/
+	CMDQ_ERR("imgi: 0x15022500(0x%x)-0x15022508(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x500), DIP_RD32(DIP_A_BASE + 0x508));
+	CMDQ_ERR("imgi: 0x15022510(0x%x)-0x15022514(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x510), DIP_RD32(DIP_A_BASE + 0x514));
-	CMDQ_ERR("imgi: 0x15022518(0x%x)-0x1502251C(0x%x)-0x15022520(0x%x)-0x15022524(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x518), DIP_RD32(DIP_A_BASE + 0x51C),
+	CMDQ_ERR("imgi: 0x15022518(0x%x)-0x1502251C(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x518), DIP_RD32(DIP_A_BASE + 0x51C));
+	CMDQ_ERR("imgi: 0x15022520(0x%x)-0x15022524(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x520), DIP_RD32(DIP_A_BASE + 0x524));
 
-    /* PAK2O DMA*/
-	CMDQ_ERR("pak2o: 0x15022450(0x%x)-0x15022458(0x%x)-0x15022460(0x%x)-0x15022464(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x450), DIP_RD32(DIP_A_BASE + 0x458),
+	/* PAK2O DMA*/
+	CMDQ_ERR("pak2o: 0x15022450(0x%x)-0x15022458(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x450), DIP_RD32(DIP_A_BASE + 0x458));
+	CMDQ_ERR("pak2o: 0x15022460(0x%x)-0x15022464(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x460), DIP_RD32(DIP_A_BASE + 0x464));
-	CMDQ_ERR("pak2o: 0x15022468(0x%x)-0x1502246C(0x%x)-0x15022470(0x%x)-0x15022474(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x468), DIP_RD32(DIP_A_BASE + 0x46C),
+	CMDQ_ERR("pak2o: 0x15022468(0x%x)-0x1502246C(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x468), DIP_RD32(DIP_A_BASE + 0x46C));
+	CMDQ_ERR("pak2o: 0x15022470(0x%x)-0x15022474(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x470), DIP_RD32(DIP_A_BASE + 0x474));
 	CMDQ_ERR("pak2o: 0x15022478(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x478));
 
-    /* IMG2O DMA*/
-	CMDQ_ERR("img2o: 0x15022330(0x%x)-0x15022338(0x%x)-0x15022340(0x%x)-0x15022344(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x330), DIP_RD32(DIP_A_BASE + 0x338),
+	/* IMG2O DMA*/
+	CMDQ_ERR("img2o: 0x15022330(0x%x)-0x15022338(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x330), DIP_RD32(DIP_A_BASE + 0x338));
+	CMDQ_ERR("img2o: 0x15022340(0x%x)-0x15022344(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x340), DIP_RD32(DIP_A_BASE + 0x344));
-	CMDQ_ERR("img2o: 0x15022348(0x%x)-0x1502234C(0x%x)-0x15022350(0x%x)-0x15022354(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x0348), DIP_RD32(DIP_A_BASE + 0x034C),
+	CMDQ_ERR("img2o: 0x15022348(0x%x)-0x1502234C(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0348), DIP_RD32(DIP_A_BASE + 0x034C));
+	CMDQ_ERR("img2o: 0x15022350(0x%x)-0x15022354(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x0350), DIP_RD32(DIP_A_BASE + 0x0354));
 	CMDQ_ERR("img2o: 0x15022358(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x0358));
 
-    /* LCEI DMA*/
-	CMDQ_ERR("lcei: 0x15022680(0x%x)-0x15022688(0x%x)-0x15022690(0x%x)-0x15022694(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x680), DIP_RD32(DIP_A_BASE + 0x688),
+	/* VIPI DMA*/
+	CMDQ_ERR("vipi: 0x15022590(0x%x)-0x15022598(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x590), DIP_RD32(DIP_A_BASE + 0x0598));
+	CMDQ_ERR("vipi: 0x150225A0(0x%x)-0x150225A4(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x5A0), DIP_RD32(DIP_A_BASE + 0x05A4));
+	CMDQ_ERR("vipi: 0x150225A8(0x%x)-0x150225AC(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x05A8), DIP_RD32(DIP_A_BASE + 0x05AC));
+	CMDQ_ERR("vipi: 0x150225B0(0x%x)-0x150225B4(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x05B0), DIP_RD32(DIP_A_BASE + 0x05B4));
+
+	   /* VIP2I DMA*/
+	CMDQ_ERR("vip2i: 0x150225C0(0x%x)-0x150225C8(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x5C0), DIP_RD32(DIP_A_BASE + 0x05C8));
+	CMDQ_ERR("vip2i: 0x150225D0(0x%x)-0x150225D4(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x5D0), DIP_RD32(DIP_A_BASE + 0x05D4));
+	CMDQ_ERR("vip2i: 0x150225D8(0x%x)-0x150225DC(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x05D8), DIP_RD32(DIP_A_BASE + 0x05DC));
+	CMDQ_ERR("vip2i: 0x150225E0(0x%x)-0x150225E4(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x05E0), DIP_RD32(DIP_A_BASE + 0x05E4));
+
+	   /* VIP3I DMA*/
+	CMDQ_ERR("vip3i: 0x150225F0(0x%x)-0x150225F8(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x5F0), DIP_RD32(DIP_A_BASE + 0x05F8));
+	CMDQ_ERR("vip3i: 0x15022600(0x%x)-0x15022604(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x600), DIP_RD32(DIP_A_BASE + 0x0604));
+	CMDQ_ERR("vip3i: 0x15022608(0x%x)-0x1502260C(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0608), DIP_RD32(DIP_A_BASE + 0x060C));
+	CMDQ_ERR("vip3i: 0x15022610(0x%x)-0x15022614(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0610), DIP_RD32(DIP_A_BASE + 0x0614));
+
+	   /* DMGI DMA*/
+	CMDQ_ERR("dmgi: 0x15022620(0x%x)-0x15022628(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x620), DIP_RD32(DIP_A_BASE + 0x0628));
+	CMDQ_ERR("dmgi: 0x15022630(0x%x)-0x15022634(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x630), DIP_RD32(DIP_A_BASE + 0x0634));
+	CMDQ_ERR("dmgi: 0x15022638(0x%x)-0x1502263C(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0638), DIP_RD32(DIP_A_BASE + 0x063C));
+	CMDQ_ERR("dmgi: 0x15022640(0x%x)-0x15022644(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0640), DIP_RD32(DIP_A_BASE + 0x0644));
+
+	   /* DEPI DMA*/
+	CMDQ_ERR("depi: 0x15022650(0x%x)-0x15022658(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x650), DIP_RD32(DIP_A_BASE + 0x0658));
+	CMDQ_ERR("depi: 0x15022660(0x%x)-0x15022664(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x660), DIP_RD32(DIP_A_BASE + 0x0664));
+	CMDQ_ERR("depi: 0x15022668(0x%x)-0x1502266C(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0668), DIP_RD32(DIP_A_BASE + 0x066C));
+	CMDQ_ERR("depi: 0x15022670(0x%x)-0x15022674(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0670), DIP_RD32(DIP_A_BASE + 0x0674));
+
+	/* LCEI DMA*/
+	CMDQ_ERR("lcei: 0x15022680(0x%x)-0x15022688(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x680), DIP_RD32(DIP_A_BASE + 0x688));
+	CMDQ_ERR("lcei: 0x15022690(0x%x)-0x15022694(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x690), DIP_RD32(DIP_A_BASE + 0x694));
-	CMDQ_ERR("lcei: 0x15022698(0x%x)-0x1502269C(0x%x)-0x150226A0(0x%x)-0x150226A4(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x0698), DIP_RD32(DIP_A_BASE + 0x069C),
+	CMDQ_ERR("lcei: 0x15022698(0x%x)-0x1502269C(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0698), DIP_RD32(DIP_A_BASE + 0x069C));
+	CMDQ_ERR("lcei: 0x150226A0(0x%x)-0x150226A4(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x06A0), DIP_RD32(DIP_A_BASE + 0x06A4));
 
-    /* CRZ */
-	CMDQ_ERR("crz: 0x15027300(0x%x)-0x15027304(0x%x)-0x15027308(0x%x)-0x1502730C(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x5300), DIP_RD32(DIP_A_BASE + 0x5304),
+	/* CRZ */
+	CMDQ_ERR("crz: 0x15027300(0x%x)-0x15027304(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x5300), DIP_RD32(DIP_A_BASE + 0x5304));
+	CMDQ_ERR("crz: 0x15027308(0x%x)-0x1502730C(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x5308), DIP_RD32(DIP_A_BASE + 0x530C));
-	CMDQ_ERR("crz: 0x15027310(0x%x)-0x15027314(0x%x)-0x15027318(0x%x)-0x1502731C(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x5310), DIP_RD32(DIP_A_BASE + 0x5314),
+	CMDQ_ERR("crz: 0x15027310(0x%x)-0x15027314(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x5310), DIP_RD32(DIP_A_BASE + 0x5314));
+	CMDQ_ERR("crz: 0x15027318(0x%x)-0x1502731C(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x5318), DIP_RD32(DIP_A_BASE + 0x531C));
-	CMDQ_ERR("crz: 0x15027320(0x%x)-0x15027324(0x%x)-0x15027328(0x%x)-0x1502732C(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x5320), DIP_RD32(DIP_A_BASE + 0x5324),
+	CMDQ_ERR("crz: 0x15027320(0x%x)-0x15027324(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x5320), DIP_RD32(DIP_A_BASE + 0x5324));
+	CMDQ_ERR("crz: 0x15027328(0x%x)-0x1502732C(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x5328), DIP_RD32(DIP_A_BASE + 0x532C));
 	CMDQ_ERR("crz: 0x15027330(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x5330));
 
-	CMDQ_ERR("imgsys: 0x15020000(0x%x)\n", DIP_RD32(DIP_IMGSYS_CONFIG_BASE));
-     /* NR3D */
-	CMDQ_ERR("tnr and color: 0x15027380(0x%x)-0x15027398(0x%x)-0x15027110(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x5380), DIP_RD32(DIP_A_BASE + 0x5398),
+	CMDQ_ERR("imgsys:0x15020000(0x%x)\n", DIP_RD32(DIP_IMGSYS_CONFIG_BASE));
+	CMDQ_ERR("0x15020180(0x%x)-0x15020184(0x%x)\n",
+		DIP_RD32(DIP_IMGSYS_CONFIG_BASE + 0x180),
+		DIP_RD32(DIP_IMGSYS_CONFIG_BASE + 0x184));
+	CMDQ_ERR("0x15020188(0x%x)-0x1502018C(0x%x)\n",
+		DIP_RD32(DIP_IMGSYS_CONFIG_BASE + 0x188),
+		DIP_RD32(DIP_IMGSYS_CONFIG_BASE + 0x18C));
+	/* NR3D */
+	CMDQ_ERR("tnr and color: 0x15027380(0x%x)-0x15027398(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x5380), DIP_RD32(DIP_A_BASE + 0x5398));
+	CMDQ_ERR("tnr and color: 0x15027110(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x5110));
 
-    /* SMX1O DMA*/
-	CMDQ_ERR("smx1 ctrl: 0x15023100(0x%x)-0x15023104(0x%x)-0x1502310C(0x%x)-0x15023110(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x1100), DIP_RD32(DIP_A_BASE + 0x1104),
+   /* IMGBI */
+	CMDQ_ERR("imgbi: 0x15022530(0x%x)-0x15022538(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0530), DIP_RD32(DIP_A_BASE + 0x0538));
+	CMDQ_ERR("imgbi: 0x15022540(0x%x)-0x15022544(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0540), DIP_RD32(DIP_A_BASE + 0x0544));
+	CMDQ_ERR("imgbi: 0x15022548(0x%x)-0x1502254C(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0548), DIP_RD32(DIP_A_BASE + 0x054C));
+	CMDQ_ERR("imgbi: 0x15022550(0x%x)-0x15022554(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0550), DIP_RD32(DIP_A_BASE + 0x0554));
+
+    /* IMGCI */
+	CMDQ_ERR("imgci: 0x15022560(0x%x)-0x15022568(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0560), DIP_RD32(DIP_A_BASE + 0x0568));
+	CMDQ_ERR("imgci: 0x15022570(0x%x)-0x15022574(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0570), DIP_RD32(DIP_A_BASE + 0x0574));
+	CMDQ_ERR("imgci: 0x15022578(0x%x)-0x1502257C(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0578), DIP_RD32(DIP_A_BASE + 0x057C));
+	CMDQ_ERR("imgci: 0x15022580(0x%x)-0x15022584(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x0580), DIP_RD32(DIP_A_BASE + 0x0584));
+
+    /* LCE */
+	CMDQ_ERR("lce: 0x15024100(0x%x)-0x15024104(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x2100), DIP_RD32(DIP_A_BASE + 0x2104));
+	CMDQ_ERR("lce: 0x15024108(0x%x)-0x1502410C(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x2108), DIP_RD32(DIP_A_BASE + 0x210C));
+	CMDQ_ERR("0x15024110(0x%x)-0x15024114(0x%x)-0x15024120(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x2110), DIP_RD32(DIP_A_BASE + 0x2114),
+		DIP_RD32(DIP_A_BASE + 0x2120));
+    /* NBC */
+	CMDQ_ERR("nbc: 0x15025700(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x3700));
+    /* BNR */
+	CMDQ_ERR("bnr: 0x15023240(0x%x)-0x15023280(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x1240), DIP_RD32(DIP_A_BASE + 0x1280));
+
+
+	/* SMX1O DMA*/
+	CMDQ_ERR("smx1 ctrl: 0x15023100(0x%x)-0x15023104(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x1100), DIP_RD32(DIP_A_BASE + 0x1104));
+	CMDQ_ERR("smx1 ctrl: 0x1502310C(0x%x)-0x15023110(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x110C), DIP_RD32(DIP_A_BASE + 0x1110));
-	CMDQ_ERR("0x15023114(0x%x)-0x15023118(0x%x)-0x1502311C(0x%x)-0x15023120(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x1114), DIP_RD32(DIP_A_BASE + 0x1118),
+	CMDQ_ERR("smx1 ctrl: 0x15023114(0x%x)-0x15023118(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x1114), DIP_RD32(DIP_A_BASE + 0x1118));
+	CMDQ_ERR("smx1 ctrl: 0x1502311C(0x%x)-0x15023120(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x111C), DIP_RD32(DIP_A_BASE + 0x1120));
-	CMDQ_ERR("smx1o: 0x150227D0(0x%x)-0x150227D8(0x%x)-0x150227E0(0x%x)-0x150227E4(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x7D0), DIP_RD32(DIP_A_BASE + 0x7D8),
+	CMDQ_ERR("smx1o: 0x150227D0(0x%x)-0x150227D8(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x7D0), DIP_RD32(DIP_A_BASE + 0x7D8));
+	CMDQ_ERR("smx1o: 0x150227E0(0x%x)-0x150227E4(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x7E0), DIP_RD32(DIP_A_BASE + 0x7E4));
-	CMDQ_ERR("0x150227E8(0x%x)-0x150227EC(0x%x)-0x150227F0(0x%x)-0x150227F4(0x%x)-0x150227F8(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x7E8), DIP_RD32(DIP_A_BASE + 0x7EC), DIP_RD32(DIP_A_BASE + 0x7F0),
-		DIP_RD32(DIP_A_BASE + 0x7F4), DIP_RD32(DIP_A_BASE + 0x7F8));
+	CMDQ_ERR("smx1o: 0x150227E8(0x%x)-0x150227EC(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x7E8), DIP_RD32(DIP_A_BASE + 0x7EC));
+	CMDQ_ERR("smx1o: 0x150227F0(0x%x)-0x150227F4(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x7F0), DIP_RD32(DIP_A_BASE + 0x7F4));
+	CMDQ_ERR("smx1o: 0x150227F8(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x7F8));
 
-    /* SMX2O DMA*/
-	CMDQ_ERR("smx2 ctrl: 0x150267C0(0x%x)-0x150267C4(0x%x)-0x150267CC(0x%x)-0x150267D0(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x47C0), DIP_RD32(DIP_A_BASE + 0x47C4),
+	/* SMX2O DMA*/
+	CMDQ_ERR("smx2 ctrl: 0x150267C0(0x%x)-0x150267C4(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x47C0), DIP_RD32(DIP_A_BASE + 0x47C4));
+	CMDQ_ERR("smx2 ctrl: 0x150267CC(0x%x)-0x150267D0(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x47CC), DIP_RD32(DIP_A_BASE + 0x47D0));
-	CMDQ_ERR("0x150267D4(0x%x)-0x150267D8(0x%x)-0x150267DC(0x%x)-0x150267E0(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x47D4), DIP_RD32(DIP_A_BASE + 0x47D8),
+	CMDQ_ERR("smx2 ctrl: 0x150267D4(0x%x)-0x150267D8(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x47D4), DIP_RD32(DIP_A_BASE + 0x47D8));
+	CMDQ_ERR("smx2 ctrl: 0x150267DC(0x%x)-0x150267E0(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x47DC), DIP_RD32(DIP_A_BASE + 0x47E0));
-	CMDQ_ERR("smx2o:0x15022800(0x%x)-0x15022808(0x%x)-0x15022810(0x%x)-0x15022814(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x800), DIP_RD32(DIP_A_BASE + 0x808),
+	CMDQ_ERR("smx2o: 0x15022800(0x%x)-0x15022808(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x800), DIP_RD32(DIP_A_BASE + 0x808));
+	CMDQ_ERR("smx2o: 0x15022810(0x%x)-0x15022814(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x810), DIP_RD32(DIP_A_BASE + 0x814));
-	CMDQ_ERR("0x15022818(0x%x)-0x1502281C(0x%x)-0x15022820(0x%x)-0x15022824(0x%x)-0x15022828(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x818), DIP_RD32(DIP_A_BASE + 0x81C), DIP_RD32(DIP_A_BASE + 0x820),
-		DIP_RD32(DIP_A_BASE + 0x824), DIP_RD32(DIP_A_BASE + 0x828));
+	CMDQ_ERR("smx2o: 0x15022818(0x%x)-0x1502281C(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x818), DIP_RD32(DIP_A_BASE + 0x81C));
+	CMDQ_ERR("smx2o: 0x15022820(0x%x)-0x15022824(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x820), DIP_RD32(DIP_A_BASE + 0x824));
+	CMDQ_ERR("smx2o: 0x15022828(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x828));
 
-    /* SMX3O DMA*/
-	CMDQ_ERR("smx3 ctrl: 0x150269C0(0x%x)-0x150269C4(0x%x)-0x150269CC(0x%x)-0x150269D0(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x49C0), DIP_RD32(DIP_A_BASE + 0x49C4),
+	/* SMX3O DMA*/
+	CMDQ_ERR("smx3 ctrl: 0x150269C0(0x%x)-0x150269C4(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x49C0), DIP_RD32(DIP_A_BASE + 0x49C4));
+	CMDQ_ERR("smx3 ctrl: 0x150269CC(0x%x)-0x150269D0(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x49CC), DIP_RD32(DIP_A_BASE + 0x49D0));
-	CMDQ_ERR("0x150269D4(0x%x)-0x150269D8(0x%x)-0x150269DC(0x%x)-0x150269E0(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x49D4), DIP_RD32(DIP_A_BASE + 0x49D8),
+	CMDQ_ERR("smx3 ctrl: 0x150269D4(0x%x)-0x150269D8(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x49D4), DIP_RD32(DIP_A_BASE + 0x49D8));
+	CMDQ_ERR("smx3 ctrl: 0x150269DC(0x%x)-0x150269E0(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x49DC), DIP_RD32(DIP_A_BASE + 0x49E0));
-	CMDQ_ERR("smx3o:0x15022830(0x%x)-0x15022838(0x%x)-0x15022840(0x%x)-0x15022844(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x830), DIP_RD32(DIP_A_BASE + 0x838),
+	CMDQ_ERR("smx3o: 0x15022830(0x%x)-0x15022838(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x830), DIP_RD32(DIP_A_BASE + 0x838));
+	CMDQ_ERR("smx3o: 0x15022840(0x%x)-0x15022844(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x840), DIP_RD32(DIP_A_BASE + 0x844));
-	CMDQ_ERR("0x15022848(0x%x)-0x1502284C(0x%x)-0x15022850(0x%x)-0x15022854(0x%x)-0x15022858(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x848), DIP_RD32(DIP_A_BASE + 0x84C), DIP_RD32(DIP_A_BASE + 0x850),
-		DIP_RD32(DIP_A_BASE + 0x854), DIP_RD32(DIP_A_BASE + 0x858));
+	CMDQ_ERR("smx3o: 0x15022848(0x%x)-0x1502284C(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x848), DIP_RD32(DIP_A_BASE + 0x84C));
+	CMDQ_ERR("smx3o: 0x15022850(0x%x)-0x15022854(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x850), DIP_RD32(DIP_A_BASE + 0x854));
+	CMDQ_ERR("smx3o: 0x15022858(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x858));
 
-    /* SMX4O DMA*/
-	CMDQ_ERR("smx4 ctrl: 0x15024BC0(0x%x)-0x15024BC4(0x%x)-0x15024BCC(0x%x)-0x15024BD0(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x2BC0), DIP_RD32(DIP_A_BASE + 0x2BC4),
+	/* SMX4O DMA*/
+	CMDQ_ERR("smx4 ctrl: 0x15024BC0(0x%x)-0x15024BC4(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x2BC0), DIP_RD32(DIP_A_BASE + 0x2BC4));
+	CMDQ_ERR("smx4 ctrl: 0x15024BCC(0x%x)-0x15024BD0(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x2BCC), DIP_RD32(DIP_A_BASE + 0x2BD0));
-	CMDQ_ERR("0x15024BD4(0x%x)-0x15024BD8(0x%x)-0x15024BDC(0x%x)-0x15024BE0(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x2BD4), DIP_RD32(DIP_A_BASE + 0x2BD8),
+	CMDQ_ERR("smx4 ctrl: 0x15024BD4(0x%x)-0x15024BD8(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x2BD4), DIP_RD32(DIP_A_BASE + 0x2BD8));
+	CMDQ_ERR("smx4 ctrl: 0x15024BDC(0x%x)-0x15024BE0(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x2BDC), DIP_RD32(DIP_A_BASE + 0x2BE0));
-	CMDQ_ERR("smx4o:0x15022860(0x%x)-0x15022868(0x%x)-0x15022870(0x%x)-0x15022874(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x860), DIP_RD32(DIP_A_BASE + 0x868),
+	CMDQ_ERR("smx4o: 0x15022860(0x%x)-0x15022868(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x860), DIP_RD32(DIP_A_BASE + 0x868));
+	CMDQ_ERR("smx4o: 0x15022870(0x%x)-0x15022874(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x870), DIP_RD32(DIP_A_BASE + 0x874));
-	CMDQ_ERR("0x15022878(0x%x)-0x1502287C(0x%x)-0x15022880(0x%x)-0x15022884(0x%x)-0x15022888(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x878), DIP_RD32(DIP_A_BASE + 0x87C), DIP_RD32(DIP_A_BASE + 0x880),
-		DIP_RD32(DIP_A_BASE + 0x884), DIP_RD32(DIP_A_BASE + 0x888));
+	CMDQ_ERR("smx4o: 0x15022878(0x%x)-0x1502287C(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x878), DIP_RD32(DIP_A_BASE + 0x87C));
+	CMDQ_ERR("smx4o: 0x15022880(0x%x)-0x15022884(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x880), DIP_RD32(DIP_A_BASE + 0x884));
+	CMDQ_ERR("smx4o: 0x15022888(0x%x)\n", DIP_RD32(DIP_A_BASE + 0x888));
 
-    /* SMX1I DMA*/
-	CMDQ_ERR("smx1i: 0x15022890(0x%x)-0x15022898(0x%x)-0x150228A0(0x%x)-0x150228A4(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x890), DIP_RD32(DIP_A_BASE + 0x898),
+	/* SMX1I DMA*/
+	CMDQ_ERR("smx1i: 0x15022890(0x%x)-0x15022898(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x890), DIP_RD32(DIP_A_BASE + 0x898));
+	CMDQ_ERR("smx1i: 0x150228A0(0x%x)-0x150228A4(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x8A0), DIP_RD32(DIP_A_BASE + 0x8A4));
-	CMDQ_ERR("0x150228A8(0x%x)-0x150228AC(0x%x)-0x150228B0(0x%x)-0x150228B4(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x8A8), DIP_RD32(DIP_A_BASE + 0x8AC),
+	CMDQ_ERR("smx1i: 0x150228A8(0x%x)-0x150228AC(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x8A8), DIP_RD32(DIP_A_BASE + 0x8AC));
+	CMDQ_ERR("smx1i: 0x150228B0(0x%x)-0x150228B4(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x8B0), DIP_RD32(DIP_A_BASE + 0x8B4));
-    /* SMX2I DMA*/
-	CMDQ_ERR("smx2i: 0x150228C0(0x%x)-0x150228C8(0x%x)-0x150228D0(0x%x)-0x150228D4(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x8C0), DIP_RD32(DIP_A_BASE + 0x8C8),
+	/* SMX2I DMA*/
+	CMDQ_ERR("smx2i: 0x150228C0(0x%x)-0x150228C8(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x8C0), DIP_RD32(DIP_A_BASE + 0x8C8));
+	CMDQ_ERR("smx2i: 0x150228D0(0x%x)-0x150228D4(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x8D0), DIP_RD32(DIP_A_BASE + 0x8D4));
-	CMDQ_ERR("0x150228D8(0x%x)-0x150228DC(0x%x)-0x150228E0(0x%x)-0x150228E4(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x8D8), DIP_RD32(DIP_A_BASE + 0x8DC),
+	CMDQ_ERR("smx2i: 0x150228D8(0x%x)-0x150228DC(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x8D8), DIP_RD32(DIP_A_BASE + 0x8DC));
+	CMDQ_ERR("smx2i: 0x150228E0(0x%x)-0x150228E4(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x8E0), DIP_RD32(DIP_A_BASE + 0x8E4));
-    /* SMX3I DMA*/
-	CMDQ_ERR("smx3i: 0x150228F0(0x%x)-0x150228F8(0x%x)-0x15022900(0x%x)-0x15022904(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x8F0), DIP_RD32(DIP_A_BASE + 0x8F8),
+	/* SMX3I DMA*/
+	CMDQ_ERR("smx3i: 0x150228F0(0x%x)-0x150228F8(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x8F0), DIP_RD32(DIP_A_BASE + 0x8F8));
+	CMDQ_ERR("smx3i: 0x15022900(0x%x)-0x15022904(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x900), DIP_RD32(DIP_A_BASE + 0x904));
-	CMDQ_ERR("0x15022908(0x%x)-0x1502290C(0x%x)-0x15022910(0x%x)-0x15022914(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x908), DIP_RD32(DIP_A_BASE + 0x90C),
+	CMDQ_ERR("smx3i: 0x15022908(0x%x)-0x1502290C(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x908), DIP_RD32(DIP_A_BASE + 0x90C));
+	CMDQ_ERR("smx3i: 0x15022910(0x%x)-0x15022914(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x910), DIP_RD32(DIP_A_BASE + 0x914));
-    /* SMX4I DMA*/
-	CMDQ_ERR("smx4i: 0x15022920(0x%x)-0x15022928(0x%x)-0x15022930(0x%x)-0x15022934(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x920), DIP_RD32(DIP_A_BASE + 0x928),
+	/* SMX4I DMA*/
+	CMDQ_ERR("smx4i: 0x15022920(0x%x)-0x15022928(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x920), DIP_RD32(DIP_A_BASE + 0x928));
+	CMDQ_ERR("smx4i: 0x15022930(0x%x)-0x15022934(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x930), DIP_RD32(DIP_A_BASE + 0x934));
-	CMDQ_ERR("0x15022938(0x%x)-0x1502293C(0x%x)-0x15022940(0x%x)-0x15022944(0x%x)\n",
-		DIP_RD32(DIP_A_BASE + 0x938), DIP_RD32(DIP_A_BASE + 0x93C),
+	CMDQ_ERR("smx4i: 0x15022938(0x%x)-0x1502293C(0x%x)\n",
+		DIP_RD32(DIP_A_BASE + 0x938), DIP_RD32(DIP_A_BASE + 0x93C));
+	CMDQ_ERR("smx4i: 0x15022940(0x%x)-0x15022944(0x%x)\n",
 		DIP_RD32(DIP_A_BASE + 0x940), DIP_RD32(DIP_A_BASE + 0x944));
 
+	dipdmacmd = 0x000109;
+	DIP_WR32(DIP_A_BASE + 0x7BC, dipdmacmd);
+	CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+		dipdmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+	dipdmacmd = 0x010209;
+	DIP_WR32(DIP_A_BASE + 0x7BC, dipdmacmd);
+	CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+		dipdmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+	dipdmacmd = 0x030209;
+	DIP_WR32(DIP_A_BASE + 0x7BC, dipdmacmd);
+	CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+		dipdmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+
+
+	dipdmacmd = 0x00000013;
+	for (i = 0; i < 64 ; i++) {
+		/* 0x150210A8, DIPDMATOP_REG_D1A_DIPDMATOP_DMA_DEBUG_SEL */
+		switch (i) {
+		case 0x0:
+			dmaidx = 1;
+			CMDQ_ERR("imgi dma debug\n");
+			break;
+		case 0x4:
+			dmaidx = 2;
+			CMDQ_ERR("imgbi dma debug\n");
+			break;
+		case 0x8:
+			dmaidx = 4;
+			CMDQ_ERR("vipi dma debug\n");
+			break;
+		case 0xc:
+			dmaidx = 5;
+			CMDQ_ERR("vip2i dma debug\n");
+			break;
+		case 0x10:
+			dmaidx = 11;
+			CMDQ_ERR("img2o dma debug\n");
+			break;
+		case 0x14:
+			dmaidx = 12;
+			CMDQ_ERR("img2bo dma debug\n");
+			break;
+		case 0x18:
+			dmaidx = 13;
+			CMDQ_ERR("img3o dma debug\n");
+			break;
+		case 0x1c:
+			dmaidx = 14;
+			CMDQ_ERR("img3bo dma debug\n");
+			break;
+		case 0x20:
+			dmaidx = 20;
+			CMDQ_ERR("smx1i dma debug\n");
+			break;
+		case 0x24:
+			dmaidx = 21;
+			CMDQ_ERR("smx2i dma debug\n");
+			break;
+		case 0x28:
+			dmaidx = 22;
+			CMDQ_ERR("smx3i dma debug\n");
+			break;
+		case 0x2c:
+			dmaidx = 23;
+			CMDQ_ERR("smx4i dma debug\n");
+			break;
+		case 0x30:
+			dmaidx = 24;
+			CMDQ_ERR("smx1o dma debug\n");
+			break;
+		case 0x34:
+			dmaidx = 25;
+			CMDQ_ERR("smx2o dma debug\n");
+			break;
+		case 0x38:
+			dmaidx = 26;
+			CMDQ_ERR("smx3o dma debug\n");
+			break;
+		case 0x3c:
+			dmaidx = 27;
+			CMDQ_ERR("smx4o dma debug\n");
+			break;
+		default:
+			break;
+		}
+		dipdmacmd = dipdmacmd & 0xFFFF00FF;
+		dipdmacmd = dipdmacmd | (i << 8);
+		DIP_WR32(DIP_A_BASE + 0x7BC, dipdmacmd);
+		/* 0x15022194, DIPCTL_REG_D1A_DIPCTL_DBG_OUT */
+		CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+			dipdmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+		i++;
+		dipdmacmd = dipdmacmd & 0xFFFF00FF;
+		dipdmacmd = dipdmacmd | (i << 8);
+		DIP_WR32(DIP_A_BASE + 0x7BC, dipdmacmd);
+		CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+			dipdmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+		i++;
+		dipdmacmd = dipdmacmd & 0xFFFF00FF;
+		dipdmacmd = dipdmacmd | (i << 8);
+		DIP_WR32(DIP_A_BASE + 0x7BC, dipdmacmd);
+		CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+			dipdmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+		i++;
+		dipdmacmd = dipdmacmd & 0xFFFF00FF;
+		dipdmacmd = dipdmacmd | (i << 8);
+		DIP_WR32(DIP_A_BASE + 0x7BC, dipdmacmd);
+		CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+			dipdmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+
+		if (((dmaidx >= 11) && (dmaidx <= 14)) ||
+			((dmaidx >= 24) && (dmaidx <= 27))) {
+			smidmacmd = 0x00080400;
+			smidmacmd = smidmacmd | dmaidx;
+			DIP_WR32(DIP_A_BASE + 0x7BC, smidmacmd);
+			CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+				smidmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+
+			smidmacmd = 0x00090400;
+			smidmacmd = smidmacmd | dmaidx;
+			DIP_WR32(DIP_A_BASE + 0x7BC, smidmacmd);
+			CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+				smidmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+
+			smidmacmd = 0x00000400;
+			smidmacmd = smidmacmd | dmaidx;
+			DIP_WR32(DIP_A_BASE + 0x7BC, smidmacmd);
+			CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+				smidmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+
+			smidmacmd = 0x00010400;
+			smidmacmd = smidmacmd | dmaidx;
+			DIP_WR32(DIP_A_BASE + 0x7BC, smidmacmd);
+			CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+				smidmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+
+			fifodmacmd = 0x00000300;
+			fifodmacmd = fifodmacmd | dmaidx;
+			DIP_WR32(DIP_A_BASE + 0x7BC, fifodmacmd);
+			CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+				fifodmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+
+			fifodmacmd = 0x00010300;
+			fifodmacmd = fifodmacmd | dmaidx;
+			DIP_WR32(DIP_A_BASE + 0x7BC, fifodmacmd);
+			CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+				fifodmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+
+			fifodmacmd = 0x00020300;
+			fifodmacmd = fifodmacmd | dmaidx;
+			DIP_WR32(DIP_A_BASE + 0x7BC, fifodmacmd);
+			CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+				fifodmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+
+			fifodmacmd = 0x00030300;
+			fifodmacmd = fifodmacmd | dmaidx;
+			DIP_WR32(DIP_A_BASE + 0x7BC, fifodmacmd);
+			CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+				fifodmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+
+		} else {
+			smidmacmd = 0x00080100;
+			smidmacmd = smidmacmd | dmaidx;
+			DIP_WR32(DIP_A_BASE + 0x7BC, smidmacmd);
+			CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+				smidmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+
+			smidmacmd = 0x00000100;
+			smidmacmd = smidmacmd | dmaidx;
+			DIP_WR32(DIP_A_BASE + 0x7BC, smidmacmd);
+			CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+				smidmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+
+			fifodmacmd = 0x00000200;
+			fifodmacmd = fifodmacmd | dmaidx;
+			DIP_WR32(DIP_A_BASE + 0x7BC, fifodmacmd);
+			CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+				fifodmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+
+			fifodmacmd = 0x00010200;
+			fifodmacmd = fifodmacmd | dmaidx;
+			DIP_WR32(DIP_A_BASE + 0x7BC, fifodmacmd);
+			CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+				fifodmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+
+			fifodmacmd = 0x00020200;
+			fifodmacmd = fifodmacmd | dmaidx;
+			DIP_WR32(DIP_A_BASE + 0x7BC, fifodmacmd);
+			CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+				fifodmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+
+			fifodmacmd = 0x00030200;
+			fifodmacmd = fifodmacmd | dmaidx;
+			DIP_WR32(DIP_A_BASE + 0x7BC, fifodmacmd);
+			CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+				fifodmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+
+		}
+	}
+
+	CMDQ_ERR("lcei dma debug\n");
+	smidmacmd = 0x00080109;
+	DIP_WR32(DIP_A_BASE + 0x7BC, smidmacmd);
+	CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+	smidmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+
+	smidmacmd = 0x00000109;   /*lcei smi case 0*/
+	DIP_WR32(DIP_A_BASE + 0x7BC, smidmacmd);
+	CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+	smidmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+
+	fifodmacmd = 0x00010209;
+	DIP_WR32(DIP_A_BASE + 0x7BC, fifodmacmd);
+	CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+		fifodmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+
+	fifodmacmd = 0x00030209;
+	DIP_WR32(DIP_A_BASE + 0x7BC, fifodmacmd);
+	CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+		fifodmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+
+	dipdmacmd = 0x6000;
+	DIP_WR32(DIP_A_BASE + 0x080, dipdmacmd);
+	CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+		dipdmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+	dipdmacmd = 0x6100;
+	DIP_WR32(DIP_A_BASE + 0x080, dipdmacmd);
+	CMDQ_ERR("0x%x : dip: 0x15022084(0x%x)\n",
+		dipdmacmd, DIP_RD32(DIP_A_BASE + 0x084));
+	DIP_WR32(DIP_A_BASE + 0x80, 0x0);
 	CMDQ_ERR("- X.");
+#endif
 	/*  */
 	return Ret;
 }
@@ -1171,11 +1696,10 @@ static signed int DIP_DumpDIPReg(void)
 static inline void Prepare_Enable_ccf_clock(void)
 {
 	int ret;
-	/* must keep this clk open order: CG_SCP_SYS_DIS-> CG_DDIP0_SMI_COMMON -> CG_SCP_SYS_DIP/CAM -> DIP clk */
-
 	/* enable through smi API */
-	smi_bus_enable(SMI_LARB_IMGSYS1, DIP_DEV_NAME);
-
+#ifndef EP_CODE_MARK_SMI
+	smi_bus_prepare_enable(SMI_LARB5, DIP_DEV_NAME);
+#endif
 	ret = clk_prepare_enable(dip_clk.DIP_IMG_LARB5);
 	if (ret)
 		LOG_ERR("cannot prepare and enable DIP_IMG_LARB5 clock\n");
@@ -1188,18 +1712,19 @@ static inline void Prepare_Enable_ccf_clock(void)
 
 static inline void Disable_Unprepare_ccf_clock(void)
 {
-	/* must keep this clk close order: DIP clk -> CG_SCP_SYS_DIP/CAM -> CG_DDIP0_SMI_COMMON -> CG_SCP_SYS_DIS */
 	clk_disable_unprepare(dip_clk.DIP_IMG_DIP);
 	clk_disable_unprepare(dip_clk.DIP_IMG_LARB5);
-	smi_bus_disable(SMI_LARB_IMGSYS1, DIP_DEV_NAME);
+#ifndef EP_CODE_MARK_SMI
+	smi_bus_disable_unprepare(SMI_LARB5, DIP_DEV_NAME);
+#endif
 }
 
 
 #endif
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static void DIP_EnableClock(bool En)
 {
 #if defined(EP_NO_CLKMGR)
@@ -1209,7 +1734,8 @@ static void DIP_EnableClock(bool En)
 	if (En) {
 #if defined(EP_NO_CLKMGR)
 		spin_lock(&(IspInfo.SpinLockClock));
-		/* LOG_DBG("Camera clock enbled. G_u4DipEnClkCnt: %d.", G_u4DipEnClkCnt); */
+		/* LOG_DBG("Camera clock enbled. G_u4DipEnClkCnt: %d.", */
+		/* G_u4DipEnClkCnt); */
 		switch (G_u4DipEnClkCnt) {
 		case 0:
 			/* Enable clock by hardcode*/
@@ -1232,14 +1758,15 @@ static void DIP_EnableClock(bool En)
 	} else {                /* Disable clock. */
 #if defined(EP_NO_CLKMGR)
 		spin_lock(&(IspInfo.SpinLockClock));
-		/* LOG_DBG("Camera clock disabled. G_u4DipEnClkCnt: %d.", G_u4DipEnClkCnt); */
+		/* LOG_DBG("Camera clock disabled. G_u4DipEnClkCnt: %d.", */
+		/* G_u4DipEnClkCnt); */
 		G_u4DipEnClkCnt--;
 		switch (G_u4DipEnClkCnt) {
 		case 0:
 			/* Disable clock by hardcode:
-			* 1. CAMSYS_CG_SET (0x1A000004) = 0xffffffff;
-			* 2. IMG_CG_SET (0x15000004) = 0xffffffff;
-			*/
+			 * 1. CAMSYS_CG_SET (0x1A000004) = 0xffffffff;
+			 * 2. IMG_CG_SET (0x15000004) = 0xffffffff;
+			 */
 			setReg = 0xFFFFFFFF;
 			/*DIP_WR32(CAMSYS_REG_CG_SET, setReg);*/
 			/*DIP_WR32(IMGSYS_REG_CG_SET, setReg);*/
@@ -1253,16 +1780,17 @@ static void DIP_EnableClock(bool En)
 		spin_lock(&(IspInfo.SpinLockClock));
 		G_u4DipEnClkCnt--;
 		spin_unlock(&(IspInfo.SpinLockClock));
-		Disable_Unprepare_ccf_clock(); /* !!cannot be used in spinlock!! */
+		/* !!cannot be used in spinlock!! */
+		Disable_Unprepare_ccf_clock();
 #endif
 	}
 }
 
 
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static inline void DIP_Reset(signed int module)
 {
 	/*    unsigned int Reg;*/
@@ -1286,9 +1814,9 @@ static inline void DIP_Reset(signed int module)
 	}
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static signed int DIP_ReadReg(struct DIP_REG_IO_STRUCT *pRegIo)
 {
 	unsigned int i;
@@ -1297,28 +1825,36 @@ static signed int DIP_ReadReg(struct DIP_REG_IO_STRUCT *pRegIo)
 	struct DIP_REG_STRUCT *pData = NULL;
 	struct DIP_REG_STRUCT *pTmpData = NULL;
 
-	if ((pRegIo->pData == NULL) || (pRegIo->Count == 0) || (pRegIo->Count > (DIP_REG_RANGE>>2))) {
-		LOG_INF("DIP_ReadReg pRegIo->pData is NULL, Count:%d!!", pRegIo->Count);
+	if ((pRegIo->pData == NULL) ||
+		(pRegIo->Count == 0) ||
+		(pRegIo->Count > (DIP_REG_RANGE>>2))) {
+		LOG_INF("DIP ReadReg pRegIo->pData is NULL, Count:%d!!",
+			pRegIo->Count);
 		Ret = -EFAULT;
 		goto EXIT;
 	}
-	pData = kmalloc((pRegIo->Count) * sizeof(struct DIP_REG_STRUCT), GFP_KERNEL);
+	pData = kmalloc((pRegIo->Count) * sizeof(struct DIP_REG_STRUCT),
+		GFP_KERNEL);
 	if (pData == NULL) {
-		LOG_INF("ERROR: DIP_ReadReg kmalloc failed, cnt:%d\n", pRegIo->Count);
+		LOG_INF("ERROR: DIP ReadReg kmalloc failed, cnt:%d\n",
+			pRegIo->Count);
 		Ret = -ENOMEM;
 		goto EXIT;
 	}
 	pTmpData = pData;
 
-	if (copy_from_user(pData, (void *)pRegIo->pData, (pRegIo->Count) * sizeof(struct DIP_REG_STRUCT)) == 0) {
+	if (copy_from_user(pData,
+		(void *)pRegIo->pData,
+		(pRegIo->Count) * sizeof(struct DIP_REG_STRUCT)) == 0) {
 		for (i = 0; i < pRegIo->Count; i++) {
 			if ((DIP_A_BASE + pData->Addr >= DIP_A_BASE)
 			    && (pData->Addr < DIP_REG_RANGE)
 				&& ((pData->Addr & 0x3) == 0)) {
 				pData->Val = DIP_RD32(DIP_A_BASE + pData->Addr);
 			} else {
-				LOG_INF("Wrong address(0x%p), DIP_BASE(0x%p), Addr(0x%lx)\n",
-					(DIP_A_BASE + pData->Addr),
+				LOG_INF("Wrong address(0x%p)\n",
+					DIP_A_BASE + pData->Addr);
+				LOG_INF("DIP_BASE(0x%p), Addr(0x%lx)\n",
 					DIP_A_BASE,
 					(unsigned long)pData->Addr);
 				pData->Val = 0;
@@ -1326,7 +1862,9 @@ static signed int DIP_ReadReg(struct DIP_REG_IO_STRUCT *pRegIo)
 			pData++;
 		}
 		pData = pTmpData;
-		if (copy_to_user((void *)pRegIo->pData, pData, (pRegIo->Count) * sizeof(struct DIP_REG_STRUCT)) != 0) {
+		if (copy_to_user((void *)pRegIo->pData,
+			pData,
+			(pRegIo->Count)*sizeof(struct DIP_REG_STRUCT)) != 0) {
 			LOG_INF("copy_to_user failed\n");
 			Ret = -EFAULT;
 			goto EXIT;
@@ -1346,10 +1884,9 @@ EXIT:
 }
 
 
-/*******************************************************************************
-*
-********************************************************************************/
-/* Note: Can write sensor's test model only, if need write to other modules, need modify current code flow */
+/**************************************************************
+ *
+ **************************************************************/
 static signed int DIP_WriteRegToHw(
 	struct DIP_REG_STRUCT *pReg,
 	unsigned int         Count)
@@ -1360,7 +1897,8 @@ static signed int DIP_WriteRegToHw(
 	unsigned int module;
 	void __iomem *regBase;
 
-	/* Use local variable to store IspInfo.DebugMask & DIP_DBG_WRITE_REG for saving lock time*/
+	/* Use local variable to store IspInfo.DebugMask & */
+	/* DIP_DBG_WRITE_REG for saving lock time*/
 	spin_lock(&(IspInfo.SpinLockIsp));
 	dbgWriteReg = IspInfo.DebugMask & DIP_DBG_WRITE_REG;
 	spin_unlock(&(IspInfo.SpinLockIsp));
@@ -1384,14 +1922,17 @@ static signed int DIP_WriteRegToHw(
 	/*  */
 	for (i = 0; i < Count; i++) {
 		if (dbgWriteReg)
-			LOG_DBG("module(%d), base(0x%lx),Addr(0x%lx), Val(0x%x)\n", module, (unsigned long)regBase,
-			(unsigned long)(pReg[i].Addr), (unsigned int)(pReg[i].Val));
-
+			LOG_DBG("mod(%d),base(0x%lx),Addr(0x%lx),Val(0x%x)\n",
+			module,
+			(unsigned long)regBase,
+			(unsigned long)(pReg[i].Addr),
+			(unsigned int)(pReg[i].Val));
 		if (((regBase + pReg[i].Addr) < (regBase + PAGE_SIZE))
 			&& ((pReg[i].Addr & 0x3) == 0))
 			DIP_WR32(regBase + pReg[i].Addr, pReg[i].Val);
 		else
-			LOG_ERR("wrong address(0x%lx)\n", (unsigned long)(regBase + pReg[i].Addr));
+			LOG_ERR("wrong address(0x%lx)\n",
+				(unsigned long)(regBase + pReg[i].Addr));
 
 	}
 
@@ -1401,9 +1942,9 @@ static signed int DIP_WriteRegToHw(
 
 
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static signed int DIP_WriteReg(struct DIP_REG_IO_STRUCT *pRegIo)
 {
 	signed int Ret = 0;
@@ -1415,24 +1956,33 @@ static signed int DIP_WriteReg(struct DIP_REG_IO_STRUCT *pRegIo)
 
 	/*  */
 	if (IspInfo.DebugMask & DIP_DBG_WRITE_REG)
-		LOG_DBG("Data(0x%p), Count(%d)\n", (pRegIo->pData), (pRegIo->Count));
+		LOG_DBG("Data(0x%p), Count(%d)\n",
+			(pRegIo->pData),
+			(pRegIo->Count));
 
-	if ((pRegIo->pData == NULL) || (pRegIo->Count == 0) || (pRegIo->Count > (DIP_REG_RANGE>>2))) {
-		LOG_INF("ERROR: pRegIo->pData is NULL or Count:%d\n", pRegIo->Count);
+	if ((pRegIo->pData == NULL) ||
+		(pRegIo->Count == 0) ||
+		(pRegIo->Count > (DIP_REG_RANGE>>2))) {
+		LOG_INF("ERROR: pRegIo->pData is NULL or Count:%d\n",
+			pRegIo->Count);
 		Ret = -EFAULT;
 		goto EXIT;
 	}
-	/* pData = (unsigned char*)kmalloc((pRegIo->Count)*sizeof(DIP_REG_STRUCT), GFP_ATOMIC); */
-	pData = kmalloc((pRegIo->Count) * sizeof(struct DIP_REG_STRUCT), GFP_KERNEL);
+	pData = kmalloc((pRegIo->Count) *
+		sizeof(struct DIP_REG_STRUCT),
+		GFP_KERNEL); /* Use GFP_KERNEL instead of GFP_ATOMIC */
 	if (pData == NULL) {
-		LOG_INF("ERROR: kmalloc failed, (process, pid, tgid)=(%s, %d, %d)\n", current->comm,
-			current->pid, current->tgid);
-		Ret = -ENOMEM;
-		goto EXIT;
+		LOG_INF("ERROR:kmalloc failed,(process,pid,tgid)=(%s,%d,%d)\n",
+		current->comm,
+		current->pid,
+		current->tgid);
+	Ret = -ENOMEM;
+	goto EXIT;
 	}
 	/*  */
-	if (copy_from_user
-	    (pData, (void __user *)(pRegIo->pData), pRegIo->Count * sizeof(struct DIP_REG_STRUCT)) != 0) {
+	if (copy_from_user(pData,
+		(void __user *)(pRegIo->pData),
+		pRegIo->Count * sizeof(struct DIP_REG_STRUCT)) != 0) {
 		LOG_INF("copy_from_user failed\n");
 		Ret = -EFAULT;
 		goto EXIT;
@@ -1451,9 +2001,9 @@ EXIT:
 	return Ret;
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 #ifdef AEE_DUMP_BY_USING_ION_MEMORY
 static signed int dip_allocbuf(struct dip_imem_memory *pMemInfo)
 {
@@ -1474,7 +2024,11 @@ static signed int dip_allocbuf(struct dip_imem_memory *pMemInfo)
 		goto dip_allocbuf_exit;
 	}
 
-	handle = ion_alloc(dip_p2_ion_client, pMemInfo->length, 0, ION_HEAP_MULTIMEDIA_MASK, 0);
+	handle = ion_alloc(dip_p2_ion_client,
+		pMemInfo->length,
+		0,
+		ION_HEAP_MULTIMEDIA_MASK,
+		0);
 	if (handle == NULL) {
 		LOG_ERR("fail to alloc ion buffer, ret=%d\n", ret);
 		ret = -ENOMEM;
@@ -1494,7 +2048,9 @@ static signed int dip_allocbuf(struct dip_imem_memory *pMemInfo)
 	mm_data.config_buffer_param.module_id = 0;
 	mm_data.config_buffer_param.security = 0;
 	mm_data.config_buffer_param.coherent = 1;
-	ret = ion_kernel_ioctl(dip_p2_ion_client, ION_CMD_MULTIMEDIA, (unsigned long)&mm_data);
+	ret = ion_kernel_ioctl(dip_p2_ion_client,
+		ION_CMD_MULTIMEDIA,
+		(unsigned long)&mm_data);
 	if (ret) {
 		LOG_ERR("fail to config ion buffer, ret=%d\n", ret);
 		ret = -ENOMEM;
@@ -1503,7 +2059,9 @@ static signed int dip_allocbuf(struct dip_imem_memory *pMemInfo)
 
 	sys_data.sys_cmd = ION_SYS_GET_PHYS;
 	sys_data.get_phys_param.kernel_handle = handle;
-	ret = ion_kernel_ioctl(dip_p2_ion_client, ION_CMD_SYSTEM, (unsigned long)&sys_data);
+	ret = ion_kernel_ioctl(dip_p2_ion_client,
+		ION_CMD_SYSTEM,
+		(unsigned long)&sys_data);
 	pMemInfo->pa = sys_data.get_phys_param.phy_addr;
 
 dip_allocbuf_exit:
@@ -1516,9 +2074,9 @@ dip_allocbuf_exit:
 	return ret;
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static void dip_freebuf(struct dip_imem_memory *pMemInfo)
 {
 	struct ion_handle *handle;
@@ -1537,10 +2095,11 @@ static void dip_freebuf(struct dip_imem_memory *pMemInfo)
 }
 #endif
 
-/*******************************************************************************
-*
-********************************************************************************/
-static signed int DIP_DumpBuffer(struct DIP_DUMP_BUFFER_STRUCT *pDumpBufStruct)
+/**************************************************************
+ *
+ **************************************************************/
+static signed int DIP_DumpBuffer
+	(struct DIP_DUMP_BUFFER_STRUCT *pDumpBufStruct)
 {
 	signed int Ret = 0;
 
@@ -1558,7 +2117,8 @@ static signed int DIP_DumpBuffer(struct DIP_DUMP_BUFFER_STRUCT *pDumpBufStruct)
     /* Native Exception */
 	switch (pDumpBufStruct->DumpCmd) {
 	case DIP_DUMP_TPIPEBUF_CMD:
-		if (pDumpBufStruct->BytesofBufferSize > MAX_ISP_TILE_TDR_HEX_NO) {
+		if (pDumpBufStruct->BytesofBufferSize >
+			MAX_ISP_TILE_TDR_HEX_NO) {
 			LOG_ERR("tpipe size error");
 			Ret = -EFAULT;
 			goto EXIT;
@@ -1566,27 +2126,34 @@ static signed int DIP_DumpBuffer(struct DIP_DUMP_BUFFER_STRUCT *pDumpBufStruct)
 #ifdef AEE_DUMP_REDUCE_MEMORY
 		if (g_bIonBufferAllocated == MFALSE) {
 			if (g_pTpipeBuffer == NULL)
-				g_pTpipeBuffer = vmalloc(MAX_ISP_TILE_TDR_HEX_NO);
+				g_pTpipeBuffer =
+				vmalloc(MAX_ISP_TILE_TDR_HEX_NO);
 			else
-				LOG_ERR("g_pTpipeBuffer:0x%pK is not NULL!!", g_pTpipeBuffer);
+				LOG_ERR("g_pTpipeBuffer:0x%pK is not NULL!!",
+				g_pTpipeBuffer);
 		}
 		if (g_pTpipeBuffer != NULL) {
-			if (copy_from_user(g_pTpipeBuffer, (void __user *)(pDumpBufStruct->pBuffer),
+			if (copy_from_user(g_pTpipeBuffer,
+				(void __user *)(pDumpBufStruct->pBuffer),
 				pDumpBufStruct->BytesofBufferSize) != 0) {
-				LOG_ERR("copy_from_user g_pTpipeBuffer failed\n");
+				LOG_ERR("copy g_pTpipeBuffer failed\n");
 				Ret = -EFAULT;
 				goto EXIT;
 			}
 		} else {
-			LOG_ERR("g_pTpipeBuffer kmalloc failed, g_bIonBufAllocated:%d\n", g_bIonBufferAllocated);
+			LOG_ERR("TpipeBuf failed,g_bIonBufAllocated:%d\n",
+			g_bIonBufferAllocated);
 		}
 #endif
-		LOG_INF("copy dumpbuf::0x%p tpipebuf:0x%p is done!!\n", pDumpBufStruct->pBuffer, g_pTpipeBuffer);
+		LOG_INF("copy dumpbuf::0x%p tpipebuf:0x%p is done!!\n",
+			pDumpBufStruct->pBuffer,
+			g_pTpipeBuffer);
 		DumpBufferField = DumpBufferField | 0x1;
 		break;
 	case DIP_DUMP_TUNINGBUF_CMD:
 		if (pDumpBufStruct->BytesofBufferSize > DIP_REG_RANGE) {
-			LOG_ERR("tuning buf size error, size:0x%x", pDumpBufStruct->BytesofBufferSize);
+			LOG_ERR("tuning buf size error, size:0x%x",
+				pDumpBufStruct->BytesofBufferSize);
 			Ret = -EFAULT;
 			goto EXIT;
 		}
@@ -1595,12 +2162,14 @@ static signed int DIP_DumpBuffer(struct DIP_DUMP_BUFFER_STRUCT *pDumpBufStruct)
 			if (g_pTuningBuffer == NULL)
 				g_pTuningBuffer = vmalloc(DIP_REG_RANGE);
 			else
-				LOG_ERR("g_TuningBuffer:0x%pK is not NULL!!", g_pTuningBuffer);
+				LOG_ERR("g_TuningBuffer:0x%pK is not NULL!!",
+				g_pTuningBuffer);
 		}
 		if (g_pTuningBuffer != NULL) {
-			if (copy_from_user(g_pTuningBuffer, (void __user *)(pDumpBufStruct->pBuffer),
+			if (copy_from_user(g_pTuningBuffer,
+				(void __user *)(pDumpBufStruct->pBuffer),
 				pDumpBufStruct->BytesofBufferSize) != 0) {
-				LOG_ERR("copy_from_user g_pTuningBuffer failed\n");
+				LOG_ERR("copy g_pTuningBuffer failed\n");
 				Ret = -EFAULT;
 				goto EXIT;
 			}
@@ -1608,12 +2177,15 @@ static signed int DIP_DumpBuffer(struct DIP_DUMP_BUFFER_STRUCT *pDumpBufStruct)
 			LOG_ERR("ERROR: g_TuningBuffer kmalloc failed\n");
 		}
 #endif
-		LOG_INF("copy dumpbuf::0x%p tuningbuf:0x%p is done!!\n", pDumpBufStruct->pBuffer, g_pTuningBuffer);
+		LOG_INF("copy dumpbuf::0x%p tuningbuf:0x%p is done!!\n",
+			pDumpBufStruct->pBuffer,
+			g_pTuningBuffer);
 		DumpBufferField = DumpBufferField | 0x2;
 		break;
 	case DIP_DUMP_DIPVIRBUF_CMD:
 		if (pDumpBufStruct->BytesofBufferSize > DIP_REG_RANGE) {
-			LOG_ERR("vir dip buffer size error, size:0x%x", pDumpBufStruct->BytesofBufferSize);
+			LOG_ERR("vir dip buffer size error, size:0x%x",
+				pDumpBufStruct->BytesofBufferSize);
 			Ret = -EFAULT;
 			goto EXIT;
 		}
@@ -1622,12 +2194,14 @@ static signed int DIP_DumpBuffer(struct DIP_DUMP_BUFFER_STRUCT *pDumpBufStruct)
 			if (g_pVirDIPBuffer == NULL)
 				g_pVirDIPBuffer = vmalloc(DIP_REG_RANGE);
 			else
-				LOG_ERR("g_pVirDIPBuffer:0x%pK is not NULL!!", g_pVirDIPBuffer);
+				LOG_ERR("g_pVirDIPBuffer:0x%pK is not NULL!!",
+				g_pVirDIPBuffer);
 		}
 		if (g_pVirDIPBuffer != NULL) {
-			if (copy_from_user(g_pVirDIPBuffer, (void __user *)(pDumpBufStruct->pBuffer),
+			if (copy_from_user(g_pVirDIPBuffer,
+				(void __user *)(pDumpBufStruct->pBuffer),
 				pDumpBufStruct->BytesofBufferSize) != 0) {
-				LOG_ERR("copy_from_user g_pVirDIPBuffer failed\n");
+				LOG_ERR("copy g_pVirDIPBuffer failed\n");
 				Ret = -EFAULT;
 				goto EXIT;
 			}
@@ -1635,26 +2209,33 @@ static signed int DIP_DumpBuffer(struct DIP_DUMP_BUFFER_STRUCT *pDumpBufStruct)
 			LOG_ERR("ERROR: g_pVirDIPBuffer kmalloc failed\n");
 		}
 #endif
-		LOG_INF("copy dumpbuf::0x%p virdipbuf:0x%p is done!!\n", pDumpBufStruct->pBuffer, g_pVirDIPBuffer);
+		LOG_INF("copy dumpbuf::0x%p virdipbuf:0x%p is done!!\n",
+			pDumpBufStruct->pBuffer,
+			g_pVirDIPBuffer);
 		DumpBufferField = DumpBufferField | 0x4;
 		break;
 	case DIP_DUMP_CMDQVIRBUF_CMD:
-		if (pDumpBufStruct->BytesofBufferSize > MAX_DIP_CMDQ_BUFFER_SIZE) {
-			LOG_ERR("cmdq buffer size error, size:0x%x", pDumpBufStruct->BytesofBufferSize);
+		if (pDumpBufStruct->BytesofBufferSize >
+			MAX_DIP_CMDQ_BUFFER_SIZE) {
+			LOG_ERR("cmdq buffer size error, size:0x%x",
+				pDumpBufStruct->BytesofBufferSize);
 			Ret = -EFAULT;
 			goto EXIT;
 		}
 #ifdef AEE_DUMP_REDUCE_MEMORY
 		if (g_bIonBufferAllocated == MFALSE) {
 			if (g_pCmdqBuffer == NULL)
-				g_pCmdqBuffer = vmalloc(MAX_DIP_CMDQ_BUFFER_SIZE);
+				g_pCmdqBuffer =
+				vmalloc(MAX_DIP_CMDQ_BUFFER_SIZE);
 			else
-				LOG_ERR("g_pCmdqBuffer:0x%pK is not NULL!!", g_pCmdqBuffer);
+				LOG_ERR("g_pCmdqBuffer:0x%pK is not NULL!!",
+					g_pCmdqBuffer);
 		}
 		if (g_pCmdqBuffer != NULL) {
-			if (copy_from_user(g_pCmdqBuffer, (void __user *)(pDumpBufStruct->pBuffer),
+			if (copy_from_user(g_pCmdqBuffer,
+				(void __user *)(pDumpBufStruct->pBuffer),
 				pDumpBufStruct->BytesofBufferSize) != 0) {
-				LOG_ERR("copy_from_user g_pCmdqBuffer failed\n");
+				LOG_ERR("copy g_pCmdqBuffer failed\n");
 				Ret = -EFAULT;
 				goto EXIT;
 			}
@@ -1662,7 +2243,9 @@ static signed int DIP_DumpBuffer(struct DIP_DUMP_BUFFER_STRUCT *pDumpBufStruct)
 			LOG_ERR("ERROR: g_pCmdqBuffer kmalloc failed\n");
 		}
 #endif
-		LOG_INF("copy dumpbuf::0x%p cmdqbuf:0x%p is done!!\n", pDumpBufStruct->pBuffer, g_pCmdqBuffer);
+		LOG_INF("copy dumpbuf::0x%p cmdqbuf:0x%p is done!!\n",
+			pDumpBufStruct->pBuffer,
+			g_pCmdqBuffer);
 		DumpBufferField = DumpBufferField | 0x8;
 		break;
 	default:
@@ -1673,7 +2256,8 @@ static signed int DIP_DumpBuffer(struct DIP_DUMP_BUFFER_STRUCT *pDumpBufStruct)
 		if ((DumpBufferField & 0xf) == 0xf) {
 			g_bUserBufIsReady = MTRUE;
 			DumpBufferField = 0;
-			LOG_INF("DumpBufferField:0x%x, g_bUserBufIsReady:%d!!\n", DumpBufferField, g_bUserBufIsReady);
+			LOG_INF("DumpBufferField:0x%x,g_bUserBufIsReady:%d!!\n",
+				DumpBufferField, g_bUserBufIsReady);
 		}
 	}
 	/*  */
@@ -1682,10 +2266,11 @@ EXIT:
 	return Ret;
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
-static signed int DIP_SetMemInfo(struct DIP_MEM_INFO_STRUCT *pMemInfoStruct)
+/**************************************************************
+ *
+ **************************************************************/
+static signed int DIP_SetMemInfo
+	(struct DIP_MEM_INFO_STRUCT *pMemInfoStruct)
 {
 	signed int Ret = 0;
 	/*  */
@@ -1696,15 +2281,20 @@ static signed int DIP_SetMemInfo(struct DIP_MEM_INFO_STRUCT *pMemInfoStruct)
 	}
 	switch (pMemInfoStruct->MemInfoCmd) {
 	case DIP_MEMORY_INFO_TPIPE_CMD:
-		memcpy(&g_TpipeBaseAddrInfo, pMemInfoStruct, sizeof(struct DIP_MEM_INFO_STRUCT));
+		memcpy(&g_TpipeBaseAddrInfo,
+			pMemInfoStruct,
+			sizeof(struct DIP_MEM_INFO_STRUCT));
 		LOG_INF("set tpipe memory info is done!!\n");
 		break;
 	case DIP_MEMORY_INFO_CMDQ_CMD:
-		memcpy(&g_CmdqBaseAddrInfo, pMemInfoStruct, sizeof(struct DIP_MEM_INFO_STRUCT));
+		memcpy(&g_CmdqBaseAddrInfo,
+			pMemInfoStruct,
+			sizeof(struct DIP_MEM_INFO_STRUCT));
 		LOG_INF("set comq memory info is done!!\n");
 		break;
 	default:
-		LOG_ERR("error set memory info cmd:%d", pMemInfoStruct->MemInfoCmd);
+		LOG_ERR("error set memory info cmd:%d",
+			pMemInfoStruct->MemInfoCmd);
 		break;
 	}
 	/*  */
@@ -1713,19 +2303,20 @@ EXIT:
 	return Ret;
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 
 /*  */
 /* isr dbg log , sw isr response counter , +1 when sw receive 1 sof isr. */
 int DIP_Vsync_cnt[2] = {0, 0};
 
-/*******************************************************************************
-* update current idnex to working frame
-********************************************************************************/
-static signed int DIP_P2_BufQue_Update_ListCIdx(enum DIP_P2_BUFQUE_PROPERTY property,
-enum DIP_P2_BUFQUE_LIST_TAG listTag)
+/**************************************************************
+ * update current idnex to working frame
+ **************************************************************/
+static signed int DIP_P2_BufQue_Update_ListCIdx
+	(enum DIP_P2_BUFQUE_PROPERTY property,
+	enum DIP_P2_BUFQUE_LIST_TAG listTag)
 {
 	signed int ret = 0;
 	signed int tmpIdx = 0;
@@ -1737,23 +2328,28 @@ enum DIP_P2_BUFQUE_LIST_TAG listTag)
 	switch (listTag) {
 	case DIP_P2_BUFQUE_LIST_TAG_UNIT:
 		/* [1] check global pointer current sts */
-		cIdxSts = P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property].curr].bufSts;
-		/* ////////////////////////////////////////////////////////////////////// */
-		/* Assume we have the buffer list in the following situation */
-		/* ++++++         ++++++         ++++++ */
-		/* +  vss +         +  prv +         +  prv + */
-		/* ++++++         ++++++         ++++++ */
-		/* not deque         erased           enqued */
-		/* done */
-		/*  */
-		/* if the vss deque is done, we should update the CurBufIdx to the next "enqued" */
-		/* buffer node instead of just moving to the next buffer node */
-		/* ////////////////////////////////////////////////////////////////////// */
-		/* [2]traverse count needed */
-		if (P2_FrameUnit_List_Idx[property].start <= P2_FrameUnit_List_Idx[property].end) {
-			cnt = P2_FrameUnit_List_Idx[property].end - P2_FrameUnit_List_Idx[property].start;
+		cIdxSts = P2_FrameUnit_List[property]
+			[P2_FrameUnit_List_Idx[property].curr].bufSts;
+/* /////////////////////////////////////////////////////////// */
+/* Assume we have the buffer list in the following situation */
+/* ++++++         ++++++         ++++++ */
+/* +  vss +         +  prv +         +  prv + */
+/* ++++++         ++++++         ++++++ */
+/* not deque         erased           enqued */
+/* done */
+/*  */
+/* if the vss deque is done, we should update the CurBufIdx */
+/* to the next enqued buffer node instead of */
+/* moving to the next buffer node */
+/* /////////////////////////////////////////////////////////// */
+/* [2]traverse count needed */
+		if (P2_FrameUnit_List_Idx[property].start <=
+			P2_FrameUnit_List_Idx[property].end) {
+			cnt = P2_FrameUnit_List_Idx[property].end -
+				P2_FrameUnit_List_Idx[property].start;
 		} else {
-			cnt = _MAX_SUPPORT_P2_FRAME_NUM_ - P2_FrameUnit_List_Idx[property].start;
+			cnt = _MAX_SUPPORT_P2_FRAME_NUM_ -
+				P2_FrameUnit_List_Idx[property].start;
 			cnt += P2_FrameUnit_List_Idx[property].end;
 		}
 
@@ -1761,44 +2357,48 @@ enum DIP_P2_BUFQUE_LIST_TAG listTag)
 		tmpIdx = P2_FrameUnit_List_Idx[property].curr;
 		switch (cIdxSts) {
 		case DIP_P2_BUF_STATE_ENQUE:
-			P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property].curr].bufSts =
+			P2_FrameUnit_List[property]
+				[P2_FrameUnit_List_Idx[property].curr].bufSts =
 				DIP_P2_BUF_STATE_RUNNING;
 			break;
 		case DIP_P2_BUF_STATE_DEQUE_SUCCESS:
-			do { /* to find the newest cur index */
-				tmpIdx = (tmpIdx + 1) % _MAX_SUPPORT_P2_FRAME_NUM_;
-				switch (P2_FrameUnit_List[property][tmpIdx].bufSts) {
-				case DIP_P2_BUF_STATE_ENQUE:
-				case DIP_P2_BUF_STATE_RUNNING:
-					P2_FrameUnit_List[property][tmpIdx].bufSts = DIP_P2_BUF_STATE_RUNNING;
-					P2_FrameUnit_List_Idx[property].curr = tmpIdx;
-					stop = true;
-					break;
-				case DIP_P2_BUF_STATE_WAIT_DEQUE_FAIL:
-				case DIP_P2_BUF_STATE_DEQUE_SUCCESS:
-				case DIP_P2_BUF_STATE_DEQUE_FAIL:
-				case DIP_P2_BUF_STATE_NONE:
-				default:
-					break;
-				}
-				i++;
-			} while ((i < cnt) && (!stop));
-			/* ////////////////////////////////////////////////////////////////////// */
-			/* Assume we have the buffer list in the following situation */
-			/* ++++++         ++++++         ++++++ */
-			/* +  vss +         +  prv +         +  prv + */
-			/* ++++++         ++++++         ++++++ */
-			/* not deque         erased           erased */
-			/* done */
-			/*  */
-			/* all the buffer node are deque done in the current moment, should update*/
-			/* current index to the last node */
-			/* if the vss deque is done, we should update the CurBufIdx to the last buffer node */
-			/* ////////////////////////////////////////////////////////////////////// */
-			if ((!stop) && (i == (cnt)))
-				P2_FrameUnit_List_Idx[property].curr = P2_FrameUnit_List_Idx[property].end;
+		do { /* to find the newest cur index */
+			tmpIdx = (tmpIdx + 1) % _MAX_SUPPORT_P2_FRAME_NUM_;
+			switch (P2_FrameUnit_List[property][tmpIdx].bufSts) {
+			case DIP_P2_BUF_STATE_ENQUE:
+			case DIP_P2_BUF_STATE_RUNNING:
+				P2_FrameUnit_List[property][tmpIdx].bufSts =
+					DIP_P2_BUF_STATE_RUNNING;
+				P2_FrameUnit_List_Idx[property].curr = tmpIdx;
+				stop = true;
+				break;
+			case DIP_P2_BUF_STATE_WAIT_DEQUE_FAIL:
+			case DIP_P2_BUF_STATE_DEQUE_SUCCESS:
+			case DIP_P2_BUF_STATE_DEQUE_FAIL:
+			case DIP_P2_BUF_STATE_NONE:
+			default:
+				break;
+			}
+			i++;
+		} while ((i < cnt) && (!stop));
+/* /////////////////////////////////////////////////////////// */
+/* Assume we have the buffer list in the following situation */
+/* ++++++         ++++++         ++++++ */
+/* +  vss +         +  prv +         +  prv + */
+/* ++++++         ++++++         ++++++ */
+/* not deque         erased           erased */
+/* done */
+/*  */
+/* all the buffer node are deque done in the current moment, */
+/* should update current index to the last node  */
+/* if the vss deque is done, we should update the CurBufIdx */
+/* to the last buffer node  */
+/* /////////////////////////////////////////////////////////// */
+		if ((!stop) && (i == (cnt)))
+			P2_FrameUnit_List_Idx[property].curr =
+			P2_FrameUnit_List_Idx[property].end;
 
-			break;
+		break;
 		case DIP_P2_BUF_STATE_WAIT_DEQUE_FAIL:
 		case DIP_P2_BUF_STATE_DEQUE_FAIL:
 			/* QQ. ADD ASSERT */
@@ -1816,11 +2416,13 @@ enum DIP_P2_BUFQUE_LIST_TAG listTag)
 	}
 	return ret;
 }
-/*******************************************************************************
-*
-********************************************************************************/
-static signed int DIP_P2_BufQue_Erase(enum DIP_P2_BUFQUE_PROPERTY property,
-enum DIP_P2_BUFQUE_LIST_TAG listTag, signed int idx)
+/**************************************************************
+ *
+ **************************************************************/
+static signed int DIP_P2_BufQue_Erase
+	(enum DIP_P2_BUFQUE_PROPERTY property,
+	enum DIP_P2_BUFQUE_LIST_TAG listTag,
+	signed int idx)
 {
 	signed int ret =  -1;
 	bool stop = false;
@@ -1830,98 +2432,116 @@ enum DIP_P2_BUFQUE_LIST_TAG listTag, signed int idx)
 
 	switch (listTag) {
 	case DIP_P2_BUFQUE_LIST_TAG_PACKAGE:
-		tmpIdx = P2_FramePack_List_Idx[property].start;
-		/* [1] clear buffer status */
-		P2_FramePackage_List[property][idx].processID = 0x0;
-		P2_FramePackage_List[property][idx].callerID = 0x0;
-		P2_FramePackage_List[property][idx].dupCQIdx =  -1;
-		P2_FramePackage_List[property][idx].frameNum = 0;
-		P2_FramePackage_List[property][idx].dequedNum = 0;
-		/* [2] update first index */
-		if (P2_FramePackage_List[property][tmpIdx].dupCQIdx == -1) {
-			/* traverse count needed, cuz user may erase the element but not the one */
-			/* at first idx(pip or vss scenario) */
-			if (P2_FramePack_List_Idx[property].start <= P2_FramePack_List_Idx[property].end) {
-				cnt = P2_FramePack_List_Idx[property].end - P2_FramePack_List_Idx[property].start;
-			} else {
-				cnt = _MAX_SUPPORT_P2_PACKAGE_NUM_ - P2_FramePack_List_Idx[property].start;
-				cnt += P2_FramePack_List_Idx[property].end;
-			}
-			do { /* to find the newest first lindex */
-				tmpIdx = (tmpIdx + 1) % _MAX_SUPPORT_P2_PACKAGE_NUM_;
-				switch (P2_FramePackage_List[property][tmpIdx].dupCQIdx) {
-				case (-1):
-					break;
-				default:
-					stop = true;
-					P2_FramePack_List_Idx[property].start = tmpIdx;
-					break;
-				}
-				i++;
-			} while ((i < cnt) && (!stop));
-			/* current last erased element in list is the one firstBufindex point at */
-			/* and all the buffer node are deque done in the current moment, should */
-			/* update first index to the last node */
-			if ((!stop) && (i == cnt))
-				P2_FramePack_List_Idx[property].start = P2_FramePack_List_Idx[property].end;
-
+	tmpIdx = P2_FramePack_List_Idx[property].start;
+	/* [1] clear buffer status */
+	P2_FramePackage_List[property][idx].processID = 0x0;
+	P2_FramePackage_List[property][idx].callerID = 0x0;
+	P2_FramePackage_List[property][idx].dupCQIdx =  -1;
+	P2_FramePackage_List[property][idx].frameNum = 0;
+	P2_FramePackage_List[property][idx].dequedNum = 0;
+	/* [2] update first index */
+	if (P2_FramePackage_List[property][tmpIdx].dupCQIdx == -1) {
+		/* traverse count needed, cuz user may erase the element */
+		/* but not the one at first idx */
+		/* at first idx(pip or vss scenario) */
+		if (P2_FramePack_List_Idx[property].start <=
+			P2_FramePack_List_Idx[property].end) {
+			cnt = P2_FramePack_List_Idx[property].end -
+				P2_FramePack_List_Idx[property].start;
+		} else {
+			cnt = _MAX_SUPPORT_P2_PACKAGE_NUM_ -
+				P2_FramePack_List_Idx[property].start;
+			cnt += P2_FramePack_List_Idx[property].end;
 		}
-		break;
+		do { /* to find the newest first lindex */
+			tmpIdx = (tmpIdx + 1) % _MAX_SUPPORT_P2_PACKAGE_NUM_;
+			switch (P2_FramePackage_List[property][tmpIdx]
+				.dupCQIdx) {
+			case (-1):
+				break;
+			default:
+				stop = true;
+				P2_FramePack_List_Idx[property].start = tmpIdx;
+				break;
+			}
+			i++;
+		} while ((i < cnt) && (!stop));
+	/* current last erased element in list */
+	/* is the one firstBufindex point at */
+	/* and all the buffer node are deque done */
+	/* in the current moment */
+	/* should update first index to the last node */
+		if ((!stop) && (i == cnt))
+			P2_FramePack_List_Idx[property].start =
+			P2_FramePack_List_Idx[property].end;
+
+	}
+	break;
 	case DIP_P2_BUFQUE_LIST_TAG_UNIT:
-		tmpIdx = P2_FrameUnit_List_Idx[property].start;
-		/* [1] clear buffer status */
-		P2_FrameUnit_List[property][idx].processID = 0x0;
-		P2_FrameUnit_List[property][idx].callerID = 0x0;
-		P2_FrameUnit_List[property][idx].cqMask =  0x0;
-		P2_FrameUnit_List[property][idx].bufSts = DIP_P2_BUF_STATE_NONE;
-		/* [2]update first index */
-		if (P2_FrameUnit_List[property][tmpIdx].bufSts == DIP_P2_BUF_STATE_NONE) {
-			/* traverse count needed, cuz user may erase the element but not the one at first idx */
-			if (P2_FrameUnit_List_Idx[property].start <= P2_FrameUnit_List_Idx[property].end) {
-				cnt = P2_FrameUnit_List_Idx[property].end - P2_FrameUnit_List_Idx[property].start;
-			} else {
-				cnt = _MAX_SUPPORT_P2_FRAME_NUM_ - P2_FrameUnit_List_Idx[property].start;
-				cnt += P2_FrameUnit_List_Idx[property].end;
-			}
-			/* to find the newest first lindex */
-			do {
-				tmpIdx = (tmpIdx + 1) % _MAX_SUPPORT_P2_FRAME_NUM_;
-				switch (P2_FrameUnit_List[property][tmpIdx].bufSts) {
-				case DIP_P2_BUF_STATE_ENQUE:
-				case DIP_P2_BUF_STATE_RUNNING:
-				case DIP_P2_BUF_STATE_DEQUE_SUCCESS:
-					stop = true;
-					P2_FrameUnit_List_Idx[property].start = tmpIdx;
-					break;
-				case DIP_P2_BUF_STATE_WAIT_DEQUE_FAIL:
-				case DIP_P2_BUF_STATE_DEQUE_FAIL:
-					/* ASSERT */
-					break;
-				case DIP_P2_BUF_STATE_NONE:
-				default:
-					break;
-				}
-				i++;
-			} while ((i < cnt) && (!stop));
-			/* current last erased element in list is the one firstBufindex point at */
-			/* and all the buffer node are deque done in the current moment, should */
-			/* update first index to the last node */
-			if ((!stop) && (i == (cnt)))
-				P2_FrameUnit_List_Idx[property].start = P2_FrameUnit_List_Idx[property].end;
-
+	tmpIdx = P2_FrameUnit_List_Idx[property].start;
+	/* [1] clear buffer status */
+	P2_FrameUnit_List[property][idx].processID = 0x0;
+	P2_FrameUnit_List[property][idx].callerID = 0x0;
+	P2_FrameUnit_List[property][idx].cqMask =  0x0;
+	P2_FrameUnit_List[property][idx].bufSts = DIP_P2_BUF_STATE_NONE;
+	/* [2]update first index */
+	if (P2_FrameUnit_List[property][tmpIdx].bufSts ==
+		DIP_P2_BUF_STATE_NONE) {
+		/* traverse count needed, cuz user may erase the element */
+		/* but not the one at first idx */
+		if (P2_FrameUnit_List_Idx[property].start <=
+			P2_FrameUnit_List_Idx[property].end) {
+			cnt = P2_FrameUnit_List_Idx[property].end -
+			P2_FrameUnit_List_Idx[property].start;
+		} else {
+			cnt = _MAX_SUPPORT_P2_FRAME_NUM_ -
+				P2_FrameUnit_List_Idx[property].start;
+			cnt += P2_FrameUnit_List_Idx[property].end;
 		}
-		break;
+		/* to find the newest first lindex */
+		do {
+			tmpIdx = (tmpIdx + 1) % _MAX_SUPPORT_P2_FRAME_NUM_;
+			switch (P2_FrameUnit_List[property][tmpIdx].bufSts) {
+			case DIP_P2_BUF_STATE_ENQUE:
+			case DIP_P2_BUF_STATE_RUNNING:
+			case DIP_P2_BUF_STATE_DEQUE_SUCCESS:
+				stop = true;
+				P2_FrameUnit_List_Idx[property].start = tmpIdx;
+				break;
+			case DIP_P2_BUF_STATE_WAIT_DEQUE_FAIL:
+			case DIP_P2_BUF_STATE_DEQUE_FAIL:
+				/* ASSERT */
+				break;
+			case DIP_P2_BUF_STATE_NONE:
+			default:
+				break;
+			}
+			i++;
+		} while ((i < cnt) && (!stop));
+	/* current last erased element in list is the */
+	/* one firstBufindex point at */
+	/* and all the buffer node are deque done */
+	/* in the current moment */
+	/* should update first index to the last node */
+		if ((!stop) && (i == (cnt)))
+			P2_FrameUnit_List_Idx[property].start =
+			P2_FrameUnit_List_Idx[property].end;
+
+	}
+	break;
 	default:
 		break;
 	}
 	return ret;
 }
 
-/*******************************************************************************
-* get first matched element idnex
-********************************************************************************/
-static signed int DIP_P2_BufQue_GetMatchIdx(struct  DIP_P2_BUFQUE_STRUCT param,
-		enum DIP_P2_BUFQUE_MATCH_TYPE matchType, enum DIP_P2_BUFQUE_LIST_TAG listTag)
+/**************************************************************
+ * get first matched element idnex
+ **************************************************************/
+static signed int DIP_P2_BufQue_GetMatchIdx
+	(struct  DIP_P2_BUFQUE_STRUCT param,
+	enum DIP_P2_BUFQUE_MATCH_TYPE matchType,
+	enum DIP_P2_BUFQUE_LIST_TAG listTag)
 {
 	int idx = -1;
 	int i = 0;
@@ -1935,144 +2555,187 @@ static signed int DIP_P2_BufQue_GetMatchIdx(struct  DIP_P2_BUFQUE_STRUCT param,
 
 	switch (matchType) {
 	case DIP_P2_BUFQUE_MATCH_TYPE_WAITDQ:
-		/* traverse for finding the frame unit which had not beed dequeued of the process */
-		if (P2_FrameUnit_List_Idx[property].start <= P2_FrameUnit_List_Idx[property].end) {
-			for (i = P2_FrameUnit_List_Idx[property].start; i <= P2_FrameUnit_List_Idx[property].end; i++) {
-				if ((P2_FrameUnit_List[property][i].processID == param.processID) &&
-				    ((P2_FrameUnit_List[property][i].bufSts == DIP_P2_BUF_STATE_ENQUE) ||
-				    (P2_FrameUnit_List[property][i].bufSts == DIP_P2_BUF_STATE_RUNNING))) {
-					idx = i;
-					break;
-				}
+	/* traverse for finding the frame unit */
+	/* which had not beed dequeued of the process */
+	if (P2_FrameUnit_List_Idx[property].start <=
+		P2_FrameUnit_List_Idx[property].end) {
+		for (i = P2_FrameUnit_List_Idx[property].start; i <=
+			P2_FrameUnit_List_Idx[property].end; i++) {
+			if ((P2_FrameUnit_List[property][i].processID ==
+				param.processID) &&
+				((P2_FrameUnit_List[property][i].bufSts ==
+				DIP_P2_BUF_STATE_ENQUE) ||
+				(P2_FrameUnit_List[property][i].bufSts ==
+				DIP_P2_BUF_STATE_RUNNING))) {
+				idx = i;
+				break;
 			}
+		}
+	} else {
+		for (i = P2_FrameUnit_List_Idx[property].start; i <
+			_MAX_SUPPORT_P2_FRAME_NUM_; i++) {
+			if ((P2_FrameUnit_List[property][i].processID ==
+				param.processID) &&
+				((P2_FrameUnit_List[property][i].bufSts ==
+				DIP_P2_BUF_STATE_ENQUE) ||
+				(P2_FrameUnit_List[property][i].bufSts ==
+				DIP_P2_BUF_STATE_RUNNING))) {
+				idx = i;
+				break;
+			}
+		}
+		if (idx !=  -1) {
+			/*get in the first for loop*/
 		} else {
-			for (i = P2_FrameUnit_List_Idx[property].start; i < _MAX_SUPPORT_P2_FRAME_NUM_; i++) {
-				if ((P2_FrameUnit_List[property][i].processID == param.processID) &&
-				    ((P2_FrameUnit_List[property][i].bufSts == DIP_P2_BUF_STATE_ENQUE) ||
-				    (P2_FrameUnit_List[property][i].bufSts == DIP_P2_BUF_STATE_RUNNING))) {
+			for (i = 0; i <=
+				P2_FrameUnit_List_Idx[property].end; i++) {
+				if ((P2_FrameUnit_List[property][i]
+					.processID == param.processID) &&
+					((P2_FrameUnit_List[property][i]
+					.bufSts == DIP_P2_BUF_STATE_ENQUE) ||
+					(P2_FrameUnit_List[property][i]
+					.bufSts == DIP_P2_BUF_STATE_RUNNING))){
 					idx = i;
 					break;
-				}
-			}
-			if (idx !=  -1) {
-				/*get in the first for loop*/
-			} else {
-				for (i = 0; i <= P2_FrameUnit_List_Idx[property].end; i++) {
-					if ((P2_FrameUnit_List[property][i].processID == param.processID) &&
-					    ((P2_FrameUnit_List[property][i].bufSts == DIP_P2_BUF_STATE_ENQUE) ||
-					    (P2_FrameUnit_List[property][i].bufSts == DIP_P2_BUF_STATE_RUNNING))) {
-						idx = i;
-						break;
-					}
 				}
 			}
 		}
-		break;
+	}
+	break;
 	case DIP_P2_BUFQUE_MATCH_TYPE_WAITFM:
-		if (P2_FramePack_List_Idx[property].start <= P2_FramePack_List_Idx[property].end) {
-			for (i = P2_FramePack_List_Idx[property].start; i <= P2_FramePack_List_Idx[property].end; i++) {
-				if ((P2_FramePackage_List[property][i].processID == param.processID) &&
-				(P2_FramePackage_List[property][i].callerID == param.callerID)) {
-					idx = i;
-					break;
-				}
+	if (P2_FramePack_List_Idx[property].start <=
+		P2_FramePack_List_Idx[property].end) {
+		for (i = P2_FramePack_List_Idx[property].start;
+			i <= P2_FramePack_List_Idx[property].end; i++) {
+			if ((P2_FramePackage_List[property][i].processID ==
+				param.processID) &&
+				(P2_FramePackage_List[property][i].callerID ==
+				param.callerID)) {
+				idx = i;
+				break;
 			}
+		}
+	} else {
+		for (i = P2_FramePack_List_Idx[property].start;
+			i < _MAX_SUPPORT_P2_PACKAGE_NUM_; i++) {
+			if ((P2_FramePackage_List[property][i]
+				.processID == param.processID) &&
+			(P2_FramePackage_List[property][i]
+				.callerID == param.callerID)) {
+				idx = i;
+				break;
+			}
+		}
+		if (idx !=  -1) {
+			/*get in the first for loop*/
 		} else {
-			for (i = P2_FramePack_List_Idx[property].start; i < _MAX_SUPPORT_P2_PACKAGE_NUM_; i++) {
-				if ((P2_FramePackage_List[property][i].processID == param.processID) &&
-				(P2_FramePackage_List[property][i].callerID == param.callerID)) {
+			for (i = 0; i <=
+				P2_FramePack_List_Idx[property].end; i++) {
+				if ((P2_FramePackage_List[property][i]
+					.processID == param.processID) &&
+					(P2_FramePackage_List[property][i]
+					.callerID == param.callerID)) {
 					idx = i;
 					break;
-				}
-			}
-			if (idx !=  -1) {
-				/*get in the first for loop*/
-			} else {
-				for (i = 0; i <= P2_FramePack_List_Idx[property].end; i++) {
-					if ((P2_FramePackage_List[property][i].processID == param.processID) &&
-					(P2_FramePackage_List[property][i].callerID == param.callerID)) {
-						idx = i;
-						break;
-					}
 				}
 			}
 		}
-		break;
+	}
+	break;
 	case DIP_P2_BUFQUE_MATCH_TYPE_FRAMEOP:
-		/* deque done notify */
-		if (listTag == DIP_P2_BUFQUE_LIST_TAG_PACKAGE) {
-			if (P2_FramePack_List_Idx[property].start <= P2_FramePack_List_Idx[property].end) {
-				for (i = P2_FramePack_List_Idx[property].start;
-				i <= P2_FramePack_List_Idx[property].end; i++) {
-					if ((P2_FramePackage_List[property][i].processID == param.processID) &&
-					(P2_FramePackage_List[property][i].callerID == param.callerID) &&
-					    (P2_FramePackage_List[property][i].dupCQIdx == param.dupCQIdx) &&
-					    (P2_FramePackage_List[property][i].dequedNum <
-					    P2_FramePackage_List[property][i].frameNum)) {
-						/* avoid race that dupCQ_1 of buffer2 enqued while dupCQ_1 */
-						/* of buffer1 have beend deque done but not been erased yet */
-						idx = i;
-						break;
-					}
-				}
-			} else {
-				for (i = P2_FramePack_List_Idx[property].start; i < _MAX_SUPPORT_P2_PACKAGE_NUM_; i++) {
-					if ((P2_FramePackage_List[property][i].processID == param.processID) &&
-					(P2_FramePackage_List[property][i].callerID == param.callerID) &&
-					    (P2_FramePackage_List[property][i].dupCQIdx == param.dupCQIdx) &&
-					    (P2_FramePackage_List[property][i].dequedNum <
-					    P2_FramePackage_List[property][i].frameNum)) {
-						idx = i;
-						break;
-					}
-				}
-				if (idx !=  -1) {
-					/*get in the first for loop*/
+	/* deque done notify */
+	if (listTag == DIP_P2_BUFQUE_LIST_TAG_PACKAGE) {
+		if (P2_FramePack_List_Idx[property].start <=
+			P2_FramePack_List_Idx[property].end) {
+			for (i = P2_FramePack_List_Idx[property].start;
+			i <= P2_FramePack_List_Idx[property].end; i++) {
+				if ((P2_FramePackage_List[property][i]
+					.processID == param.processID) &&
+				(P2_FramePackage_List[property][i]
+					.callerID == param.callerID) &&
+				(P2_FramePackage_List[property][i]
+					.dupCQIdx == param.dupCQIdx) &&
+				(P2_FramePackage_List[property][i].dequedNum <
+				P2_FramePackage_List[property][i].frameNum)) {
+	/* avoid race that dupCQ_1 of buffer2 enqued while dupCQ_1 */
+	/* of buffer1 have beend deque done but not been erased yet */
+					idx = i;
 					break;
-				}
-				for (i = 0; i <= P2_FramePack_List_Idx[property].end; i++) {
-					if ((P2_FramePackage_List[property][i].processID == param.processID) &&
-					(P2_FramePackage_List[property][i].callerID == param.callerID) &&
-						(P2_FramePackage_List[property][i].dupCQIdx == param.dupCQIdx) &&
-						(P2_FramePackage_List[property][i].dequedNum <
-						P2_FramePackage_List[property][i].frameNum)) {
-						idx = i;
-						break;
-					}
 				}
 			}
-		} else {
-			if (P2_FrameUnit_List_Idx[property].start <= P2_FrameUnit_List_Idx[property].end) {
-				for (i = P2_FrameUnit_List_Idx[property].start;
-				i <= P2_FrameUnit_List_Idx[property].end; i++) {
-					if ((P2_FrameUnit_List[property][i].processID == param.processID) &&
-					(P2_FrameUnit_List[property][i].callerID == param.callerID)) {
-						idx = i;
-						break;
-					}
-				}
-			} else {
-				for (i = P2_FrameUnit_List_Idx[property].start; i < _MAX_SUPPORT_P2_FRAME_NUM_; i++) {
-					if ((P2_FrameUnit_List[property][i].processID == param.processID) &&
-					(P2_FrameUnit_List[property][i].callerID == param.callerID)) {
-						idx = i;
-						break;
-					}
-				}
-				if (idx !=  -1) {
-					/*get in the first for loop*/
-					break;
-				}
-				for (i = 0; i <= P2_FrameUnit_List_Idx[property].end; i++) {
-					if ((P2_FrameUnit_List[property][i].processID == param.processID) &&
-					(P2_FrameUnit_List[property][i].callerID == param.callerID)) {
-						idx = i;
-						break;
-					}
-				}
+	} else {
+		for (i = P2_FramePack_List_Idx[property].start; i <
+			_MAX_SUPPORT_P2_PACKAGE_NUM_; i++) {
+			if ((P2_FramePackage_List[property][i]
+				.processID == param.processID) &&
+			(P2_FramePackage_List[property][i]
+				.callerID == param.callerID) &&
+			(P2_FramePackage_List[property][i]
+				.dupCQIdx == param.dupCQIdx) &&
+			(P2_FramePackage_List[property][i].dequedNum <
+				P2_FramePackage_List[property][i].frameNum)) {
+				idx = i;
+				break;
 			}
 		}
-		break;
+		if (idx !=  -1) {
+			/*get in the first for loop*/
+			break;
+		}
+		for (i = 0; i <= P2_FramePack_List_Idx[property].end; i++) {
+			if ((P2_FramePackage_List[property][i]
+				.processID == param.processID) &&
+			(P2_FramePackage_List[property][i]
+				.callerID == param.callerID) &&
+			(P2_FramePackage_List[property][i]
+				.dupCQIdx == param.dupCQIdx) &&
+			(P2_FramePackage_List[property][i].dequedNum <
+				P2_FramePackage_List[property][i].frameNum)) {
+				idx = i;
+				break;
+			}
+		}
+	}
+	} else {
+		if (P2_FrameUnit_List_Idx[property].start <=
+			P2_FrameUnit_List_Idx[property].end) {
+			for (i = P2_FrameUnit_List_Idx[property].start;
+			i <= P2_FrameUnit_List_Idx[property].end; i++) {
+				if ((P2_FrameUnit_List[property][i]
+					.processID == param.processID) &&
+				(P2_FrameUnit_List[property][i]
+					.callerID == param.callerID)) {
+					idx = i;
+					break;
+				}
+			}
+	} else {
+		for (i = P2_FrameUnit_List_Idx[property].start; i <
+			_MAX_SUPPORT_P2_FRAME_NUM_; i++) {
+			if ((P2_FrameUnit_List[property][i]
+				.processID == param.processID) &&
+			(P2_FrameUnit_List[property][i]
+				.callerID == param.callerID)) {
+				idx = i;
+				break;
+			}
+		}
+		if (idx !=  -1) {
+			/*get in the first for loop*/
+			break;
+		}
+		for (i = 0; i <= P2_FrameUnit_List_Idx[property].end; i++) {
+			if ((P2_FrameUnit_List[property][i]
+				.processID == param.processID) &&
+			(P2_FrameUnit_List[property][i]
+				.callerID == param.callerID)) {
+				idx = i;
+				break;
+			}
+		}
+	}
+	}
+	break;
 	default:
 		break;
 	}
@@ -2080,11 +2743,13 @@ static signed int DIP_P2_BufQue_GetMatchIdx(struct  DIP_P2_BUFQUE_STRUCT param,
 	return idx;
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
-static inline unsigned int DIP_P2_BufQue_WaitEventState(struct DIP_P2_BUFQUE_STRUCT param,
-		enum DIP_P2_BUFQUE_MATCH_TYPE type, signed int *idx)
+/**************************************************************
+ *
+ **************************************************************/
+static inline unsigned int DIP_P2_BufQue_WaitEventState(
+	struct DIP_P2_BUFQUE_STRUCT param,
+	enum DIP_P2_BUFQUE_MATCH_TYPE type,
+	signed int *idx)
 {
 	unsigned int ret = MFALSE;
 	signed int index = -1;
@@ -2100,7 +2765,8 @@ static inline unsigned int DIP_P2_BufQue_WaitEventState(struct DIP_P2_BUFQUE_STR
 	case DIP_P2_BUFQUE_MATCH_TYPE_WAITDQ:
 		spin_lock(&(SpinLock_P2FrameList));
 		index = *idx;
-		if (P2_FrameUnit_List[property][index].bufSts == DIP_P2_BUF_STATE_RUNNING)
+		if (P2_FrameUnit_List[property][index].bufSts ==
+			DIP_P2_BUF_STATE_RUNNING)
 			ret = MTRUE;
 
 		spin_unlock(&(SpinLock_P2FrameList));
@@ -2108,29 +2774,40 @@ static inline unsigned int DIP_P2_BufQue_WaitEventState(struct DIP_P2_BUFQUE_STR
 	case DIP_P2_BUFQUE_MATCH_TYPE_WAITFM:
 		spin_lock(&(SpinLock_P2FrameList));
 		index = *idx;
-		if (P2_FramePackage_List[property][index].dequedNum == P2_FramePackage_List[property][index].frameNum)
+		if (P2_FramePackage_List[property][index].dequedNum ==
+			P2_FramePackage_List[property][index].frameNum)
 			ret = MTRUE;
 
 		spin_unlock(&(SpinLock_P2FrameList));
 		break;
 	case DIP_P2_BUFQUE_MATCH_TYPE_WAITFMEQD:
 		spin_lock(&(SpinLock_P2FrameList));
-		/* LOG_INF("check bf(%d_0x%x_0x%x/%d_%d)", param.property,
-		* param.processID, param.callerID,index, *idx);
-		*/
-		index = DIP_P2_BufQue_GetMatchIdx(param, DIP_P2_BUFQUE_MATCH_TYPE_WAITFM,
-				DIP_P2_BUFQUE_LIST_TAG_PACKAGE);
+		/* LOG_INF("check bf(%d_0x%x_0x%x/%d_%d)", */
+		/* param.property, */
+		/* param.processID, */
+		/* param.callerID, */
+		/* index, */
+		/*idx); */
+		index = DIP_P2_BufQue_GetMatchIdx(param,
+			DIP_P2_BUFQUE_MATCH_TYPE_WAITFM,
+			DIP_P2_BUFQUE_LIST_TAG_PACKAGE);
 		if (index == -1) {
-			/* LOG_INF("check bf(%d_0x%x_0x%x / %d_%d) ",param.property,
-			* param.processID, param.callerID,index, *idx);
-			*/
+			/* LOG_INF("check bf(%d_0x%x_0x%x / %d_%d) ", */
+				/* param.property, */
+				/* *param.processID, */
+				/* param.callerID, */
+				/* index, */
+				/* *idx); */
 			spin_unlock(&(SpinLock_P2FrameList));
 			ret = MFALSE;
 		} else {
 			*idx = index;
-			/* LOG_INF("check bf(%d_0x%x_0x%x / %d_%d) ",param.property,
-			* param.processID, param.callerID,index, *idx);
-			*/
+			/* LOG_INF("check bf(%d_0x%x_0x%x / %d_%d) ", */
+			/* param.property, */
+			/* param.processID, */
+			/* param.callerID, */
+			/* index, */
+			/* idx); */
 			spin_unlock(&(SpinLock_P2FrameList));
 			ret = MTRUE;
 		}
@@ -2143,10 +2820,11 @@ static inline unsigned int DIP_P2_BufQue_WaitEventState(struct DIP_P2_BUFQUE_STR
 }
 
 
-/*******************************************************************************
-*
-********************************************************************************/
-static signed int DIP_P2_BufQue_CTRL_FUNC(struct DIP_P2_BUFQUE_STRUCT param)
+/**************************************************************
+ *
+ **************************************************************/
+static signed int DIP_P2_BufQue_CTRL_FUNC(
+	struct DIP_P2_BUFQUE_STRUCT param)
 {
 	signed int ret = 0;
 	int i = 0, q = 0;
@@ -2162,210 +2840,319 @@ static signed int DIP_P2_BufQue_CTRL_FUNC(struct DIP_P2_BUFQUE_STRUCT param)
 	property = param.property;
 
 	switch (param.ctrl) {
-	case DIP_P2_BUFQUE_CTRL_ENQUE_FRAME:    /* signal that a specific buffer is enqueued */
+	/* signal that a specific buffer is enqueued */
+	case DIP_P2_BUFQUE_CTRL_ENQUE_FRAME:
 		spin_lock(&(SpinLock_P2FrameList));
 		/* (1) check the ring buffer list is full or not */
-		if (((P2_FramePack_List_Idx[property].end + 1) % _MAX_SUPPORT_P2_PACKAGE_NUM_) ==
-		P2_FramePack_List_Idx[property].start && (P2_FramePack_List_Idx[property].end !=  -1)) {
-			LOG_ERR("pty(%d), F/L(%d_%d,%d), dCQ(%d,%d), RF/C/L(%d,%d,%d), sts(%d,%d,%d)",
-			property, param.frameNum, P2_FramePack_List_Idx[property].start,
+		if (((P2_FramePack_List_Idx[property].end + 1) %
+			_MAX_SUPPORT_P2_PACKAGE_NUM_) ==
+			P2_FramePack_List_Idx[property].start &&
+			(P2_FramePack_List_Idx[property].end != -1)) {
+			LOG_ERR("pty(%d), F/L(%d_%d,%d), dCQ(%d,%d)\n",
+			property,
+			param.frameNum,
+			P2_FramePack_List_Idx[property].start,
 			P2_FramePack_List_Idx[property].end,
-				P2_FramePackage_List[property][P2_FramePack_List_Idx[property].start].dupCQIdx,
-				P2_FramePackage_List[property][P2_FramePack_List_Idx[property].end].dupCQIdx,
-				P2_FrameUnit_List_Idx[property].start, P2_FrameUnit_List_Idx[property].curr,
-				P2_FrameUnit_List_Idx[property].end,
-				P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property].start].bufSts,
-				P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property].curr].bufSts,
-				P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property].end].bufSts);
-			spin_unlock(&(SpinLock_P2FrameList));
-			LOG_ERR("p2 frame package list is full, enque Fail.");
-			ret =  -EFAULT;
-			return ret;
+			P2_FramePackage_List[property]
+			[P2_FramePack_List_Idx[property].start].dupCQIdx,
+			P2_FramePackage_List[property]
+			[P2_FramePack_List_Idx[property].end].dupCQIdx);
+			LOG_ERR("RF/C/L(%d,%d,%d), sts(%d,%d,%d)\n",
+			P2_FrameUnit_List_Idx[property].start,
+			P2_FrameUnit_List_Idx[property].curr,
+			P2_FrameUnit_List_Idx[property].end,
+			P2_FrameUnit_List[property]
+			[P2_FrameUnit_List_Idx[property].start].bufSts,
+			P2_FrameUnit_List[property]
+			[P2_FrameUnit_List_Idx[property].curr].bufSts,
+			P2_FrameUnit_List[property]
+			[P2_FrameUnit_List_Idx[property].end].bufSts);
+		spin_unlock(&(SpinLock_P2FrameList));
+		LOG_ERR("p2 frame package list is full, enque Fail.");
+		ret =  -EFAULT;
+		return ret;
 		}
 		{
-			/*(2) add new to the last of the frame unit list */
-			unsigned int cqmask = (param.dupCQIdx << 2) | (param.cQIdx << 1) | (param.burstQIdx);
+		/*(2) add new to the last of the frame unit list */
+		unsigned int cqmask = (param.dupCQIdx << 2) |
+			(param.cQIdx << 1) |
+			(param.burstQIdx);
 
-			if (P2_FramePack_List_Idx[property].end < 0 || P2_FrameUnit_List_Idx[property].end < 0) {
+		if (P2_FramePack_List_Idx[property].end < 0 ||
+			P2_FrameUnit_List_Idx[property].end < 0) {
 #ifdef P2_DBG_LOG
-				IRQ_LOG_KEEPER(DIP_IRQ_TYPE_INT_DIP_A_ST, 0, _LOG_DBG,
-				"pty(%d) pD(0x%x_0x%x)MF/L(%d_%d %d) (%d %d) RF/C/L(%d %d %d) (%d %d %d) cqmsk(0x%x)\n",
-				property, param.processID, param.callerID, param.frameNum,
-				P2_FramePack_List_Idx[property].start, P2_FramePack_List_Idx[property].end,
-				P2_FramePackage_List[property][P2_FramePack_List_Idx[property].start].dupCQIdx,
-				P2_FramePackage_List[property][0].dupCQIdx,
-				P2_FrameUnit_List_Idx[property].start, P2_FrameUnit_List_Idx[property].curr,
-				P2_FrameUnit_List_Idx[property].end,
-				P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property].start].bufSts,
-				P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property].curr].bufSts,
-				P2_FrameUnit_List[property][0].bufSts, cqmask);
+			IRQ_LOG_KEEPER(DIP_IRQ_TYPE_INT_DIP_A_ST, 0, _LOG_DBG,
+			"pty(%d) pD(0x%x_0x%x)MF/L(%d_%d %d) (%d %d) RF/C/L(%d %d %d) (%d %d %d) cqmsk(0x%x)\n",
+			property,
+			param.processID,
+			param.callerID,
+			param.frameNum,
+			P2_FramePack_List_Idx[property].start,
+			P2_FramePack_List_Idx[property].end,
+			P2_FramePackage_List[property]
+			[P2_FramePack_List_Idx[property].start].dupCQIdx,
+			P2_FramePackage_List[property][0].dupCQIdx,
+			P2_FrameUnit_List_Idx[property].start,
+			P2_FrameUnit_List_Idx[property].curr,
+			P2_FrameUnit_List_Idx[property].end,
+			P2_FrameUnit_List[property]
+			[P2_FrameUnit_List_Idx[property].start].bufSts,
+			P2_FrameUnit_List[property]
+			[P2_FrameUnit_List_Idx[property].curr].bufSts,
+			P2_FrameUnit_List[property][0].bufSts, cqmask);
 #endif
-			} else {
+		} else {
 #ifdef P2_DBG_LOG
-				IRQ_LOG_KEEPER(DIP_IRQ_TYPE_INT_DIP_A_ST, 0, _LOG_DBG,
-				"pty(%d) pD(0x%x_0x%x) MF/L(%d_%d %d)(%d %d) RF/C/L(%d %d %d) (%d %d %d) cqmsk(0x%x)\n",
-				property, param.processID, param.callerID, param.frameNum,
-				P2_FramePack_List_Idx[property].start, P2_FramePack_List_Idx[property].end,
-				P2_FramePackage_List[property][P2_FramePack_List_Idx[property].start].dupCQIdx,
-				P2_FramePackage_List[property][P2_FramePack_List_Idx[property].end].dupCQIdx,
-				P2_FrameUnit_List_Idx[property].start, P2_FrameUnit_List_Idx[property].curr,
-				P2_FrameUnit_List_Idx[property].end,
-				P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property].start].bufSts,
-				P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property].curr].bufSts,
-				P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property].end].bufSts, cqmask);
+			IRQ_LOG_KEEPER(DIP_IRQ_TYPE_INT_DIP_A_ST, 0, _LOG_DBG,
+			"pty(%d) pD(0x%x_0x%x) MF/L(%d_%d %d)(%d %d) RF/C/L(%d %d %d) (%d %d %d) cqmsk(0x%x)\n",
+			property,
+			param.processID,
+			param.callerID,
+			param.frameNum,
+			P2_FramePack_List_Idx[property].start,
+			P2_FramePack_List_Idx[property].end,
+			P2_FramePackage_List[property]
+			[P2_FramePack_List_Idx[property].start].dupCQIdx,
+			P2_FramePackage_List[property]
+			[P2_FramePack_List_Idx[property].end].dupCQIdx,
+			P2_FrameUnit_List_Idx[property].start,
+			P2_FrameUnit_List_Idx[property].curr,
+			P2_FrameUnit_List_Idx[property].end,
+			P2_FrameUnit_List[property]
+			[P2_FrameUnit_List_Idx[property].start].bufSts,
+			P2_FrameUnit_List[property]
+			[P2_FrameUnit_List_Idx[property].curr].bufSts,
+			P2_FrameUnit_List[property]
+			[P2_FrameUnit_List_Idx[property].end].bufSts, cqmask);
 #endif
-			}
-			if (P2_FrameUnit_List_Idx[property].start == P2_FrameUnit_List_Idx[property].end &&
-				P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property].start].bufSts ==
-				DIP_P2_BUF_STATE_NONE) {
-				/* frame unit list is empty */
-				P2_FrameUnit_List_Idx[property].end =
-					(P2_FrameUnit_List_Idx[property].end + 1) % _MAX_SUPPORT_P2_FRAME_NUM_;
-				P2_FrameUnit_List_Idx[property].start = P2_FrameUnit_List_Idx[property].end;
-				P2_FrameUnit_List_Idx[property].curr = P2_FrameUnit_List_Idx[property].end;
-			} else if (P2_FrameUnit_List_Idx[property].curr == P2_FrameUnit_List_Idx[property].end &&
-				P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property].curr].bufSts ==
-				DIP_P2_BUF_STATE_NONE) {
-				/* frame unit list is not empty, but current/last is empty.
-				* (all the enqueued frame is done but user have not called dequeue)
-				*/
-				P2_FrameUnit_List_Idx[property].end =
-					(P2_FrameUnit_List_Idx[property].end + 1) % _MAX_SUPPORT_P2_FRAME_NUM_;
-				P2_FrameUnit_List_Idx[property].curr = P2_FrameUnit_List_Idx[property].end;
-			} else {
-				P2_FrameUnit_List_Idx[property].end =
-					(P2_FrameUnit_List_Idx[property].end + 1) % _MAX_SUPPORT_P2_FRAME_NUM_;
-			}
-			P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property].end].processID = param.processID;
-			P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property].end].callerID = param.callerID;
-			P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property].end].cqMask = cqmask;
-			P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property].end].bufSts =
-				DIP_P2_BUF_STATE_ENQUE;
+		}
+		if (P2_FrameUnit_List_Idx[property].start ==
+			P2_FrameUnit_List_Idx[property].end &&
+			P2_FrameUnit_List[property]
+			[P2_FrameUnit_List_Idx[property]
+			.start].bufSts == DIP_P2_BUF_STATE_NONE) {
+			/* frame unit list is empty */
+			P2_FrameUnit_List_Idx[property].end =
+				(P2_FrameUnit_List_Idx[property].end + 1) %
+				_MAX_SUPPORT_P2_FRAME_NUM_;
+			P2_FrameUnit_List_Idx[property].start =
+				P2_FrameUnit_List_Idx[property].end;
+			P2_FrameUnit_List_Idx[property].curr =
+				P2_FrameUnit_List_Idx[property].end;
+		} else if (P2_FrameUnit_List_Idx[property].curr ==
+			P2_FrameUnit_List_Idx[property].end &&
+			P2_FrameUnit_List[property]
+			[P2_FrameUnit_List_Idx[property]
+			.curr].bufSts ==
+			DIP_P2_BUF_STATE_NONE) {
+	/* frame unit list is not empty, but current/last is empty. */
+	/* (all the enqueued frame is done but user have not called dequeue) */
+			P2_FrameUnit_List_Idx[property].end =
+				(P2_FrameUnit_List_Idx[property].end + 1) %
+				_MAX_SUPPORT_P2_FRAME_NUM_;
+			P2_FrameUnit_List_Idx[property].curr =
+				P2_FrameUnit_List_Idx[property].end;
+		} else {
+			P2_FrameUnit_List_Idx[property].end =
+				(P2_FrameUnit_List_Idx[property].end + 1) %
+				_MAX_SUPPORT_P2_FRAME_NUM_;
+		}
+		P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property]
+			.end].processID = param.processID;
+		P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property]
+			.end].callerID = param.callerID;
+		P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property]
+			.end].cqMask = cqmask;
+		P2_FrameUnit_List[property][P2_FrameUnit_List_Idx[property]
+			.end].bufSts =
+			DIP_P2_BUF_STATE_ENQUE;
 
-			/* [3] add new frame package in list */
-			if (param.burstQIdx == 0) {
-				if (P2_FramePack_List_Idx[property].start == P2_FramePack_List_Idx[property].end &&
-				P2_FramePackage_List[property][P2_FramePack_List_Idx[property].start].dupCQIdx == -1) {
-					/* all managed buffer node is empty */
-					P2_FramePack_List_Idx[property].end =
-					(P2_FramePack_List_Idx[property].end + 1) % _MAX_SUPPORT_P2_PACKAGE_NUM_;
-					P2_FramePack_List_Idx[property].start = P2_FramePack_List_Idx[property].end;
-				} else {
-					P2_FramePack_List_Idx[property].end =
-					(P2_FramePack_List_Idx[property].end + 1) % _MAX_SUPPORT_P2_PACKAGE_NUM_;
-				}
-				P2_FramePackage_List[property][P2_FramePack_List_Idx[property].end].processID =
-					param.processID;
-				P2_FramePackage_List[property][P2_FramePack_List_Idx[property].end].callerID =
-					param.callerID;
-				P2_FramePackage_List[property][P2_FramePack_List_Idx[property].end].dupCQIdx =
-					param.dupCQIdx;
-				P2_FramePackage_List[property][P2_FramePack_List_Idx[property].end].frameNum =
-					param.frameNum;
-				P2_FramePackage_List[property][P2_FramePack_List_Idx[property].end].dequedNum = 0;
+		/* [3] add new frame package in list */
+		if (param.burstQIdx == 0) {
+			if (P2_FramePack_List_Idx[property].start ==
+				P2_FramePack_List_Idx[property].end &&
+				P2_FramePackage_List[property]
+				[P2_FramePack_List_Idx[property]
+				.start].dupCQIdx == -1) {
+				/* all managed buffer node is empty */
+				P2_FramePack_List_Idx[property].end =
+				(P2_FramePack_List_Idx[property].end + 1) %
+				_MAX_SUPPORT_P2_PACKAGE_NUM_;
+				P2_FramePack_List_Idx[property].start =
+					P2_FramePack_List_Idx[property].end;
+			} else {
+				P2_FramePack_List_Idx[property].end =
+				(P2_FramePack_List_Idx[property].end + 1) %
+				_MAX_SUPPORT_P2_PACKAGE_NUM_;
 			}
+			P2_FramePackage_List[property]
+				[P2_FramePack_List_Idx[property].end]
+				.processID = param.processID;
+			P2_FramePackage_List[property]
+				[P2_FramePack_List_Idx[property].end]
+				.callerID = param.callerID;
+			P2_FramePackage_List[property]
+				[P2_FramePack_List_Idx[property].end]
+				.dupCQIdx = param.dupCQIdx;
+			P2_FramePackage_List[property]
+				[P2_FramePack_List_Idx[property].end]
+				.frameNum = param.frameNum;
+			P2_FramePackage_List[property]
+				[P2_FramePack_List_Idx[property].end]
+				.dequedNum = 0;
+		}
 		}
 		/* [4]update global index */
-		DIP_P2_BufQue_Update_ListCIdx(property, DIP_P2_BUFQUE_LIST_TAG_UNIT);
+		DIP_P2_BufQue_Update_ListCIdx(property,
+			DIP_P2_BUFQUE_LIST_TAG_UNIT);
 		spin_unlock(&(SpinLock_P2FrameList));
 		IRQ_LOG_PRINTER(DIP_IRQ_TYPE_INT_DIP_A_ST, 0, _LOG_DBG);
 		/* [5] wake up thread that wait for deque */
 		wake_up_interruptible_all(&P2WaitQueueHead_WaitDeque);
 		wake_up_interruptible_all(&P2WaitQueueHead_WaitFrameEQDforDQ);
 		break;
-	case DIP_P2_BUFQUE_CTRL_WAIT_DEQUE:    /* a dequeue thread is waiting to do dequeue */
+	/* a dequeue thread is waiting to do dequeue */
+	case DIP_P2_BUFQUE_CTRL_WAIT_DEQUE:
 		spin_lock(&(SpinLock_P2FrameList));
-		idx = DIP_P2_BufQue_GetMatchIdx(param, DIP_P2_BUFQUE_MATCH_TYPE_WAITDQ, DIP_P2_BUFQUE_LIST_TAG_UNIT);
+		idx = DIP_P2_BufQue_GetMatchIdx(param,
+			DIP_P2_BUFQUE_MATCH_TYPE_WAITDQ,
+			DIP_P2_BUFQUE_LIST_TAG_UNIT);
 		spin_unlock(&(SpinLock_P2FrameList));
 		if (idx ==  -1) {
-			LOG_ERR("Do not find match buffer (pty/pid/cid: %d/0x%x/0x%x) to deque!",
-			param.property, param.processID, param.callerID);
-			ret =  -EFAULT;
-			return ret;
+			LOG_ERR("not match buf(pty/pid/cid:%d/0x%x/0x%x)",
+			param.property,
+			param.processID,
+			param.callerID);
+		ret =  -EFAULT;
+		return ret;
 		}
 		{
-			restTime = wait_event_interruptible_timeout(
-					   P2WaitQueueHead_WaitDeque,
-					   DIP_P2_BufQue_WaitEventState(param, DIP_P2_BUFQUE_MATCH_TYPE_WAITDQ, &idx),
-					   DIP_UsToJiffies(15 * 1000000)); /* 15s */
-			if (restTime == 0) {
-				LOG_ERR("Wait Deque fail, idx(%d), pty(%d), pID(0x%x),cID(0x%x)",
-				idx, param.property, param.processID, param.callerID);
-				ret =  -EFAULT;
-			} else if (restTime == -512) {
-				LOG_ERR("be stopped, restime(%d)", restTime);
-				ret =  -EFAULT;
-				break;
-			}
+		restTime = wait_event_interruptible_timeout(
+			P2WaitQueueHead_WaitDeque,
+			DIP_P2_BufQue_WaitEventState(param,
+				DIP_P2_BUFQUE_MATCH_TYPE_WAITDQ,
+				&idx),
+			DIP_UsToJiffies(15 * 1000000)); /* 15s */
+		if (restTime == 0) {
+			LOG_ERR("Dqe fail,idx(%d),pty(%d),pID(0x%x),cID(0x%x)",
+			idx,
+			param.property,
+			param.processID,
+			param.callerID);
+		ret =  -EFAULT;
+		} else if (restTime == -512) {
+			LOG_ERR("be stopped, restime(%d)", restTime);
+			ret =  -EFAULT;
+			break;
+		}
 		}
 		break;
-	case DIP_P2_BUFQUE_CTRL_DEQUE_SUCCESS:             /* signal that a buffer is dequeued(success) */
+	/* signal that a buffer is dequeued(success) */
+	case DIP_P2_BUFQUE_CTRL_DEQUE_SUCCESS:
 		if (IspInfo.DebugMask & DIP_DBG_BUF_CTRL)
-			LOG_DBG("dq cm(%d),pID(0x%x),cID(0x%x)\n", param.ctrl, param.processID, param.callerID);
+			LOG_DBG("dq cm(%d),pID(0x%x),cID(0x%x)\n",
+				param.ctrl,
+				param.processID,
+				param.callerID);
 
 		spin_lock(&(SpinLock_P2FrameList));
-		/* [1]update buffer status for the current buffer */
-		/* ////////////////////////////////////////////////////////////////////// */
-		/* Assume we have the buffer list in the following situation */
-		/* ++++++    ++++++ */
-		/* +  vss +    +  prv + */
-		/* ++++++    ++++++ */
-		/*  */
-		/* if the vss deque is not done(not blocking deque), dequeThread in userspace would change to */
-		/* deque prv buffer(block deque) immediately to decrease ioctrl count. */
-		/* -> vss buffer would be deque at next turn, so curBuf is still at vss buffer node */
-		/* -> we should use param to find the current buffer index in Rlikst to update the buffer status */
-		/*cuz deque success/fail may not be the first buffer in Rlist */
-		/* ////////////////////////////////////////////////////////////////////// */
-		idx2 = DIP_P2_BufQue_GetMatchIdx(param, DIP_P2_BUFQUE_MATCH_TYPE_FRAMEOP, DIP_P2_BUFQUE_LIST_TAG_UNIT);
+/* [1]update buffer status for the current buffer */
+/* /////////////////////////////////////////////////////////// */
+/* Assume we have the buffer list in the following situation  */
+/* ++++++    ++++++  */
+/* +  vss +      +  prv +    */
+/* ++++++    ++++++   */
+/*  */
+/* if the vss deque is not done(not blocking deque), */
+/* dequeThread in userspace  would change to deque */
+/* prv buffer(block deque)immediately to decrease ioctl cnt. */
+/* -> vss buffer would be deque at next turn, */
+/* so curBuf is still at vss buffer node */
+/* -> we should use param to find the current buffer index in Rlikst */
+/* to update the buffer status */
+/*cuz deque success/fail may not be the first buffer in Rlist */
+/* /////////////////////////////////////////////////////////// */
+		idx2 = DIP_P2_BufQue_GetMatchIdx(param,
+			DIP_P2_BUFQUE_MATCH_TYPE_FRAMEOP,
+			DIP_P2_BUFQUE_LIST_TAG_UNIT);
 		if (idx2 ==  -1) {
 			spin_unlock(&(SpinLock_P2FrameList));
-			LOG_ERR("ERRRRRRRRRRR findmatch index 2 fail (%d_0x%x_0x%x_%d, %d_%d)",
-			param.property, param.processID, param.callerID, param.frameNum, param.cQIdx, param.dupCQIdx);
+			LOG_ERR("Match index 2 fail(%d_0x%x_0x%x_%d, %d_%d)",
+				param.property,
+				param.processID,
+				param.callerID,
+				param.frameNum,
+				param.cQIdx,
+				param.dupCQIdx);
 			ret =  -EFAULT;
 			return ret;
 		}
 		if (param.ctrl == DIP_P2_BUFQUE_CTRL_DEQUE_SUCCESS)
-			P2_FrameUnit_List[property][idx2].bufSts = DIP_P2_BUF_STATE_DEQUE_SUCCESS;
+			P2_FrameUnit_List[property][idx2].bufSts =
+				DIP_P2_BUF_STATE_DEQUE_SUCCESS;
 		else
-			P2_FrameUnit_List[property][idx2].bufSts = DIP_P2_BUF_STATE_DEQUE_FAIL;
+			P2_FrameUnit_List[property][idx2].bufSts =
+				DIP_P2_BUF_STATE_DEQUE_FAIL;
 
 		/* [2]update dequeued num in managed buffer list */
-		idx = DIP_P2_BufQue_GetMatchIdx(param, DIP_P2_BUFQUE_MATCH_TYPE_FRAMEOP,
-		DIP_P2_BUFQUE_LIST_TAG_PACKAGE);
+		idx = DIP_P2_BufQue_GetMatchIdx(param,
+			DIP_P2_BUFQUE_MATCH_TYPE_FRAMEOP,
+			DIP_P2_BUFQUE_LIST_TAG_PACKAGE);
 		if (idx ==  -1) {
 			spin_unlock(&(SpinLock_P2FrameList));
-			LOG_ERR("ERRRRRRRRRRR findmatch index 1 fail (%d_0x%x_0x%x_%d, %d_%d)",
-			param.property, param.processID, param.callerID, param.frameNum, param.cQIdx, param.dupCQIdx);
+			LOG_ERR("Match index 1 fail(%d_0x%x_0x%x_%d, %d_%d)",
+				param.property,
+				param.processID,
+				param.callerID,
+				param.frameNum,
+				param.cQIdx,
+				param.dupCQIdx);
 			ret =  -EFAULT;
 			return ret;
 		}
 		P2_FramePackage_List[property][idx].dequedNum++;
 		/* [3]update global pointer */
-		DIP_P2_BufQue_Update_ListCIdx(property, DIP_P2_BUFQUE_LIST_TAG_UNIT);
+		DIP_P2_BufQue_Update_ListCIdx(property,
+			DIP_P2_BUFQUE_LIST_TAG_UNIT);
 		/* [4]erase node in ring buffer list */
-		DIP_P2_BufQue_Erase(property, DIP_P2_BUFQUE_LIST_TAG_UNIT, idx2);
+		DIP_P2_BufQue_Erase(property,
+			DIP_P2_BUFQUE_LIST_TAG_UNIT,
+			idx2);
 		spin_unlock(&(SpinLock_P2FrameList));
-		/* [5]wake up thread user that wait for a specific buffer and the thread that wait for deque */
+		/* [5]wake up thread user that wait for a specific buffer */
+		/* and the thread that wait for deque */
 		wake_up_interruptible_all(&P2WaitQueueHead_WaitFrame);
 		wake_up_interruptible_all(&P2WaitQueueHead_WaitDeque);
 		break;
-	case DIP_P2_BUFQUE_CTRL_DEQUE_FAIL:                /* signal that a buffer is dequeued(fail) */
-		/* QQ. ASSERT*/
+	/* signal that a buffer is dequeued(fail) */
+	case DIP_P2_BUFQUE_CTRL_DEQUE_FAIL:
 		break;
-	case DIP_P2_BUFQUE_CTRL_WAIT_FRAME:             /* wait for a specific buffer */
-		/* [1]find first match buffer */
-		/*LOG_INF("DIP_P2_BUFQUE_CTRL_WAIT_FRAME, before pty/pID/cID (%d/0x%x/0x%x),idx(%d)",
-		*    property, param.processID, param.callerID, idx);
-		*/
-		/* wait for frame enqued due to user might call deque api before the frame is enqued to kernel */
+	/* wait for a specific buffer */
+	case DIP_P2_BUFQUE_CTRL_WAIT_FRAME:
+	/* [1]find first match buffer */
+	/*LOG_INF("DIP_P2_BUFQUE_CTRL_WAIT_FRAME, */
+	/*	before pty/pID/cID (%d/0x%x/0x%x),idx(%d)", */
+	/*	property, */
+	/*	param.processID, */
+	/*	param.callerID, */
+	/*	idx); */
+
+	/* wait for frame enqued due to user might call deque api */
+	/* before the frame is enqued to kernel */
 		restTime = wait_event_interruptible_timeout(
-				   P2WaitQueueHead_WaitFrameEQDforDQ,
-				   DIP_P2_BufQue_WaitEventState(param, DIP_P2_BUFQUE_MATCH_TYPE_WAITFMEQD, &idx),
-				   DIP_UsToJiffies(15 * 1000000)); /* wait 15s to get paired frame */
+			P2WaitQueueHead_WaitFrameEQDforDQ,
+			DIP_P2_BufQue_WaitEventState(param,
+			DIP_P2_BUFQUE_MATCH_TYPE_WAITFMEQD,
+			&idx),
+			DIP_UsToJiffies(15 * 1000000));
 		if (restTime == 0) {
-			LOG_ERR("could not find match buffer restTime(%d), pty/pID/cID (%d/0x%x/0x%x),idx(%d)",
-			restTime, property, param.processID, param.callerID, idx);
+			LOG_ERR("could not find match buffer restTime(%d)",
+				restTime);
+			LOG_ERR("pty/pID/cID (%d/0x%x/0x%x),idx(%d)",
+				property,
+				param.processID,
+				param.callerID,
+				idx);
 			ret =  -EFAULT;
 			return ret;
 		} else if (restTime == -512) {
@@ -2375,37 +3162,55 @@ static signed int DIP_P2_BufQue_CTRL_FUNC(struct DIP_P2_BUFQUE_STRUCT param)
 		}
 
 #ifdef P2_DBG_LOG
-		LOG_INF("DIP_P2_BUFQUE_CTRL_WAIT_FRAME, after pty/pID/cID (%d/0x%x/0x%x),idx(%d)",
-		property, param.processID, param.callerID, idx);
+		LOG_INF("DIP_P2_BUFQUE_CTRL_WAIT_FRAME\n");
+		LOG_INF("after pty/pID/cID (%d/0x%x/0x%x),idx(%d)\n",
+			property, param.processID, param.callerID, idx);
 #endif
 		spin_lock(&(SpinLock_P2FrameList));
 		/* [2]check the buffer is dequeued or not */
-		if (P2_FramePackage_List[property][idx].dequedNum == P2_FramePackage_List[property][idx].frameNum) {
-			DIP_P2_BufQue_Erase(property, DIP_P2_BUFQUE_LIST_TAG_PACKAGE, idx);
+		if (P2_FramePackage_List[property][idx].dequedNum ==
+			P2_FramePackage_List[property][idx].frameNum) {
+			DIP_P2_BufQue_Erase(property,
+				DIP_P2_BUFQUE_LIST_TAG_PACKAGE,
+				idx);
 			spin_unlock(&(SpinLock_P2FrameList));
 			ret = 0;
 #ifdef P2_DBG_LOG
-			LOG_DBG("Frame is alreay dequeued, return user, pd(%d/0x%x/0x%x),idx(%d)",
-			property, param.processID, param.callerID, idx);
+			LOG_DBG("Frame is alreay dequeued, return user\n");
+			LOG_DBG("pd(%d/0x%x/0x%x), idx(%d)\n",
+				property,
+				param.processID,
+				param.callerID,
+				idx);
 #endif
 			return ret;
 		}
 		{
 			spin_unlock(&(SpinLock_P2FrameList));
 			if (IspInfo.DebugMask & DIP_DBG_BUF_CTRL)
-				LOG_DBG("=pd(%d/0x%x/0x%x_%d)wait(%d s)=\n", property,
-					param.processID, param.callerID, idx, param.timeoutIns);
+				LOG_DBG("=pd(%d/0x%x/0x%x_%d)wait(%d s)=\n",
+					property,
+					param.processID,
+					param.callerID,
+					idx, param.timeoutIns);
 
-			/* [3]if not, goto wait event and wait for a signal to check */
+		/* [3]if not, goto wait event and wait for a signal to check */
 			restTime = wait_event_interruptible_timeout(
-					   P2WaitQueueHead_WaitFrame,
-					   DIP_P2_BufQue_WaitEventState(param, DIP_P2_BUFQUE_MATCH_TYPE_WAITFM, &idx),
-					   DIP_UsToJiffies(param.timeoutIns * 1000000));
+				P2WaitQueueHead_WaitFrame,
+				DIP_P2_BufQue_WaitEventState(param,
+					DIP_P2_BUFQUE_MATCH_TYPE_WAITFM,
+					&idx),
+				DIP_UsToJiffies(param.timeoutIns * 1000000));
 			if (restTime == 0) {
-				LOG_ERR("Dequeue Buffer fail, rT(%d),idx(%d) pty(%d), pID(0x%x),cID(0x%x)\n",
-				restTime, idx, property, param.processID, param.callerID);
-				ret =  -EFAULT;
-				break;
+				LOG_ERR("Dqe Buf fail,rT(%d),idx(%d),pty(%d)\n",
+				restTime,
+				idx,
+				property);
+			LOG_ERR("pID(0x%x),cID(0x%x)\n",
+				param.processID,
+				param.callerID);
+			ret =  -EFAULT;
+			break;
 			}
 			if (restTime == -512) {
 				LOG_ERR("be stopped, restime(%d)", restTime);
@@ -2413,25 +3218,35 @@ static signed int DIP_P2_BufQue_CTRL_FUNC(struct DIP_P2_BUFQUE_STRUCT param)
 				break;
 			}
 			{
-				LOG_DBG("Dequeue Buffer ok, rT(%d),idx(%d) pty(%d), pID(0x%x),cID(0x%x)\n",
-				restTime, idx, property, param.processID, param.callerID);
-				spin_lock(&(SpinLock_P2FrameList));
-				DIP_P2_BufQue_Erase(property, DIP_P2_BUFQUE_LIST_TAG_PACKAGE, idx);
-				spin_unlock(&(SpinLock_P2FrameList));
+			LOG_DBG("Dequeue Buffer ok, rT(%d),idx(%d), pty(%d)\n",
+				restTime,
+				idx,
+				property);
+			LOG_DBG("pID(0x%x), cID(0x%x)\n",
+				param.processID,
+				param.callerID);
+			spin_lock(&(SpinLock_P2FrameList));
+			DIP_P2_BufQue_Erase(property,
+				DIP_P2_BUFQUE_LIST_TAG_PACKAGE,
+				idx);
+			spin_unlock(&(SpinLock_P2FrameList));
 			}
 		}
 		break;
-	case DIP_P2_BUFQUE_CTRL_WAKE_WAITFRAME:   /* wake all slept users to check buffer is dequeued or not */
+	/* wake all slept users to check buffer is dequeued or not */
+	case DIP_P2_BUFQUE_CTRL_WAKE_WAITFRAME:
 		wake_up_interruptible_all(&P2WaitQueueHead_WaitFrame);
 		break;
-	case DIP_P2_BUFQUE_CTRL_CLAER_ALL:           /* free all recored dequeued buffer */
+	/* free all recored dequeued buffer */
+	case DIP_P2_BUFQUE_CTRL_CLAER_ALL:
 		spin_lock(&(SpinLock_P2FrameList));
 		for (q = 0; q < DIP_P2_BUFQUE_PROPERTY_NUM; q++) {
 			for (i = 0; i < _MAX_SUPPORT_P2_FRAME_NUM_; i++) {
 				P2_FrameUnit_List[q][i].processID = 0x0;
 				P2_FrameUnit_List[q][i].callerID = 0x0;
 				P2_FrameUnit_List[q][i].cqMask = 0x0;
-				P2_FrameUnit_List[q][i].bufSts = DIP_P2_BUF_STATE_NONE;
+				P2_FrameUnit_List[q][i].bufSts =
+					DIP_P2_BUF_STATE_NONE;
 			}
 			P2_FrameUnit_List_Idx[q].start = 0;
 			P2_FrameUnit_List_Idx[q].curr = 0;
@@ -2457,62 +3272,27 @@ static signed int DIP_P2_BufQue_CTRL_FUNC(struct DIP_P2_BUFQUE_STRUCT param)
 	return ret;
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
-static signed int DIP_REGISTER_IRQ_USERKEY(char *userName)
-{
-	int key =  -1;
-	int i = 0;
-
-	spin_lock((spinlock_t *)(&SpinLock_UserKey));
-
-	/* 1. check the current users is full or not */
-	if (FirstUnusedIrqUserKey == IRQ_USER_NUM_MAX) {
-		key = -1;
-	} else {
-		/* 2. check the user had registered or not */
-		for (i = 1; i < FirstUnusedIrqUserKey; i++) {
-			/* index 0 is for all the users that do not register irq first */
-			if (strcmp((void *)IrqUserKey_UserInfo[i].userName, userName) == 0) {
-				key = IrqUserKey_UserInfo[i].userKey;
-				break;
-			}
-		}
-
-		/* 3.return new userkey for user if the user had not registered before */
-		if (key < 0) {
-			/* IrqUserKey_UserInfo[i].userName=userName; */
-			memset((void *)IrqUserKey_UserInfo[i].userName, 0, sizeof(IrqUserKey_UserInfo[i].userName));
-			strncpy((void *)IrqUserKey_UserInfo[i].userName, userName, USERKEY_STR_LEN-1);
-			IrqUserKey_UserInfo[i].userKey = FirstUnusedIrqUserKey;
-			key = FirstUnusedIrqUserKey;
-			FirstUnusedIrqUserKey++;
-		}
-	}
-
-	spin_unlock((spinlock_t *)(&SpinLock_UserKey));
-	LOG_INF("User(%s)key(%d)\n", userName, key);
-	return key;
-}
-
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static signed int DIP_FLUSH_IRQ(struct DIP_WAIT_IRQ_STRUCT *irqinfo)
 {
-	unsigned long flags; /* old: unsigned int flags;*//* FIX to avoid build warning */
+	unsigned long flags;
 
 	LOG_INF("type(%d)userKey(%d)St(0x%x)",
-		irqinfo->Type, irqinfo->EventInfo.UserKey, irqinfo->EventInfo.Status);
+		irqinfo->Type,
+		irqinfo->EventInfo.UserKey,
+		irqinfo->EventInfo.Status);
 
 	if (irqinfo->Type >= DIP_IRQ_TYPE_AMOUNT) {
 		LOG_ERR("FLUSH_IRQ: type error(%d)", irqinfo->Type);
 		return -EFAULT;
 	}
 
-	if (irqinfo->EventInfo.UserKey >= IRQ_USER_NUM_MAX || irqinfo->EventInfo.UserKey < 0) {
-		LOG_ERR("FLUSH_IRQ: userkey error(%d)", irqinfo->EventInfo.UserKey);
+	if (irqinfo->EventInfo.UserKey >= IRQ_USER_NUM_MAX ||
+		irqinfo->EventInfo.UserKey < 0) {
+		LOG_ERR("FLUSH_IRQ: userkey error(%d)",
+			irqinfo->EventInfo.UserKey);
 		return -EFAULT;
 	}
 
@@ -2529,9 +3309,9 @@ static signed int DIP_FLUSH_IRQ(struct DIP_WAIT_IRQ_STRUCT *irqinfo)
 }
 
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static signed int DIP_WaitIrq(struct DIP_WAIT_IRQ_STRUCT *WaitIrq)
 {
 
@@ -2540,10 +3320,11 @@ static signed int DIP_WaitIrq(struct DIP_WAIT_IRQ_STRUCT *WaitIrq)
 	return Ret;
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
-static long DIP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
+/**************************************************************
+ *
+ **************************************************************/
+static long DIP_ioctl(
+	struct file *pFile, unsigned int Cmd, unsigned long Param)
 {
 	signed int Ret = 0;
 	/*  */
@@ -2559,27 +3340,27 @@ static long DIP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 	struct  DIP_P2_BUFQUE_STRUCT    p2QueBuf;
 	unsigned int                 wakelock_ctrl;
 	unsigned int                 module;
-	unsigned long flags; /* old: unsigned int flags;*//* FIX to avoid build warning */
-	int userKey =  -1;
-	struct DIP_REGISTER_USERKEY_STRUCT RegUserKey;
+	unsigned long flags;
 	int i;
 
 	/*  */
 	if (pFile->private_data == NULL) {
-		LOG_WRN("private_data is NULL,(process, pid, tgid)=(%s, %d, %d)\n",
-			current->comm, current->pid, current->tgid);
-		return -EFAULT;
+		LOG_WRN("private_data is NULL,(process,pid,tgid)=(%s,%d,%d)\n",
+		current->comm, current->pid, current->tgid);
+	return -EFAULT;
 	}
 	/*  */
 	pUserInfo = (struct DIP_USER_INFO_STRUCT *)(pFile->private_data);
 	/*  */
 	switch (Cmd) {
 	case DIP_WAKELOCK_CTRL:
-		if (copy_from_user(&wakelock_ctrl, (void *)Param, sizeof(unsigned int)) != 0) {
+		if (copy_from_user(&wakelock_ctrl,
+			(void *)Param,
+			sizeof(unsigned int)) != 0) {
 			LOG_ERR("get DIP_WAKELOCK_CTRL from user fail\n");
 			Ret = -EFAULT;
 		} else {
-			if (wakelock_ctrl == 1) {       /* Enable     wakelock */
+			if (wakelock_ctrl == 1) {    /* Enable     wakelock */
 				if (g_bWaitLock == 0) {
 #ifdef CONFIG_PM_WAKELOCKS
 					__pm_stay_awake(&dip_wake_lock);
@@ -2603,7 +3384,9 @@ static long DIP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 		}
 		break;
 	case DIP_RESET_BY_HWMODULE: {
-		if (copy_from_user(&module, (void *)Param, sizeof(unsigned int)) != 0) {
+		if (copy_from_user(&module,
+			(void *)Param,
+			sizeof(unsigned int)) != 0) {
 			LOG_ERR("get hwmodule from user fail\n");
 			Ret = -EFAULT;
 		} else {
@@ -2612,8 +3395,10 @@ static long DIP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 		break;
 	}
 	case DIP_READ_REGISTER: {
-		if (copy_from_user(&RegIo, (void *)Param, sizeof(struct DIP_REG_IO_STRUCT)) == 0) {
-			/* 2nd layer behavoir of copy from user is implemented in DIP_ReadReg(...) */
+		if (copy_from_user(&RegIo,
+			(void *)Param,
+			sizeof(struct DIP_REG_IO_STRUCT)) == 0) {
+/* 2nd layer behavoir of copy from user is implemented in DIP_ReadReg(...) */
 			Ret = DIP_ReadReg(&RegIo);
 		} else {
 			LOG_ERR("copy_from_user failed\n");
@@ -2622,8 +3407,10 @@ static long DIP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 		break;
 	}
 	case DIP_WRITE_REGISTER: {
-		if (copy_from_user(&RegIo, (void *)Param, sizeof(struct DIP_REG_IO_STRUCT)) == 0) {
-			/* 2nd layer behavoir of copy from user is implemented in DIP_WriteReg(...) */
+		if (copy_from_user(&RegIo,
+			(void *)Param,
+			sizeof(struct DIP_REG_IO_STRUCT)) == 0) {
+/* 2nd layer behavoir of copy from user is implemented in DIP_WriteReg(...) */
 			Ret = DIP_WriteReg(&RegIo);
 		} else {
 			LOG_ERR("copy_from_user failed\n");
@@ -2632,23 +3419,32 @@ static long DIP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 		break;
 	}
 	case DIP_WAIT_IRQ: {
-		if (copy_from_user(&IrqInfo, (void *)Param, sizeof(struct DIP_WAIT_IRQ_STRUCT)) == 0) {
+		if (copy_from_user(&IrqInfo,
+			(void *)Param,
+			sizeof(struct DIP_WAIT_IRQ_STRUCT)) == 0) {
 			/*  */
-			if ((IrqInfo.Type >= DIP_IRQ_TYPE_AMOUNT) || (IrqInfo.Type < 0)) {
+			if ((IrqInfo.Type >= DIP_IRQ_TYPE_AMOUNT) ||
+				(IrqInfo.Type < 0)) {
 				Ret = -EFAULT;
 				LOG_ERR("invalid type(%d)\n", IrqInfo.Type);
 				goto EXIT;
 			}
 
-			if ((IrqInfo.EventInfo.UserKey >= IRQ_USER_NUM_MAX) || (IrqInfo.EventInfo.UserKey < 0)) {
-				LOG_ERR("invalid userKey(%d), max(%d), force userkey = 0\n",
-					IrqInfo.EventInfo.UserKey, IRQ_USER_NUM_MAX);
-				IrqInfo.EventInfo.UserKey = 0;
+			if ((IrqInfo.EventInfo.UserKey >= IRQ_USER_NUM_MAX) ||
+				(IrqInfo.EventInfo.UserKey < 0)) {
+				LOG_ERR("usrKey(%d),max(%d),force usrkey = 0\n",
+				IrqInfo.EventInfo.UserKey,
+				IRQ_USER_NUM_MAX);
+			IrqInfo.EventInfo.UserKey = 0;
 			}
 #ifdef ENABLE_WAITIRQ_LOG
-			LOG_INF("IRQ type(%d), userKey(%d), timeout(%d), userkey(%d), status(%d)\n",
-				IrqInfo.Type, IrqInfo.EventInfo.UserKey, IrqInfo.EventInfo.Timeout,
-				IrqInfo.EventInfo.UserKey, IrqInfo.EventInfo.Status);
+			LOG_INF("IRQ type(%d), userKey(%d), timeout(%d)\n",
+				IrqInfo.Type,
+				IrqInfo.EventInfo.UserKey,
+				IrqInfo.EventInfo.Timeout);
+			LOG_INF("userkey(%d), status(%d)\n",
+				IrqInfo.EventInfo.UserKey,
+				IrqInfo.EventInfo.Status);
 #endif
 			Ret = DIP_WaitIrq(&IrqInfo);
 		} else {
@@ -2658,73 +3454,74 @@ static long DIP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 		break;
 	}
 	case DIP_CLEAR_IRQ: {
-		if (copy_from_user(&ClearIrq, (void *)Param, sizeof(struct DIP_CLEAR_IRQ_STRUCT)) == 0) {
-			LOG_DBG("DIP_CLEAR_IRQ Type(%d)\n", ClearIrq.Type);
+	if (copy_from_user(&ClearIrq,
+		(void *)Param,
+		sizeof(struct DIP_CLEAR_IRQ_STRUCT)) == 0) {
+		LOG_DBG("DIP_CLEAR_IRQ Type(%d)\n", ClearIrq.Type);
 
-			if ((ClearIrq.Type >= DIP_IRQ_TYPE_AMOUNT) || (ClearIrq.Type < 0)) {
-				Ret = -EFAULT;
-				LOG_ERR("invalid type(%d)\n", ClearIrq.Type);
-				goto EXIT;
-			}
-
-			/*  */
-			if ((ClearIrq.EventInfo.UserKey >= IRQ_USER_NUM_MAX) || (ClearIrq.EventInfo.UserKey < 0)) {
-				LOG_ERR("errUserEnum(%d)", ClearIrq.EventInfo.UserKey);
-				Ret = -EFAULT;
-				goto EXIT;
-			}
-
-			i = ClearIrq.EventInfo.UserKey;/*avoid line over 120 char per line */
-			LOG_DBG("DIP_CLEAR_IRQ:Type(%d),Status(0x%x),IrqStatus(0x%x)\n",
-				ClearIrq.Type, ClearIrq.EventInfo.Status,
-				IspInfo.IrqInfo.Status[ClearIrq.Type][i]);
-			spin_lock_irqsave(&(IspInfo.SpinLockIrq[ClearIrq.Type]), flags);
-			IspInfo.IrqInfo.Status[ClearIrq.Type][ClearIrq.EventInfo.UserKey] &=
-				(~ClearIrq.EventInfo.Status);
-			spin_unlock_irqrestore(&(IspInfo.SpinLockIrq[ClearIrq.Type]), flags);
-		} else {
-			LOG_ERR("copy_from_user failed\n");
+		if ((ClearIrq.Type >= DIP_IRQ_TYPE_AMOUNT) ||
+			(ClearIrq.Type < 0)) {
 			Ret = -EFAULT;
+			LOG_ERR("invalid type(%d)\n", ClearIrq.Type);
+			goto EXIT;
 		}
-		break;
+
+		/*  */
+		if ((ClearIrq.EventInfo.UserKey >= IRQ_USER_NUM_MAX) ||
+			(ClearIrq.EventInfo.UserKey < 0)) {
+			LOG_ERR("errUserEnum(%d)", ClearIrq.EventInfo.UserKey);
+			Ret = -EFAULT;
+			goto EXIT;
+		}
+
+		i = ClearIrq.EventInfo.UserKey;
+		LOG_DBG("DIP_CLEAR_IRQ:Type(%d),Status(0x%x),IrqStatus(0x%x)\n",
+			ClearIrq.Type, ClearIrq.EventInfo.Status,
+			IspInfo.IrqInfo.Status[ClearIrq.Type][i]);
+		spin_lock_irqsave(&(IspInfo.SpinLockIrq[ClearIrq.Type]),
+			flags);
+		IspInfo.IrqInfo
+			.Status[ClearIrq.Type][ClearIrq.EventInfo.UserKey] &=
+			(~ClearIrq.EventInfo.Status);
+		spin_unlock_irqrestore(
+			&(IspInfo.SpinLockIrq[ClearIrq.Type]),
+			flags);
+	} else {
+		LOG_ERR("copy_from_user failed\n");
+		Ret = -EFAULT;
+	}
+	break;
 	}
 	/*  */
-	case DIP_REGISTER_IRQ_USER_KEY:
-		if (copy_from_user(&RegUserKey, (void *)Param, sizeof(struct DIP_REGISTER_USERKEY_STRUCT)) == 0) {
-			userKey = DIP_REGISTER_IRQ_USERKEY(RegUserKey.userName);
-			RegUserKey.userKey = userKey;
-			if (copy_to_user((void *)Param, &RegUserKey, sizeof(struct DIP_REGISTER_USERKEY_STRUCT)) != 0)
-				LOG_ERR("copy_to_user failed\n");
-
-			if (RegUserKey.userKey < 0) {
-				LOG_ERR("query irq user key fail\n");
-				Ret = -1;
-			}
-		} else {
-			LOG_ERR("copy from user fail\n");
-		}
-
-		break;
-	/*  */
 	case DIP_FLUSH_IRQ_REQUEST:
-		if (copy_from_user(&IrqInfo, (void *)Param, sizeof(struct DIP_WAIT_IRQ_STRUCT)) == 0) {
-			if ((IrqInfo.EventInfo.UserKey >= IRQ_USER_NUM_MAX) || (IrqInfo.EventInfo.UserKey < 0)) {
-				LOG_ERR("invalid userKey(%d), max(%d)\n", IrqInfo.EventInfo.UserKey, IRQ_USER_NUM_MAX);
-				Ret = -EFAULT;
-				break;
-			}
-			if ((IrqInfo.Type >= DIP_IRQ_TYPE_AMOUNT) || (IrqInfo.Type < 0)) {
-				LOG_ERR("invalid type(%d), max(%d)\n", IrqInfo.Type, DIP_IRQ_TYPE_AMOUNT);
-				Ret = -EFAULT;
-				break;
-			}
-
-			Ret = DIP_FLUSH_IRQ(&IrqInfo);
+	if (copy_from_user(&IrqInfo,
+		(void *)Param,
+		sizeof(struct DIP_WAIT_IRQ_STRUCT)) == 0) {
+		if ((IrqInfo.EventInfo.UserKey >= IRQ_USER_NUM_MAX) ||
+			(IrqInfo.EventInfo.UserKey < 0)) {
+			LOG_ERR("invalid userKey(%d), max(%d)\n",
+				IrqInfo.EventInfo.UserKey,
+				IRQ_USER_NUM_MAX);
+			Ret = -EFAULT;
+			break;
 		}
-		break;
+		if ((IrqInfo.Type >= DIP_IRQ_TYPE_AMOUNT) ||
+			(IrqInfo.Type < 0)) {
+			LOG_ERR("invalid type(%d), max(%d)\n",
+				IrqInfo.Type,
+				DIP_IRQ_TYPE_AMOUNT);
+			Ret = -EFAULT;
+			break;
+		}
+
+		Ret = DIP_FLUSH_IRQ(&IrqInfo);
+	}
+	break;
 	/*  */
 	case DIP_P2_BUFQUE_CTRL:
-		if (copy_from_user(&p2QueBuf, (void *)Param, sizeof(struct DIP_P2_BUFQUE_STRUCT)) == 0) {
+		if (copy_from_user(&p2QueBuf,
+			(void *)Param,
+			sizeof(struct DIP_P2_BUFQUE_STRUCT)) == 0) {
 			p2QueBuf.processID = pUserInfo->Pid;
 			Ret = DIP_P2_BufQue_CTRL_FUNC(p2QueBuf);
 		} else {
@@ -2732,13 +3529,15 @@ static long DIP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 			Ret = -EFAULT;
 		}
 		break;
-
 	case DIP_DEBUG_FLAG:
-		if (copy_from_user(DebugFlag, (void *)Param, sizeof(unsigned int)) == 0) {
+		if (copy_from_user(DebugFlag,
+			(void *)Param,
+			sizeof(unsigned int)) == 0) {
 
 			IspInfo.DebugMask = DebugFlag[0];
 
-			/* LOG_DBG("FBC kernel debug level = %x\n",IspInfo.DebugMask); */
+			/* LOG_DBG("FBC kernel debug level = %x\n", */
+			/* IspInfo.DebugMask); */
 		} else {
 			LOG_ERR("copy_from_user failed\n");
 			Ret = -EFAULT;
@@ -2747,28 +3546,46 @@ static long DIP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 
 		break;
 	case DIP_GET_DUMP_INFO: {
-		if (copy_to_user((void *)Param, &g_dumpInfo, sizeof(struct DIP_GET_DUMP_INFO_STRUCT)) != 0) {
+		if (copy_to_user((void *)Param,
+			&g_dumpInfo,
+			sizeof(struct DIP_GET_DUMP_INFO_STRUCT)) != 0) {
 			LOG_ERR("DIP_GET_DUMP_INFO copy to user fail");
 			Ret = -EFAULT;
 		}
 		break;
 	}
 	case DIP_DUMP_BUFFER: {
-		if (copy_from_user(&DumpBufStruct, (void *)Param, sizeof(struct DIP_DUMP_BUFFER_STRUCT)) == 0) {
-			/* 2nd layer behavoir of copy from user is implemented in DIP_DumpTuningBuffer(...) */
+		if (copy_from_user(&DumpBufStruct,
+			(void *)Param,
+			sizeof(struct DIP_DUMP_BUFFER_STRUCT)) == 0) {
+		/* 2nd layer behavoir of copy from user */
+		/* is implemented in DIP_DumpTuningBuffer */
 			Ret = DIP_DumpBuffer(&DumpBufStruct);
 		} else {
-			LOG_ERR("DIP_DUMP_TUNING_BUFFER copy_from_user failed\n");
+			LOG_ERR("DIP_DUMP_BUFFER copy_from_user failed\n");
 			Ret = -EFAULT;
 		}
 		break;
 	}
 	case DIP_SET_MEM_INFO: {
-		if (copy_from_user(&MemInfoStruct, (void *)Param, sizeof(struct DIP_MEM_INFO_STRUCT)) == 0) {
-			/* 2nd layer behavoir of copy from user is implemented in DIP_SetMemInfo(...) */
+		if (copy_from_user(&MemInfoStruct,
+			(void *)Param,
+			sizeof(struct DIP_MEM_INFO_STRUCT)) == 0) {
+		/* 2nd layer behavoir of copy from user */
+		/* is implemented in DIP_SetMemInfo */
 			Ret = DIP_SetMemInfo(&MemInfoStruct);
 		} else {
 			LOG_ERR("DIP_SET_MEM_INFO copy_from_user failed\n");
+			Ret = -EFAULT;
+		}
+		break;
+	}
+	case DIP_GET_GCE_FIRST_ERR: {
+		if (copy_from_user(&g_dip1sterr,
+			(void *)Param,
+			sizeof(unsigned int)) == 0) {
+		} else {
+			LOG_ERR("DIP_GET_GCE_FIRST_ERR failed\n");
 			Ret = -EFAULT;
 		}
 		break;
@@ -2783,17 +3600,20 @@ static long DIP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 	/*  */
 EXIT:
 	if (Ret != 0)
-		LOG_ERR("Fail, Cmd(%d), Pid(%d), (process, pid, tgid)=(%s, %d, %d)\n",
-			Cmd, pUserInfo->Pid, current->comm, current->pid, current->tgid);
+		LOG_ERR("Fail,Cmd(%d),Pid(%d),(process,pid,tgid)=(%s,%d,%d)\n",
+		Cmd, pUserInfo->Pid,
+		current->comm,
+		current->pid,
+		current->tgid);
 	/*  */
 	return Ret;
 }
 
 #ifdef CONFIG_COMPAT
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static int compat_get_dip_read_register_data(
 	struct compat_DIP_REG_IO_STRUCT __user *data32,
 	struct DIP_REG_IO_STRUCT __user *data)
@@ -2863,7 +3683,8 @@ static int compat_get_dip_mem_info(
 	return err;
 }
 
-static long DIP_ioctl_compat(struct file *filp, unsigned int cmd, unsigned long arg)
+static long DIP_ioctl_compat(
+	struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	long ret = 0;
 
@@ -2887,7 +3708,8 @@ static long DIP_ioctl_compat(struct file *filp, unsigned int cmd, unsigned long 
 			LOG_INF("compat_get_dip_read_register_data error!!!\n");
 			return err;
 		}
-		ret = filp->f_op->unlocked_ioctl(filp, DIP_READ_REGISTER, (unsigned long)data);
+		ret = filp->f_op->unlocked_ioctl(filp, DIP_READ_REGISTER,
+			(unsigned long)data);
 		err = compat_put_dip_read_register_data(data32, data);
 		if (err) {
 			LOG_INF("compat_put_dip_read_register_data error!!!\n");
@@ -2911,25 +3733,25 @@ static long DIP_ioctl_compat(struct file *filp, unsigned int cmd, unsigned long 
 			LOG_INF("COMPAT_DIP_WRITE_REGISTER error!!!\n");
 			return err;
 		}
-		ret = filp->f_op->unlocked_ioctl(filp, DIP_WRITE_REGISTER, (unsigned long)data);
+		ret = filp->f_op->unlocked_ioctl(filp, DIP_WRITE_REGISTER,
+			(unsigned long)data);
 		return ret;
 	}
 
 	case COMPAT_DIP_DEBUG_FLAG: {
 		/* compat_ptr(arg) will convert the arg */
-		ret = filp->f_op->unlocked_ioctl(filp, DIP_DEBUG_FLAG, (unsigned long)compat_ptr(arg));
+		ret = filp->f_op->unlocked_ioctl(filp, DIP_DEBUG_FLAG,
+			(unsigned long)compat_ptr(arg));
 		return ret;
 	}
 	case COMPAT_DIP_WAKELOCK_CTRL: {
-		ret =
-			filp->f_op->unlocked_ioctl(filp, DIP_WAKELOCK_CTRL,
-						   (unsigned long)compat_ptr(arg));
+		ret = filp->f_op->unlocked_ioctl(filp, DIP_WAKELOCK_CTRL,
+			(unsigned long)compat_ptr(arg));
 		return ret;
 	}
 	case COMPAT_DIP_RESET_BY_HWMODULE: {
-		ret =
-			filp->f_op->unlocked_ioctl(filp, DIP_RESET_BY_HWMODULE,
-						   (unsigned long)compat_ptr(arg));
+		ret = filp->f_op->unlocked_ioctl(filp, DIP_RESET_BY_HWMODULE,
+			(unsigned long)compat_ptr(arg));
 		return ret;
 	}
 	case COMPAT_DIP_DUMP_BUFFER: {
@@ -2948,7 +3770,9 @@ static long DIP_ioctl_compat(struct file *filp, unsigned int cmd, unsigned long 
 			LOG_INF("COMPAT_DIP_DUMP_BUFFER error!!!\n");
 			return err;
 		}
-		ret = filp->f_op->unlocked_ioctl(filp, DIP_DUMP_BUFFER, (unsigned long)data);
+		ret = filp->f_op->unlocked_ioctl(filp,
+			DIP_DUMP_BUFFER,
+			(unsigned long)data);
 		return ret;
 	}
 	case COMPAT_DIP_SET_MEM_INFO: {
@@ -2965,13 +3789,15 @@ static long DIP_ioctl_compat(struct file *filp, unsigned int cmd, unsigned long 
 			LOG_INF("COMPAT_DIP_SET_MEM_INFO error!!!\n");
 			return err;
 		}
-		ret = filp->f_op->unlocked_ioctl(filp, DIP_SET_MEM_INFO, (unsigned long)data);
+		ret = filp->f_op->unlocked_ioctl(filp,
+			DIP_SET_MEM_INFO,
+			(unsigned long)data);
 		return ret;
 	}
+	case DIP_GET_GCE_FIRST_ERR:
 	case DIP_GET_DUMP_INFO:
 	case DIP_WAIT_IRQ:
 	case DIP_CLEAR_IRQ: /* structure (no pointer) */
-	case DIP_REGISTER_IRQ_USER_KEY:
 	case DIP_FLUSH_IRQ_REQUEST:
 	case DIP_P2_BUFQUE_CTRL:/* structure (no pointer) */
 		return filp->f_op->unlocked_ioctl(filp, cmd, arg);
@@ -2983,12 +3809,11 @@ static long DIP_ioctl_compat(struct file *filp, unsigned int cmd, unsigned long 
 
 #endif
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static signed int DIP_open(
-	struct inode *pInode,
-	struct file *pFile)
+	struct inode *pInode, struct file *pFile)
 {
 	signed int Ret = 0;
 	unsigned int i;
@@ -3003,11 +3828,13 @@ static signed int DIP_open(
 	spin_lock(&(IspInfo.SpinLockIspRef));
 
 	pFile->private_data = NULL;
-	pFile->private_data = kmalloc(sizeof(struct DIP_USER_INFO_STRUCT), GFP_ATOMIC);
+	pFile->private_data = kmalloc(
+		sizeof(struct DIP_USER_INFO_STRUCT),
+		GFP_ATOMIC);
 	if (pFile->private_data == NULL) {
-		LOG_DBG("ERROR: kmalloc failed, (process, pid, tgid)=(%s, %d, %d)\n",
-			current->comm, current->pid, current->tgid);
-		Ret = -ENOMEM;
+		LOG_ERR("kmalloc failed,(com,pid,tgid)=(%s,%d,%d)\n",
+		current->comm, current->pid, current->tgid);
+	Ret = -ENOMEM;
 	} else {
 		pUserInfo = (struct DIP_USER_INFO_STRUCT *)pFile->private_data;
 		pUserInfo->Pid = current->pid;
@@ -3017,8 +3844,11 @@ static signed int DIP_open(
 	if (IspInfo.UserCount > 0) {
 		IspInfo.UserCount++;
 		spin_unlock(&(IspInfo.SpinLockIspRef));
-		LOG_DBG("Curr UserCount(%d), (process, pid, tgid)=(%s, %d, %d), users exist\n",
-			IspInfo.UserCount, current->comm, current->pid, current->tgid);
+		LOG_DBG("Curr UserCount(%d)\n", IspInfo.UserCount);
+		LOG_DBG("(process, pid, tgid) = (%s, %d, %d), users exist\n",
+			current->comm,
+			current->pid,
+			current->tgid);
 		goto EXIT;
 	} else {
 		IspInfo.UserCount++;
@@ -3026,15 +3856,24 @@ static signed int DIP_open(
 
 		/* kernel log limit to (current+150) lines per second */
 	#if (_K_LOG_ADJUST == 1)
+#ifndef EP_CODE_MARK_KERNEL414
 		DIP_pr_detect_count = get_detect_count();
 		i = DIP_pr_detect_count + 150;
 		set_detect_count(i);
-
-		LOG_DBG("Curr UserCount(%d), (process, pid, tgid)=(%s, %d, %d), log_limit_line(%d), first user\n",
-			IspInfo.UserCount, current->comm, current->pid, current->tgid, i);
+		LOG_DBG("Curr UserCount(%d)\n",	IspInfo.UserCount);
+		LOG_DBG("(process, pid, tgid)=(%s, %d, %d)\n",
+			current->comm,
+			current->pid,
+			current->tgid);
+		LOG_DBG("log_limit_line(%d), first user\n", i);
+#endif
 	#else
-		LOG_DBG("Curr UserCount(%d), (process, pid, tgid)=(%s, %d, %d), first user\n",
-			IspInfo.UserCount, current->comm, current->pid, current->tgid);
+		LOG_DBG("Curr UserCount(%d)\n", IspInfo.UserCount);
+		LOG_DBG("(process, pid, tgid)=(%s, %d, %d), first user\n",
+			current->comm,
+			current->pid,
+			current->tgid);
+
 	#endif
 	}
 
@@ -3042,7 +3881,9 @@ static signed int DIP_open(
 	/*  */
 	for (i = 0; i < IRQ_USER_NUM_MAX; i++) {
 		FirstUnusedIrqUserKey = 1;
-		strncpy((void *)IrqUserKey_UserInfo[i].userName, "DefaultUserNametoAllocMem", USERKEY_STR_LEN);
+		strncpy((void *)IrqUserKey_UserInfo[i].userName,
+			"DefaultUserNametoAllocMem",
+			USERKEY_STR_LEN);
 		IrqUserKey_UserInfo[i].userKey = -1;
 	}
 	/*  */
@@ -3076,7 +3917,7 @@ static signed int DIP_open(
 	g_regScen = 0xa5a5a5a5;
 	spin_unlock((spinlock_t *)(&SpinLockRegScen));
 	/*  */
-
+	g_dip1sterr = DIP_GCE_EVENT_NONE;
 	/* mutex_lock(&gDipMutex); */  /* Protect the Multi Process */
 	g_bIonBufferAllocated = MFALSE;
 
@@ -3085,8 +3926,10 @@ static signed int DIP_open(
 	g_dip_p2_imem_buf.ion_fd = 0;
 	g_dip_p2_imem_buf.va = 0;
 	g_dip_p2_imem_buf.pa = 0;
-	g_dip_p2_imem_buf.length = ((4*DIP_REG_RANGE) + (2*MAX_ISP_TILE_TDR_HEX_NO)
-	 + (2*MAX_DIP_CMDQ_BUFFER_SIZE) + (8*0x400));
+	g_dip_p2_imem_buf.length = ((4*DIP_REG_RANGE) +
+		(2*MAX_ISP_TILE_TDR_HEX_NO) +
+		(2*MAX_DIP_CMDQ_BUFFER_SIZE) +
+		(8*0x400));
 	dip_p2_ion_client = NULL;
 	if ((dip_p2_ion_client == NULL) && (g_ion_device))
 		dip_p2_ion_client = ion_client_create(g_ion_device, "dip_p2");
@@ -3094,20 +3937,35 @@ static signed int DIP_open(
 		LOG_ERR("invalid dip_p2_ion_client client!\n");
 	} else {
 		if (dip_allocbuf(&g_dip_p2_imem_buf) >= 0)
-		g_bIonBufferAllocated = MTRUE;
+			g_bIonBufferAllocated = MTRUE;
 	}
 #endif
 	if (g_bIonBufferAllocated == MTRUE) {
 #ifdef AEE_DUMP_BY_USING_ION_MEMORY
-		g_pPhyDIPBuffer = (unsigned int *)(uintptr_t)(g_dip_p2_imem_buf.va);
-		g_pTuningBuffer = (unsigned int *)(((uintptr_t)g_pPhyDIPBuffer) + DIP_REG_RANGE);
-		g_pTpipeBuffer = (unsigned int *)(((uintptr_t)g_pTuningBuffer) + DIP_REG_RANGE);
-		g_pVirDIPBuffer = (unsigned int *)(((uintptr_t)g_pTpipeBuffer) + MAX_ISP_TILE_TDR_HEX_NO);
-		g_pCmdqBuffer = (unsigned int *)(((uintptr_t)g_pVirDIPBuffer) + DIP_REG_RANGE);
+		g_pPhyDIPBuffer =
+			(unsigned int *)(uintptr_t)(g_dip_p2_imem_buf.va);
+		g_pTuningBuffer =
+			(unsigned int *)(((uintptr_t)g_pPhyDIPBuffer) +
+			DIP_REG_RANGE);
+		g_pTpipeBuffer =
+			(unsigned int *)(((uintptr_t)g_pTuningBuffer) +
+			DIP_REG_RANGE);
+		g_pVirDIPBuffer =
+			(unsigned int *)(((uintptr_t)g_pTpipeBuffer) +
+			MAX_ISP_TILE_TDR_HEX_NO);
+		g_pCmdqBuffer =
+			(unsigned int *)(((uintptr_t)g_pVirDIPBuffer) +
+			DIP_REG_RANGE);
 		/* Kernel Exception */
-		g_pKWTpipeBuffer = (unsigned int *)(((uintptr_t)g_pCmdqBuffer) + MAX_DIP_CMDQ_BUFFER_SIZE);
-		g_pKWCmdqBuffer = (unsigned int *)(((uintptr_t)g_pKWTpipeBuffer) + MAX_ISP_TILE_TDR_HEX_NO);
-		g_pKWVirDIPBuffer = (unsigned int *)(((uintptr_t)g_pKWCmdqBuffer) + MAX_DIP_CMDQ_BUFFER_SIZE);
+		g_pKWTpipeBuffer =
+			(unsigned int *)(((uintptr_t)g_pCmdqBuffer) +
+			MAX_DIP_CMDQ_BUFFER_SIZE);
+		g_pKWCmdqBuffer =
+			(unsigned int *)(((uintptr_t)g_pKWTpipeBuffer) +
+			MAX_ISP_TILE_TDR_HEX_NO);
+		g_pKWVirDIPBuffer =
+			(unsigned int *)(((uintptr_t)g_pKWCmdqBuffer) +
+			MAX_DIP_CMDQ_BUFFER_SIZE);
 #endif
 	} else {
 		/* Navtive Exception */
@@ -3126,6 +3984,7 @@ static signed int DIP_open(
 	g_dumpInfo.tdri_baseaddr = 0xFFFFFFFF;/* 0x15022304 */
 	g_dumpInfo.imgi_baseaddr = 0xFFFFFFFF;/* 0x15022500 */
 	g_dumpInfo.dmgi_baseaddr = 0xFFFFFFFF;/* 0x15022620 */
+	g_dumpInfo.cmdq_baseaddr = 0xFFFFFFFF;/* 0x15022620 */
 	g_tdriaddr = 0xffffffff;
 	g_cmdqaddr = 0xffffffff;
 	DumpBufferField = 0;
@@ -3166,17 +4025,19 @@ static signed int DIP_open(
 EXIT:
 	mutex_unlock(&gDipMutex);
 
-	LOG_INF("- X. Ret: %d. UserCount: %d, G_u4DipEnClkCnt: %d.\n", Ret, IspInfo.UserCount, G_u4DipEnClkCnt);
+	LOG_INF("- X. Ret: %d. UserCount: %d, G_u4DipEnClkCnt: %d.\n",
+		Ret,
+		IspInfo.UserCount,
+		G_u4DipEnClkCnt);
 	return Ret;
 
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static signed int DIP_release(
-	struct inode *pInode,
-	struct file *pFile)
+	struct inode *pInode, struct file *pFile)
 {
 	struct DIP_USER_INFO_STRUCT *pUserInfo;
 	unsigned int i = 0;
@@ -3199,8 +4060,11 @@ static signed int DIP_release(
 	IspInfo.UserCount--;
 	if (IspInfo.UserCount > 0) {
 		spin_unlock(&(IspInfo.SpinLockIspRef));
-		LOG_DBG("Curr UserCount(%d), (process, pid, tgid)=(%s, %d, %d),	users exist",
-			IspInfo.UserCount, current->comm, current->pid, current->tgid);
+		LOG_DBG("Curr UserCount(%d)\n", IspInfo.UserCount);
+		LOG_DBG("(process, pid, tgid)=(%s, %d, %d), users exist\n",
+			current->comm,
+			current->pid,
+			current->tgid);
 		goto EXIT;
 	} else {
 		spin_unlock(&(IspInfo.SpinLockIspRef));
@@ -3208,11 +4072,18 @@ static signed int DIP_release(
 
 	/* kernel log limit back to default */
 #if (_K_LOG_ADJUST == 1)
+#ifndef EP_CODE_MARK_KERNEL414
 	set_detect_count(DIP_pr_detect_count);
 #endif
+#endif
 	/*      */
-	LOG_DBG("Curr UserCount(%d), (process, pid, tgid)=(%s, %d, %d), log_limit_line(%d),	last user",
-		IspInfo.UserCount, current->comm, current->pid, current->tgid, DIP_pr_detect_count);
+	LOG_DBG("Curr UserCount(%d), (process, pid, tgid) = (%s, %d, %d)\n",
+		IspInfo.UserCount,
+		current->comm,
+		current->pid,
+		current->tgid);
+	LOG_DBG("log_limit_line(%d), last user\n",
+		DIP_pr_detect_count);
 
 	if (g_bWaitLock == 1) {
 #ifdef CONFIG_PM_WAKELOCKS
@@ -3226,7 +4097,9 @@ static signed int DIP_release(
 	/*      */
 	for (i = 0; i < IRQ_USER_NUM_MAX; i++) {
 		FirstUnusedIrqUserKey = 1;
-		strncpy((void *)IrqUserKey_UserInfo[i].userName, "DefaultUserNametoAllocMem", USERKEY_STR_LEN);
+		strncpy((void *)IrqUserKey_UserInfo[i].userName,
+			"DefaultUserNametoAllocMem",
+			USERKEY_STR_LEN);
 		IrqUserKey_UserInfo[i].userKey = -1;
 	}
 	/* mutex_lock(&gDipMutex); */  /* Protect the Multi Process */
@@ -3310,15 +4183,18 @@ static signed int DIP_release(
 	LOG_DBG("dip release G_u4DipEnClkCnt: %d", G_u4DipEnClkCnt);
 EXIT:
 	mutex_unlock(&gDipMutex);
-	LOG_INF("- X. UserCount: %d. G_u4DipEnClkCnt: %d", IspInfo.UserCount, G_u4DipEnClkCnt);
+	LOG_INF("- X. UserCount: %d. G_u4DipEnClkCnt: %d",
+		IspInfo.UserCount,
+		G_u4DipEnClkCnt);
 	return 0;
 }
 
 
-/*******************************************************************************
-*
-********************************************************************************/
-static signed int DIP_mmap(struct file *pFile, struct vm_area_struct *pVma)
+/**************************************************************
+ *
+ **************************************************************/
+static signed int DIP_mmap(
+	struct file *pFile, struct vm_area_struct *pVma)
 {
 	unsigned long length = 0;
 	unsigned int pfn = 0x0;
@@ -3329,15 +4205,22 @@ static signed int DIP_mmap(struct file *pFile, struct vm_area_struct *pVma)
 	pVma->vm_page_prot = pgprot_noncached(pVma->vm_page_prot);
 	pfn = pVma->vm_pgoff << PAGE_SHIFT;
 
-	/*LOG_INF("DIP_mmap: vm_pgoff(0x%lx),pfn(0x%x),phy(0x%lx),vm_start(0x%lx),vm_end(0x%lx),length(0x%lx)\n",
-	*	pVma->vm_pgoff, pfn, pVma->vm_pgoff << PAGE_SHIFT, pVma->vm_start, pVma->vm_end, length);
-	*/
+	/*LOG_INF("DIP_mmap: vm_pgoff(0x%lx),pfn(0x%x),phy(0x%lx), */
+		/* vm_start(0x%lx),vm_end(0x%lx),length(0x%lx)\n", */
+		/* pVma->vm_pgoff, */
+		/* pfn, */
+		/* pVma->vm_pgoff << PAGE_SHIFT, */
+		/* pVma->vm_start, */
+		/* pVma->vm_end, */
+		/* ength); */
+
 
 	switch (pfn) {
 	case DIP_A_BASE_HW:
 		if (length > DIP_REG_RANGE) {
-			LOG_ERR("mmap range error :module(0x%x),length(0x%lx),DIP_REG_RANGE(0x%x)!\n",
-				pfn, length, DIP_REG_RANGE);
+			LOG_ERR("mmap range error\n");
+			LOG_ERR("mod(0x%x),len(0x%lx),dip_regsize(0x%x)\n",
+			pfn, length, DIP_REG_RANGE);
 			return -EAGAIN;
 		}
 		break;
@@ -3345,16 +4228,20 @@ static signed int DIP_mmap(struct file *pFile, struct vm_area_struct *pVma)
 		LOG_ERR("Illegal starting HW addr for mmap!\n");
 		return -EAGAIN;
 	}
-	if (remap_pfn_range(pVma, pVma->vm_start, pVma->vm_pgoff, pVma->vm_end - pVma->vm_start, pVma->vm_page_prot))
+	if (remap_pfn_range(pVma,
+		pVma->vm_start,
+		pVma->vm_pgoff,
+		pVma->vm_end - pVma->vm_start,
+		pVma->vm_page_prot))
 		return -EAGAIN;
 
 	/*  */
 	return 0;
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 
 static dev_t IspDevNo;
 static struct cdev *pIspCharDrv;
@@ -3372,9 +4259,9 @@ static const struct file_operations IspFileOper = {
 #endif
 };
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static inline void DIP_UnregCharDev(void)
 {
 	LOG_DBG("- E.");
@@ -3388,9 +4275,9 @@ static inline void DIP_UnregCharDev(void)
 	unregister_chrdev_region(IspDevNo, 1);
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static inline signed int DIP_RegCharDev(void)
 {
 	signed int Ret = 0;
@@ -3431,9 +4318,9 @@ EXIT:
 	return Ret;
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static signed int DIP_probe(struct platform_device *pDev)
 {
 	signed int Ret = 0;
@@ -3454,24 +4341,27 @@ static signed int DIP_probe(struct platform_device *pDev)
 #ifdef CONFIG_OF
 
 	if (pDev == NULL) {
-		dev_err(&pDev->dev, "pDev is NULL");
+		LOG_INF("pDev is NULL");
 		return -ENXIO;
 	}
 
 	nr_dip_devs += 1;
 #if 1
-	_dipdev = krealloc(dip_devs, sizeof(struct dip_device) * nr_dip_devs, GFP_KERNEL);
+	_dipdev = krealloc(dip_devs,
+		sizeof(struct dip_device) * nr_dip_devs,
+		GFP_KERNEL);
 	if (!_dipdev) {
-		dev_err(&pDev->dev, "Unable to allocate dip_devs\n");
+		LOG_INF("Unable to allocate dip_devs\n");
 		return -ENOMEM;
 	}
 	dip_devs = _dipdev;
 
 #else
-	/* WARNING:KREALLOC_ARG_REUSE:Reusing the krealloc arg is almost always a bug */
-	dip_devs = KREALLOC(dip_devs, sizeof(struct dip_device) * nr_dip_devs, GFP_KERNEL);
+	/* WARNING: Reusing the krealloc arg is almost always a bug */
+	dip_devs = KREALLOC(dip_devs,
+		sizeof(struct dip_device) * nr_dip_devs, GFP_KERNEL);
 	if (!dip_devs) {
-		dev_err(&pDev->dev, "Unable to allocate dip_devs\n");
+		LOG_INF("Unable to allocate dip_devs\n");
 		return -ENOMEM;
 	}
 #endif
@@ -3482,46 +4372,65 @@ static signed int DIP_probe(struct platform_device *pDev)
 	/* iomap registers */
 	dip_dev->regs = of_iomap(pDev->dev.of_node, 0);
 	if (!dip_dev->regs) {
-		dev_err(&pDev->dev, "Unable to ioremap registers, of_iomap fail, nr_dip_devs=%d, devnode(%s).\n",
+		LOG_INF("Unable to ioremap registers\n");
+		LOG_INF("of_iomap fail, nr_dip_devs=%d, devnode(%s).\n",
 			nr_dip_devs, pDev->dev.of_node->name);
 		return -ENOMEM;
 	}
 
 	LOG_INF("nr_dip_devs=%d, devnode(%s), map_addr=0x%lx\n",
-		nr_dip_devs, pDev->dev.of_node->name, (unsigned long)dip_dev->regs);
+		nr_dip_devs,
+		pDev->dev.of_node->name,
+		(unsigned long)dip_dev->regs);
 
 	/* get IRQ ID and request IRQ */
 	dip_dev->irq = irq_of_parse_and_map(pDev->dev.of_node, 0);
 
 	if (dip_dev->irq > 0) {
 		/* Get IRQ Flag from device node */
-		if (of_property_read_u32_array(pDev->dev.of_node, "interrupts", irq_info, ARRAY_SIZE(irq_info))) {
-			dev_err(&pDev->dev, "get irq flags from DTS fail!!\n");
+		if (of_property_read_u32_array(
+			pDev->dev.of_node,
+			"interrupts",
+			irq_info,
+			ARRAY_SIZE(irq_info))) {
+			LOG_INF("get irq flags from DTS fail!!\n");
 			return -ENODEV;
 		}
 
 		for (i = 0; i < DIP_IRQ_TYPE_AMOUNT; i++) {
-			if ((strcmp(pDev->dev.of_node->name, DIP_IRQ_CB_TBL[i].device_name) == 0) &&
-				(DIP_IRQ_CB_TBL[i].isr_fp != NULL)) {
-				Ret = request_irq(dip_dev->irq, (irq_handler_t)DIP_IRQ_CB_TBL[i].isr_fp,
-						  irq_info[2], (const char *)DIP_IRQ_CB_TBL[i].device_name, NULL);
-				if (Ret) {
-					dev_err(&pDev->dev,
-					"request_irq fail, nr_dip_devs=%d, devnode(%s), irq=%d, ISR: %s\n",
-					nr_dip_devs, pDev->dev.of_node->name,
-					dip_dev->irq, DIP_IRQ_CB_TBL[i].device_name);
-					return Ret;
-				}
-
-				LOG_INF("nr_dip_devs=%d, devnode(%s), irq=%d, ISR: %s\n",
-				nr_dip_devs, pDev->dev.of_node->name, dip_dev->irq, DIP_IRQ_CB_TBL[i].device_name);
-				break;
+			if ((strcmp(pDev->dev.of_node->name,
+			DIP_IRQ_CB_TBL[i].device_name) == 0) &&
+			(DIP_IRQ_CB_TBL[i].isr_fp != NULL)) {
+				Ret = request_irq(dip_dev->irq,
+				(irq_handler_t)DIP_IRQ_CB_TBL[i].isr_fp,
+				irq_info[2],
+				(const char *)DIP_IRQ_CB_TBL[i].device_name,
+				NULL);
+			if (Ret) {
+				LOG_INF("request_irq fail\n");
+				LOG_INF("nrdevs=%d,node(%s),irq=%d,ISR:%s\n",
+				nr_dip_devs,
+				pDev->dev.of_node->name,
+				dip_dev->irq,
+				DIP_IRQ_CB_TBL[i].device_name);
+				return Ret;
 			}
+
+			LOG_INF("nr_dip_devs=%d,devnode(%s),irq=%d,ISR: %s\n",
+				nr_dip_devs,
+				pDev->dev.of_node->name,
+				dip_dev->irq,
+				DIP_IRQ_CB_TBL[i].device_name);
+			break;
+		}
 		}
 
 		if (i >= DIP_IRQ_TYPE_AMOUNT)
-			LOG_INF("No corresponding ISR!!: nr_dip_devs=%d, devnode(%s), irq=%d\n",
-				nr_dip_devs, pDev->dev.of_node->name, dip_dev->irq);
+			LOG_INF("No corresponding ISR!!\n");
+			LOG_INF("nr_dip_devs=%d, devnode(%s), irq=%d\n",
+				nr_dip_devs,
+				pDev->dev.of_node->name,
+				dip_dev->irq);
 
 
 	} else {
@@ -3536,11 +4445,9 @@ static signed int DIP_probe(struct platform_device *pDev)
 		/* Register char driver */
 		Ret = DIP_RegCharDev();
 		if ((Ret)) {
-			dev_err(&pDev->dev, "register char failed");
+			LOG_INF("register char failed");
 			return Ret;
 		}
-
-
 
 		/* Create class register */
 		pIspClass = class_create(THIS_MODULE, "dipdrv");
@@ -3549,11 +4456,16 @@ static signed int DIP_probe(struct platform_device *pDev)
 			LOG_ERR("Unable to create class, err = %d\n", Ret);
 			goto EXIT;
 		}
-		dev = device_create(pIspClass, NULL, IspDevNo, NULL, DIP_DEV_NAME);
+		dev = device_create(pIspClass,
+			NULL,
+			IspDevNo,
+			NULL,
+			DIP_DEV_NAME);
 
 		if (IS_ERR(dev)) {
 			Ret = PTR_ERR(dev);
-			dev_err(&pDev->dev, "Failed to create device: /dev/%s, err = %d", DIP_DEV_NAME, Ret);
+			LOG_INF("Failed to create device: /dev/%s, err = %d",
+				DIP_DEV_NAME, Ret);
 			goto EXIT;
 		}
 
@@ -3578,8 +4490,10 @@ static signed int DIP_probe(struct platform_device *pDev)
 
 #else
 		/*CCF: Grab clock pointer (struct clk*) */
-		dip_clk.DIP_IMG_LARB5 = devm_clk_get(&pDev->dev, "DIP_CG_IMG_LARB5");
-		dip_clk.DIP_IMG_DIP = devm_clk_get(&pDev->dev, "DIP_CG_IMG_DIP");
+		dip_clk.DIP_IMG_LARB5 =
+			devm_clk_get(&pDev->dev, "DIP_CG_IMG_LARB5");
+		dip_clk.DIP_IMG_DIP =
+			devm_clk_get(&pDev->dev, "DIP_CG_IMG_DIP");
 
 		if (IS_ERR(dip_clk.DIP_IMG_LARB5)) {
 			LOG_ERR("cannot get DIP_IMG_LARB5 clock\n");
@@ -3597,8 +4511,14 @@ static signed int DIP_probe(struct platform_device *pDev)
 
 #ifdef CONFIG_PM_WAKELOCKS
 		wakeup_source_init(&dip_wake_lock, "dip_lock_wakelock");
+		wakeup_source_init(&isp_mdp_wake_lock, "isp_mdp_wakelock");
 #else
-		wake_lock_init(&dip_wake_lock, WAKE_LOCK_SUSPEND, "dip_lock_wakelock");
+		wake_lock_init(&dip_wake_lock,
+			WAKE_LOCK_SUSPEND,
+			"dip_lock_wakelock");
+		wake_lock_init(&isp_mdp_wake_lock,
+			WAKE_LOCK_SUSPEND,
+			"isp_mdp_wakelock");
 #endif
 
 		/* enqueue/dequeue control in ihalpipe wrapper */
@@ -3607,14 +4527,16 @@ static signed int DIP_probe(struct platform_device *pDev)
 		init_waitqueue_head(&P2WaitQueueHead_WaitFrameEQDforDQ);
 
 		for (i = 0; i < DIP_IRQ_TYPE_AMOUNT; i++)
-			tasklet_init(dip_tasklet[i].pIsp_tkt, dip_tasklet[i].tkt_cb, 0);
+			tasklet_init(dip_tasklet[i].pIsp_tkt,
+				dip_tasklet[i].tkt_cb, 0);
 
 #if (DIP_BOTTOMHALF_WORKQ == 1)
 		for (i = 0 ; i < DIP_IRQ_TYPE_AMOUNT; i++) {
 			dip_workque[i].module = i;
 			memset((void *)&(dip_workque[i].dip_bh_work), 0,
 				sizeof(dip_workque[i].dip_bh_work));
-			INIT_WORK(&(dip_workque[i].dip_bh_work), DIP_BH_Workqueue);
+			INIT_WORK(&(dip_workque[i].dip_bh_work),
+				DIP_BH_Workqueue);
 		}
 #endif
 
@@ -3648,9 +4570,9 @@ EXIT:
 	return Ret;
 }
 
-/*******************************************************************************
-* Called when the device is being detached from the driver
-********************************************************************************/
+/**************************************************************
+ * Called when the device is being detached from the driver
+ **************************************************************/
 static signed int DIP_remove(struct platform_device *pDev)
 {
 	/*    struct resource *pRes;*/
@@ -3685,7 +4607,8 @@ static signed int DIP_remove(struct platform_device *pDev)
 			REG_IRQ_NODE *accessNode;
 
 			typeof(((REG_IRQ_NODE *)0)->list) * __mptr = (father);
-			accessNode = ((REG_IRQ_NODE *)((char *)__mptr - offsetof(REG_IRQ_NODE, list)));
+			accessNode = ((REG_IRQ_NODE *)((char *)__mptr -
+				offsetof(REG_IRQ_NODE, list)));
 			LOG_INF("free father,reg_T(%d)\n", accessNode->reg_T);
 			if (father->nextirq != father) {
 				head->nextirq = father->nextirq;
@@ -3722,9 +4645,9 @@ static signed int DIP_suspend(
 	return 0;
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static signed int DIP_resume(struct platform_device *pDev)
 {
 	if (g_u4DipCnt > 0) {
@@ -3734,9 +4657,9 @@ static signed int DIP_resume(struct platform_device *pDev)
 	return 0;
 }
 
-/*---------------------------------------------------------------------------*/
+/*------------------------------------------------------------*/
 #ifdef CONFIG_PM
-/*---------------------------------------------------------------------------*/
+/*------------------------------------------------------------*/
 int DIP_pm_suspend(struct device *device)
 {
 	struct platform_device *pdev = to_platform_device(device);
@@ -3744,7 +4667,9 @@ int DIP_pm_suspend(struct device *device)
 	WARN_ON(pdev == NULL);
 
 	/*pr_debug("calling %s()\n", __func__);*/
-	LOG_INF("DIP suspend G_u4DipEnClkCnt: %d, g_u4DipCnt: %d", G_u4DipEnClkCnt, g_u4DipCnt);
+	LOG_INF("DIP suspend G_u4DipEnClkCnt: %d, g_u4DipCnt: %d",
+		G_u4DipEnClkCnt,
+		g_u4DipCnt);
 
 	return DIP_suspend(pdev, PMSG_SUSPEND);
 }
@@ -3756,7 +4681,9 @@ int DIP_pm_resume(struct device *device)
 	WARN_ON(pdev == NULL);
 
 	/*pr_debug("calling %s()\n", __func__);*/
-	LOG_INF("DIP resume G_u4DipEnClkCnt: %d, g_u4DipCnt: %d", G_u4DipEnClkCnt, g_u4DipCnt);
+	LOG_INF("DIP resume G_u4DipEnClkCnt: %d, g_u4DipCnt: %d",
+		G_u4DipEnClkCnt,
+		g_u4DipCnt);
 
 	return DIP_resume(pdev);
 }
@@ -3769,15 +4696,15 @@ int DIP_pm_restore_noirq(struct device *device)
 	return 0;
 
 }
-/*---------------------------------------------------------------------------*/
+/*------------------------------------------------------------*/
 #else /*CONFIG_PM*/
-/*---------------------------------------------------------------------------*/
+/*------------------------------------------------------------*/
 #define DIP_pm_suspend NULL
 #define DIP_pm_resume  NULL
 #define DIP_pm_restore_noirq NULL
-/*---------------------------------------------------------------------------*/
+/*------------------------------------------------------------*/
 #endif /*CONFIG_PM*/
-/*---------------------------------------------------------------------------*/
+/*------------------------------------------------------------*/
 
 const struct dev_pm_ops DIP_pm_ops = {
 	.suspend = DIP_pm_suspend,
@@ -3790,9 +4717,9 @@ const struct dev_pm_ops DIP_pm_ops = {
 };
 
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static struct platform_driver DipDriver = {
 	.probe   = DIP_probe,
 	.remove  = DIP_remove,
@@ -3810,32 +4737,43 @@ static struct platform_driver DipDriver = {
 	}
 };
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static int dip_p2_ke_dump_read(struct seq_file *m, void *v)
 {
 #ifdef AEE_DUMP_REDUCE_MEMORY
 	int i;
 
-	LOG_INF("dip p2 ke dump start!! g_bDumpPhyDIPBuf:%d\n", g_bDumpPhyDIPBuf);
+	LOG_INF("dip p2 ke dump start!! g_bDumpPhyDIPBuf:%d\n",
+		g_bDumpPhyDIPBuf);
 	LOG_INF("g_bDumpPhyDIPBuf:%d, g_tdriaddr:0x%x, g_cmdqaddr:0x%x\n",
 		g_bDumpPhyDIPBuf, g_tdriaddr, g_cmdqaddr);
 	seq_puts(m, "============ dip p2 ke dump register============\n");
-	seq_printf(m, "===dip p2 you can trust below info: g_bDumpPhyDIPBuf:%d===\n", g_bDumpPhyDIPBuf);
-	seq_printf(m, "===dip p2 g_bDumpPhyDIPBuf:%d, g_tdriaddr:0x%x, g_cmdqaddr:0x%x===\n", g_bDumpPhyDIPBuf,
-		g_tdriaddr, g_cmdqaddr);
+	seq_printf(m, "dip p2 you can trust below info: g_bDumpPhyDIPBuf:%d\n",
+		g_bDumpPhyDIPBuf);
+	seq_printf(m,
+		"dip p2 g_bDumpPhyDIPBuf:%d,g_tdriaddr:0x%x, g_cmdqaddr:0x%x\n",
+		g_bDumpPhyDIPBuf,
+		g_tdriaddr,
+		g_cmdqaddr);
 	seq_puts(m, "===dip p2 hw physical register===\n");
 	if (g_bDumpPhyDIPBuf == MFALSE)
 		return 0;
 	mutex_lock(&gDipMutex);  /* Protect the Multi Process */
 	if (g_pPhyDIPBuffer != NULL) {
 		for (i = 0; i < (DIP_REG_RANGE >> 2); i = i + 4) {
-			seq_printf(m, "(0x%08X,0x%08X)(0x%08X,0x%08X)(0x%08X,0x%08X)(0x%08X,0x%08X)\n",
-					DIP_A_BASE_HW+4*i, (unsigned int)g_pPhyDIPBuffer[i],
-					DIP_A_BASE_HW+4*(i+1), (unsigned int)g_pPhyDIPBuffer[i+1],
-					DIP_A_BASE_HW+4*(i+2), (unsigned int)g_pPhyDIPBuffer[i+2],
-					DIP_A_BASE_HW+4*(i+3), (unsigned int)g_pPhyDIPBuffer[i+3]);
+			seq_printf(m, "(0x%08X,0x%08X)(0x%08X,0x%08X)",
+				DIP_A_BASE_HW+4*i,
+				(unsigned int)g_pPhyDIPBuffer[i],
+				DIP_A_BASE_HW+4*(i+1),
+				(unsigned int)g_pPhyDIPBuffer[i+1]);
+			seq_printf(m, "(0x%08X,0x%08X)(0x%08X,0x%08X)",
+				DIP_A_BASE_HW+4*(i+2),
+				(unsigned int)g_pPhyDIPBuffer[i+2],
+				DIP_A_BASE_HW+4*(i+3),
+				(unsigned int)g_pPhyDIPBuffer[i+3]);
+			seq_puts(m, "\n");
 		}
 	} else {
 		LOG_INF("g_pPhyDIPBuffer:(0x%pK)\n", g_pPhyDIPBuffer);
@@ -3844,30 +4782,36 @@ static int dip_p2_ke_dump_read(struct seq_file *m, void *v)
 	if (g_pKWTpipeBuffer != NULL) {
 		for (i = 0; i < (MAX_ISP_TILE_TDR_HEX_NO >> 2); i = i + 4) {
 			seq_printf(m, "0x%08X\n0x%08X\n0x%08X\n0x%08X\n",
-					(unsigned int)g_pKWTpipeBuffer[i],
-					(unsigned int)g_pKWTpipeBuffer[i+1],
-					(unsigned int)g_pKWTpipeBuffer[i+2],
-					(unsigned int)g_pKWTpipeBuffer[i+3]);
+				(unsigned int)g_pKWTpipeBuffer[i],
+				(unsigned int)g_pKWTpipeBuffer[i+1],
+				(unsigned int)g_pKWTpipeBuffer[i+2],
+				(unsigned int)g_pKWTpipeBuffer[i+3]);
 		}
 	}
 	seq_puts(m, "===dip p2 cmdq buffer Info===\n");
 	if (g_pKWCmdqBuffer != NULL) {
 		for (i = 0; i < (MAX_DIP_CMDQ_BUFFER_SIZE >> 2); i = i + 4) {
 			seq_printf(m, "[0x%08X 0x%08X 0x%08X 0x%08X]\n",
-					(unsigned int)g_pKWCmdqBuffer[i],
-					(unsigned int)g_pKWCmdqBuffer[i+1],
-					(unsigned int)g_pKWCmdqBuffer[i+2],
-					(unsigned int)g_pKWCmdqBuffer[i+3]);
+				(unsigned int)g_pKWCmdqBuffer[i],
+				(unsigned int)g_pKWCmdqBuffer[i+1],
+				(unsigned int)g_pKWCmdqBuffer[i+2],
+				(unsigned int)g_pKWCmdqBuffer[i+3]);
 		}
 	}
 	seq_puts(m, "===dip p2 vir dip buffer Info===\n");
 	if (g_pKWVirDIPBuffer != NULL) {
 		for (i = 0; i < (DIP_REG_RANGE >> 2); i = i + 4) {
-			seq_printf(m, "(0x%08X,0x%08X)(0x%08X,0x%08X)(0x%08X,0x%08X)(0x%08X,0x%08X)\n",
-					DIP_A_BASE_HW+4*i, (unsigned int)g_pKWVirDIPBuffer[i],
-					DIP_A_BASE_HW+4*(i+1), (unsigned int)g_pKWVirDIPBuffer[i+1],
-					DIP_A_BASE_HW+4*(i+2), (unsigned int)g_pKWVirDIPBuffer[i+2],
-					DIP_A_BASE_HW+4*(i+3), (unsigned int)g_pKWVirDIPBuffer[i+3]);
+			seq_printf(m, "(0x%08X,0x%08X)(0x%08X,0x%08X)",
+				DIP_A_BASE_HW+4*i,
+				(unsigned int)g_pKWVirDIPBuffer[i],
+				DIP_A_BASE_HW+4*(i+1),
+				(unsigned int)g_pKWVirDIPBuffer[i+1]);
+			seq_printf(m, "(0x%08X,0x%08X)(0x%08X,0x%08X)",
+				DIP_A_BASE_HW+4*(i+2),
+				(unsigned int)g_pKWVirDIPBuffer[i+2],
+				DIP_A_BASE_HW+4*(i+3),
+				(unsigned int)g_pKWVirDIPBuffer[i+3]);
+			seq_puts(m, "\n");
 		}
 	}
 	mutex_unlock(&gDipMutex);
@@ -3876,7 +4820,8 @@ static int dip_p2_ke_dump_read(struct seq_file *m, void *v)
 #endif
 	return 0;
 }
-static int proc_dip_p2_ke_dump_open(struct inode *inode, struct file *file)
+static int proc_dip_p2_ke_dump_open(
+	struct inode *inode, struct file *file)
 {
 	return single_open(file, dip_p2_ke_dump_read, NULL);
 }
@@ -3886,33 +4831,47 @@ static const struct file_operations dip_p2_ke_dump_proc_fops = {
 	.read = seq_read,
 };
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static int dip_p2_dump_read(struct seq_file *m, void *v)
 {
 #ifdef AEE_DUMP_REDUCE_MEMORY
 	int i;
 
-	LOG_INF("dip p2 ne dump start!! g_bUserBufIsReady:%d, g_bIonBufferAllocated:%d\n",
+LOG_INF("dip p2 ne dump start!g_bUserBufIsReady:%d, g_bIonBufferAllocated:%d\n",
 		g_bUserBufIsReady, g_bIonBufferAllocated);
-	LOG_INF("dip p2 g_bDumpPhyB:%d, tdriadd:0x%x,imgiadd:0x%x,dmgiadd:0x%x\n",
-		g_bDumpPhyDIPBuf, g_dumpInfo.tdri_baseaddr, g_dumpInfo.imgi_baseaddr, g_dumpInfo.dmgi_baseaddr);
+LOG_INF("dip p2 g_bDumpPhyB:%d, tdriadd:0x%x, imgiadd:0x%x,dmgiadd:0x%x\n",
+		g_bDumpPhyDIPBuf,
+		g_dumpInfo.tdri_baseaddr,
+		g_dumpInfo.imgi_baseaddr,
+		g_dumpInfo.dmgi_baseaddr);
 	seq_puts(m, "============ dip p2 ne dump register============\n");
-	seq_printf(m, "===dip p2 you can trust below info:UserBufIsReady:%d===\n", g_bUserBufIsReady);
-	seq_printf(m, "===dip p2 g_bDumpPhyB:%d,tdriadd:0x%x,imgiadd:0x%x,dmgiadd:0x%x===\n",
-		g_bDumpPhyDIPBuf, g_dumpInfo.tdri_baseaddr, g_dumpInfo.imgi_baseaddr, g_dumpInfo.dmgi_baseaddr);
+	seq_printf(m, "dip p2 you can trust below info:UserBufIsReady:%d\n",
+		g_bUserBufIsReady);
+	seq_printf(m,
+	"dip p2 g_bDumpPhyB:%d,tdriadd:0x%x,imgiadd:0x%x,dmgiadd:0x%x\n",
+		g_bDumpPhyDIPBuf,
+		g_dumpInfo.tdri_baseaddr,
+		g_dumpInfo.imgi_baseaddr,
+		g_dumpInfo.dmgi_baseaddr);
 	seq_puts(m, "===dip p2 hw physical register===\n");
 	if (g_bUserBufIsReady == MFALSE)
 		return 0;
 	mutex_lock(&gDipMutex);  /* Protect the Multi Process */
 	if (g_pPhyDIPBuffer != NULL) {
 		for (i = 0; i < (DIP_REG_RANGE >> 2); i = i + 4) {
-			seq_printf(m, "(0x%08X,0x%08X)(0x%08X,0x%08X)(0x%08X,0x%08X)(0x%08X,0x%08X)\n",
-					DIP_A_BASE_HW+4*i, (unsigned int)g_pPhyDIPBuffer[i],
-					DIP_A_BASE_HW+4*(i+1), (unsigned int)g_pPhyDIPBuffer[i+1],
-					DIP_A_BASE_HW+4*(i+2), (unsigned int)g_pPhyDIPBuffer[i+2],
-					DIP_A_BASE_HW+4*(i+3), (unsigned int)g_pPhyDIPBuffer[i+3]);
+			seq_printf(m, "(0x%08X,0x%08X)(0x%08X,0x%08X)",
+				DIP_A_BASE_HW+4*i,
+				(unsigned int)g_pPhyDIPBuffer[i],
+				DIP_A_BASE_HW+4*(i+1),
+				(unsigned int)g_pPhyDIPBuffer[i+1]);
+			seq_printf(m, "(0x%08X,0x%08X)(0x%08X,0x%08X)",
+				DIP_A_BASE_HW+4*(i+2),
+				(unsigned int)g_pPhyDIPBuffer[i+2],
+				DIP_A_BASE_HW+4*(i+3),
+				(unsigned int)g_pPhyDIPBuffer[i+3]);
+			seq_puts(m, "\n");
 		}
 	} else {
 		LOG_INF("g_pPhyDIPBuffer:(0x%pK)\n", g_pPhyDIPBuffer);
@@ -3921,40 +4880,52 @@ static int dip_p2_dump_read(struct seq_file *m, void *v)
 	if (g_pTpipeBuffer != NULL) {
 		for (i = 0; i < (MAX_ISP_TILE_TDR_HEX_NO >> 2); i = i + 4) {
 			seq_printf(m, "0x%08X\n0x%08X\n0x%08X\n0x%08X\n",
-					(unsigned int)g_pTpipeBuffer[i],
-					(unsigned int)g_pTpipeBuffer[i+1],
-					(unsigned int)g_pTpipeBuffer[i+2],
-					(unsigned int)g_pTpipeBuffer[i+3]);
+				(unsigned int)g_pTpipeBuffer[i],
+				(unsigned int)g_pTpipeBuffer[i+1],
+				(unsigned int)g_pTpipeBuffer[i+2],
+				(unsigned int)g_pTpipeBuffer[i+3]);
 		}
 	}
 	seq_puts(m, "===dip p2 cmdq buffer Info===\n");
 	if (g_pCmdqBuffer != NULL) {
 		for (i = 0; i < (MAX_DIP_CMDQ_BUFFER_SIZE >> 2); i = i + 4) {
 			seq_printf(m, "[0x%08X 0x%08X 0x%08X 0x%08X]\n",
-					(unsigned int)g_pCmdqBuffer[i],
-					(unsigned int)g_pCmdqBuffer[i+1],
-					(unsigned int)g_pCmdqBuffer[i+2],
-					(unsigned int)g_pCmdqBuffer[i+3]);
+				(unsigned int)g_pCmdqBuffer[i],
+				(unsigned int)g_pCmdqBuffer[i+1],
+				(unsigned int)g_pCmdqBuffer[i+2],
+				(unsigned int)g_pCmdqBuffer[i+3]);
 		}
 	}
 	seq_puts(m, "===dip p2 vir dip buffer Info===\n");
 	if (g_pVirDIPBuffer != NULL) {
 		for (i = 0; i < (DIP_REG_RANGE >> 2); i = i + 4) {
-			seq_printf(m, "(0x%08X,0x%08X)(0x%08X,0x%08X)(0x%08X,0x%08X)(0x%08X,0x%08X)\n",
-					DIP_A_BASE_HW+4*i, (unsigned int)g_pVirDIPBuffer[i],
-					DIP_A_BASE_HW+4*(i+1), (unsigned int)g_pVirDIPBuffer[i+1],
-					DIP_A_BASE_HW+4*(i+2), (unsigned int)g_pVirDIPBuffer[i+2],
-					DIP_A_BASE_HW+4*(i+3), (unsigned int)g_pVirDIPBuffer[i+3]);
+			seq_printf(m, "(0x%08X,0x%08X)(0x%08X,0x%08X)",
+				DIP_A_BASE_HW+4*i,
+				(unsigned int)g_pVirDIPBuffer[i],
+				DIP_A_BASE_HW+4*(i+1),
+				(unsigned int)g_pVirDIPBuffer[i+1]);
+			seq_printf(m, "(0x%08X,0x%08X)(0x%08X,0x%08X)",
+				DIP_A_BASE_HW+4*(i+2),
+				(unsigned int)g_pVirDIPBuffer[i+2],
+				DIP_A_BASE_HW+4*(i+3),
+				(unsigned int)g_pVirDIPBuffer[i+3]);
+			seq_puts(m, "\n");
 		}
 	}
 	seq_puts(m, "===dip p2 tuning buffer Info===\n");
 	if (g_pTuningBuffer != NULL) {
 		for (i = 0; i < (DIP_REG_RANGE >> 2); i = i + 4) {
-			seq_printf(m, "(0x%08X,0x%08X)(0x%08X,0x%08X)(0x%08X,0x%08X)(0x%08X,0x%08X)\n",
-					DIP_A_BASE_HW+4*i, (unsigned int)g_pTuningBuffer[i],
-					DIP_A_BASE_HW+4*(i+1), (unsigned int)g_pTuningBuffer[i+1],
-					DIP_A_BASE_HW+4*(i+2), (unsigned int)g_pTuningBuffer[i+2],
-					DIP_A_BASE_HW+4*(i+3), (unsigned int)g_pTuningBuffer[i+3]);
+			seq_printf(m, "(0x%08X,0x%08X)(0x%08X,0x%08X)",
+				DIP_A_BASE_HW+4*i,
+				(unsigned int)g_pTuningBuffer[i],
+				DIP_A_BASE_HW+4*(i+1),
+				(unsigned int)g_pTuningBuffer[i+1]);
+			seq_printf(m, "(0x%08X,0x%08X)(0x%08X,0x%08X)",
+				DIP_A_BASE_HW+4*(i+2),
+				(unsigned int)g_pTuningBuffer[i+2],
+				DIP_A_BASE_HW+4*(i+3),
+				(unsigned int)g_pTuningBuffer[i+3]);
+			seq_puts(m, "\n");
 		}
 	}
 	mutex_unlock(&gDipMutex);
@@ -3964,7 +4935,8 @@ static int dip_p2_dump_read(struct seq_file *m, void *v)
 	return 0;
 }
 
-static int proc_dip_p2_dump_open(struct inode *inode, struct file *file)
+static int proc_dip_p2_dump_open(
+	struct inode *inode, struct file *file)
 {
 	return single_open(file, dip_p2_dump_read, NULL);
 }
@@ -3974,65 +4946,81 @@ static const struct file_operations dip_p2_dump_proc_fops = {
 	.open = proc_dip_p2_dump_open,
 	.read = seq_read,
 };
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static int dip_dump_read(struct seq_file *m, void *v)
 {
 
 	int i;
 
+	spin_lock(&(IspInfo.SpinLockClock));
+	if (G_u4DipEnClkCnt == 0) {
+		spin_unlock(&(IspInfo.SpinLockClock));
+		return 0;
+	}
+	spin_unlock(&(IspInfo.SpinLockClock));
+
 	seq_puts(m, "\n============ dip dump register============\n");
 	seq_puts(m, "dip top control\n");
 	for (i = 0; i < 0xFC; i = i + 4) {
-		seq_printf(m, "[0x%08X %08X]\n", (unsigned int)(DIP_A_BASE_HW + i),
-			   (unsigned int)DIP_RD32(DIP_A_BASE + i));
+		seq_printf(m, "[0x%08X %08X]\n",
+			(unsigned int)(DIP_A_BASE_HW+i),
+			(unsigned int)DIP_RD32(DIP_A_BASE + i));
 	}
 
 	seq_puts(m, "dma error\n");
 	for (i = 0x744; i < 0x7A4; i = i + 4) {
-		seq_printf(m, "[0x%08X %08X]\n", (unsigned int)(DIP_A_BASE_HW + i),
-			   (unsigned int)DIP_RD32(DIP_A_BASE + i));
+		seq_printf(m, "[0x%08X %08X]\n",
+			(unsigned int)(DIP_A_BASE_HW+i),
+			(unsigned int)DIP_RD32(DIP_A_BASE + i));
 	}
 
 	seq_puts(m, "dma setting\n");
 	for (i = 0x304; i < 0x6D8; i = i + 4) {
-		seq_printf(m, "[0x%08X %08X]\n", (unsigned int)(DIP_A_BASE_HW + i),
-			   (unsigned int)DIP_RD32(DIP_A_BASE + i));
+		seq_printf(m, "[0x%08X %08X]\n",
+			(unsigned int)(DIP_A_BASE_HW+i),
+			(unsigned int)DIP_RD32(DIP_A_BASE + i));
 	}
 
 	seq_puts(m, "cq info\n");
 	for (i = 0x204; i < 0x218; i = i + 4) {
-		seq_printf(m, "[0x%08X %08X]\n", (unsigned int)(DIP_A_BASE_HW + i),
-			   (unsigned int)DIP_RD32(DIP_A_BASE + i));
+		seq_printf(m, "[0x%08X %08X]\n",
+			(unsigned int)(DIP_A_BASE_HW+i),
+			(unsigned int)DIP_RD32(DIP_A_BASE + i));
 	}
 
 	seq_puts(m, "crz setting\n");
 	for (i = 0x5300; i < 0x5334; i = i + 4) {
-		seq_printf(m, "[0x%08X %08X]\n", (unsigned int)(DIP_A_BASE_HW + i),
-			   (unsigned int)DIP_RD32(DIP_A_BASE + i));
+		seq_printf(m, "[0x%08X %08X]\n",
+			(unsigned int)(DIP_A_BASE_HW+i),
+			(unsigned int)DIP_RD32(DIP_A_BASE + i));
 	}
 
 	seq_puts(m, "mdp crop1\n");
 	for (i = 0x5500; i < 0x5508; i = i + 4) {
-		seq_printf(m, "[0x%08X %08X]\n", (unsigned int)(DIP_A_BASE_HW + i),
-			   (unsigned int)DIP_RD32(DIP_A_BASE + i));
+		seq_printf(m, "[0x%08X %08X]\n",
+			(unsigned int)(DIP_A_BASE_HW+i),
+			(unsigned int)DIP_RD32(DIP_A_BASE + i));
 	}
 
 	seq_puts(m, "mdp crop2\n");
 	for (i = 0x2B80; i < 0x2B88; i = i + 4) {
-		seq_printf(m, "[0x%08X %08X]\n", (unsigned int)(DIP_A_BASE_HW + i),
-			   (unsigned int)DIP_RD32(DIP_A_BASE + i));
+		seq_printf(m, "[0x%08X %08X]\n",
+			(unsigned int)(DIP_A_BASE_HW+i),
+			(unsigned int)DIP_RD32(DIP_A_BASE + i));
 	}
 
-	seq_printf(m, "[0x%08X %08X]\n", (unsigned int)(DIP_IMGSYS_BASE_HW),
-		   (unsigned int)DIP_RD32(DIP_IMGSYS_CONFIG_BASE));
+	seq_printf(m, "[0x%08X %08X]\n",
+		(unsigned int)(DIP_IMGSYS_BASE_HW),
+		(unsigned int)DIP_RD32(DIP_IMGSYS_CONFIG_BASE));
 
 	seq_puts(m, "\n============ dip dump debug ============\n");
 
 	return 0;
 }
-static int proc_dip_dump_open(struct inode *inode, struct file *file)
+static int proc_dip_dump_open(
+	struct inode *inode, struct file *file)
 {
 	return single_open(file, dip_dump_read, NULL);
 }
@@ -4042,9 +5030,9 @@ static const struct file_operations dip_dump_proc_fops = {
 	.open = proc_dip_dump_open,
 	.read = seq_read,
 };
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 
 static signed int __init DIP_Init(void)
 {
@@ -4067,8 +5055,6 @@ static signed int __init DIP_Init(void)
 	}
 	/*  */
 
-	/* Use of_find_compatible_node() sensor registers from device tree */
-	/* Don't use compatitble define in probe(). Otherwise, probe() of Seninf driver cannot be called. */
 #if 0
 	node = of_find_compatible_node(NULL, NULL, "mediatek,mmsys_config");
 	if (!node) {
@@ -4089,9 +5075,12 @@ static signed int __init DIP_Init(void)
 		LOG_ERR("[%s]: fail to mkdir /proc/isp_p2\n", __func__);
 		return 0;
 	}
-	proc_entry = proc_create("dip_dump", S_IRUGO, dip_p2_dir, &dip_dump_proc_fops);
-	proc_entry = proc_create("isp_p2_dump", S_IRUGO, dip_p2_dir, &dip_p2_dump_proc_fops);
-	proc_entry = proc_create("isp_p2_kedump", S_IRUGO, dip_p2_dir, &dip_p2_ke_dump_proc_fops);
+	proc_entry = proc_create("dip_dump",
+		0444, dip_p2_dir, &dip_dump_proc_fops);
+	proc_entry = proc_create("isp_p2_dump",
+		0444, dip_p2_dir, &dip_p2_dump_proc_fops);
+	proc_entry = proc_create("isp_p2_kedump",
+		0444, dip_p2_dir, &dip_p2_ke_dump_proc_fops);
 	for (j = 0; j < DIP_IRQ_TYPE_AMOUNT; j++) {
 		switch (j) {
 		default:
@@ -4104,9 +5093,11 @@ static signed int __init DIP_Init(void)
 
 
 	/* isr log */
-	if (PAGE_SIZE < ((DIP_IRQ_TYPE_AMOUNT * NORMAL_STR_LEN * ((DBG_PAGE + INF_PAGE + ERR_PAGE) + 1))*LOG_PPNUM)) {
+	if (PAGE_SIZE < ((DIP_IRQ_TYPE_AMOUNT * NORMAL_STR_LEN *
+		((DBG_PAGE + INF_PAGE + ERR_PAGE) + 1)) * LOG_PPNUM)) {
 		i = 0;
-		while (i < ((DIP_IRQ_TYPE_AMOUNT * NORMAL_STR_LEN * ((DBG_PAGE + INF_PAGE + ERR_PAGE) + 1))*LOG_PPNUM))
+		while (i < ((DIP_IRQ_TYPE_AMOUNT * NORMAL_STR_LEN *
+			((DBG_PAGE + INF_PAGE + ERR_PAGE) + 1)) * LOG_PPNUM))
 			i += PAGE_SIZE;
 
 	} else {
@@ -4122,25 +5113,25 @@ static signed int __init DIP_Init(void)
 	for (i = 0; i < LOG_PPNUM; i++) {
 		for (j = 0; j < DIP_IRQ_TYPE_AMOUNT; j++) {
 			gSvLog[j]._str[i][_LOG_DBG] = (char *)tmp;
-			/* tmp = (void*) ((unsigned int)tmp + (NORMAL_STR_LEN*DBG_PAGE)); */
-			tmp = (void *)((char *)tmp + (NORMAL_STR_LEN * DBG_PAGE));
+			tmp = (void *)((char *)tmp + (NORMAL_STR_LEN*DBG_PAGE));
 			gSvLog[j]._str[i][_LOG_INF] = (char *)tmp;
-			/* tmp = (void*) ((unsigned int)tmp + (NORMAL_STR_LEN*INF_PAGE)); */
-			tmp = (void *)((char *)tmp + (NORMAL_STR_LEN * INF_PAGE));
+			tmp = (void *)((char *)tmp + (NORMAL_STR_LEN*INF_PAGE));
 			gSvLog[j]._str[i][_LOG_ERR] = (char *)tmp;
-			/* tmp = (void*) ((unsigned int)tmp + (NORMAL_STR_LEN*ERR_PAGE)); */
-			tmp = (void *)((char *)tmp + (NORMAL_STR_LEN * ERR_PAGE));
+			tmp = (void *)((char *)tmp + (NORMAL_STR_LEN*ERR_PAGE));
 		}
-		/* tmp = (void*) ((unsigned int)tmp + NORMAL_STR_LEN); //log buffer ,in case of overflow */
-		tmp = (void *)((char *)tmp + NORMAL_STR_LEN);  /* log buffer ,in case of overflow */
+		/* log buffer,in case of overflow */
+		tmp = (void *)((char *)tmp + NORMAL_STR_LEN);
 	}
 	/* mark the pages reserved , FOR MMAP*/
 	for (j = 0; j < DIP_IRQ_TYPE_AMOUNT; j++) {
 		if (pTbl_RTBuf[j] != NULL) {
-			for (i = 0; i < Tbl_RTBuf_MMPSize[j] * PAGE_SIZE; i += PAGE_SIZE)
-				SetPageReserved(virt_to_page(((unsigned long)pTbl_RTBuf[j]) + i));
+			for (i = 0; i < Tbl_RTBuf_MMPSize[j]*PAGE_SIZE;
+			i += PAGE_SIZE)
+				SetPageReserved(
+				virt_to_page(
+				((unsigned long)pTbl_RTBuf[j]) + i));
 
-		}
+	}
 	}
 
 #ifndef EP_CODE_MARK_CMDQ
@@ -4153,7 +5144,8 @@ static signed int __init DIP_Init(void)
 			   DIP_MDPClockOffCallback);
 	/* Register GCE callback for dumping DIP register */
 	LOG_DBG("register dip callback for GCE");
-	cmdqCoreRegisterDebugRegDumpCB(DIP_BeginGCECallback, DIP_EndGCECallback);
+	cmdqCoreRegisterDebugRegDumpCB
+		(DIP_BeginGCECallback, DIP_EndGCECallback);
 #endif
 	/* m4u_enable_tf(M4U_PORT_CAM_IMGI, 0);*/
 
@@ -4161,9 +5153,9 @@ static signed int __init DIP_Init(void)
 	return Ret;
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 static void __exit DIP_Exit(void)
 {
 	int i, j;
@@ -4187,13 +5179,16 @@ static void __exit DIP_Exit(void)
 
 	for (j = 0; j < DIP_IRQ_TYPE_AMOUNT; j++) {
 		if (pTbl_RTBuf[j] != NULL) {
-			/* unreserve the pages */
-			for (i = 0; i < Tbl_RTBuf_MMPSize[j] * PAGE_SIZE; i += PAGE_SIZE)
-				ClearPageReserved(virt_to_page(((unsigned long)pTbl_RTBuf[j]) + i));
+		/* unreserve the pages */
+			for (i = 0; i < Tbl_RTBuf_MMPSize[j]*PAGE_SIZE;
+			i += PAGE_SIZE)
+				ClearPageReserved(
+				virt_to_page(
+				((unsigned long)pTbl_RTBuf[j]) + i));
 
-			/* free the memory areas */
-			kfree(pBuf_kmalloc[j]);
-		}
+		/* free the memory areas */
+		kfree(pBuf_kmalloc[j]);
+	}
 	}
 
 	/* free the memory areas */
@@ -4206,6 +5201,11 @@ int32_t DIP_MDPClockOnCallback(uint64_t engineFlag)
 {
 	/* LOG_DBG("DIP_MDPClockOnCallback"); */
 	/*LOG_DBG("+MDPEn:%d", G_u4DipEnClkCnt);*/
+#ifdef CONFIG_PM_WAKELOCKS
+	__pm_stay_awake(&isp_mdp_wake_lock);
+#else
+	wake_lock(&isp_mdp_wake_lock);
+#endif
 	DIP_EnableClock(MTRUE);
 
 	return 0;
@@ -4232,6 +5232,11 @@ int32_t DIP_MDPClockOffCallback(uint64_t engineFlag)
 {
 	/* LOG_DBG("DIP_MDPClockOffCallback"); */
 	DIP_EnableClock(MFALSE);
+#ifdef CONFIG_PM_WAKELOCKS
+	__pm_relax(&isp_mdp_wake_lock);
+#else
+	wake_unlock(&isp_mdp_wake_lock);
+#endif
 	/*LOG_DBG("-MDPEn:%d", G_u4DipEnClkCnt);*/
 	return 0;
 }
@@ -4260,7 +5265,8 @@ static uint32_t addressToDump[] = {
 
 #endif
 
-int32_t DIP_BeginGCECallback(uint32_t taskID, uint32_t *regCount, uint32_t **regAddress)
+int32_t DIP_BeginGCECallback(
+	uint32_t taskID, uint32_t *regCount, uint32_t **regAddress)
 {
 #if DUMP_GCE_TPIPE
 	LOG_DBG("+,taskID(%d)", taskID);
@@ -4273,7 +5279,8 @@ int32_t DIP_BeginGCECallback(uint32_t taskID, uint32_t *regCount, uint32_t **reg
 	return 0;
 }
 
-int32_t DIP_EndGCECallback(uint32_t taskID, uint32_t regCount, uint32_t *regValues)
+int32_t DIP_EndGCECallback(
+	uint32_t taskID, uint32_t regCount, uint32_t *regValues)
 {
 #if DUMP_GCE_TPIPE
 	#define PER_LINE_LOG_SIZE   10
@@ -4297,16 +5304,18 @@ int32_t DIP_EndGCECallback(uint32_t taskID, uint32_t regCount, uint32_t *regValu
 		for (j = 0; j < PER_LINE_LOG_SIZE; j++) {
 			pos = i + j;
 			if (pos < regCount) {
-				/* addr[j] = (uint32_t)addressToDump[pos]&0xffff; */
 				add[j] = addressToDump[pos];
 				val[j] = regValues[pos];
 			}
 		}
-
-		LOG_DBG("[0x%08x,0x%08x][0x%08x,0x%08x][0x%08x,0x%08x][0x%08x,0x%08x][0x%08x,0x%08x]\n",
-			add[0], val[0], add[1], val[1], add[2], val[2], add[3], val[3], add[4], val[4]);
-		LOG_DBG("[0x%08x,0x%08x][0x%08x,0x%08x][0x%08x,0x%08x][0x%08x,0x%08x][0x%08x,0x%08x]\n",
-			add[5], val[5], add[6], val[6], add[7], val[7], add[8], val[8], add[9], val[9]);
+		LOG_DBG("[0x%08x,0x%08x][0x%08x,0x%08x][0x%08x,0x%08x]\n",
+			add[0], val[0], add[1], val[1], add[2], val[2]);
+		LOG_DBG("[0x%08x,0x%08x][0x%08x,0x%08x]\n",
+			add[3], val[3], add[4], val[4]);
+		LOG_DBG("[0x%08x,0x%08x][0x%08x,0x%08x][0x%08x,0x%08x]\n",
+			add[5], val[5], add[6], val[6], add[7], val[7]);
+		LOG_DBG("[0x%08x,0x%08x][0x%08x,0x%08x]\n",
+			add[8], val[8], add[9], val[9]);
 	}
 
 
@@ -4330,7 +5339,8 @@ int32_t DIP_EndGCECallback(uint32_t taskID, uint32_t regCount, uint32_t *regValu
 		dip_p2GCEdump_imem_buf.pa = 0;
 		dip_p2GCEdump_imem_buf.length = TPIPE_DUMP_SIZE;
 		if ((dip_p2_ion_client == NULL) && (g_ion_device))
-			dip_p2_ion_client = ion_client_create(g_ion_device, "dip_p2");
+			dip_p2_ion_client =
+				ion_client_create(g_ion_device, "dip_p2");
 		if (dip_p2_ion_client == NULL)
 			LOG_ERR("invalid dip_p2_ion_client client!\n");
 		if (dip_allocbuf(&dip_p2GCEdump_imem_buf) >= 0) {
@@ -4339,9 +5349,13 @@ int32_t DIP_EndGCECallback(uint32_t taskID, uint32_t regCount, uint32_t *regValu
 
 		if (pMapVa) {
 			for (i = 0; i < TPIPE_DUMP_SIZE; i += 10) {
-				LOG_DBG("[idx(%d)]%08X-%08X-%08X-%08X-%08X-%08X-%08X-%08X-%08X-%08X",
-					i, pMapVa[i], pMapVa[i+1], pMapVa[i+2], pMapVa[i+3], pMapVa[i+4],
-					pMapVa[i+5], pMapVa[i+6], pMapVa[i+7], pMapVa[i+8], pMapVa[i+9]);
+				LOG_DBG("[idx(%d)]%08X-%08X-%08X-%08X-%08X",
+				i,
+				pMapVa[i], pMapVa[i+1], pMapVa[i+2],
+				pMapVa[i+3], pMapVa[i+4]);
+				LOG_DBG("%08X-%08X-%08X-%08X-%08X\n",
+				pMapVa[i+5], pMapVa[i+6], pMapVa[i+7],
+				pMapVa[i+8], pMapVa[i+9]);
 			}
 		}
 			dip_freebuf(&dip_p2GCEdump_imem_buf);
@@ -4366,48 +5380,56 @@ irqreturn_t DIP_Irq_DIP_A(signed int  Irq, void *DeviceId)
 
 	/*LOG_DBG("DIP_Irq_DIP_A:%d\n", Irq);*/
 
-	/* Avoid touch hwmodule when clock is disable. DEVAPC will moniter this kind of err */
+	/* Avoid touch hwmodule when clock is disable. */
+	/* DEVAPC will moniter this kind of err */
 	if (G_u4DipEnClkCnt == 0)
 		return IRQ_HANDLED;
 
 	spin_lock(&(IspInfo.SpinLockIrq[DIP_IRQ_TYPE_INT_DIP_A_ST]));
-	IrqINTStatus = DIP_RD32(DIP_A_BASE + 0x030); /* DIP_A_REG_CTL_INT_STATUS */
-	IrqCQStatus = DIP_RD32(DIP_A_BASE + 0x034); /* DIP_A_REG_CTL_CQ_INT_STATUS */
+	/* DIP_A_REG_CTL_INT_STATUS */
+	IrqINTStatus = DIP_RD32(DIP_A_BASE + 0x030);
+	/* DIP_A_REG_CTL_CQ_INT_STATUS */
+	IrqCQStatus = DIP_RD32(DIP_A_BASE + 0x034);
 	IrqCQLDStatus = DIP_RD32(DIP_A_BASE + 0x038);
 
 	for (i = 0; i < IRQ_USER_NUM_MAX; i++)
-		IspInfo.IrqInfo.Status[DIP_IRQ_TYPE_INT_DIP_A_ST][i] |= IrqINTStatus;
+		IspInfo.IrqInfo.Status[DIP_IRQ_TYPE_INT_DIP_A_ST][i]
+		|= IrqINTStatus;
 
 	spin_unlock(&(IspInfo.SpinLockIrq[DIP_IRQ_TYPE_INT_DIP_A_ST]));
 
-	/*LOG_DBG("DIP_Irq_DIP_A:%d, reg 0x%p : 0x%x, reg 0x%p : 0x%x\n",
-	*	Irq, (DIP_A_BASE + 0x030), IrqINTStatus, (DIP_A_BASE + 0x034), IrqCQStatus);
-	*/
+	/* LOG_DBG("DIP_Irq_DIP_A:%d, reg 0x%p : 0x%x, */
+	/* reg 0x%p : 0x%x\n", */
+	/* Irq, */
+	/* (DIP_A_BASE + 0x030), IrqINTStatus, */
+	/* (DIP_A_BASE + 0x034), IrqCQStatus); */
 
 	/*  */
-	wake_up_interruptible(&IspInfo.WaitQueueHead[DIP_IRQ_TYPE_INT_DIP_A_ST]);
+	wake_up_interruptible
+		(&IspInfo.WaitQueueHead[DIP_IRQ_TYPE_INT_DIP_A_ST]);
 
 	return IRQ_HANDLED;
 
 }
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 
 #if (DIP_BOTTOMHALF_WORKQ == 1)
 static void DIP_BH_Workqueue(struct work_struct *pWork)
 {
-	struct IspWorkqueTable *pWorkTable = container_of(pWork, struct IspWorkqueTable, dip_bh_work);
+	struct IspWorkqueTable *pWorkTable =
+		container_of(pWork, struct IspWorkqueTable, dip_bh_work);
 
 	IRQ_LOG_PRINTER(pWorkTable->module, m_CurrentPPB, _LOG_ERR);
 	IRQ_LOG_PRINTER(pWorkTable->module, m_CurrentPPB, _LOG_INF);
 }
 #endif
 
-/*******************************************************************************
-*
-********************************************************************************/
+/**************************************************************
+ *
+ **************************************************************/
 module_init(DIP_Init);
 module_exit(DIP_Exit);
 MODULE_DESCRIPTION("Camera DIP driver");

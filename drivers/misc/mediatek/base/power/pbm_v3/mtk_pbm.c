@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 MediaTek Inc.
+ * Copyright (C) 2018 MediaTek Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -17,7 +17,6 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/kobject.h>
-#include <linux/wakelock.h>
 #include <linux/kthread.h>
 #include <linux/atomic.h>
 #include <linux/mutex.h>
@@ -40,7 +39,7 @@
 #include <mtk_cpufreq_api.h>
 #include <mtk_gpufreq.h>
 #include <mach/mtk_thermal.h>
-#include <mach/mtk_ppm_api.h>
+#include <mtk_ppm_api.h>
 #endif
 
 #if MD_POWER_METER_ENABLE
@@ -51,7 +50,8 @@
 #ifndef DISABLE_PBM_FEATURE
 
 /* reference PMIC */
-/* extern kal_uint32 PMIC_IMM_GetOneChannelValue(kal_uint8 dwChannel, int deCount, int trimd); */
+/* extern kal_uint32 PMIC_IMM_GetOneChannelValue( */
+/* kal_uint8 dwChannel, int deCount, int trimd); */
 /* #define DLPT_PRIO_PBM 0 */
 /* void (*dlpt_callback)(unsigned int); */
 /* void register_dlpt_notify( void (*dlpt_callback)(unsigned int), int i){} */
@@ -70,20 +70,15 @@ char log_buffer[128];
 int usedBytes;
 #endif
 
-#define pbm_emerg(fmt, args...)		pr_emerg(fmt, ##args)
-#define pbm_alert(fmt, args...)		pr_alert(fmt, ##args)
-#define pbm_crit(fmt, args...)		pr_crit(fmt, ##args)
-#define pbm_err(fmt, args...)		pr_err(fmt, ##args)
-#define pbm_warn(fmt, args...)		pr_warn(fmt, ##args)
-#define pbm_notice(fmt, args...)	pr_debug(fmt, ##args)
-#define pbm_info(fmt, args...)		pr_debug(fmt, ##args)
-#define pbm_warn_limit(fmt, args...)	pr_warn_ratelimited(fmt, ##args)
-
+#ifdef pr_fmt
+#undef pr_fmt
+#endif
+#define pr_fmt(fmt) "[PBM] " fmt
 
 #define pbm_debug(fmt, args...)	\
 	do {			\
 		if (mt_pbm_debug)		\
-			pr_crit(fmt, ##args);	\
+			pr_info(fmt, ##args);	\
 	} while (0)
 
 #define BIT_CHECK(a, b) ((a) & (1<<(b)))
@@ -112,7 +107,7 @@ static struct pbm pbm_ctrl = {
 	/* feature key */
 	.feature_en = 1,
 	.pbm_drv_done = 0,
-	.hpf_en = 63,		/* bin: 111111 (Flash, GPU, CPU, MD3, MD1, DLPT) */
+	.hpf_en = 63,	/* bin: 111111 (Flash, GPU, CPU, MD3, MD1, DLPT) */
 };
 
 #if MD_POWER_METER_ENABLE
@@ -294,28 +289,41 @@ static atomic_t kthread_nreq = ATOMIC_INIT(0);
 int __attribute__ ((weak))
 tscpu_get_min_cpu_pwr(void)
 {
-	pbm_warn_limit("%s not ready\n", __func__);
+	pr_warn_ratelimited("%s not ready\n", __func__);
 	return 0;
 }
 
 unsigned int __attribute__ ((weak))
 mt_gpufreq_get_leakage_mw(void)
 {
-	pbm_warn_limit("%s not ready\n", __func__);
+	pr_warn_ratelimited("%s not ready\n", __func__);
 	return 0;
 }
 
 void __attribute__ ((weak))
 mt_gpufreq_set_power_limit_by_pbm(unsigned int limited_power)
 {
-	pbm_warn_limit("%s not ready\n", __func__);
+	pr_warn_ratelimited("%s not ready\n", __func__);
 }
 
 u32 __attribute__ ((weak))
 spm_vcorefs_get_MD_status(void)
 {
-	pbm_warn_limit("%s not ready\n", __func__);
+	pr_warn_ratelimited("%s not ready\n", __func__);
 	return 0;
+}
+
+unsigned int __attribute__ ((weak))
+mt_ppm_get_leakage_mw(enum ppm_cluster_lkg limited_power)
+{
+	pr_warn_ratelimited("%s not ready\n", __func__);
+	return 0;
+}
+
+void __attribute__ ((weak))
+mt_ppm_dlpt_set_limit_by_pbm(unsigned int limited_power)
+{
+	pr_warn_ratelimited("%s not ready\n", __func__);
 }
 
 int get_battery_volt(void)
@@ -331,7 +339,8 @@ unsigned int ma_to_mw(unsigned int val)
 
 	bat_vol = get_battery_volt();	/* return mV */
 	ret_val = (bat_vol * val) / 1000;	/* mW = (mV * mA)/1000 */
-	pbm_crit("[%s] %d(mV) * %d(mA) = %d(mW)\n", __func__, bat_vol, val, ret_val);
+	pr_info("[%s] %d(mV) * %d(mA) = %d(mW)\n",
+		__func__, bat_vol, val, ret_val);
 
 	return ret_val;
 }
@@ -347,14 +356,14 @@ void dump_kicker_info(void)
 		hpfmgr->switch_gpu, hpfmgr->loading_cpu, hpfmgr->loading_gpu);
 #else
 	pbm_debug
-	    ("[***] Switch (MD1: %d, MD2: %d, GPU: %d, Flash: %d, CPU_volt: %d, GPU_volt: %d, CPU_num: %d)\n",
-	     hpfmgr->switch_md1, hpfmgr->switch_md2, hpfmgr->switch_gpu, hpfmgr->switch_flash,
-	     hpfmgr->cpu_volt, hpfmgr->gpu_volt, hpfmgr->cpu_num);
+("[***] Switch (MD1:%d,MD2:%d,GPU:%d,Flash:%d,CPU_v:%d,GPU_v:%d,CPU_n:%d)\n",
+hpfmgr->switch_md1, hpfmgr->switch_md2, hpfmgr->switch_gpu,
+hpfmgr->switch_flash, hpfmgr->cpu_volt, hpfmgr->gpu_volt, hpfmgr->cpu_num);
 
 	pbm_debug
-	    ("[***] Resource (DLPT: %ld, Leakage: %ld, MD: %ld, CPU: %ld, GPU: %ld, Flash: %ld)\n",
-	     hpfmgr->loading_dlpt, hpfmgr->loading_leakage, hpfmgr->loading_md, hpfmgr->loading_cpu,
-	     hpfmgr->loading_gpu, hpfmgr->loading_flash);
+("[***] Resource (DLPT:%ld,Leakage:%ld,MD:%ld,CPU:%ld,GPU:%ld,Flash:%ld)\n",
+hpfmgr->loading_dlpt, hpfmgr->loading_leakage, hpfmgr->loading_md,
+hpfmgr->loading_cpu, hpfmgr->loading_gpu, hpfmgr->loading_flash);
 #endif
 }
 
@@ -367,7 +376,8 @@ int hpf_get_power_leakage(void)
 	leakage_gpu = mt_gpufreq_get_leakage_mw();
 	hpfmgr->loading_leakage = leakage_cpu + leakage_gpu;
 
-	pbm_debug("[%s] %ld=%d+%d\n", __func__, hpfmgr->loading_leakage, leakage_cpu, leakage_gpu);
+	pbm_debug("[%s] %ld=%d+%d\n", __func__,
+		hpfmgr->loading_leakage, leakage_cpu, leakage_gpu);
 
 	return hpfmgr->loading_leakage;
 }
@@ -417,20 +427,27 @@ static void init_md1_section_level(void)
 	int section;
 
 #if defined(CONFIG_MTK_ECCCI_DRIVER)
-	share_mem = (u32 *)get_smem_start_addr(MD_SYS1, SMEM_USER_RAW_DBM, NULL);
+	share_mem =
+		(u32 *)get_smem_start_addr(MD_SYS1, SMEM_USER_RAW_DBM, NULL);
 #else
 	return;
 #endif
 
 	for (section = 1; section <= SECTION_NUM; section++) {
-		mem_2g |= md1_section_level_2g[section] << section_level[section];
-		mem_3g |= md1_section_level_3g[section] << section_level[section];
-		mem_4g_upL1 |= md1_section_level_4g_upL1[section] << section_level[section];
+		mem_2g |= md1_section_level_2g[section] <<
+			section_level[section];
+		mem_3g |= md1_section_level_3g[section] <<
+			section_level[section];
+		mem_4g_upL1 |= md1_section_level_4g_upL1[section] <<
+			section_level[section];
 #if defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6771)
-		mem_4g_upL2 |= md1_section_level_4g_upL2[section] << section_level[section];
+		mem_4g_upL2 |= md1_section_level_4g_upL2[section] <<
+			section_level[section];
 #endif
-		mem_tdd |= md1_section_level_tdd[section] << section_level[section];
-		mem_c2k |= md1_section_level_c2k[section] << section_level[section];
+		mem_tdd |= md1_section_level_tdd[section] <<
+			section_level[section];
+		mem_c2k |= md1_section_level_c2k[section] <<
+			section_level[section];
 	}
 
 	/* Get 4 byte = 32 bit */
@@ -452,22 +469,22 @@ static void init_md1_section_level(void)
 	share_mem[SECTION_LEVLE_TDD] = mem_tdd;
 	share_mem[SECTION_1_LEVLE_C2K] = mem_c2k;
 
-	pbm_crit("AP2MD1 section level, 2G: 0x%x(0x%x), 3G: 0x%x(0x%x), ",
+	pr_info("AP2MD1 section level, 2G: 0x%x(0x%x), 3G: 0x%x(0x%x), ",
 			mem_2g, share_mem[SECTION_LEVLE_2G],
 			mem_3g, share_mem[SECTION_LEVLE_3G]);
 #if defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6771)
-	pbm_crit("4G_upL1: 0x%x(0x%x), 4G_upL2: 0x%x(0x%x), TDD: 0x%x(0x%x), addr: 0x%p\n",
+pr_info("4G_upL1:0x%x(0x%x),4G_upL2:0x%x(0x%x),TDD:0x%x(0x%x),addr:0x%p\n",
 			mem_4g_upL1, share_mem[SECTION_LEVLE_4G],
 			mem_4g_upL2, share_mem[SECTION_1_LEVLE_4G],
 			mem_tdd, share_mem[SECTION_LEVLE_TDD],
 			share_mem);
 #else
-	pbm_crit("4G_upL1: 0x%x(0x%x), TDD: 0x%x(0x%x), addr: 0x%p\n",
+	pr_info("4G_upL1: 0x%x(0x%x), TDD: 0x%x(0x%x), addr: 0x%p\n",
 		mem_4g_upL1, share_mem[SECTION_LEVLE_4G],
 		mem_tdd, share_mem[SECTION_LEVLE_TDD],
 		share_mem);
 #endif
-	pbm_crit("C2K section level, C2K: 0x%x(0x%x), addr: 0x%p\n",
+	pr_info("C2K section level, C2K: 0x%x(0x%x), addr: 0x%p\n",
 			mem_c2k, share_mem[SECTION_1_LEVLE_C2K],
 			share_mem);
 }
@@ -480,10 +497,10 @@ void init_md_section_level(enum pbm_kicker kicker)
 		init_md1_section_level();
 		hpfmgr->md1_ccci_ready = 1;
 	} else {
-		pbm_crit("unknown MD kicker: %d\n", kicker);
+		pr_warn("unknown MD kicker: %d\n", kicker);
 	}
 
-	pbm_crit("MD section level init, MD1: %d\n", hpfmgr->md1_ccci_ready);
+	pr_info("MD section level init, MD1: %d\n", hpfmgr->md1_ccci_ready);
 }
 
 static int is_scenario_hit(u32 share_reg, int scenario)
@@ -562,7 +579,8 @@ static int is_scenario_hit(u32 share_reg, int scenario)
 #endif /* CONFIG_MACH_MT6763 */
 #endif /* defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6763) */
 	default:
-		pbm_crit("[%s] ERROR, unknown scenario [%d]\n", __func__, scenario);
+		pr_notice("[%s] ERROR, unknown scenario [%d]\n",
+			__func__, scenario);
 		WARN_ON_ONCE(1);
 		break;
 	}
@@ -634,7 +652,8 @@ static u32 set_fake_share_reg(int scenario)
 #endif /* CONFIG_MACH_MT6763 */
 #endif /* defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6763) */
 	default:
-		pbm_crit("[%s] ERROR, unknown scenario [%d]\n", __func__, scenario);
+		pr_notice("[%s] ERROR, unknown scenario [%d]\n",
+			__func__, scenario);
 		break;
 	}
 
@@ -679,7 +698,7 @@ static int get_md1_scenario(void)
 		pw_scenario = 0;
 		scenario = -1;
 
-		/* get scenario index of working & max power (bit4 and bit5 no use) */
+		/* get scenario index of working & max power */
 		for (i = 0; i < SCENARIO_NUM; i++) {
 			if (is_scenario_hit(share_reg, i)) {
 				if (md1_scenario_pwr[i] >= pw_scenario) {
@@ -692,7 +711,7 @@ static int get_md1_scenario(void)
 		scenario = (scenario < 0) ? S_STANDBY : scenario;
 
 		pbm_debug("MD1 scenario: 0x%x, reg: 0x%x, pw: %d\n",
-				scenario, share_reg, md1_scenario_pwr[scenario]);
+			scenario, share_reg, md1_scenario_pwr[scenario]);
 	}
 
 	return scenario;
@@ -706,22 +725,27 @@ static int get_md1_2g_dbm_power(u32 *share_mem)
 	int section;
 
 	if (share_mem[DBM_2G_TABLE] == bef_share_mem) {
-		pbm_debug("MD1 2G dBm, no TX power, reg: 0x%x(0x%x) return 0, pa: %d, rf: %d\n",
-					share_mem[DBM_2G_TABLE], bef_share_mem, pa_power, rf_power);
+		pbm_debug
+		("2G dBm, no TX power, reg: 0x%x(0x%x) return 0\n",
+			share_mem[DBM_2G_TABLE], bef_share_mem);
 		return 0;
 	}
 
 	for (section = 1; section <= SECTION_NUM; section++) {
-		if (((share_mem[DBM_2G_TABLE] >> section_level[section]) & SECTION_VALUE) !=
-							((bef_share_mem >> section_level[section]) & SECTION_VALUE)) {
+		if (((share_mem[DBM_2G_TABLE] >> section_level[section]) &
+			SECTION_VALUE) !=
+			((bef_share_mem >> section_level[section]) &
+			SECTION_VALUE)) {
 			/* get PA power */
 			pa_power = md1_pa_pwr_2g[section];
 
 			/* get RF power */
 			rf_power = md1_rf_pwr_2g[section];
 
-			pbm_debug("MD1 2G dBm update, reg: 0x%x, bef_reg: 0x%x, pa: %d, rf: %d, section: %d\n",
-					share_mem[DBM_2G_TABLE], bef_share_mem, pa_power, rf_power, section);
+			pbm_debug
+			("2G dBm update, reg:0x%x(0x%x),pa:%d,rf:%d,s:%d\n",
+				share_mem[DBM_2G_TABLE], bef_share_mem,
+				pa_power, rf_power, section);
 
 			bef_share_mem = share_mem[DBM_2G_TABLE];
 
@@ -738,22 +762,27 @@ static int get_md1_3g_dbm_power(u32 *share_mem)
 	int section;
 
 	if (share_mem[DBM_3G_TABLE] == bef_share_mem) {
-		pbm_debug("MD1 3G dBm, no TX power, reg: 0x%x(0x%x) return 0, pa: %d, rf: %d\n",
-					share_mem[DBM_3G_TABLE], bef_share_mem, pa_power, rf_power);
+		pbm_debug
+		("3G dBm, no TX power, reg: 0x%x(0x%x) return 0\n",
+			share_mem[DBM_2G_TABLE], bef_share_mem);
 		return 0;
 	}
 
 	for (section = 1; section <= SECTION_NUM; section++) {
-		if (((share_mem[DBM_3G_TABLE] >> section_level[section]) & SECTION_VALUE) !=
-							((bef_share_mem >> section_level[section]) & SECTION_VALUE)) {
+		if (((share_mem[DBM_3G_TABLE] >> section_level[section]) &
+			SECTION_VALUE) !=
+			((bef_share_mem >> section_level[section]) &
+			SECTION_VALUE)) {
 			/* get PA power */
 			pa_power = md1_pa_pwr_3g[section];
 
 			/* get RF power */
 			rf_power = md1_rf_pwr_3g[section];
 
-			pbm_debug("MD1 3G dBm update, reg: 0x%x, bef_reg: 0x%x, pa: %d, rf: %d, section: %d\n",
-					share_mem[DBM_3G_TABLE], bef_share_mem, pa_power, rf_power, section);
+			pbm_debug
+			("3G dBm update, reg:0x%x(0x%x),pa:%d,rf:%d,s:%d\n",
+				share_mem[DBM_3G_TABLE], bef_share_mem,
+				pa_power, rf_power, section);
 
 			bef_share_mem = share_mem[DBM_3G_TABLE];
 
@@ -770,22 +799,27 @@ static int get_md1_4g_upL1_dbm_power(u32 *share_mem)
 	int section;
 
 	if (share_mem[DBM_4G_TABLE] == bef_share_mem) {
-		pbm_debug("MD1 4G dBm, no TX power, reg: 0x%x(0x%x) return 0, pa: %d, rf: %d\n",
-					share_mem[DBM_4G_TABLE], bef_share_mem, pa_power, rf_power);
+		pbm_debug
+		("4G dBm, no TX power, reg: 0x%x(0x%x) return 0\n",
+			share_mem[DBM_2G_TABLE], bef_share_mem);
 		return 0;
 	}
 
 	for (section = 1; section <= SECTION_NUM; section++) {
-		if (((share_mem[DBM_4G_TABLE] >> section_level[section]) & SECTION_VALUE) !=
-							((bef_share_mem >> section_level[section]) & SECTION_VALUE)) {
+		if (((share_mem[DBM_4G_TABLE] >> section_level[section]) &
+			SECTION_VALUE) !=
+			((bef_share_mem >> section_level[section]) &
+			SECTION_VALUE)) {
 			/* get PA power */
 			pa_power = md1_pa_pwr_4g_upL1[section];
 
 			/* get RF power */
 			rf_power = md1_rf_pwr_4g_upL1[section];
 
-			pbm_debug("MD1 4G dBm update, reg: 0x%x, bef_reg: 0x%x, pa: %d, rf: %d, section: %d\n",
-					share_mem[DBM_4G_TABLE], bef_share_mem, pa_power, rf_power, section);
+			pbm_debug
+			("4G dBm update, reg:0x%x(0x%x),pa:%d,rf:%d,s:%d\n",
+				share_mem[DBM_4G_TABLE], bef_share_mem,
+				pa_power, rf_power, section);
 
 			bef_share_mem = share_mem[DBM_4G_TABLE];
 
@@ -804,22 +838,27 @@ static int get_md1_4g_upL2_dbm_power(u32 *share_mem)
 	int section;
 
 	if (share_mem[DBM_4G_1_TABLE] == bef_share_mem) {
-		pbm_debug("MD1 4G_1 dBm, no TX power, reg: 0x%x(0x%x) return 0, pa: %d, rf: %d\n",
-					share_mem[DBM_4G_1_TABLE], bef_share_mem, pa_power, rf_power);
+		pbm_debug
+		("4G_1 dBm, no TX power, reg: 0x%x(0x%x) return 0\n",
+			share_mem[DBM_4G_1_TABLE], bef_share_mem);
 		return 0;
 	}
 
 	for (section = 1; section <= SECTION_NUM; section++) {
-		if (((share_mem[DBM_4G_1_TABLE] >> section_level[section]) & SECTION_VALUE) !=
-							((bef_share_mem >> section_level[section]) & SECTION_VALUE)) {
+		if (((share_mem[DBM_4G_1_TABLE] >> section_level[section]) &
+			SECTION_VALUE) !=
+			((bef_share_mem >> section_level[section]) &
+			SECTION_VALUE)) {
 			/* get PA power */
 			pa_power = md1_pa_pwr_4g_upL2[section];
 
 			/* get RF power */
 			rf_power = md1_rf_pwr_4g_upL2[section];
 
-			pbm_debug("MD1 4G_1 dBm update, reg: 0x%x, bef_reg: 0x%x, pa: %d, rf: %d, section: %d\n",
-					share_mem[DBM_4G_1_TABLE], bef_share_mem, pa_power, rf_power, section);
+			pbm_debug
+			("4G_1 dBm update, reg:0x%x(0x%x),pa:%d,rf:%d,s:%d\n",
+				share_mem[DBM_4G_1_TABLE], bef_share_mem,
+				pa_power, rf_power, section);
 
 			bef_share_mem = share_mem[DBM_4G_1_TABLE];
 
@@ -837,22 +876,27 @@ static int get_md1_c2k_dbm_power(u32 *share_mem)
 	int section;
 
 	if (share_mem[DBM_C2K_1_TABLE] == bef_share_mem) {
-		pbm_debug("MD1 C2K dBm, no TX power, reg: 0x%x(0x%x) return 0, pa: %d, rf: %d\n",
-					share_mem[DBM_C2K_1_TABLE], bef_share_mem, pa_power, rf_power);
+		pbm_debug
+		("C2K dBm, no TX power, reg: 0x%x(0x%x) return 0\n",
+			share_mem[DBM_C2K_1_TABLE], bef_share_mem);
 		return 0;
 	}
 
 	for (section = 1; section <= SECTION_NUM; section++) {
-		if (((share_mem[DBM_C2K_1_TABLE] >> section_level[section]) & SECTION_VALUE) !=
-							((bef_share_mem >> section_level[section]) & SECTION_VALUE)) {
+		if (((share_mem[DBM_C2K_1_TABLE] >> section_level[section]) &
+			SECTION_VALUE) !=
+			((bef_share_mem >> section_level[section]) &
+			SECTION_VALUE)) {
 			/* get PA power */
 			pa_power = md1_pa_pwr_c2k[section];
 
 			/* get RF power */
 			rf_power = md1_rf_pwr_c2k[section];
 
-			pbm_debug("MD1 C2K dBm update, reg: 0x%x, bef_reg: 0x%x, pa: %d, rf: %d, section: %d\n",
-					share_mem[DBM_C2K_1_TABLE], bef_share_mem, pa_power, rf_power, section);
+			pbm_debug
+			("C2K dBm update, reg:0x%x(0x%x),pa:%d,rf:%d,s:%d\n",
+				share_mem[DBM_C2K_1_TABLE], bef_share_mem,
+				pa_power, rf_power, section);
 
 			bef_share_mem = share_mem[DBM_C2K_1_TABLE];
 
@@ -882,12 +926,15 @@ static int get_md1_dBm_power(int scenario)
 
 	if (share_mem == NULL) {
 #if defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6771)
-		pbm_debug("MD1 share_mem is NULL, use max pa and rf power (%d + %d)\n",
+		pbm_debug
+		("MD1 share_mem is NULL, use max pa and rf power (%d + %d)\n",
 			md1_pa_pwr_4g_upL1[1] + md1_pa_pwr_4g_upL2[1],
 			md1_rf_pwr_4g_upL1[1] + md1_rf_pwr_4g_upL2[1]);
-		return md1_pa_pwr_4g_upL1[1] + md1_pa_pwr_4g_upL2[1] + md1_rf_pwr_4g_upL1[1] + md1_rf_pwr_4g_upL2[1];
+		return md1_pa_pwr_4g_upL1[1] + md1_pa_pwr_4g_upL2[1] +
+			md1_rf_pwr_4g_upL1[1] + md1_rf_pwr_4g_upL2[1];
 #else
-		pbm_debug("MD1 share_mem is NULL, use max pa and rf power (%d + %d)\n",
+		pbm_debug
+		("MD1 share_mem is NULL, use max pa and rf power (%d + %d)\n",
 			md1_pa_pwr_4g_upL1[1], md1_rf_pwr_4g_upL1[1]);
 		return md1_pa_pwr_4g_upL1[1] + md1_rf_pwr_4g_upL1[1];
 #endif
@@ -897,7 +944,8 @@ static int get_md1_dBm_power(int scenario)
 
 	usedBytes = 0;
 	for (i = 0; i < SHARE_MEM_BLOCK_NUM; i++) {
-		usedBytes += sprintf(log_buffer + usedBytes, "0x%x ", share_mem[i]);
+		usedBytes += sprintf(log_buffer + usedBytes, "0x%x ",
+			share_mem[i]);
 
 		if ((i + 1) % 10 == 0) {
 			usedBytes = 0;
@@ -908,7 +956,8 @@ static int get_md1_dBm_power(int scenario)
 #if defined(CONFIG_MACH_MT6771)
 	if (scenario == S_2G_CONNECT) {
 		dbm_power_max = get_md1_2g_dbm_power(share_mem);
-	} else if (scenario == S_3G_C2K_TALKING || scenario == S_3G_C2K_DATALINK) {
+	} else if (scenario == S_3G_C2K_TALKING ||
+		scenario == S_3G_C2K_DATALINK) {
 		dbm_power = get_md1_3g_dbm_power(share_mem);
 		dbm_power_max = get_md1_c2k_dbm_power(share_mem);
 		dbm_power_max = MAX(dbm_power, dbm_power_max);
@@ -961,7 +1010,7 @@ static int get_md1_dBm_power(int scenario)
 #else
 void init_md_section_level(enum pbm_kicker kicker)
 {
-	pbm_crit("MD_POWER_METER_ENABLE:0\n");
+	pr_notice("MD_POWER_METER_ENABLE:0\n");
 }
 #endif
 
@@ -975,7 +1024,8 @@ static void test_md_dbm_power(void)
 		for (j = 1; j <= SECTION_VALUE; j++) {
 
 			/* get section level value to y */
-			y = (section[DBM_2G_TABLE] >> section_level[i]) & SECTION_VALUE;
+			y = (section[DBM_2G_TABLE] >> section_level[i]) &
+				SECTION_VALUE;
 			y = (y+1) << section_level[i];
 
 			/* clean need assign section level to 0 */
@@ -985,7 +1035,8 @@ static void test_md_dbm_power(void)
 			/* re-assign the value from y to section table */
 			section[DBM_2G_TABLE] |= y;
 			dbm_power = get_md1_2g_dbm_power(section);
-			pbm_debug("2G section=%d dbm_power=%d\n", i, dbm_power);
+			pbm_debug("2G section=%d dbm_power=%d\n",
+				i, dbm_power);
 		}
 	}
 
@@ -993,7 +1044,8 @@ static void test_md_dbm_power(void)
 		for (j = 1; j <= SECTION_VALUE; j++) {
 
 			/* get section level value to y */
-			y = (section[DBM_3G_TABLE] >> section_level[i]) & SECTION_VALUE;
+			y = (section[DBM_3G_TABLE] >> section_level[i]) &
+				SECTION_VALUE;
 			y = (y+1) << section_level[i];
 
 			/* clean need assign section level to 0 */
@@ -1003,7 +1055,8 @@ static void test_md_dbm_power(void)
 			/* re-assign the value from y to section table */
 			section[DBM_3G_TABLE] |= y;
 			dbm_power = get_md1_3g_dbm_power(section);
-			pbm_debug("3G section=%d dbm_power=%d\n", i, dbm_power);
+			pbm_debug("3G section=%d dbm_power=%d\n",
+				i, dbm_power);
 		}
 	}
 
@@ -1011,7 +1064,8 @@ static void test_md_dbm_power(void)
 		for (j = 1; j <= SECTION_VALUE; j++) {
 
 			/* get section level value to y */
-			y = (section[DBM_4G_TABLE] >> section_level[i]) & SECTION_VALUE;
+			y = (section[DBM_4G_TABLE] >> section_level[i]) &
+				SECTION_VALUE;
 			y = (y+1) << section_level[i];
 
 			/* clean need assign section level to 0 */
@@ -1021,7 +1075,8 @@ static void test_md_dbm_power(void)
 			/* re-assign the value from y to section table */
 			section[DBM_4G_TABLE] |= y;
 			dbm_power = get_md1_4g_upL1_dbm_power(section);
-			pbm_debug("4G section=%d dbm_power=%d\n", i, dbm_power);
+			pbm_debug("4G section=%d dbm_power=%d\n",
+				i, dbm_power);
 		}
 	}
 
@@ -1029,7 +1084,8 @@ static void test_md_dbm_power(void)
 		for (j = 1; j <= SECTION_VALUE; j++) {
 
 			/* get section level value to y */
-			y = (section[DBM_4G_1_TABLE] >> section_level[i]) & SECTION_VALUE;
+			y = (section[DBM_4G_1_TABLE] >> section_level[i]) &
+				SECTION_VALUE;
 			y = (y+1) << section_level[i];
 
 			/* clean need assign section level to 0 */
@@ -1039,7 +1095,8 @@ static void test_md_dbm_power(void)
 			/* re-assign the value from y to section table */
 			section[DBM_4G_1_TABLE] |= y;
 			dbm_power = get_md1_4g_upL2_dbm_power(section);
-			pbm_debug("4G section=%d dbm_power=%d\n", i, dbm_power);
+			pbm_debug("4G_1 section=%d dbm_power=%d\n",
+				i, dbm_power);
 
 
 		}
@@ -1049,7 +1106,8 @@ static void test_md_dbm_power(void)
 		for (j = 1; j <= SECTION_VALUE; j++) {
 
 			/* get section level value to y */
-			y = (section[DBM_C2K_1_TABLE] >> section_level[i]) & SECTION_VALUE;
+			y = (section[DBM_C2K_1_TABLE] >> section_level[i]) &
+				SECTION_VALUE;
 			y = (y+1) << section_level[i];
 
 			/* clean need assign section level to 0 */
@@ -1059,7 +1117,8 @@ static void test_md_dbm_power(void)
 			/* re-assign the value from y to section table */
 			section[DBM_C2K_1_TABLE] |= y;
 			dbm_power = get_md1_c2k_dbm_power(section);
-			pbm_debug("C2K section=%d dbm_power=%d\n", i, dbm_power);
+			pbm_debug("C2K section=%d dbm_power=%d\n",
+				i, dbm_power);
 		}
 	}
 }
@@ -1101,8 +1160,8 @@ unsigned long hpf_get_power_md1(void)
 
 static void pbm_allocate_budget_manager(void)
 {
-	int _dlpt = 0, leakage = 0, md1 = 0, dlpt = 0, cpu = 0, gpu = 0, flash = 0;
-	int tocpu = 0, togpu = 0;
+	int _dlpt = 0, leakage = 0, md1 = 0, dlpt = 0;
+	int cpu = 0, gpu = 0, flash = 0, tocpu = 0, togpu = 0;
 	int multiple = 0;
 	int cpu_lower_bound = tscpu_get_min_cpu_pwr();
 	static int pre_tocpu, pre_togpu;
@@ -1117,7 +1176,8 @@ static void pbm_allocate_budget_manager(void)
 	flash = hpf_get_power_flash();
 #if MD_POWER_METER_ENABLE
 	if (mt_pbm_log_divisor) {
-		mt_pbm_log_counter = (mt_pbm_log_counter + 1) % mt_pbm_log_divisor;
+		mt_pbm_log_counter = (mt_pbm_log_counter + 1) %
+			mt_pbm_log_divisor;
 
 		if (mt_pbm_log_counter == 1)
 			mt_pbm_debug = 1;
@@ -1177,18 +1237,23 @@ static void pbm_allocate_budget_manager(void)
 	}
 
 	if (mt_pbm_debug) {
-		pbm_debug("(C/G)=%d,%d => (D/L/M1/F/C/G)=%d,%d,%d,%d,%d,%d (Multi:%d),%d\n",
-			 cpu, gpu, dlpt, leakage, md1, flash, tocpu, togpu, multiple, cpu_lower_bound);
+		pbm_debug
+("(C/G)=%d,%d=>(D/L/M1/F/C/G)=%d,%d,%d,%d,%d,%d(Multi:%d),%d\n",
+cpu, gpu, dlpt, leakage, md1, flash, tocpu, togpu,
+multiple, cpu_lower_bound);
 	} else {
 		if (((abs(pre_tocpu - tocpu) >= 10) && cpu > tocpu) ||
 			((abs(pre_togpu - togpu) >= 10) && gpu > togpu)) {
-			pbm_crit("(C/G)=%d,%d => (D/L/M1/F/C/G)=%d,%d,%d,%d,%d,%d (Multi:%d),%d\n",
-				cpu, gpu, dlpt, leakage, md1, flash, tocpu, togpu, multiple, cpu_lower_bound);
+			pr_info
+("(C/G)=%d,%d=>(D/L/M1/F/C/G)=%d,%d,%d,%d,%d,%d(Multi:%d),%d\n",
+cpu, gpu, dlpt, leakage, md1, flash, tocpu, togpu,
+multiple, cpu_lower_bound);
 			pre_tocpu = tocpu;
 			pre_togpu = togpu;
 		} else if ((cpu > tocpu) || (gpu > togpu)) {
-			pbm_warn_limit("(C/G)=%d,%d => (D/L/M1/F/C/G)=%d,%d,%d,%d,%d,%d (Multi:%d),%d\n",
-				cpu, gpu, dlpt, leakage, md1, flash, tocpu, togpu, multiple, cpu_lower_bound);
+			pr_warn_ratelimited
+("(C/G)=%d,%d => (D/L/M1/F/C/G)=%d,%d,%d,%d,%d,%d (Multi:%d),%d\n",
+cpu, gpu, dlpt, leakage, md1, flash, tocpu, togpu, multiple, cpu_lower_bound);
 		} else {
 			pre_tocpu = tocpu;
 			pre_togpu = togpu;
@@ -1201,7 +1266,8 @@ static bool pbm_func_enable_check(void)
 	struct pbm *pwrctrl = &pbm_ctrl;
 
 	if (!pwrctrl->feature_en || !pwrctrl->pbm_drv_done) {
-		pbm_crit("feature_en: %d, pbm_drv_done: %d\n", pwrctrl->feature_en, pwrctrl->pbm_drv_done);
+		pr_info("feature_en: %d, pbm_drv_done: %d\n",
+		pwrctrl->feature_en, pwrctrl->pbm_drv_done);
 		return false;
 	}
 
@@ -1227,7 +1293,7 @@ static bool pbm_update_table_info(enum pbm_kicker kicker, struct mrp *mrpmgr)
 		}
 		break;
 	case KR_MD3:		/* kicker 2 */
-		pr_notice("should not kicker KR_MD3\n");
+		pr_warn("should not kicker KR_MD3\n");
 		break;
 	case KR_CPU:		/* kicker 3 */
 		hpfmgr->cpu_volt = mrpmgr->cpu_volt;
@@ -1254,7 +1320,7 @@ static bool pbm_update_table_info(enum pbm_kicker kicker, struct mrp *mrpmgr)
 		}
 		break;
 	default:
-		pbm_crit("[%s] ERROR, unknown kicker [%d]\n", __func__, kicker);
+		pr_warn("[%s] ERROR, unknown kicker [%d]\n", __func__, kicker);
 		WARN_ON_ONCE(1);
 		break;
 	}
@@ -1302,7 +1368,7 @@ static void mtk_power_budget_manager(enum pbm_kicker kicker, struct mrp *mrpmgr)
 void kicker_pbm_by_dlpt(unsigned int i_max)
 {
 	struct pbm *pwrctrl = &pbm_ctrl;
-	struct mrp mrpmgr;
+	struct mrp mrpmgr = {0};
 
 	mrpmgr.loading_dlpt = ma_to_mw(i_max);
 
@@ -1318,7 +1384,7 @@ void kicker_pbm_by_dlpt(unsigned int i_max)
 void kicker_pbm_by_md(enum pbm_kicker kicker, bool status)
 {
 	struct pbm *pwrctrl = &pbm_ctrl;
-	struct mrp mrpmgr;
+	struct mrp mrpmgr = {0};
 
 	mrpmgr.switch_md = status;
 
@@ -1335,7 +1401,7 @@ void kicker_pbm_by_md(enum pbm_kicker kicker, bool status)
 void kicker_pbm_by_cpu(unsigned int loading, int core, int voltage)
 {
 	struct pbm *pwrctrl = &pbm_ctrl;
-	struct mrp mrpmgr;
+	struct mrp mrpmgr = {0};
 
 	mrpmgr.loading_cpu = loading;
 	mrpmgr.cpu_num = core;
@@ -1354,7 +1420,7 @@ void kicker_pbm_by_cpu(unsigned int loading, int core, int voltage)
 void kicker_pbm_by_gpu(bool status, unsigned int loading, int voltage)
 {
 	struct pbm *pwrctrl = &pbm_ctrl;
-	struct mrp mrpmgr;
+	struct mrp mrpmgr = {0};
 
 	mrpmgr.switch_gpu = status;
 	mrpmgr.loading_gpu = loading;
@@ -1372,7 +1438,7 @@ void kicker_pbm_by_gpu(bool status, unsigned int loading, int voltage)
 void kicker_pbm_by_flash(bool status)
 {
 	struct pbm *pwrctrl = &pbm_ctrl;
-	struct mrp mrpmgr;
+	struct mrp mrpmgr = {0};
 
 	mrpmgr.switch_flash = status;
 
@@ -1403,14 +1469,14 @@ static int pbm_thread_handle(void *data)
 				pbm_allocate_budget_manager();
 				g_dlpt_state_sync = 0;
 			} else {
-				pbm_err("DISABLE PBM\n");
+				pr_notice("DISABLE PBM\n");
 
 				if (g_dlpt_state_sync == 0) {
 					mt_ppm_dlpt_set_limit_by_pbm(0);
 
 					mt_gpufreq_set_power_limit_by_pbm(0);
 					g_dlpt_state_sync = 1;
-					pbm_err("Release DLPT limit\n");
+					pr_info("Release DLPT limit\n");
 				}
 			}
 		}
@@ -1432,7 +1498,8 @@ static int create_pbm_kthread(void)
 		return PTR_ERR(pbm_thread);
 
 	wake_up_process(pbm_thread);
-	pwrctrl->pbm_drv_done = 1;	/* avoid other hpf call thread before thread init done */
+	pwrctrl->pbm_drv_done = 1;
+	/* avoid other hpf call thread before thread init done */
 
 	return 0;
 }
@@ -1488,8 +1555,8 @@ static int mt_pbm_debug_proc_show(struct seq_file *m, void *v)
 /*
  * enable debug message
  */
-static ssize_t mt_pbm_debug_proc_write(struct file *file, const char __user *buffer,
-					   size_t count, loff_t *data)
+static ssize_t mt_pbm_debug_proc_write
+(struct file *file, const char __user *buffer, size_t count, loff_t *data)
 {
 	char desc[32];
 	int len = 0;
@@ -1507,9 +1574,9 @@ static ssize_t mt_pbm_debug_proc_write(struct file *file, const char __user *buf
 		else if (debug == 1)
 			mt_pbm_debug = 1;
 		else
-			pbm_warn("bad argument!! should be 0 or 1 [0: disable, 1: enable]\n");
+			pr_notice("should be [0:disable,1:enable]\n");
 	} else
-		pbm_warn("bad argument!! should be 0 or 1 [0: disable, 1: enable]\n");
+		pr_notice("should be [0:disable,1:enable]\n");
 
 	return count;
 }
@@ -1519,7 +1586,8 @@ static int mt_pbm_debug_log_reduc_proc_show(struct seq_file *m, void *v)
 {
 	if (mt_pbm_log_divisor) {
 		seq_puts(m, "pbm debug enabled\n");
-		seq_printf(m, "The divisor number is :%d\n", mt_pbm_log_divisor);
+		seq_printf(m, "The divisor number is :%d\n",
+			mt_pbm_log_divisor);
 	} else {
 		seq_puts(m, "Log reduction disabled\n");
 	}
@@ -1527,8 +1595,8 @@ static int mt_pbm_debug_log_reduc_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-static ssize_t mt_pbm_debug_log_reduc_proc_write(struct file *file, const char __user *buffer,
-					   size_t count, loff_t *data)
+static ssize_t mt_pbm_debug_log_reduc_proc_write
+(struct file *file, const char __user *buffer, size_t count, loff_t *data)
 {
 	char desc[32];
 	int len = 0;
@@ -1549,40 +1617,40 @@ static ssize_t mt_pbm_debug_log_reduc_proc_write(struct file *file, const char _
 			mt_pbm_debug = 1;
 			mt_pbm_log_counter = 0;
 		} else {
-			pbm_warn("bad argument!! should be 0 or larger than 0 [0: disable, other: enable, a divisor number]\n");
+			pr_notice("Should be >=0 [0:disable,other:enable]\n");
 		}
 	} else
-		pbm_warn("bad argument!! should be 0 or larger than 0 [0: disable, other: enable, a divisor number]\n");
+		pr_notice("Should be >=0 [0:disable,other:enable]\n");
 
 	return count;
 }
 #endif
 
-#define PROC_FOPS_RW(name)							\
-	static int mt_ ## name ## _proc_open(struct inode *inode, struct file *file)	\
+#define PROC_FOPS_RW(name)						\
+static int mt_ ## name ## _proc_open(struct inode *inode, struct file *file)\
 {									\
-	return single_open(file, mt_ ## name ## _proc_show, PDE_DATA(inode));	\
+	return single_open(file, mt_ ## name ## _proc_show, PDE_DATA(inode));\
 }									\
-static const struct file_operations mt_ ## name ## _proc_fops = {		\
-	.owner		  = THIS_MODULE,				\
-	.open		   = mt_ ## name ## _proc_open,	\
-	.read		   = seq_read,					\
-	.llseek		 = seq_lseek,					\
-	.release		= single_release,				\
-	.write		  = mt_ ## name ## _proc_write,				\
-}
-
-#define PROC_FOPS_RO(name)							\
-	static int mt_ ## name ## _proc_open(struct inode *inode, struct file *file)	\
-{									\
-	return single_open(file, mt_ ## name ## _proc_show, PDE_DATA(inode));	\
-}									\
-static const struct file_operations mt_ ## name ## _proc_fops = {		\
-	.owner		= THIS_MODULE,				\
-	.open		= mt_ ## name ## _proc_open,	\
+static const struct file_operations mt_ ## name ## _proc_fops = {	\
+	.owner		= THIS_MODULE,					\
+	.open		= mt_ ## name ## _proc_open,			\
 	.read		= seq_read,					\
 	.llseek		= seq_lseek,					\
 	.release	= single_release,				\
+	.write		= mt_ ## name ## _proc_write,			\
+}
+
+#define PROC_FOPS_RO(name)						\
+static int mt_ ## name ## _proc_open(struct inode *inode, struct file *file)\
+{									\
+	return single_open(file, mt_ ## name ## _proc_show, PDE_DATA(inode));\
+}									\
+static const struct file_operations mt_ ## name ## _proc_fops = {	\
+	.owner		= THIS_MODULE,				\
+	.open		= mt_ ## name ## _proc_open,		\
+	.read		= seq_read,				\
+	.llseek		= seq_lseek,				\
+	.release	= single_release,			\
 }
 
 #define PROC_ENTRY(name)	{__stringify(name), &mt_ ## name ## _proc_fops}
@@ -1613,14 +1681,14 @@ static int mt_pbm_create_procfs(void)
 	dir = proc_mkdir("pbm", NULL);
 
 	if (!dir) {
-		pbm_err("fail to create /proc/pbm @ %s()\n", __func__);
+		pr_notice("fail to create /proc/pbm @ %s()\n", __func__);
 		return -ENOMEM;
 	}
 
 	for (i = 0; i < ARRAY_SIZE(entries); i++) {
 		if (!proc_create
-		    (entries[i].name, S_IRUGO | S_IWUSR | S_IWGRP, dir, entries[i].fops))
-			pbm_err("@%s: create /proc/pbm/%s failed\n", __func__,
+		    (entries[i].name, 0664, dir, entries[i].fops))
+			pr_notice("@%s: create /proc/pbm/%s failed\n", __func__,
 				    entries[i].name);
 	}
 
@@ -1642,15 +1710,15 @@ static int __init pbm_module_init(void)
 	ret = create_pbm_kthread();
 
 	#ifdef TEST_MD_POWER
-	/* pbm_crit("share_reg: %x", spm_vcorefs_get_MD_status());*/
+	/* pr_info("share_reg: %x", spm_vcorefs_get_MD_status());*/
 	test_md_dbm_power();
 	get_md1_scenario();
 	#endif
 
-	pbm_crit("pbm_module_init : Done\n");
+	pr_info("%s: Done\n", __func__);
 
 	if (ret) {
-		pbm_err("FAILED TO CREATE PBM KTHREAD\n");
+		pr_notice("FAILED TO CREATE PBM KTHREAD\n");
 		return ret;
 	}
 	return ret;
@@ -1684,7 +1752,7 @@ void init_md_section_level(enum pbm_kicker kicker)
 
 static int __init pbm_module_init(void)
 {
-	pr_crit("DISABLE_PBM_FEATURE is defined.\n");
+	pr_notice("DISABLE_PBM_FEATURE is defined.\n");
 	return 0;
 }
 

@@ -125,37 +125,43 @@ static int _lcm_gpio_probe(struct platform_device *pdev)
 	_lcm_gpio = devm_pinctrl_get(dev);
 	if (IS_ERR(_lcm_gpio)) {
 		ret = PTR_ERR(_lcm_gpio);
-		dev_err(dev, "[LCM][ERROR] Cannot find _lcm_gpio!\n");
+		pr_info("[LCM][ERROR] Cannot find _lcm_gpio!\n");
 		return ret;
 	}
 	_lcm_gpio_mode_default = pinctrl_lookup_state(_lcm_gpio, "default");
 	if (IS_ERR(_lcm_gpio_mode_default)) {
 		ret = PTR_ERR(_lcm_gpio_mode_default);
-		dev_err(dev, "[LCM][ERROR] Cannot find lcm_mode_default %d!\n", ret);
+		pr_info("[LCM][ERROR] Cannot find lcm_mode_default %d!\n",
+			ret);
 	}
 	for (mode = LCM_GPIO_MODE_00; mode < MAX_LCM_GPIO_MODE; mode++) {
-		_lcm_gpio_mode[mode] = pinctrl_lookup_state(_lcm_gpio, _lcm_gpio_mode_list[mode]);
+		_lcm_gpio_mode[mode] =
+			pinctrl_lookup_state(_lcm_gpio,
+				_lcm_gpio_mode_list[mode]);
 		if (IS_ERR(_lcm_gpio_mode[mode]))
-			pr_err("[LCM][ERROR] Cannot find lcm_mode:%d! skip it.\n", mode);
+			pr_info("[LCM][ERROR] Cannot find lcm_mode:%d! skip it.\n",
+			mode);
 
 	}
 
 	if (dev->of_node) {
 		match = of_match_device(of_match_ptr(_lcm_gpio_of_ids), dev);
 		if (!match) {
-			pr_err("[LCM][ERROR] No device match found\n");
+			pr_info("[LCM][ERROR] No device match found\n");
 			return -ENODEV;
 		}
 	}
-	GPIO_LCD_PWR_EN = of_get_named_gpio(dev->of_node, "lcm_power_gpio", 0);
-	GPIO_LCD_BL_EN = of_get_named_gpio(dev->of_node, "lcm_bl_gpio", 0);
+	GPIO_LCD_PWR_EN =
+		of_get_named_gpio(dev->of_node, "lcm_power_gpio", 0);
+	GPIO_LCD_BL_EN =
+		of_get_named_gpio(dev->of_node, "lcm_bl_gpio", 0);
 
 	ret = gpio_request(GPIO_LCD_PWR_EN, "lcm_power_gpio");
 	if (ret < 0)
-		pr_err("[LCM][ERROR] Unable to request GPIO_LCD_PWR_EN\n");
+		pr_info("[LCM][ERROR] Unable to request GPIO_LCD_PWR_EN\n");
 	ret = gpio_request(GPIO_LCD_BL_EN, "lcm_bl_gpio");
 	if (ret < 0)
-		pr_err("[LCM][ERROR] Unable to request GPIO_LCD_BL_EN\n");
+		pr_info("[LCM][ERROR] Unable to request GPIO_LCD_BL_EN\n");
 
 	pr_debug("[LCM][GPIO] _lcm_gpio_get_info end!\n");
 #endif
@@ -180,7 +186,7 @@ static int __init _lcm_gpio_init(void)
 {
 	pr_debug("MediaTek LCM GPIO driver init\n");
 	if (platform_driver_register(&_lcm_gpio_driver) != 0) {
-		pr_err("unable to register LCM GPIO driver.\n");
+		pr_info("unable to register LCM GPIO driver.\n");
 		return -1;
 	}
 	return 0;
@@ -196,7 +202,8 @@ static void __exit _lcm_gpio_exit(void)
 #endif
 
 
-static LCM_STATUS _lcm_gpio_check_data(char type, const LCM_DATA_T1 *t1)
+static enum LCM_STATUS _lcm_gpio_check_data(char type,
+	const struct LCM_DATA_T1 *t1)
 {
 	switch (type) {
 	case LCM_GPIO_MODE:
@@ -212,7 +219,8 @@ static LCM_STATUS _lcm_gpio_check_data(char type, const LCM_DATA_T1 *t1)
 			break;
 
 		default:
-			pr_err("[LCM][ERROR] %s/%d: %d, %d\n", __func__, __LINE__, type, t1->data);
+			pr_info("[LCM][ERROR] %s/%d: %d, %d\n",
+				__func__, __LINE__, type, t1->data);
 			return LCM_STATUS_ERROR;
 		}
 		break;
@@ -224,7 +232,8 @@ static LCM_STATUS _lcm_gpio_check_data(char type, const LCM_DATA_T1 *t1)
 			break;
 
 		default:
-			pr_err("[LCM][ERROR] %s/%d: %d, %d\n", __func__, __LINE__, type, t1->data);
+			pr_info("[LCM][ERROR] %s/%d: %d, %d\n",
+				__func__, __LINE__, type, t1->data);
 			return LCM_STATUS_ERROR;
 		}
 		break;
@@ -236,13 +245,15 @@ static LCM_STATUS _lcm_gpio_check_data(char type, const LCM_DATA_T1 *t1)
 			break;
 
 		default:
-			pr_err("[LCM][ERROR] %s/%d: %d, %d\n", __func__, __LINE__, type, t1->data);
+			pr_info("[LCM][ERROR] %s/%d: %d, %d\n",
+				__func__, __LINE__, type, t1->data);
 			return LCM_STATUS_ERROR;
 		}
 		break;
 
 	default:
-		pr_err("[LCM][ERROR] %s/%d: %d\n", __func__, __LINE__, type);
+		pr_info("[LCM][ERROR] %s/%d: %d\n",
+			__func__, __LINE__, type);
 		return LCM_STATUS_ERROR;
 	}
 
@@ -250,7 +261,7 @@ static LCM_STATUS _lcm_gpio_check_data(char type, const LCM_DATA_T1 *t1)
 }
 
 
-LCM_STATUS lcm_gpio_set_data(char type, const LCM_DATA_T1 *t1)
+enum LCM_STATUS lcm_gpio_set_data(char type, const struct LCM_DATA_T1 *t1)
 {
 	/* check parameter is valid */
 	if (_lcm_gpio_check_data(type, t1) == LCM_STATUS_OK) {
@@ -270,20 +281,23 @@ LCM_STATUS lcm_gpio_set_data(char type, const LCM_DATA_T1 *t1)
 #else
 #ifdef CONFIG_PINCTRL
 		case LCM_GPIO_MODE:
-			pr_debug("[LCM][GPIO] %s/%d: set mode: %d\n", __func__, __LINE__,
-				 (unsigned int)t1->data);
-			pinctrl_select_state(_lcm_gpio, _lcm_gpio_mode[(unsigned int)t1->data]);
+			pr_debug("[LCM][GPIO] %s/%d: set mode: %d\n",
+				__func__, __LINE__, (unsigned int)t1->data);
+			pinctrl_select_state(_lcm_gpio,
+				_lcm_gpio_mode[(unsigned int)t1->data]);
 			break;
 
 		case LCM_GPIO_DIR:
-			pr_debug("[LCM][GPIO] %s/%d: set dir: %d, %d\n", __func__, __LINE__,
-				 GPIO_LCD_PWR_EN, (unsigned int)t1->data);
+			pr_debug("[LCM][GPIO] %s/%d: set dir: %d, %d\n",
+				__func__, __LINE__, GPIO_LCD_PWR_EN,
+				(unsigned int)t1->data);
 			gpio_direction_output(GPIO_LCD_PWR_EN, (int)t1->data);
 			break;
 
 		case LCM_GPIO_OUT:
-			pr_debug("[LCM][GPIO] %s/%d: set out: %d, %d\n", __func__, __LINE__,
-				 GPIO_LCD_PWR_EN, (unsigned int)t1->data);
+			pr_debug("[LCM][GPIO] %s/%d: set out: %d, %d\n",
+				__func__, __LINE__, GPIO_LCD_PWR_EN,
+				(unsigned int)t1->data);
 			gpio_set_value(GPIO_LCD_PWR_EN, (int)t1->data);
 			break;
 #else
@@ -294,11 +308,13 @@ LCM_STATUS lcm_gpio_set_data(char type, const LCM_DATA_T1 *t1)
 #endif
 #endif
 		default:
-			pr_err("[LCM][ERROR] %s/%d: %d\n", __func__, __LINE__, type);
+			pr_info("[LCM][ERROR] %s/%d: %d\n",
+				__func__, __LINE__, type);
 			return LCM_STATUS_ERROR;
 		}
 	} else {
-		pr_err("[LCM][ERROR] %s: 0x%x, 0x%x\n", __func__, type, t1->data);
+		pr_info("[LCM][ERROR] %s: 0x%x, 0x%x\n",
+			__func__, type, t1->data);
 		return LCM_STATUS_ERROR;
 	}
 

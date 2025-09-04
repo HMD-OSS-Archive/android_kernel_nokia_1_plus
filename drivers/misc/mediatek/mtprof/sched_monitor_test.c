@@ -21,19 +21,15 @@
 
 /* TIMER_SOFTIRQ duration warning test */
 
+static struct timer_list timer;
 static void delayed_timer(unsigned long arg)
 {
 	mdelay(600);
 }
-
 void sched_mon_test_TIMER_SOFTIRQ(void)
 {
-	struct timer_list timer;
-
 	setup_timer(&timer, delayed_timer, 0);
-	timer.expires = jiffies + msecs_to_jiffies(10);
-	add_timer(&timer);
-	mdelay(3000);
+	mod_timer(&timer, jiffies + msecs_to_jiffies(100));
 }
 
 /* TASKLET_SOFTIRQ duration warning test */
@@ -70,7 +66,7 @@ void sched_mon_test_RCU_SOFTIRQ(void)
 		return;
 	sched_mon_rcu->val = 100;
 
-	rcu_assign_pointer(sched_mon_rcu_g, sched_mon_rcu);
+	RCU_INIT_POINTER(sched_mon_rcu_g, sched_mon_rcu);
 	call_rcu(&sched_mon_rcu_head, delayed_rcu_callback);
 }
 

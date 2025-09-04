@@ -124,13 +124,14 @@
 /* #define FPGA_VERSION */
 #include "jpeg_drv_reg.h"
 
-#ifdef SMI_CG_SUPPORT
 #include "smi_public.h"
-#endif
-#include "smi_debug.h"
 
-#ifdef CONFIG_MTK_QOS_SUPPORT
+/* Support QoS */
 #include <linux/pm_qos.h>
+
+#if ENABLE_MMQOS
+#include "smi_port.h"
+#include "mmdvfs_pmqos.h"
 #endif
 
 /* -------------------------------------------------------------------------- */
@@ -193,10 +194,20 @@ static spinlock_t jpeg_enc_lock;
 static int enc_status;
 static int enc_ready;
 static DEFINE_MUTEX(jpeg_enc_power_lock);
+static DEFINE_MUTEX(DriverOpenCountLock);
+static int Driver_Open_Count;
 
-#ifdef CONFIG_MTK_QOS_SUPPORT
-struct pm_qos_request jpgenc_qos_request;
+#if ENABLE_MMQOS
+static struct plist_head jpegenc_rlist;
+static struct mm_qos_request jpeg_y_rdma;
+static struct mm_qos_request jpeg_c_rdma;
+static struct mm_qos_request jpeg_qtbl;
+static struct mm_qos_request jpeg_bsdma;
+static unsigned int cshot_spec_dts;
 #endif
+
+/* Support QoS */
+struct pm_qos_request jpgenc_qos_request;
 
 /* ========================================== */
 /* CMDQ */
@@ -211,6 +222,7 @@ struct pm_qos_request jpgenc_qos_request;
 /* -------------------------------------------------------------------------- */
 
 #ifdef FPGA_VERSION
+
 
 void jpeg_drv_dec_power_on(void)
 {
@@ -238,9 +250,93 @@ void jpeg_drv_enc_power_off(void)
 
 #else
 
+void jpeg_drv_enc_prepare_bw_request(void)
+{
+#if ENABLE_MMQOS
+	plist_head_init(&jpegenc_rlist);
+	mm_qos_add_request(&jpegenc_rlist, &jpeg_y_rdma, SMI_JPGENC_Y_RDMA);
+	mm_qos_add_request(&jpegenc_rlist, &jpeg_c_rdma, SMI_JPGENC_C_RDMA);
+	mm_qos_add_request(&jpegenc_rlist, &jpeg_qtbl, SMI_JPGENC_Q_TABLE);
+	mm_qos_add_request(&jpegenc_rlist, &jpeg_bsdma, SMI_JPGENC_BSDMA);
+#endif
+
+}
+
+void jpegenc_drv_enc_update_bw_request(struct JPEG_ENC_DRV_IN cfgEnc)
+{
+#if ENABLE_MMQOS
+	/* No spec, considering [picture size] x [target fps] */
+	unsigned int cshot_spec = 0xffffffff;
+	/* limiting FPS, Upper Bound FPS = 20 */
+	unsigned int target_fps = 20;
+
+	/* Support QoS */
+	unsigned int emi_bw = 0;
+	unsigned int picSize = 0;
+	unsigned int limitedFPS = 0;
+
+
+	/* Support QoS */
+	picSize = (cfgEnc.encWidth * cfgEnc.encHeight) / 1000000;
+	/* BW = encode width x height x bpp x 1.6 */
+	/* Assume compress ratio is 0.6 */
+	#if 0
+	if (cfgEnc.encFormat == 0x0 || cfgEnc.encFormat == 0x1)
+		picCost = ((picSize * 2) * 8/5) + 1;
+	else
+		picCost = ((picSize * 3/2) * 8/5) + 1;
+	#endif
+
+
+	cshot_spec = cshot_spec_dts;
+
+	if ((picSize * target_fps) < cshot_spec) {
+		emi_bw = picSize * target_fps;
+	} else {
+		limitedFPS = cshot_spec / picSize;
+		emi_bw = (limitedFPS + 1) * picSize;
+	}
+
+	/* QoS requires Occupied BW */
+	/* Data BW x 1.33 */
+	emi_bw = emi_bw * 4/3;
+
+	JPEG_MSG("Width %d Height %d emi_bw %d cshot_spec %d\n",
+		 cfgEnc.encWidth, cfgEnc.encHeight, emi_bw, cshot_spec);
+
+	mm_qos_set_request(&jpeg_y_rdma, emi_bw, 0, BW_COMP_NONE);
+
+	if (cfgEnc.encFormat == 0x0 || cfgEnc.encFormat == 0x1)
+		mm_qos_set_request(&jpeg_c_rdma, emi_bw, 0, BW_COMP_NONE);
+	else
+		mm_qos_set_request(&jpeg_c_rdma, emi_bw * 1/2, 0, BW_COMP_NONE);
+
+
+	mm_qos_set_request(&jpeg_qtbl, 10, 0, BW_COMP_NONE);
+	mm_qos_set_request(&jpeg_bsdma, emi_bw, 0, BW_COMP_NONE);
+	mm_qos_update_all_request(&jpegenc_rlist);
+
+
+#endif
+}
+
+
+
+void jpegenc_drv_enc_remove_bw_request(void)
+{
+#if ENABLE_MMQOS
+	mm_qos_remove_all_request(&jpegenc_rlist);
+#endif
+}
+
+
 static irqreturn_t jpeg_drv_enc_isr(int irq, void *dev_id)
 {
 	/* JPEG_MSG("JPEG Encoder Interrupt\n"); */
+	if (enc_status == 0) {
+		JPEG_ERR("interrupt without power on");
+		return IRQ_HANDLED;
+	}
 
 	if (irq == gJpegqDev.encIrqId) {
 		if (jpeg_isr_enc_lisr() == 0)
@@ -277,25 +373,25 @@ void jpeg_drv_dec_power_on(void)
 		if (clk_prepare_enable(gJpegClk.clk_venc_jpgDec))
 			JPEG_ERR("enable clk_venc_jpgDec fail!");
 	#else
-		#ifdef SMI_CG_SUPPORT
-			smi_bus_enable(SMI_LARB_VENCSYS, "JPEG");
-			if (clk_prepare_enable(gJpegClk.clk_venc_jpgDec))
-				JPEG_ERR("enable clk_venc_jpgDec fail!");
+		#ifdef CONFIG_MTK_SMI_EXT
+		smi_bus_prepare_enable(SMI_LARB7_REG_INDX, "JPEG", true);
+		if (clk_prepare_enable(gJpegClk.clk_venc_jpgDec))
+			JPEG_ERR("enable clk_venc_jpgDec fail!");
 		#else
-			if (clk_prepare_enable(gJpegClk.clk_scp_sys_mm0))
+		if (clk_prepare_enable(gJpegClk.clk_scp_sys_mm0))
 			JPEG_ERR("enable clk_scp_sys_mm0 fail!");
 
-			if (clk_prepare_enable(gJpegClk.clk_smi_common))
-				JPEG_ERR("enable clk_smi_common fail!");
+		if (clk_prepare_enable(gJpegClk.clk_smi_common))
+			JPEG_ERR("enable clk_smi_common fail!");
 
-			if (clk_prepare_enable(gJpegClk.clk_scp_sys_ven))
-				JPEG_ERR("enable clk_scp_sys_ven fail!");
+		if (clk_prepare_enable(gJpegClk.clk_scp_sys_ven))
+			JPEG_ERR("enable clk_scp_sys_ven fail!");
 
-			if (clk_prepare_enable(gJpegClk.clk_venc_jpgDec))
-				JPEG_ERR("enable clk_venc_jpgDec fail!");
+		if (clk_prepare_enable(gJpegClk.clk_venc_jpgDec))
+			JPEG_ERR("enable clk_venc_jpgDec fail!");
 
-			if (clk_prepare_enable(gJpegClk.clk_venc_larb))
-				JPEG_ERR("enable clk_venc_larb fail!");
+		if (clk_prepare_enable(gJpegClk.clk_venc_larb))
+			JPEG_ERR("enable clk_venc_larb fail!");
 		#endif
 	#endif
 #endif
@@ -312,15 +408,15 @@ void jpeg_drv_dec_power_off(void)
 		clk_disable_unprepare(gJpegClk.clk_venc_jpgDec);
 		mtk_smi_larb_clock_off(3, true);
 	#else
-		#ifdef SMI_CG_SUPPORT
-			clk_disable_unprepare(gJpegClk.clk_venc_jpgDec);
-			smi_bus_disable(SMI_LARB_VENCSYS, "JPEG");
+		#ifdef CONFIG_MTK_SMI_EXT
+		clk_disable_unprepare(gJpegClk.clk_venc_jpgDec);
+		smi_bus_disable_unprepare(SMI_LARB7_REG_INDX, "JPEG", true);
 		#else
-			clk_disable_unprepare(gJpegClk.clk_venc_larb);
-			clk_disable_unprepare(gJpegClk.clk_venc_jpgDec);
-			clk_disable_unprepare(gJpegClk.clk_scp_sys_ven);
-			clk_disable_unprepare(gJpegClk.clk_smi_common);
-			clk_disable_unprepare(gJpegClk.clk_scp_sys_mm0);
+		clk_disable_unprepare(gJpegClk.clk_venc_larb);
+		clk_disable_unprepare(gJpegClk.clk_venc_jpgDec);
+		clk_disable_unprepare(gJpegClk.clk_scp_sys_ven);
+		clk_disable_unprepare(gJpegClk.clk_smi_common);
+		clk_disable_unprepare(gJpegClk.clk_scp_sys_mm0);
 		#endif
 	#endif
 #endif
@@ -344,10 +440,39 @@ void jpeg_drv_enc_power_on(void)
 		if (clk_prepare_enable(gJpegClk.clk_venc_jpgEnc))
 			JPEG_ERR("enable clk_venc_jpgEnc fail!");
 	#else
-		#ifdef SMI_CG_SUPPORT
-			smi_bus_enable(SMI_LARB_VENCSYS, "JPEG");
-			if (clk_prepare_enable(gJpegClk.clk_venc_jpgEnc))
-				JPEG_ERR("enable clk_venc_jpgDec fail!");
+		#ifdef CONFIG_MTK_SMI_EXT
+		#if defined(PLATFORM_MT6779)
+		smi_bus_prepare_enable(SMI_LARB3_REG_INDX,
+			"JPEG", true);
+		#elif defined(PLATFORM_MT6785)
+
+		smi_bus_prepare_enable(SMI_LARB3, "JPEG");
+
+		#elif defined(PLATFORM_MT6768)
+
+		smi_bus_prepare_enable(SMI_LARB4, "JPEG");
+
+		#elif defined(PLATFORM_MT6767)
+
+		smi_bus_prepare_enable(SMI_LARB4, "JPEG");
+
+		#elif defined(PLATFORM_MT6765)
+
+		smi_bus_prepare_enable(SMI_LARB1, "JPEG");
+		#elif defined(PLATFORM_MT6761)
+
+		smi_bus_prepare_enable(SMI_LARB1, "JPEG");
+		#elif defined(PLATFORM_MT6739)
+
+		smi_bus_prepare_enable(SMI_LARB1, "JPEG");
+
+		#elif defined(PLATFORM_MT6771)
+
+		smi_bus_prepare_enable(SMI_LARB4, "JPEG");
+
+		#endif
+		if (clk_prepare_enable(gJpegClk.clk_venc_jpgEnc))
+			JPEG_ERR("enable clk_venc_jpgDec fail!");
 		#else
 			if (clk_prepare_enable(gJpegClk.clk_scp_sys_mm0))
 				JPEG_ERR("enable clk_scp_sys_mm0 fail!");
@@ -385,9 +510,43 @@ void jpeg_drv_enc_power_off(void)
 		clk_disable_unprepare(gJpegClk.clk_venc_jpgEnc);
 		mtk_smi_larb_clock_off(3, true);
 	#else
-		#ifdef SMI_CG_SUPPORT
-			clk_disable_unprepare(gJpegClk.clk_venc_jpgEnc);
-			smi_bus_disable(SMI_LARB_VENCSYS, "JPEG");
+		#ifdef CONFIG_MTK_SMI_EXT
+		clk_disable_unprepare(gJpegClk.clk_venc_jpgEnc);
+		#if defined(PLATFORM_MT6779)
+
+		smi_bus_disable_unprepare(SMI_LARB3_REG_INDX,
+		"JPEG", true);
+
+		#elif defined(PLATFORM_MT6785)
+
+		smi_bus_disable_unprepare(SMI_LARB3, "JPEG");
+
+		#elif defined(PLATFORM_MT6768)
+
+		smi_bus_disable_unprepare(SMI_LARB4, "JPEG");
+
+		#elif defined(PLATFORM_MT6767)
+
+		smi_bus_disable_unprepare(SMI_LARB4, "JPEG");
+
+		#elif defined(PLATFORM_MT6765)
+
+		smi_bus_disable_unprepare(SMI_LARB1, "JPEG");
+
+		#elif defined(PLATFORM_MT6761)
+
+		smi_bus_disable_unprepare(SMI_LARB1, "JPEG");
+
+		#elif defined(PLATFORM_MT6739)
+
+		smi_bus_disable_unprepare(SMI_LARB1, "JPEG");
+
+
+		#elif defined(PLATFORM_MT6771)
+
+		smi_bus_disable_unprepare(SMI_LARB4, "JPEG");
+
+		#endif
 		#else
 			#ifndef CONFIG_ARCH_MT6735M
 				clk_disable_unprepare(gJpegClk.clk_venc_larb);
@@ -410,7 +569,7 @@ static int jpeg_drv_dec_init(void)
 
 	spin_lock(&jpeg_dec_lock);
 	if (dec_status != 0) {
-		JPEG_WRN("jpeg_drv_dec_init HW is busy\n");
+		JPEG_WRN("%s HW is busy\n", __func__);
 		retValue = -EBUSY;
 	} else {
 		dec_status = 1;
@@ -449,7 +608,7 @@ static int jpeg_drv_enc_init(void)
 
 	spin_lock(&jpeg_enc_lock);
 	if (enc_status != 0) {
-		JPEG_WRN("jpeg_drv_enc_init HW is busy\n");
+		JPEG_WRN("%s HW is busy\n", __func__);
 		retValue = -EBUSY;
 	} else {
 		enc_status = 1;
@@ -495,7 +654,7 @@ void jpeg_reg_dump(void)
 	JPEG_WRN("JPEG REG:\n ********************\n");
 	for (index = 0; index < 0x168; index += 4) {
 		/* reg_value = ioread32(JPEG_DEC_BASE + index); */
-		IMG_REG_READ(reg_value, JPEG_DEC_BASE + index);
+		reg_value = IMG_REG_READ(JPEG_DEC_BASE + index);
 		JPEG_WRN("+0x%x 0x%x\n", index, reg_value);
 	}
 }
@@ -505,10 +664,12 @@ void jpeg_reg_dump(void)
 /* -------------------------------------------------------------------------- */
 
 #ifdef JPEG_DEC_DRIVER
-static int jpeg_dec_ioctl(unsigned int cmd, unsigned long arg, struct file *file)
+static int jpeg_dec_ioctl(unsigned int cmd, unsigned long arg,
+			struct file *file)
 {
 	unsigned int *pStatus;
 	unsigned int decResult;
+	unsigned int index = 0;
 	long timeout_jiff;
 	JPEG_DEC_DRV_IN dec_params;
 	JPEG_DEC_CONFIG_ROW dec_row_params;
@@ -523,7 +684,7 @@ static int jpeg_dec_ioctl(unsigned int cmd, unsigned long arg, struct file *file
 
 	if (pStatus == NULL) {
 		JPEG_MSG
-		    ("[JPEGDRV]JPEG Decoder: Private data is null in flush operation. SOME THING WRONG??\n");
+		("[JPGDRV]Dec: Private data is null in flush operation\n");
 		return -EFAULT;
 	}
 	switch (cmd) {
@@ -540,10 +701,9 @@ static int jpeg_dec_ioctl(unsigned int cmd, unsigned long arg, struct file *file
 		break;
 
 	case JPEG_DEC_IOCTL_CONFIG:
-		/* JPEG_MSG("[JPEGDRV][IOCTL] JPEG Decoder Configration!!\n"); */
 		if (*pStatus != JPEG_DEC_PROCESS) {
 			JPEG_MSG
-			    ("[JPEGDRV]Permission Denied! This process can not access decoder\n");
+			("[JPGDRV]This process can not access decoder\n");
 			return -EFAULT;
 		}
 		if (dec_status == 0) {
@@ -551,8 +711,10 @@ static int jpeg_dec_ioctl(unsigned int cmd, unsigned long arg, struct file *file
 			*pStatus = 0;
 			return -EFAULT;
 		}
-		if (copy_from_user(&dec_params, (void *)arg, sizeof(JPEG_DEC_DRV_IN))) {
-			JPEG_MSG("[JPEGDRV]JPEG Decoder : Copy from user error\n");
+		if (copy_from_user(&dec_params,
+				 (void *)arg,
+				 sizeof(JPEG_DEC_DRV_IN))) {
+			JPEG_MSG("[JPGDRV]JPEG Dec:Copy from user error\n");
 			return -EFAULT;
 		}
 		/* _jpeg_dec_dump_reg_en = dec_params.regDecDumpEn; */
@@ -573,67 +735,69 @@ static int jpeg_dec_ioctl(unsigned int cmd, unsigned long arg, struct file *file
 	case JPEG_DEC_IOCTL_FLUSH_CMDQ:
 
 	#if 0 /* currently no use */
-		JPEG_MSG("[JPEGDRV]enter JPEG BUILD CMDQ !!\n");
-		if (*pStatus != JPEG_DEC_PROCESS) {
-			JPEG_MSG
-			    ("[JPEGDRV]Permission Denied! This process can not access decoder\n");
-			return -EFAULT;
-		}
-		if (dec_status == 0) {
-			JPEG_MSG("[JPEGDRV]JPEG Decoder is unlocked!!");
-			*pStatus = 0;
-			return -EFAULT;
-		}
-		if (copy_from_user(&cfg_cmdq_params, (void *)arg, sizeof(JPEG_DEC_CONFIG_CMDQ))) {
-			JPEG_MSG("[JPEGDRV]JPEG Decoder : Copy from user error\n");
-			return -EFAULT;
-		}
-		JPEG_MSG("[JPEGDRV]JPEG CREATE CMDQ !!\n");
+	JPEG_MSG("[JPEGDRV]enter JPEG BUILD CMDQ !!\n");
+	if (*pStatus != JPEG_DEC_PROCESS) {
+		JPEG_MSG
+		("[JPGDRV]This process can not access decoder\n");
+		return -EFAULT;
+	}
+	if (dec_status == 0) {
+		JPEG_MSG("[JPEGDRV]JPEG Decoder is unlocked!!");
+		*pStatus = 0;
+		return -EFAULT;
+	}
+	if (copy_from_user(&cfg_cmdq_params,
+				 (void *)arg,
+				 sizeof(JPEG_DEC_CONFIG_CMDQ))) {
+		JPEG_MSG("[JPEGDRV]JPEG Decoder : Copy from user error\n");
+		return -EFAULT;
+	}
+	JPEG_MSG("[JPEGDRV]JPEG CREATE CMDQ !!\n");
 
-		cmdqRecCreate(CMDQ_SCENARIO_JPEG_DEC, &jpegCMDQ_handle);
+	cmdqRecCreate(CMDQ_SCENARIO_JPEG_DEC, &jpegCMDQ_handle);
 
+	cmdqRecWait(jpegCMDQ_handle, CMDQ_EVENT_JPEG_DEC_EOF);
+
+	for (i = 0; i < cfg_cmdq_params.goNum; i++) {
+		JPEG_MSG("[JPEGDRV]JPEG gen CMDQ %x %x %x %x  !!\n",
+		 cfg_cmdq_params.pauseMCUidx[i], cfg_cmdq_params.decRowBuf0[i],
+		 cfg_cmdq_params.decRowBuf1[i], cfg_cmdq_params.decRowBuf2[i]);
+		cmdqRecWrite(jpegCMDQ_handle,
+			     0x18004170 /*REG_ADDR_JPGDEC_PAUSE_MCU_NUM */,
+			     cfg_cmdq_params.pauseMCUidx[i] - 1, 0xFFFFFFFF);
+		cmdqRecWrite(jpegCMDQ_handle, 0x18004140 /*DEC_DEST_ADDR0_Y*/,
+			     cfg_cmdq_params.decRowBuf0[i], 0xFFFFFFFF);
+		cmdqRecWrite(jpegCMDQ_handle, 0x18004144 /*DEC_DEST_ADDR0_U*/,
+			     cfg_cmdq_params.decRowBuf1[i], 0xFFFFFFFF);
+		cmdqRecWrite(jpegCMDQ_handle, 0x18004148 /*DEC_DEST_ADDR0_V*/,
+			     cfg_cmdq_params.decRowBuf2[i], 0xFFFFFFFF);
+
+		JPEG_MSG("[JPEGDRV]JPEG gen CMDQ go!!\n");
+		/* trigger */
+		cmdqRecWrite(jpegCMDQ_handle,
+			     0x18004274 /*REG_ADDR_JPGDEC_INTERRUPT_STATUS */,
+			     BIT_INQST_MASK_PAUSE, 0xFFFFFFFF);
+
+		JPEG_MSG("[JPEGDRV]JPEG gen CMDQ wait!!\n");
+		/* wait frame done */
 		cmdqRecWait(jpegCMDQ_handle, CMDQ_EVENT_JPEG_DEC_EOF);
+		/* cmdqRecPoll(jpegCMDQ_handle, 0x18004274 */
+		/*    , BIT_INQST_MASK_PAUSE, 0x0010); */
+	}
 
-		for (i = 0; i < cfg_cmdq_params.goNum; i++) {
-			JPEG_MSG("[JPEGDRV]JPEG gen CMDQ %x %x %x %x  !!\n",
-				 cfg_cmdq_params.pauseMCUidx[i], cfg_cmdq_params.decRowBuf0[i],
-				 cfg_cmdq_params.decRowBuf1[i], cfg_cmdq_params.decRowBuf2[i]);
-			cmdqRecWrite(jpegCMDQ_handle,
-				     0x18004170 /*REG_ADDR_JPGDEC_PAUSE_MCU_NUM */,
-				     cfg_cmdq_params.pauseMCUidx[i] - 1, 0xFFFFFFFF);
-			cmdqRecWrite(jpegCMDQ_handle, 0x18004140 /*REG_ADDR_JPGDEC_DEST_ADDR0_Y */,
-				     cfg_cmdq_params.decRowBuf0[i], 0xFFFFFFFF);
-			cmdqRecWrite(jpegCMDQ_handle, 0x18004144 /*REG_ADDR_JPGDEC_DEST_ADDR0_U */,
-				     cfg_cmdq_params.decRowBuf1[i], 0xFFFFFFFF);
-			cmdqRecWrite(jpegCMDQ_handle, 0x18004148 /*REG_ADDR_JPGDEC_DEST_ADDR0_V */,
-				     cfg_cmdq_params.decRowBuf2[i], 0xFFFFFFFF);
+	JPEG_MSG("[JPEGDRV]JPEG flush CMDQ start!!\n");
+	cmdqRecFlush(jpegCMDQ_handle);
+	JPEG_MSG("[JPEGDRV]JPEG flush CMDQ end!!\n");
 
-			JPEG_MSG("[JPEGDRV]JPEG gen CMDQ go!!\n");
-			/* trigger */
-			cmdqRecWrite(jpegCMDQ_handle,
-				     0x18004274 /*REG_ADDR_JPGDEC_INTERRUPT_STATUS */,
-				     BIT_INQST_MASK_PAUSE, 0xFFFFFFFF);
-
-			JPEG_MSG("[JPEGDRV]JPEG gen CMDQ wait!!\n");
-			/* wait frame done */
-			cmdqRecWait(jpegCMDQ_handle, CMDQ_EVENT_JPEG_DEC_EOF);
-			/* cmdqRecPoll(jpegCMDQ_handle, 0x18004274 */
-			/*    , BIT_INQST_MASK_PAUSE, 0x0010); */
-		}
-
-		JPEG_MSG("[JPEGDRV]JPEG flush CMDQ start!!\n");
-		cmdqRecFlush(jpegCMDQ_handle);
-		JPEG_MSG("[JPEGDRV]JPEG flush CMDQ end!!\n");
-
-		cmdqRecDestroy(jpegCMDQ_handle);
-		JPEG_MSG("[JPEGDRV]JPEG destroy CMDQ end!!\n");
+	cmdqRecDestroy(jpegCMDQ_handle);
+	JPEG_MSG("[JPEGDRV]JPEG destroy CMDQ end!!\n");
 	#endif
 		break;
 
 	case JPEG_DEC_IOCTL_RESUME:
 		if (*pStatus != JPEG_DEC_PROCESS) {
 			JPEG_MSG
-			    ("[JPEGDRV]Permission Denied! This process can not access decoder\n");
+			 ("[JPGDRV]This process can not access decoder\n");
 			return -EFAULT;
 		}
 		if (dec_status == 0 || dec_ready == 0) {
@@ -641,21 +805,24 @@ static int jpeg_dec_ioctl(unsigned int cmd, unsigned long arg, struct file *file
 			*pStatus = 0;
 			return -EFAULT;
 		}
-		if (copy_from_user(&dec_row_params, (void *)arg, sizeof(JPEG_DEC_CONFIG_ROW))) {
-			JPEG_MSG("[JPEGDRV]JPEG Decoder : Copy from user error\n");
+		if (copy_from_user(&dec_row_params,
+				 (void *)arg,
+				 sizeof(JPEG_DEC_CONFIG_ROW))) {
+			JPEG_MSG("[JPGDRV]JPEG Dec:Copy from user error\n");
 			return -EFAULT;
 		}
 
-		JPEG_MSG("[JPEGDRV][IOCTL] JPEG Decoder Resume, [%d] %x %x %x !!\n",
-			 dec_row_params.pauseMCU - 1, dec_row_params.decRowBuf[0],
-			 dec_row_params.decRowBuf[1], dec_row_params.decRowBuf[2]);
+		JPEG_MSG("[JPGDRV]JPEG Decoder Resume, [%d] %x %x %x !!\n",
+		dec_row_params.pauseMCU - 1, dec_row_params.decRowBuf[0],
+		dec_row_params.decRowBuf[1], dec_row_params.decRowBuf[2]);
 
-		if (!jpeg_drv_dec_set_dst_bank0(dec_row_params.decRowBuf[0], dec_row_params.decRowBuf[1],
-					   dec_row_params.decRowBuf[2])) {
+		if (!jpeg_drv_dec_set_dst_bank0(dec_row_params.decRowBuf[0],
+			 dec_row_params.decRowBuf[1],
+			 dec_row_params.decRowBuf[2])) {
 			return -EFAULT;
 		}
-
-		if (!jpeg_drv_dec_set_pause_mcu_idx(dec_row_params.pauseMCU - 1))
+		index = dec_row_params.pauseMCU - 1;
+		if (!jpeg_drv_dec_set_pause_mcu_idx(index))
 			return -EFAULT;
 
 
@@ -663,15 +830,15 @@ static int jpeg_dec_ioctl(unsigned int cmd, unsigned long arg, struct file *file
 		spin_lock(&jpeg_dec_lock);
 		jpeg_drv_dec_resume(BIT_INQST_MASK_PAUSE);
 		spin_unlock(&jpeg_dec_lock);
-		break;
+	break;
 
 	case JPEG_DEC_IOCTL_START:	/* OT:OK */
 		if (*pStatus != JPEG_DEC_PROCESS) {
-			JPEG_WRN("Permission Denied! This process can not access decoder");
+			JPEG_WRN("This process can not access decoder");
 			return -EFAULT;
 		}
 		if (dec_status == 0 || dec_ready == 0) {
-			JPEG_WRN("Decoder status is available, HOW COULD THIS HAPPEN ??");
+			JPEG_WRN("Dec status is available,it can't HAPPEN");
 			*pStatus = 0;
 			return -EFAULT;
 		}
@@ -682,27 +849,29 @@ static int jpeg_dec_ioctl(unsigned int cmd, unsigned long arg, struct file *file
 
 	case JPEG_DEC_IOCTL_WAIT:
 		if (*pStatus != JPEG_DEC_PROCESS) {
-			JPEG_WRN("Permission Denied! This process can not access decoder");
+			JPEG_WRN("This process can not access decoder");
 			return -EFAULT;
 		}
 		if (dec_status == 0 || dec_ready == 0) {
-			JPEG_WRN("Decoder status is available, HOW COULD THIS HAPPEN ??");
+			JPEG_WRN("Dec status is available,it can't HAPPEN ??");
 			*pStatus = 0;
 			return -EFAULT;
 		}
-		if (copy_from_user(&outParams, (void *)arg, sizeof(JPEG_DEC_DRV_OUT))) {
+		if (copy_from_user(&outParams,
+				 (void *)arg,
+				 sizeof(JPEG_DEC_DRV_OUT))) {
 			JPEG_WRN("JPEG Decoder : Copy from user error\n");
 			return -EFAULT;
 		}
 
 		/* set timeout */
 		timeout_jiff = outParams.timeout * HZ / 1000;
-		/* JPEG_MSG("[JPEGDRV][IOCTL] JPEG Decoder Wait Resume Time Jiffies : %ld\n", timeout_jiff); */
 	#ifdef FPGA_VERSION
 		JPEG_MSG("[JPEGDRV]Polling JPEG Status");
 
 		do {
-			_jpeg_dec_int_status = REG_JPGDEC_INTERRUPT_STATUS;
+			_jpeg_dec_int_status =
+				 IMG_REG_READ(REG_ADDR_JPGDEC_STATUS);
 		} while (_jpeg_dec_int_status == 0);
 	#else
 		if (jpeg_isr_dec_lisr() < 0) {
@@ -710,34 +879,42 @@ static int jpeg_dec_ioctl(unsigned int cmd, unsigned long arg, struct file *file
 
 			do {
 				/* JPEG_MSG("wait JPEG irq\n"); */
-				ret = wait_event_interruptible_timeout(dec_wait_queue, _jpeg_dec_int_status,
-							 timeout_jiff);
+				ret = wait_event_interruptible_timeout(
+						dec_wait_queue,
+						 _jpeg_dec_int_status,
+						 timeout_jiff);
 				if (ret == 0)
-					JPEG_MSG("[JPEGDRV]JPEG Decoder Wait timeout !!\n");
+					JPEG_MSG("[JPGDRV]Dec isr timeout\n");
 			} while (ret < 0);
 		} else
-			JPEG_MSG("[JPEGDRV][IOCTL] JPEG Decoder Enter IRQ Wait Already Done!!\n");
+			JPEG_MSG("[JPGDRV] JPG Dec IRQ Wait Already Done!!\n");
 	#endif
 
 		decResult = jpeg_drv_dec_get_result();
 
 		if (decResult >= 2) {
-			JPEG_MSG("[JPEGDRV]Decode Result : %d, status %x!\n", decResult,
+			JPEG_MSG("[JPEGDRV]Dec Result : %d, status %x!\n",
+				 decResult,
 				 _jpeg_dec_int_status);
 
 			jpeg_drv_dec_dump_key_reg();
 
-			/* need to dump smi for the case that no irq coming from HW */
-			if (decResult == 5)
-				smi_debug_bus_hanging_detect_ext2(0x1FF, 1, 0, 1);
-
+#ifndef JPEG_PM_DOMAIN_ENABLE
+#ifdef CONFIG_MTK_SMI_EXT
+		/* need to dump smi for the case that no irq coming from HW */
+		if (decResult == 5)
+			smi_debug_bus_hang_detect(0, "JPEG");
+#endif
+#endif
 			jpeg_drv_dec_warm_reset();
 		}
 		irq_st = _jpeg_dec_int_status;
 		decResult = decResult | (irq_st << 8);
 		_jpeg_dec_int_status = 0;
-		if (copy_to_user(outParams.result, &decResult, sizeof(unsigned int))) {
-			JPEG_WRN("JPEG Decoder : Copy to user error (result)\n");
+		if (copy_to_user(outParams.result,
+				 &decResult,
+				 sizeof(unsigned int))) {
+			JPEG_WRN("JPEG Dec: Copy to user error\n");
 			return -EFAULT;
 		}
 
@@ -757,12 +934,12 @@ static int jpeg_dec_ioctl(unsigned int cmd, unsigned long arg, struct file *file
 		/*JPEG_MSG("[JPEGDRV][IOCTL] JPEG Decoder Deinit !!\n");*/
 		/* copy input parameters */
 		if (*pStatus != JPEG_DEC_PROCESS) {
-			JPEG_ERR("Permission Denied! This process can not access encoder");
+			JPEG_ERR("This process can not access encoder");
 			return -EFAULT;
 		}
 
 		if (dec_status == 0) {
-			JPEG_ERR("Encoder status is available, HOW COULD THIS HAPPEN ??");
+			JPEG_ERR("Enc status is available,can't HAPPEN");
 			*pStatus = 0;
 			return -EFAULT;
 		}
@@ -777,30 +954,40 @@ static int jpeg_dec_ioctl(unsigned int cmd, unsigned long arg, struct file *file
 }
 #endif /* JPEG_DEC_DRIVER */
 
-static int jpeg_enc_ioctl(unsigned int cmd, unsigned long arg, struct file *file)
+static int jpeg_enc_ioctl(unsigned int cmd, unsigned long arg,
+					 struct file *file)
 {
 	int retValue;
 	/* unsigned int decResult; */
 
 	long timeout_jiff;
 	unsigned int file_size, enc_result_code;
+
 	/* unsigned int _jpeg_enc_int_status; */
 	unsigned int jpeg_enc_wait_timeout = 0;
 	unsigned int cycle_count;
 	unsigned int ret;
+	/* No spec, considering [picture size] x [target fps] */
+	unsigned int cshot_spec = 0xffffffff;
+	/* limiting FPS, Upper Bound FPS = 20 */
+	unsigned int target_fps = 20;
+
 	unsigned int *pStatus;
+
+	/* Support QoS */
 	unsigned int emi_bw = 0;
 	unsigned int picSize = 0;
+	unsigned int picCost = 0;
 
 	/* JpegDrvEncParam cfgEnc; */
-	JPEG_ENC_DRV_IN cfgEnc;
+	struct JPEG_ENC_DRV_IN cfgEnc;
 
-	JPEG_ENC_DRV_OUT enc_result;
+	struct JPEG_ENC_DRV_OUT enc_result;
 
 	 pStatus = (unsigned int *)file->private_data;
 
 	if (pStatus == NULL) {
-		JPEG_WRN("Private data is null in flush operation. HOW COULD THIS HAPPEN ??\n");
+		JPEG_WRN("Private data null in flush,can't HAPPEN ??\n");
 		return -EFAULT;
 	}
 
@@ -823,6 +1010,16 @@ static int jpeg_enc_ioctl(unsigned int cmd, unsigned long arg, struct file *file
 		break;
 
 	case JPEG_ENC_IOCTL_WARM_RESET:
+		if (*pStatus != JPEG_ENC_PROCESS) {
+			JPEG_WRN("Permission Denied!");
+			return -EFAULT;
+		}
+		if (enc_status == 0) {
+			JPEG_WRN("Encoder status is available");
+			*pStatus = 0;
+			return -EFAULT;
+		}
+
 		JPEG_MSG("[JPEGDRV][IOCTL] JPEG Encoder Warm Reset\n");
 		enc_result_code = jpeg_drv_enc_warm_reset();
 		if (enc_result_code == 0)
@@ -831,21 +1028,21 @@ static int jpeg_enc_ioctl(unsigned int cmd, unsigned long arg, struct file *file
 
 		/* configure the register */
 	case JPEG_ENC_IOCTL_CONFIG:
-		/*JPEG_MSG("[JPEGDRV][IOCTL] JPEG Encoder Configure Hardware\n");*/
 		if (*pStatus != JPEG_ENC_PROCESS) {
-			JPEG_WRN("Permission Denied! This process can not access encoder");
+			JPEG_WRN("This process can not access encoder");
 			return -EFAULT;
 		}
 
 		if (enc_status == 0) {
-			JPEG_WRN("Encoder status is available, HOW COULD THIS HAPPEN ??");
+			JPEG_WRN("Enc status is available,can't HAPPEN");
 			*pStatus = 0;
 			return -EFAULT;
 		}
 
 		/* copy input parameters */
-		if (copy_from_user(&cfgEnc, (void *)arg, sizeof(JPEG_ENC_DRV_IN))) {
-			JPEG_MSG("[JPEGDRV]JPEG Encoder : Copy from user error\n");
+		if (copy_from_user(&cfgEnc, (void *)arg,
+				 sizeof(struct JPEG_ENC_DRV_IN))) {
+			JPEG_MSG("[JPGDRV]Encoder : Copy from user error\n");
 			return -EFAULT;
 		}
 
@@ -859,7 +1056,8 @@ static int jpeg_enc_ioctl(unsigned int cmd, unsigned long arg, struct file *file
 		/* if (cfgEnc.encFormat == NV12 || cfgEnc.encFormat == NV21) */
 		/* { */
 		/* unsigned int srcChromaAddr = cfgEnc.srcChromaAddr; */
-		/* srcChromaAddr = TO_CEIL(srcChromaAddr, 128);    //((srcChromaAddr+127)&~127); */
+		/* srcChromaAddr = TO_CEIL(srcChromaAddr, 128); */
+		/* //((srcChromaAddr+127)&~127); */
 		/* src_cfg.chroma_addr = srcChromaAddr; */
 		/* } */
 		/*  */
@@ -867,46 +1065,74 @@ static int jpeg_enc_ioctl(unsigned int cmd, unsigned long arg, struct file *file
 		/* src_cfg.height = cfgEnc.encHeight; */
 		/* src_cfg.yuv_format = cfgEnc.encFormat; */
 
-	#ifdef CONFIG_MTK_QOS_SUPPORT
+		/* Support QoS */
 		picSize = (cfgEnc.encWidth * cfgEnc.encHeight) / 1000000;
-		/* BW = encode width x height x bpp x 1.6(assume compress ratio is 0.6) */
+		/* BW = encode width x height x bpp x 1.6 */
+		/* Assume compress ratio is 0.6 */
 		if (cfgEnc.encFormat == 0x0 || cfgEnc.encFormat == 0x1)
-			emi_bw = ((picSize * 2) * 8/5) + 1;
+			picCost = ((picSize * 2) * 8/5) + 1;
 		else
-			emi_bw = ((picSize * 3/2) * 8/5) + 1;
+			picCost = ((picSize * 3/2) * 8/5) + 1;
 
-		/* considering FPS, 16MP = 20 FPS, 21MP = 15 FPS, 26MP = 10 FPS */
-		if (picSize >= 22)
-			emi_bw *= 10;
-		else if (picSize >= 17)
-			emi_bw *= 15;
-		else
-			emi_bw *= 20;
+#ifdef QOS_MT6765_SUPPORT
+		/* on mt6765, 16MP = 14.5 FPS */
+		cshot_spec = 232;
+#endif
+#ifdef QOS_MT6761_SUPPORT
+		/* on mt6761, lpddr4: 26MP = 5 FPS , lpddr3: 26MP = 1 FPS*/
+		cshot_spec = 26;
+#endif
 
+		if ((picCost * target_fps) < cshot_spec) {
+			emi_bw = picCost * target_fps;
+		} else {
+			emi_bw = cshot_spec / picCost;
+			emi_bw = (emi_bw + 1) * picCost;
+		}
+
+		/* QoS requires Occupied BW */
+		/* Data BW x 1.33 */
+		emi_bw = emi_bw * 4/3;
+
+
+#if ENABLE_MMQOS
+		jpegenc_drv_enc_update_bw_request(cfgEnc);
+#else
 		/* update BW request before trigger HW */
 		pm_qos_update_request(&jpgenc_qos_request, emi_bw);
-	#endif
+#endif
 		/* 1. set src config */
-		JPEG_MSG("[JPEGDRV]SRC_IMG: %x %x, DU:%x, fmt:%x, picSize %d, BW:%d!!\n", cfgEnc.encWidth,
-			 cfgEnc.encHeight, cfgEnc.totalEncDU, cfgEnc.encFormat, picSize, emi_bw);
+		JPEG_MSG("[JPEGDRV]SRC_IMG:%x %x, DU:%x, fmt:%x\n",
+			 cfgEnc.encWidth, cfgEnc.encHeight,
+			 cfgEnc.totalEncDU, cfgEnc.encFormat);
+
+		JPEG_MSG("[JPEGDRV]picSize:%d, BW:%d\n", picSize, emi_bw);
 
 		ret =
-		    jpeg_drv_enc_set_src_image(cfgEnc.encWidth, cfgEnc.encHeight, cfgEnc.encFormat,
+		    jpeg_drv_enc_set_src_image(cfgEnc.encWidth,
+					       cfgEnc.encHeight,
+					       cfgEnc.encFormat,
 					       cfgEnc.totalEncDU);
 		if (ret == 0) {
-			JPEG_MSG("[JPEGDRV]JPEG Encoder set srouce image failed\n");
+			JPEG_MSG("[JPGDRV]Enc set srouce image failed\n");
 			return -EFAULT;
 		}
 
 		/* 2. set src buffer info */
-		JPEG_MSG("[JPEGDRV]SRC_BUF: addr %x, %x, stride %x, %x!!\n", cfgEnc.srcBufferAddr,
-			 cfgEnc.srcChromaAddr, cfgEnc.imgStride, cfgEnc.memStride);
+		JPEG_MSG("[JPEGDRV]SRC_BUF: addr %x, %x, stride %x, %x!!\n",
+			 cfgEnc.srcBufferAddr,
+			 cfgEnc.srcChromaAddr,
+			 cfgEnc.imgStride,
+			 cfgEnc.memStride);
 
 		ret =
-		    jpeg_drv_enc_set_src_buf(cfgEnc.encFormat, cfgEnc.imgStride, cfgEnc.memStride,
-					     cfgEnc.srcBufferAddr, cfgEnc.srcChromaAddr);
+		    jpeg_drv_enc_set_src_buf(cfgEnc.encFormat,
+					     cfgEnc.imgStride,
+					     cfgEnc.memStride,
+					     cfgEnc.srcBufferAddr,
+					     cfgEnc.srcChromaAddr);
 		if (ret == 0) {
-			JPEG_MSG("[JPEGDRV]JPEG Encoder set srouce buffer failed\n");
+			JPEG_MSG("[JPGDRV]Enc set srouce buffer failed\n");
 			return -EFAULT;
 		}
 
@@ -917,23 +1143,31 @@ static int jpeg_enc_ioctl(unsigned int cmd, unsigned long arg, struct file *file
 		/* } */
 
 		/* 3. set dst buffer info */
-		JPEG_MSG("[JPEGDRV]DST_BUF: addr:%x, size:%x, ofs:%x, mask:%x!!\n",
-			 cfgEnc.dstBufferAddr, cfgEnc.dstBufferSize, cfgEnc.dstBufAddrOffset,
+		JPEG_MSG("[JPGDRV]DST_BUF: addr:%x, size:%x, ofs:%x, mask:%x\n",
+			 cfgEnc.dstBufferAddr,
+			 cfgEnc.dstBufferSize,
+			 cfgEnc.dstBufAddrOffset,
 			 cfgEnc.dstBufAddrOffsetMask);
 
 		ret =
-		    jpeg_drv_enc_set_dst_buff(cfgEnc.dstBufferAddr, cfgEnc.dstBufferSize,
-					      cfgEnc.dstBufAddrOffset, cfgEnc.dstBufAddrOffsetMask);
+		    jpeg_drv_enc_set_dst_buff(cfgEnc.dstBufferAddr,
+					      cfgEnc.dstBufferSize,
+					      cfgEnc.dstBufAddrOffset,
+					      cfgEnc.dstBufAddrOffsetMask);
 		if (ret == 0) {
-			JPEG_MSG("[JPEGDRV]JPEG Encoder set dst buffer failed\n");
+			JPEG_MSG("[JPGDRV]Enc set dst buffer failed\n");
 			return -EFAULT;
 		}
 
 		/* 4 .set ctrl config */
-		/* JPEG_MSG("[JPEGDRV]ENC_CFG: exif:%d, q:%d, DRI:%d !!\n", cfgEnc.enableEXIF, */
-		/*	 cfgEnc.encQuality, cfgEnc.restartInterval); */
+		JPEG_MSG("[JPEGDRV]ENC_CFG: exif:%d, q:%d, DRI:%d !!\n",
+			 cfgEnc.enableEXIF,
+			 cfgEnc.encQuality,
+			 cfgEnc.restartInterval);
 
-		jpeg_drv_enc_ctrl_cfg(cfgEnc.enableEXIF, cfgEnc.encQuality, cfgEnc.restartInterval);
+		jpeg_drv_enc_ctrl_cfg(cfgEnc.enableEXIF,
+					 cfgEnc.encQuality,
+					 cfgEnc.restartInterval);
 
 		spin_lock(&jpeg_enc_lock);
 		enc_ready = 1;
@@ -943,12 +1177,12 @@ static int jpeg_enc_ioctl(unsigned int cmd, unsigned long arg, struct file *file
 	case JPEG_ENC_IOCTL_START:
 		/*JPEG_MSG("[JPEGDRV][IOCTL] JPEG Encoder Start!!\n");*/
 		if (*pStatus != JPEG_ENC_PROCESS) {
-			JPEG_WRN("Permission Denied! This process can not access encoder");
+			JPEG_WRN("This process can not access encoder");
 			return -EFAULT;
 		}
 
 		if (enc_status == 0 || enc_ready == 0) {
-			JPEG_WRN("Encoder status is unavailable, HOW COULD THIS HAPPEN ??");
+			JPEG_WRN("Enc status is unavailable,can't HAPPEN");
 			*pStatus = 0;
 			return -EFAULT;
 		}
@@ -956,70 +1190,84 @@ static int jpeg_enc_ioctl(unsigned int cmd, unsigned long arg, struct file *file
 		break;
 
 	case JPEG_ENC_IOCTL_WAIT:
-		JPEG_MSG("[JPEGDRV][IOCTL] JPEG Encoder Wait\n");
+		/*JPEG_MSG("[JPEGDRV][IOCTL] JPEG Encoder Wait!!\n");*/
 		if (*pStatus != JPEG_ENC_PROCESS) {
-			JPEG_ERR("Permission Denied! This process can not access encoder");
+			JPEG_WRN("This process can not access encoder");
 			return -EFAULT;
 		}
 
 		if (enc_status == 0 || enc_ready == 0) {
-			JPEG_ERR("Encoder status is unavailable, HOW COULD THIS HAPPEN ??");
+			JPEG_WRN("Enc status is unavailable, can't HAPPEN");
 			*pStatus = 0;
 			return -EFAULT;
 		}
-		if (copy_from_user(&enc_result, (void *)arg, sizeof(JPEG_ENC_DRV_OUT))) {
-			JPEG_ERR("JPEG Encoder : Copy from user error\n");
+		if (copy_from_user(&enc_result,
+				 (void *)arg,
+				 sizeof(struct JPEG_ENC_DRV_OUT))) {
+			JPEG_WRN("JPEG Encoder : Copy from user error\n");
 			return -EFAULT;
 		}
 
-		/* TODO:    ENC_DONE in REG_JPEG_ENC_INTERRUPT_STATUS need to set to 0 after read. */
+		/* TODO:    ENC_DONE in REG_JPEG_ENC_INTERRUPT_STATUS*/
+		/*need to set to 0 after read. */
 		jpeg_enc_wait_timeout = 0xFFFFFF;
 
 	#ifdef FPGA_VERSION
 		do {
-			_jpeg_enc_int_status = REG_JPEG_ENC_INTERRUPT_STATUS;
+			_jpeg_enc_int_status = IMG_REG_READ(
+				REG_ADDR_JPEG_ENC_INTERRUPT_STATUS);
 			jpeg_enc_wait_timeout--;
-		} while (_jpeg_enc_int_status == 0 && jpeg_enc_wait_timeout > 0);
+		} while (_jpeg_enc_int_status == 0 &&
+			 jpeg_enc_wait_timeout > 0);
 
 		if (jpeg_enc_wait_timeout == 0)
 			JPEG_MSG("JPEG Encoder timeout\n");
 
 		ret = jpeg_drv_enc_get_result(&file_size);
 
-		JPEG_MSG("Result : %d, Size : %u, address : 0x%x\n", ret, file_size,
+		JPEG_MSG("Result : %d, Size : %u, address : 0x%x\n",
+			 ret,
+			 file_size,
 			 ioread32(JPEG_ENC_BASE + 0x120));
+
 		if (_jpeg_enc_int_status != 1)
 			jpeg_drv_enc_dump_reg();
 	#else
 		/* set timeout */
 		timeout_jiff = enc_result.timeout * HZ / 1000;
+		JPEG_MSG("[JPEGDRV]JPEG Encoder Time Jiffies : %ld\n",
+			 timeout_jiff);
 
 		if (jpeg_isr_enc_lisr() < 0) {
 			do {
-				ret = wait_event_interruptible_timeout(enc_wait_queue, _jpeg_enc_int_status,
-								 timeout_jiff);
-				if (ret > 0)
-					JPEG_MSG("[JPEGDRV]JPEG Encoder Wait done !!\n");
-				else if (ret == 0)
-					JPEG_MSG("[JPEGDRV]JPEG Encoder Wait timeout !!\n");
+				ret = wait_event_interruptible_timeout(
+					 enc_wait_queue,
+					 _jpeg_enc_int_status,
+					 timeout_jiff);
+			if (ret > 0)
+				JPEG_MSG("[JPGDRV]Enc Wait done\n");
+			else if (ret == 0)
+				JPEG_MSG("[JPGDRV]Enc Wait timeout\n");
 			} while (ret < 0);
 		} else
-			JPEG_MSG("[JPEGDRV]JPEG Encoder already done !!\n");
+			JPEG_MSG("[JPGDRV]Enc already done !!\n");
 
-	#ifdef CONFIG_MTK_QOS_SUPPORT
-		/* remove BW request after HW done */
+		/* Support QoS: remove BW request after HW done */
 		pm_qos_update_request(&jpgenc_qos_request, 0);
-	#endif
+
 		ret = jpeg_drv_enc_get_result(&file_size);
 
 		JPEG_MSG("[JPEGDRV]Result : %d, Size : %u!!\n", ret, file_size);
 		if (ret != 0) {
 			jpeg_drv_enc_dump_reg();
 
-			/* need to dump smi for the case that no irq coming from HW */
-			if (ret == 3)
-				smi_debug_bus_hanging_detect_ext2(0x1FF, 1, 0, 1);
-
+#ifndef JPEG_PM_DOMAIN_ENABLE
+#ifdef CONFIG_MTK_SMI_EXT
+		/* need to dump smi for the case that no irq coming from HW */
+		if (ret == 3)
+			smi_debug_bus_hang_detect(0, "JPEG");
+#endif
+#endif
 			jpeg_drv_enc_warm_reset();
 
 			return -EFAULT;
@@ -1027,16 +1275,22 @@ static int jpeg_enc_ioctl(unsigned int cmd, unsigned long arg, struct file *file
 	#endif
 		cycle_count = jpeg_drv_enc_get_cycle_count();
 
-		if (copy_to_user(enc_result.fileSize, &file_size, sizeof(unsigned int))) {
-			JPEG_MSG("[JPEGDRV]JPEG Encoder : Copy to user error (file size)\n");
+		if (copy_to_user(enc_result.fileSize,
+				 &file_size,
+				 sizeof(unsigned int))) {
+			JPEG_MSG("[JPGDRV]Enc:Copy to user error\n");
 			return -EFAULT;
 		}
-		if (copy_to_user(enc_result.result, &ret, sizeof(unsigned int))) {
-			JPEG_MSG("[JPEGDRV]JPEG Encoder : Copy to user error (status)\n");
+		if (copy_to_user(enc_result.result,
+				 &ret,
+				 sizeof(unsigned int))) {
+			JPEG_MSG("[JPGDRV]Enc:Copy to user error\n");
 			return -EFAULT;
 		}
-		if (copy_to_user(enc_result.cycleCount, &cycle_count, sizeof(unsigned int))) {
-			JPEG_MSG("[JPEGDRV]JPEG Encoder : Copy to user error (cycle)\n");
+		if (copy_to_user(enc_result.cycleCount,
+				 &cycle_count,
+				 sizeof(unsigned int))) {
+			JPEG_MSG("[JPGDRV]Enc:Copy to user error\n");
 			return -EFAULT;
 		}
 		break;
@@ -1045,12 +1299,12 @@ static int jpeg_enc_ioctl(unsigned int cmd, unsigned long arg, struct file *file
 		/*JPEG_MSG("[JPEGDRV][IOCTL] JPEG Encoder Deinit!!\n");*/
 		/* copy input parameters */
 		if (*pStatus != JPEG_ENC_PROCESS) {
-			JPEG_WRN("Permission Denied! This process can not access encoder");
+			JPEG_WRN("This process can not access encoder");
 			return -EFAULT;
 		}
 
 		if (enc_status == 0) {
-			JPEG_WRN("Encoder status is available, HOW COULD THIS HAPPEN ??");
+			JPEG_WRN("Enc status is available,can't HAPPEN");
 			*pStatus = 0;
 			return -EFAULT;
 		}
@@ -1076,8 +1330,10 @@ static int jpeg_enc_ioctl(unsigned int cmd, unsigned long arg, struct file *file
 
 #ifdef CONFIG_COMPAT
 
-static int compat_get_jpeg_dec_ioctl_wait_data(compat_JPEG_DEC_DRV_OUT __user *data32,
-					       JPEG_DEC_DRV_OUT __user *data) {
+static int compat_get_jpeg_dec_ioctl_wait_data(
+		 struct compat_JPEG_DEC_DRV_OUT __user *data32,
+		 struct JPEG_DEC_DRV_OUT __user *data)
+{
 	compat_long_t timeout;
 	compat_uptr_t result;
 	int err;
@@ -1089,8 +1345,10 @@ static int compat_get_jpeg_dec_ioctl_wait_data(compat_JPEG_DEC_DRV_OUT __user *d
 	return err;
 }
 
-static int compat_put_jpeg_dec_ioctl_wait_data(compat_JPEG_DEC_DRV_OUT __user *data32,
-					       JPEG_DEC_DRV_OUT __user *data) {
+static int compat_put_jpeg_dec_ioctl_wait_data(
+		 struct compat_JPEG_DEC_DRV_OUT __user *data32,
+		 struct JPEG_DEC_DRV_OUT __user *data)
+{
 	compat_long_t timeout;
 	/* compat_uptr_t result; */
 	int err;
@@ -1102,8 +1360,10 @@ static int compat_put_jpeg_dec_ioctl_wait_data(compat_JPEG_DEC_DRV_OUT __user *d
 	return err;
 }
 
-static int compat_get_jpeg_dec_ioctl_chksum_data(compat_JpegDrvDecResult __user *data32,
-						 JpegDrvDecResult __user *data) {
+static int compat_get_jpeg_dec_ioctl_chksum_data(
+		 struct compat_JpegDrvDecResult __user *data32,
+		 struct JpegDrvDecResult __user *data)
+{
 	compat_uptr_t pChksum;
 	int err;
 
@@ -1112,8 +1372,10 @@ static int compat_get_jpeg_dec_ioctl_chksum_data(compat_JpegDrvDecResult __user 
 	return err;
 }
 
-static int compat_put_jpeg_dec_ioctl_chksum_data(compat_JpegDrvDecResult __user *data32,
-						 JpegDrvDecResult __user *data) {
+static int compat_put_jpeg_dec_ioctl_chksum_data(
+		 struct compat_JpegDrvDecResult __user *data32,
+		 struct JpegDrvDecResult __user *data)
+{
 	/* compat_uptr_t pChksum; */
 	/* int err; */
 
@@ -1122,8 +1384,10 @@ static int compat_put_jpeg_dec_ioctl_chksum_data(compat_JpegDrvDecResult __user 
 	return 0;
 }
 
-static int compat_get_jpeg_enc_ioctl_wait_data(compat_JPEG_ENC_DRV_OUT __user *data32,
-					       JPEG_ENC_DRV_OUT __user *data) {
+static int compat_get_jpeg_enc_ioctl_wait_data(
+		 struct compat_JPEG_ENC_DRV_OUT __user *data32,
+		 struct JPEG_ENC_DRV_OUT __user *data)
+{
 	compat_long_t timeout;
 	compat_uptr_t fileSize;
 	compat_uptr_t result;
@@ -1141,8 +1405,10 @@ static int compat_get_jpeg_enc_ioctl_wait_data(compat_JPEG_ENC_DRV_OUT __user *d
 	return err;
 }
 
-static int compat_put_jpeg_enc_ioctl_wait_data(compat_JPEG_ENC_DRV_OUT __user *data32,
-					       JPEG_ENC_DRV_OUT __user *data) {
+static int compat_put_jpeg_enc_ioctl_wait_data(
+		 struct compat_JPEG_ENC_DRV_OUT __user *data32,
+		 struct JPEG_ENC_DRV_OUT __user *data)
+{
 	compat_long_t timeout;
 	/* compat_uptr_t fileSize; */
 	/* compat_uptr_t result; */
@@ -1160,7 +1426,10 @@ static int compat_put_jpeg_enc_ioctl_wait_data(compat_JPEG_ENC_DRV_OUT __user *d
 	return err;
 }
 
-static long compat_jpeg_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+static long compat_jpeg_ioctl(
+		 struct file *filp,
+		 unsigned int cmd,
+		 unsigned long arg)
 {
 	long ret;
 
@@ -1170,26 +1439,8 @@ static long compat_jpeg_ioctl(struct file *filp, unsigned int cmd, unsigned long
 	switch (cmd) {
 	case COMPAT_JPEG_DEC_IOCTL_WAIT:
 		{
-			compat_JPEG_DEC_DRV_OUT __user *data32;
-			JPEG_DEC_DRV_OUT __user *data;
-			int err;
-
-			 data32 = compat_ptr(arg);
-			 data = compat_alloc_user_space(sizeof(*data));
-			if (data == NULL)
-				return -EFAULT;
-
-			 err = compat_get_jpeg_dec_ioctl_wait_data(data32, data);
-			if (err)
-				return err;
-			 ret =
-			    filp->f_op->unlocked_ioctl(filp, JPEG_DEC_IOCTL_WAIT,
-						       (unsigned long)data);
-			 err = compat_put_jpeg_dec_ioctl_wait_data(data32, data);
-			 return ret ? ret : err;
-		} case COMPAT_JPEG_DEC_IOCTL_CHKSUM: {
-			compat_JpegDrvDecResult __user *data32;
-			JpegDrvDecResult __user *data;
+			struct compat_JPEG_DEC_DRV_OUT __user *data32;
+			struct JPEG_DEC_DRV_OUT __user *data;
 			int err;
 
 			data32 = compat_ptr(arg);
@@ -1197,19 +1448,42 @@ static long compat_jpeg_ioctl(struct file *filp, unsigned int cmd, unsigned long
 			if (data == NULL)
 				return -EFAULT;
 
-			err = compat_get_jpeg_dec_ioctl_chksum_data(data32, data);
+			err = compat_get_jpeg_dec_ioctl_wait_data(data32, data);
 			if (err)
 				return err;
 			ret =
-			    filp->f_op->unlocked_ioctl(filp, JPEG_DEC_IOCTL_CHKSUM,
+			filp->f_op->unlocked_ioctl(filp, JPEG_DEC_IOCTL_WAIT,
+					(unsigned long)data);
+			err = compat_put_jpeg_dec_ioctl_wait_data(data32, data);
+			return ret ? ret : err;
+		} case COMPAT_JPEG_DEC_IOCTL_CHKSUM: {
+			struct compat_JpegDrvDecResult __user *data32;
+			struct JpegDrvDecResult __user *data;
+			int err;
+
+			data32 = compat_ptr(arg);
+			data = compat_alloc_user_space(sizeof(*data));
+			if (data == NULL)
+				return -EFAULT;
+
+			err = compat_get_jpeg_dec_ioctl_chksum_data(
+				 data32,
+				 data);
+			if (err)
+				return err;
+			ret =
+			    filp->f_op->unlocked_ioctl(filp,
+						       JPEG_DEC_IOCTL_CHKSUM,
 						       (unsigned long)data);
-			err = compat_put_jpeg_dec_ioctl_chksum_data(data32, data);
+			err = compat_put_jpeg_dec_ioctl_chksum_data(
+				 data32,
+				 data);
 			return ret ? ret : err;
 		}
 	case COMPAT_JPEG_ENC_IOCTL_WAIT:
 		{
-			compat_JPEG_ENC_DRV_OUT __user *data32;
-			JPEG_ENC_DRV_OUT __user *data;
+			struct compat_JPEG_ENC_DRV_OUT __user *data32;
+			struct JPEG_ENC_DRV_OUT __user *data;
 			int err;
 
 			data32 = compat_ptr(arg);
@@ -1221,8 +1495,10 @@ static long compat_jpeg_ioctl(struct file *filp, unsigned int cmd, unsigned long
 			if (err)
 				return err;
 			ret =
-			    filp->f_op->unlocked_ioctl(filp, JPEG_ENC_IOCTL_WAIT,
-						       (unsigned long)data);
+			    filp->f_op->unlocked_ioctl(
+				filp,
+				 JPEG_ENC_IOCTL_WAIT,
+				 (unsigned long)data);
 			err = compat_put_jpeg_enc_ioctl_wait_data(data32, data);
 			return ret ? ret : err;
 		}
@@ -1239,7 +1515,9 @@ static long compat_jpeg_ioctl(struct file *filp, unsigned int cmd, unsigned long
 	case JPEG_DEC_IOCTL_RESUME:
 	case JPEG_DEC_IOCTL_FLUSH_CMDQ:
 	case JPEG_ENC_IOCTL_CONFIG:
-		return filp->f_op->unlocked_ioctl(filp, cmd, (unsigned long)compat_ptr(arg));
+		return filp->f_op->unlocked_ioctl(
+			filp, cmd,
+			 (unsigned long)compat_ptr(arg));
 
 	default:
 		return -ENOIOCTLCMD;
@@ -1247,8 +1525,11 @@ static long compat_jpeg_ioctl(struct file *filp, unsigned int cmd, unsigned long
 }
 #endif
 
-/* static int jpeg_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg) */
-static long jpeg_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+
+static long jpeg_unlocked_ioctl(
+	struct file *file,
+	 unsigned int cmd,
+	 unsigned long arg)
 {
 	switch (cmd) {
 #ifdef JPEG_DEC_DRIVER
@@ -1277,6 +1558,11 @@ static long jpeg_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned lo
 static int jpeg_open(struct inode *inode, struct file *file)
 {
 	unsigned int *pStatus;
+
+	mutex_lock(&DriverOpenCountLock);
+	Driver_Open_Count++;
+	mutex_unlock(&DriverOpenCountLock);
+
 	/* Allocate and initialize private data */
 	 file->private_data = kmalloc(sizeof(unsigned int), GFP_ATOMIC);
 
@@ -1291,7 +1577,10 @@ static int jpeg_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static ssize_t jpeg_read(struct file *file, char __user *data, size_t len, loff_t *ppos)
+static ssize_t jpeg_read(
+	struct file *file,
+	 char __user *data,
+	 size_t len, loff_t *ppos)
 {
 	JPEG_MSG("jpeg driver read\n");
 	return 0;
@@ -1299,6 +1588,24 @@ static ssize_t jpeg_read(struct file *file, char __user *data, size_t len, loff_
 
 static int jpeg_release(struct inode *inode, struct file *file)
 {
+	mutex_lock(&DriverOpenCountLock);
+	Driver_Open_Count--;
+	if (Driver_Open_Count == 0) {
+		if (enc_status != 0) {
+			JPEG_WRN("Enable error handle for enc");
+			jpeg_drv_enc_deinit();
+		}
+
+#ifdef JPEG_DEC_DRIVER
+		if (dec_status != 0) {
+			JPEG_WRN("Enable error handle for dec");
+			jpeg_drv_dec_deinit();
+		}
+#endif
+	}
+	mutex_unlock(&DriverOpenCountLock);
+
+
 	if (file->private_data != NULL) {
 		kfree(file->private_data);
 		file->private_data = NULL;
@@ -1313,20 +1620,20 @@ static int jpeg_flush(struct file *a_pstFile, fl_owner_t a_id)
 	 pStatus = (unsigned int *)a_pstFile->private_data;
 
 	if (pStatus == NULL) {
-		JPEG_WRN("Private data is null in flush operation. HOW COULD THIS HAPPEN ??\n");
+		JPEG_WRN("Private data null in flush, can't HAPPEN\n");
 		return -EFAULT;
 	}
 
 	if (*pStatus == JPEG_ENC_PROCESS) {
 		if (enc_status != 0) {
-			JPEG_WRN("Error! Enable error handling for jpeg encoder");
+			JPEG_WRN("Enable error handle for enc");
 			jpeg_drv_enc_deinit();
 		}
 	}
 #ifdef JPEG_DEC_DRIVER
 	else if (*pStatus == JPEG_DEC_PROCESS) {
 		if (dec_status != 0) {
-			JPEG_WRN("Error! Enable error handling for jpeg decoder");
+			JPEG_WRN("Enable error handle for dec");
 			jpeg_drv_dec_deinit();
 		}
 	}
@@ -1371,16 +1678,18 @@ static int jpeg_probe(struct platform_device *pdev)
 	void *tmpPtr;
 
 	new_count = nrJpegDevs + 1;
-	tmpPtr = krealloc(gJpegqDevs, sizeof(struct JpegDeviceStruct) * new_count, GFP_KERNEL);
+	tmpPtr = krealloc(gJpegqDevs,
+		 sizeof(struct JpegDeviceStruct) * new_count,
+		 GFP_KERNEL);
 	if (!tmpPtr) {
-		dev_err(&pdev->dev, "Unable to allocate cam_isp_devs\n");
+		JPEG_ERR("Unable to allocate JpegDeviceStruct\n");
 		return -ENOMEM;
 	}
-	gJpegqDevs = (JpegDeviceStruct *)tmpPtr;
+	gJpegqDevs = (struct JpegDeviceStruct *)tmpPtr;
 
 	jpegDev = &(gJpegqDevs[nrJpegDevs]);
 	jpegDev->pDev = &pdev->dev;
-	memset(&gJpegqDev, 0x0, sizeof(JpegDeviceStruct));
+	memset(&gJpegqDev, 0x0, sizeof(struct JpegDeviceStruct));
 
 	node = pdev->dev.of_node;
 	jpegDev->encRegBaseVA = (unsigned long)of_iomap(node, 0);
@@ -1390,25 +1699,32 @@ static int jpeg_probe(struct platform_device *pdev)
 		#ifdef JPEG_PM_DOMAIN_ENABLE
 			pjenc_dev = pdev;
 		#else
-			#ifndef SMI_CG_SUPPORT
-				/* venc-mtcmos lead to disp power scpsys SCP_SYS_DISP */
-				gJpegClk.clk_scp_sys_mm0 = of_clk_get_by_name(node, "MT_CG_SCP_SYS_MM0");
+			#ifndef CONFIG_MTK_SMI_EXT
+				/* venc-mtcmos lead to disp */
+				/* power scpsys SCP_SYS_DISP */
+				gJpegClk.clk_scp_sys_mm0 =
+				 of_clk_get_by_name(node, "MT_CG_SCP_SYS_MM0");
 				if (IS_ERR(gJpegClk.clk_scp_sys_mm0))
-					JPEG_ERR("get MT_CG_SCP_SYS_MM0 clk error!");
-				/* venc-mtcmos lead to venc power scpsys SCP_SYS_VEN */
-				gJpegClk.clk_scp_sys_ven = of_clk_get_by_name(node, "MT_CG_SCP_SYS_VEN");
+					JPEG_ERR("get MT_CG_SCP_SYS_MM0 err");
+				/* venc-mtcmos lead to venc */
+				/* power scpsys SCP_SYS_VEN */
+				gJpegClk.clk_scp_sys_ven =
+				 of_clk_get_by_name(node, "MT_CG_SCP_SYS_VEN");
 				if (IS_ERR(gJpegClk.clk_scp_sys_ven))
-					JPEG_ERR("get MT_CG_SCP_SYS_VEN clk error!");
+					JPEG_ERR("get MT_CG_SCP_SYS_VEN err");
 
-				gJpegClk.clk_smi_common = of_clk_get_by_name(node, "MT_CG_SMI_COMMON");
+				gJpegClk.clk_smi_common =
+				 of_clk_get_by_name(node, "MT_CG_SMI_COMMON");
 				if (IS_ERR(gJpegClk.clk_smi_common))
-					JPEG_ERR("get MT_CG_SMI_COMMON clk error!");
-				gJpegClk.clk_venc_larb = of_clk_get_by_name(node, "MT_CG_VENC_LARB");
+					JPEG_ERR("get MT_CG_SMI_COMMON err");
+				gJpegClk.clk_venc_larb =
+				 of_clk_get_by_name(node, "MT_CG_VENC_LARB");
 				if (IS_ERR(gJpegClk.clk_venc_larb))
-					JPEG_ERR("get MT_CG_VENC_LARB clk error!");
+					JPEG_ERR("get MT_CG_VENC_LARB err");
 			#endif
 		#endif
-		gJpegClk.clk_venc_jpgEnc = of_clk_get_by_name(node, "MT_CG_VENC_JPGENC");
+		gJpegClk.clk_venc_jpgEnc =
+			 of_clk_get_by_name(node, "MT_CG_VENC_JPGENC");
 		if (IS_ERR(gJpegClk.clk_venc_jpgEnc))
 			JPEG_ERR("get MT_CG_VENC_JPGENC clk error!");
 	#endif
@@ -1417,15 +1733,27 @@ static int jpeg_probe(struct platform_device *pdev)
 		jpegDev->decIrqId = irq_of_parse_and_map(node, 1);
 	    #ifdef CONFIG_MTK_CLKMGR
 	    #else
-			gJpegClk.clk_venc_jpgDec = of_clk_get_by_name(node, "MT_CG_VENC_JPGDEC");
+			gJpegClk.clk_venc_jpgDec =
+			 of_clk_get_by_name(node, "MT_CG_VENC_JPGDEC");
 			if (IS_ERR(gJpegClk.clk_venc_jpgDec))
-				JPEG_ERR("get MT_CG_VENC_JPGDEC clk error!");
+				JPEG_ERR("get MT_CG_VENC_JPGDEC err");
 		#endif
 	#endif
+
+	#if ENABLE_MMQOS
+	if (of_property_read_u32(node, "cshot-spec", &cshot_spec_dts)) {
+		JPEG_ERR("cshot spec read failed\n");
+		JPEG_ERR("init cshot spec as 0xFFFFFFFF\n");
+		cshot_spec_dts = 0xFFFFFFFF;
+	}
+	#endif
+
 	gJpegqDev = *jpegDev;
-#ifdef CONFIG_MTK_QOS_SUPPORT
-	pm_qos_add_request(&jpgenc_qos_request, PM_QOS_MM_MEMORY_BANDWIDTH, PM_QOS_DEFAULT_VALUE);
-#endif
+
+	/* Support QoS */
+	pm_qos_add_request(&jpgenc_qos_request,
+		PM_QOS_MM_MEMORY_BANDWIDTH, PM_QOS_DEFAULT_VALUE);
+
 #else
 	gJpegqDev.encRegBaseVA = (0L | 0xF7003000);
 	gJpegqDev.decRegBaseVA = (0L | 0xF7004000);
@@ -1444,7 +1772,7 @@ static int jpeg_probe(struct platform_device *pdev)
 	ret = alloc_chrdev_region(&jenc_devno, 0, 1, JPEG_DEVNAME);
 
 	if (ret)
-		JPEG_ERR("Error: Can't Get Major number for JPEG Device\n");
+		JPEG_ERR("Can't Get Major number for JPEG Device\n");
 	else
 		JPEG_MSG("Get JPEG Device Major number (%d)\n", jenc_devno);
 
@@ -1456,9 +1784,10 @@ static int jpeg_probe(struct platform_device *pdev)
 
 	jenc_class = class_create(THIS_MODULE, JPEG_DEVNAME);
 	class_dev =
-	    (struct class_device *)device_create(jenc_class, NULL, jenc_devno, NULL, JPEG_DEVNAME);
+	    (struct class_device *)device_create(jenc_class,
+			 NULL, jenc_devno, NULL, JPEG_DEVNAME);
 #else
-	proc_create("mtk_jpeg", 0, NULL, &jpeg_fops);
+	proc_create("mtk_jpeg", 0644, NULL, &jpeg_fops);
 #endif
 }
 
@@ -1482,17 +1811,19 @@ static int jpeg_probe(struct platform_device *pdev)
 	#endif
 	init_waitqueue_head(&enc_wait_queue);
 
-	/* mt6575_irq_set_sens(MT6575_JPEG_CODEC_IRQ_ID, MT65xx_LEVEL_SENSITIVE); */
-	/* mt6575_irq_set_polarity(MT6575_JPEG_CODEC_IRQ_ID, MT65xx_POLARITY_LOW); */
 	/* mt6575_irq_unmask(MT6575_JPEG_CODEC_IRQ_ID); */
 	JPEG_MSG("request JPEG Encoder IRQ\n");
 	enable_irq(gJpegqDev.encIrqId);
-	if (request_irq(gJpegqDev.encIrqId, jpeg_drv_enc_isr, IRQF_TRIGGER_LOW, "jpeg_enc_driver", NULL))
+	if (request_irq(gJpegqDev.encIrqId,
+		 jpeg_drv_enc_isr, IRQF_TRIGGER_LOW,
+		 "jpeg_enc_driver", NULL))
 		JPEG_ERR("JPEG ENC Driver request irq failed\n");
 	#ifdef JPEG_DEC_DRIVER
 		enable_irq(gJpegqDev.decIrqId);
 		JPEG_MSG("request JPEG Decoder IRQ\n");
-		if (request_irq(gJpegqDev.decIrqId, jpeg_drv_dec_isr, IRQF_TRIGGER_FALLING, "jpeg_dec_driver", NULL))
+		if (request_irq(gJpegqDev.decIrqId,
+				 jpeg_drv_dec_isr, IRQF_TRIGGER_FALLING,
+				 "jpeg_dec_driver", NULL))
 			JPEG_ERR("JPEG DEC Driver request irq failed\n");
 	#endif
 #endif
@@ -1511,9 +1842,9 @@ static int jpeg_remove(struct platform_device *pdev)
 	free_irq(gJpegqDev.decIrqId, NULL);
   #endif
 #endif
-#ifdef CONFIG_MTK_QOS_SUPPORT
+	/* Support QoS */
 	pm_qos_remove_request(&jpgenc_qos_request);
-#endif
+
 	JPEG_MSG("Done\n");
 	return 0;
 }
@@ -1634,15 +1965,17 @@ static int jdec_probe(struct platform_device *pdev)
 	int ret;
 	struct class_device *class_dev = NULL;
 #endif
-	JPEG_MSG("+jdec_probe\n");
+	JPEG_MSG("+%s\n", __func__);
 
 	pjdec_dev = pdev;
 #ifdef JPEG_DEV
 	ret = alloc_chrdev_region(&jdec_devno, 0, 1, JDEC_DEVNAME);
 	if (ret)
-		JPEG_MSG("Error: Can't Get Major number for %s Device\n", JDEC_DEVNAME);
+		JPEG_MSG("Can't Get Major number for %s\n",
+		JDEC_DEVNAME);
 	else
-		JPEG_MSG("Get %s Device Major number (%d)\n", JDEC_DEVNAME, jdec_devno);
+		JPEG_MSG("Get %s Device Major number (%d)\n",
+		 JDEC_DEVNAME, jdec_devno);
 
 	jdec_cdev = cdev_alloc();
 	jdec_cdev->owner = THIS_MODULE;
@@ -1652,9 +1985,10 @@ static int jdec_probe(struct platform_device *pdev)
 
 	jdec_class = class_create(THIS_MODULE, JDEC_DEVNAME);
 	class_dev =
-		(struct class_device *)device_create(jdec_class, NULL, jdec_devno, NULL, JDEC_DEVNAME);
+		(struct class_device *)device_create(
+		jdec_class, NULL, jdec_devno, NULL, JDEC_DEVNAME);
 #else
-	proc_create(JDEC_DEVNAME, 0, NULL, &jdec_fops);
+	proc_create(JDEC_DEVNAME, 0x644, NULL, &jdec_fops);
 #endif
 	/* venc_power_on(); */
 	return 0;
@@ -1663,13 +1997,13 @@ static int jdec_probe(struct platform_device *pdev)
 
 
 static struct platform_driver jdec_driver = {
-	.probe = jdec_probe,
+	probe = jdec_probe,
 	/*.remove = vcodec_venc_remove, */
-	.driver = {
-		   .name = JDEC_DEVNAME,
-		   .owner = THIS_MODULE,
-		   .of_match_table = jdec_of_ids,
-		   }
+	driver = {
+		.name = JDEC_DEVNAME,
+		.owner = THIS_MODULE,
+		.of_match_table = jdec_of_ids,
+	}
 };
 
 #endif
@@ -1706,14 +2040,20 @@ static int __init jpeg_init(void)
 #endif
 #ifdef MTK_JPEG_CMDQ_SUPPORT
 	cmdqCoreRegisterCB(CMDQ_GROUP_JPEG,
-			   cmdqJpegClockOn, cmdqJpegDumpInfo, cmdqJpegResetEng, cmdqJpegClockOff);
+			 cmdqJpegClockOn,
+			 cmdqJpegDumpInfo,
+			 cmdqJpegResetEng,
+			 cmdqJpegClockOff);
 #endif
+	Driver_Open_Count = 0;
+	jpeg_drv_enc_prepare_bw_request();
+
 	return 0;
 }
 
 static void __exit jpeg_exit(void)
 {
-	JPEG_MSG("jpeg_exit +\n");
+	JPEG_MSG("%s +\n", __func__);
 #ifdef JPEG_DEV
 	cdev_del(jenc_cdev);
 	unregister_chrdev_region(jenc_devno, 1);
@@ -1739,12 +2079,13 @@ static void __exit jpeg_exit(void)
   #endif
 	/*platform_driver_unregister(&jdec_driver);*/
 	platform_device_unregister(pjenc_dev);
-	JPEG_MSG("jpeg_exit jdec remove\n");
+	JPEG_MSG("%s jdec remove\n", __func__);
 #endif
-	JPEG_MSG("jpeg_exit -\n");
+	jpegenc_drv_enc_remove_bw_request();
+	JPEG_MSG("%s -\n", __func__);
 }
 module_init(jpeg_init);
 module_exit(jpeg_exit);
-MODULE_AUTHOR("Chrono Wu <chrono.wu@mediatek.com>");
-MODULE_DESCRIPTION("JPEG Codec Driver V2");
+MODULE_AUTHOR("Hao-Ting Huang <otis.huang@mediatek.com>");
+MODULE_DESCRIPTION("MT6582 JPEG Codec Driver");
 MODULE_LICENSE("GPL");

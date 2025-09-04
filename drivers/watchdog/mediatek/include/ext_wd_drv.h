@@ -1,22 +1,25 @@
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ * Copyright (C) 2016 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ */
 
 #ifndef __EXT_WD_DRV_H
 #define __EXT_WD_DRV_H
 #include <linux/types.h>
 #include <linux/kthread.h> /*define NR_CPUS*/
+#ifdef CONFIG_MTK_WATCHDOG_COMMON
+#include <mt-plat/mtk_wd_api.h>
+#else
 #include <mach/wd_api.h>
-
+#endif
 
 /* direct api */
 void wdt_arch_reset(char mode);
@@ -56,7 +59,8 @@ int  mtk_wdt_dfd_thermal1_dis(int value);
 int  mtk_wdt_dfd_thermal2_dis(int value);
 int  mtk_wdt_dfd_timeout(int value);
 int  mtk_wdt_enable(enum wk_wdt_en en);
-void mtk_wdt_mode_config(bool dual_mode_en, bool irq, bool ext_en, bool ext_pol, bool wdt_en);
+void mtk_wdt_mode_config(bool dual_mode_en, bool irq, bool ext_en,
+			    bool ext_pol, bool wdt_en);
 int  mtk_wdt_request_mode_set(int mark_bit, enum wk_req_mode mode);
 int  mtk_wdt_request_en_set(int mark_bit, enum wk_req_en en);
 void mtk_wdt_restart(enum wd_restart_type type);
@@ -75,7 +79,7 @@ extern void dump_wdk_bind_info(void);
 #if NR_CPUS == 1
 #define nr_cpu_ids		1
 #else
-extern int nr_cpu_ids;
+extern unsigned int nr_cpu_ids;
 #endif
 
 #define __ENABLE_WDT_SYSFS__
@@ -84,11 +88,13 @@ extern int nr_cpu_ids;
 #include <linux/sysfs.h>
 /*---------------------------------------------------------------------------*/
 /*define sysfs entry for configuring debug level and sysrq*/
-ssize_t mtk_rgu_attr_show(struct kobject *kobj, struct attribute *attr, char *buffer);
-ssize_t mtk_rgu_attr_store(struct kobject *kobj, struct attribute *attr, const char *buffer,
-			   size_t size);
+ssize_t mtk_rgu_attr_show(struct kobject *kobj, struct attribute *attr,
+			     char *buffer);
+ssize_t mtk_rgu_attr_store(struct kobject *kobj, struct attribute *attr,
+			      const char *buffer, size_t size);
 ssize_t mtk_rgu_pause_wdt_show(struct kobject *kobj, char *page);
-ssize_t mtk_rgu_pause_wdt_store(struct kobject *kobj, const char *page, size_t size);
+ssize_t mtk_rgu_pause_wdt_store(struct kobject *kobj, const char *page,
+				    size_t size);
 #endif
 
 /* end */

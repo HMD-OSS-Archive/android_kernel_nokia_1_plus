@@ -8,27 +8,27 @@
  * published by the Free Software Foundation.
  */
 
-#include <linux/kernel.h>
+#include <linux/cpu.h>
 #include <linux/cpuidle.h>
-#include <linux/pm_qos.h>
-#include <linux/time.h>
-#include <linux/ktime.h>
 #include <linux/hrtimer.h>
-#include <linux/tick.h>
-#include <linux/sched.h>
+#include <linux/kernel.h>
+#include <linux/ktime.h>
 #include <linux/math64.h>
 #include <linux/module.h>
-#include <linux/cpu.h>
+#include <linux/pm_qos.h>
+#include <linux/sched.h>
+#include <linux/tick.h>
+#include <linux/time.h>
 
 #undef INTEGRATE_WITH_MENU_GOV
-#if defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6759) \
-	|| defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758)
-#define	INTEGRATE_WITH_MENU_GOV
+#if defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6759) ||              \
+	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758)
+#define INTEGRATE_WITH_MENU_GOV
 #endif
 
 struct mtk_idle_device {
-	unsigned int        cpu;
-	int                 last_state_idx;
+	unsigned int cpu;
+	int last_state_idx;
 };
 
 static DEFINE_PER_CPU(struct mtk_idle_device, mtk_idle_devices);
@@ -39,7 +39,8 @@ int __attribute__((weak)) mtk_idle_select(int cpu)
 	return -1;
 }
 
-int __attribute__((weak)) mtk_idle_select_base_on_menu_gov(int cpu, int menu_select_state)
+int __attribute__((weak))
+mtk_idle_select_base_on_menu_gov(int cpu, int menu_select_state)
 {
 	/* Default: CPUidle state select failed */
 	return -1;
@@ -47,7 +48,6 @@ int __attribute__((weak)) mtk_idle_select_base_on_menu_gov(int cpu, int menu_sel
 
 void __attribute__((weak)) __init mtk_cpuidle_framework_init(void)
 {
-
 }
 
 #ifdef INTEGRATE_WITH_MENU_GOV
@@ -67,7 +67,6 @@ void __attribute__((weak)) __init mtk_cpuidle_framework_init(void)
 #define RESOLUTION 1024
 #define DECAY 8
 #define MAX_INTERESTING 50000
-
 
 /*
  * Concepts and ideas behind the menu governor
@@ -150,27 +149,27 @@ void __attribute__((weak)) __init mtk_cpuidle_framework_init(void)
  */
 
 struct menu_device {
-	int		last_state_idx;
-	int             needs_update;
+	int last_state_idx;
+	int needs_update;
 
-	unsigned int	next_timer_us;
-	unsigned int	predicted_us;
-	unsigned int	bucket;
-	unsigned int	correction_factor[BUCKETS];
-	unsigned int	intervals[INTERVALS];
-	int		interval_ptr;
+	unsigned int next_timer_us;
+	unsigned int predicted_us;
+	unsigned int bucket;
+	unsigned int correction_factor[BUCKETS];
+	unsigned int intervals[INTERVALS];
+	int interval_ptr;
 };
 
-
 #define LOAD_INT(x) ((x) >> FSHIFT)
-#define LOAD_FRAC(x) LOAD_INT(((x) & (FIXED_1-1)) * 100)
+#define LOAD_FRAC(x) LOAD_INT(((x) & (FIXED_1 - 1)) * 100)
 
 static inline int get_loadavg(unsigned long load)
 {
 	return LOAD_INT(load) * 10 + LOAD_FRAC(load) / 10;
 }
 
-static inline int which_bucket(unsigned int duration, unsigned long nr_iowaiters)
+static inline int which_bucket(unsigned int duration,
+			       unsigned long nr_iowaiters)
 {
 	int bucket = 0;
 
@@ -181,7 +180,7 @@ static inline int which_bucket(unsigned int duration, unsigned long nr_iowaiters
 	 * E(duration)|iowait
 	 */
 	if (nr_iowaiters)
-		bucket = BUCKETS/2;
+		bucket = BUCKETS / 2;
 
 	if (duration < 10)
 		return bucket;
@@ -203,7 +202,8 @@ static inline int which_bucket(unsigned int duration, unsigned long nr_iowaiters
  * to be, the higher this multiplier, and thus the higher
  * the barrier to go to an expensive C state.
  */
-static inline int performance_multiplier(unsigned long nr_iowaiters, unsigned long load)
+static inline int performance_multiplier(unsigned long nr_iowaiters,
+					 unsigned long load)
 {
 	int mult = 1;
 
@@ -291,8 +291,8 @@ again:
 	 */
 	if (likely(stddev <= ULONG_MAX)) {
 		stddev = int_sqrt(stddev);
-		if (((avg > stddev * 6) && (divisor * 4 >= INTERVALS * 3))
-							|| stddev <= 20) {
+		if (((avg > stddev * 6) && (divisor * 4 >= INTERVALS * 3)) ||
+		    stddev <= 20) {
 			if (data->next_timer_us > avg)
 				data->predicted_us = avg;
 			return;
@@ -350,9 +350,10 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 	 * operands are 32 bits.
 	 * Make sure to round up for half microseconds.
 	 */
-	data->predicted_us = DIV_ROUND_CLOSEST_ULL((uint64_t)data->next_timer_us *
-					 data->correction_factor[data->bucket],
-					 RESOLUTION * DECAY);
+	data->predicted_us = DIV_ROUND_CLOSEST_ULL(
+		(uint64_t)data->next_timer_us *
+			data->correction_factor[data->bucket],
+		RESOLUTION * DECAY);
 
 	get_typical_interval(data);
 
@@ -361,7 +362,8 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 	 * duration / latency ratio. Adjust the latency limit if
 	 * necessary.
 	 */
-	interactivity_req = data->predicted_us / performance_multiplier(nr_iowaiters, cpu_load);
+	interactivity_req = data->predicted_us /
+			    performance_multiplier(nr_iowaiters, cpu_load);
 	if (latency_req > interactivity_req)
 		latency_req = interactivity_req;
 
@@ -371,7 +373,7 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 	 */
 	if (data->next_timer_us > 5 &&
 	    !drv->states[CPUIDLE_DRIVER_STATE_START].disabled &&
-		dev->states_usage[CPUIDLE_DRIVER_STATE_START].disable == 0)
+	    dev->states_usage[CPUIDLE_DRIVER_STATE_START].disable == 0)
 		data->last_state_idx = CPUIDLE_DRIVER_STATE_START;
 
 	/*
@@ -486,7 +488,7 @@ static void menu_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
  * @dev: the CPU
  */
 static int menu_enable_device(struct cpuidle_driver *drv,
-				struct cpuidle_device *dev)
+			      struct cpuidle_device *dev)
 {
 	struct menu_device *data = &per_cpu(menu_devices, dev->cpu);
 	int i;
@@ -511,7 +513,8 @@ static int menu_enable_device(struct cpuidle_driver *drv,
  * @dev: the CPU
  */
 #ifdef INTEGRATE_WITH_MENU_GOV
-static int mtk_governor_select(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+static int mtk_governor_select(struct cpuidle_driver *drv,
+			       struct cpuidle_device *dev)
 {
 	int select_state = 0;
 	int menu_select_state = 0;
@@ -521,14 +524,16 @@ static int mtk_governor_select(struct cpuidle_driver *drv, struct cpuidle_device
 	/* Get result of MENU governor */
 	menu_select_state = menu_select(drv, dev);
 
-	mtk_gov_select_state = mtk_idle_select_base_on_menu_gov(cpu, menu_select_state);
+	mtk_gov_select_state =
+		mtk_idle_select_base_on_menu_gov(cpu, menu_select_state);
 
 	select_state = mtk_gov_select_state;
 
 	return select_state;
 }
 #else
-static int mtk_governor_select(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+static int mtk_governor_select(struct cpuidle_driver *drv,
+			       struct cpuidle_device *dev, bool *stop_tick)
 {
 	struct mtk_idle_device *data = this_cpu_ptr(&mtk_idle_devices);
 	int state;
@@ -560,7 +565,7 @@ static void mtk_governor_reflect(struct cpuidle_device *dev, int index)
  * @dev: the CPU
  */
 static int mtk_governor_enable_device(struct cpuidle_driver *drv,
-				struct cpuidle_device *dev)
+				      struct cpuidle_device *dev)
 {
 	struct mtk_idle_device *data = &per_cpu(mtk_idle_devices, dev->cpu);
 
@@ -575,16 +580,11 @@ static int mtk_governor_enable_device(struct cpuidle_driver *drv,
 }
 
 static struct cpuidle_governor mtk_governor = {
-	.name =		"mtk_governor",
-#ifdef CONFIG_MTK_ACAO_SUPPORT
-	.rating =	10,
-#else
-	.rating =	100,
-#endif
-	.enable =	mtk_governor_enable_device,
-	.select =	mtk_governor_select,
-	.reflect =	mtk_governor_reflect,
-	.owner =	THIS_MODULE,
+	.name = "mtk_governor",
+	.rating = 120,
+	.enable = mtk_governor_enable_device,
+	.select = mtk_governor_select,
+	.reflect = mtk_governor_reflect,
 };
 
 /*
@@ -592,7 +592,7 @@ static struct cpuidle_governor mtk_governor = {
  */
 static int __init init_mtk_governor(void)
 {
-	/* TODO: check if debugfs_create_file() failed */
+/* TODO: check if debugfs_create_file() failed */
 #if !defined(CONFIG_FPGA_EARLY_PORTING)
 	mtk_cpuidle_framework_init();
 #endif
@@ -601,4 +601,3 @@ static int __init init_mtk_governor(void)
 
 MODULE_LICENSE("GPL");
 postcore_initcall(init_mtk_governor);
-

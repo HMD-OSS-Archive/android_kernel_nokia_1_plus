@@ -15,16 +15,15 @@
 #ifndef __MTK_PROJECT_PHY_H
 #define __MTK_PROJECT_PHY_H
 
+#define SSUSB_SIFSLV_SPLLC_BASE         (MTK_USB_PHY_SPLLC_BASE)
+#define SSUSB_SIFSLV_FMREG              (MTK_USB_PHY_FMREG_BASE)
+#define SSUSB_SIFSLV_U2PHY_COM_BASE     (MTK_USB_PHY_U2_BASE)
+#define SSUSB_SIFSLV_U3PHYD_BASE        (MTK_USB_PHY_U3PHYD_BASE)
+#define SSUSB_USB30_PHYA_SIV_B2_BASE    (MTK_USB_PHY_B2_BASE)
+#define SSUSB_USB30_PHYA_SIV_B_BASE     (MTK_USB_PHY_PHYA_BASE)
+#define SSUSB_SIFSLV_U3PHYA_DA_BASE     (MTK_USB_PHY_PHYA_DA_BASE)
 
-#define SSUSB_SIFSLV_SPLLC_BASE         (MTK_USB_PHY_BASE + 0x000)
-#define SSUSB_SIFSLV_FMREG              (MTK_USB_PHY_BASE + 0x100)
-#define SSUSB_SIFSLV_U2PHY_COM_BASE     (MTK_USB_PHY_PORT_BASE + 0x000)
-#define SSUSB_SIFSLV_U3PHYD_BASE        (MTK_USB_PHY_PORT_BASE + 0x100)
-#define SSUSB_USB30_PHYA_SIV_B2_BASE    (MTK_USB_PHY_PORT_BASE + 0x200)
-#define SSUSB_USB30_PHYA_SIV_B_BASE     (MTK_USB_PHY_PORT_BASE + 0x300)
-#define SSUSB_SIFSLV_U3PHYA_DA_BASE     (MTK_USB_PHY_PORT_BASE + 0x400)
-
-/* ///////////////////////////////////////////////////////////////////////////// */
+/* ///////////////////////////////////////////// */
 /**   SSUSB_SIFSLV_SPLLC_BASE **/
 #define U3D_SPLLC_XTALCTL3              (SSUSB_SIFSLV_SPLLC_BASE + 0x18)
 
@@ -53,7 +52,7 @@
 #define RG_SSUSB_XTAL_VREGBIAS_PWD_OFST           (1)
 #define RG_SSUSB_XTAL_FRC_VREGBIAS_PWD_OFST       (0)
 
-/* ///////////////////////////////////////////////////////////////////////////// */
+/* ///////////////////////////////////////////// */
 /**   SSUSB_SIFSLV_FMREG **/
 #define RG_SSUSB_SIFSLV_FMCR0           (SSUSB_SIFSLV_FMREG + 0x00)
 #define RG_SSUSB_SIFSLV_FMCR1           (SSUSB_SIFSLV_FMREG + 0x04)
@@ -104,7 +103,7 @@
 #define U2_SR_COEF                      28
 #define U3D_PHY_REF_CK                  26
 
-/* ///////////////////////////////////////////////////////////////////////////// */
+/* ///////////////////////////////////////////// */
 /**   SSUSB_SIFSLV_U2PHY_COM_BASE **/
 #define U3D_USBPHYACR0      (SSUSB_SIFSLV_U2PHY_COM_BASE + 0x0000)
 #define U3D_USBPHYACR1      (SSUSB_SIFSLV_U2PHY_COM_BASE + 0x0004)
@@ -479,7 +478,7 @@
 #define USB20_RX_VALID_OFST                (16)
 #define USB20_DATA_OUT_OFST                (0)
 
-/* ///////////////////////////////////////////////////////////////////////////// */
+/* ///////////////////////////////////////////// */
 /**   SSUSB_SIFSLV_U3PHYD_BASE **/
 #define U3D_PHYD_MIX0		(SSUSB_SIFSLV_U3PHYD_BASE + 0x00)
 #define U3D_PHYD_IMPCAL0	(SSUSB_SIFSLV_U3PHYD_BASE + 0x10)
@@ -546,7 +545,7 @@
 
 
 
-/* ///////////////////////////////////////////////////////////////////////////// */
+/* ///////////////////////////////////////////// */
 /**   SSUSB_USB30_PHYA_SIV_B2_BASE **/
 #define U3D_B2_PHYD_RXDET2		(SSUSB_USB30_PHYA_SIV_B2_BASE + 0x2c)
 
@@ -571,7 +570,7 @@
 #define RG_SSUSB_RXDET_STB3_SET_P3_OFST    (9)
 #define RG_SSUSB_RXDET_STB2_SET_P3_OFST    (0)
 
-/* ///////////////////////////////////////////////////////////////////////////// */
+/* ///////////////////////////////////////////// */
 /**   SSUSB_USB30_PHYA_SIV_B_BASE **/
 #define U3D_USB30_PHYA_REG0 (SSUSB_USB30_PHYA_SIV_B_BASE + 0x0000)
 #define U3D_USB30_PHYA_REG1 (SSUSB_USB30_PHYA_SIV_B_BASE + 0x0004)
@@ -655,7 +654,7 @@
 #define RG_SSUSB_RESERVE10_OFST                 (10)
 
 
-/* ///////////////////////////////////////////////////////////////////////////// */
+/* ///////////////////////////////////////////// */
 /**   SSUSB_SIFSLV_U3PHYA_DA_BASE **/
 #define U3D_U3PHYA_DA_REG0	(SSUSB_SIFSLV_U3PHYA_DA_BASE + 0x0)
 #define U3D_U3PHYA_DA_REG32 (SSUSB_SIFSLV_U3PHYA_DA_BASE + 0x0060)
@@ -734,7 +733,7 @@
 #define RG_SSUSB_DA_SSUSB_PLL_BAND         (0x3F<<11)
 #define RG_SSUSB_DA_SSUSB_PLL_BAND_OFST    (11)
 
-/* ///////////////////////////////////////////////////////////////////////////// */
+/* ///////////////////////////////////////////// */
 extern u32 get_devinfo_with_index(u32 index);
 
 #endif

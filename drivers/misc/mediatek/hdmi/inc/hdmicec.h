@@ -149,24 +149,27 @@ enum CEC_OPCODE {
 	))
 /* --------FLD help macros, mask32 to mask8,mask16,maskalign ----------*/
 /* lint -save -e504  lint -restore*/
-#define Fld2Msk32(fld)	((((unsigned int)1<<Fld_wid(fld))-1)<<Fld_shft(fld))
+#define Fld2Msk32(fld)	(((1<<Fld_wid(fld))-1)\
+	<<Fld_shft(fld))
 #define Fld2MskB0(fld)	MSKB0(Fld2Msk32(fld))
 #define Fld2MskB1(fld)	MSKB1(Fld2Msk32(fld))
 #define Fld2MskB2(fld)	MSKB2(Fld2Msk32(fld))
 #define Fld2MskB3(fld)	MSKB3(Fld2Msk32(fld))
-#define Fld2MskBX(fld, byte)	((unsigned char)((Fld2Msk32(fld)>>((byte&3)*8))&0xff))
+#define Fld2MskBX(fld, byte)	((unsigned char)\
+	((Fld2Msk32(fld)>>((byte&3)*8))&0xff))
 
 #define Fld2MskW0(fld)	MSKW0(Fld2Msk32(fld))
 #define Fld2MskW1(fld)	MSKW1(Fld2Msk32(fld))
 #define Fld2MskW2(fld)	MSKW2(Fld2Msk32(fld))
-#define Fld2MskWX(fld, byte)	((unsigned short)((Fld2Msk32(fld)>>((byte&3)*8))&0xffff))
+#define Fld2MskWX(fld, byte)	((unsigned short)\
+	((Fld2Msk32(fld)>>((byte&3)*8))&0xffff))
 
 
 #define Fld2MskAlignB(fld)  MSKAlignB(Fld2Msk32(fld))
 #define FldshftAlign(fld)	((Fld_shft(fld) < 8)?Fld_shft(fld):(\
 			(Fld_shft(fld) < 16)?(Fld_shft(fld)-8):(\
-			(Fld_shft(fld) < 24)?(Fld_shft(fld)-16):(Fld_shft(fld)-24)\
-		)\
+			(Fld_shft(fld) < 24)?(Fld_shft(fld)-16) : \
+			(Fld_shft(fld)-24))\
 	))
 #define ValAlign2Fld(val, fld)	((val) << FldshftAlign(fld))
 

@@ -1,15 +1,15 @@
-/* Mediatek STAR MAC network driver.
+/*
+ * Copyright (c) 2019 MediaTek Inc.
+ * Author: Zhiyong Tao <zhiyong.tao@mediatek.com>
  *
- * Copyright (c) 2016-2017 MediaTek Inc.
- *
- * program is free software; you can redistribute it and/or modify
+ * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #ifndef _STAR_H_
@@ -89,10 +89,6 @@
 #define star_reset_hash_table(dev) \
 		star_set_bit(star_test1((dev)->base), STAR_TEST1_RST_HASH_BIST)
 
-#define star_dma_rx_valid(ctrl_len) \
-		(((ctrl_len & RX_FS) != 0) && ((ctrl_len & RX_LS) != 0) && \
-		((ctrl_len & RX_CRCERR) == 0) && ((ctrl_len & RX_OSIZE) == 0))
-
 #define star_dma_rx_crc_err(ctrl_len) ((ctrl_len & RX_CRCERR) ? 1 : 0)
 #define star_dma_rx_over_size(ctrl_len) ((ctrl_len & RX_OSIZE) ? 1 : 0)
 
@@ -115,7 +111,7 @@ enum wol_type {
  * @wol:		ethernet mac wol type status
  * @wol_flag:		normal wol: set true to enable, set false to disable.
  */
-typedef struct star_private_s {
+struct star_private_s {
 	struct regulator *phy_regulator;
 	struct clk *core_clk, *reg_clk, *trans_clk;
 	star_dev star_dev;
@@ -157,7 +153,7 @@ struct eth_phy_ops {
 
 static inline void star_set_reg(void __iomem *reg, u32 value)
 {
-	STAR_PR_DEBUG("star_set_reg(%p)=%08x\n", reg, value);
+	STAR_PR_DEBUG("%s(%p)=%08x\n", __func__, reg, value);
 	iowrite32(value, reg);
 }
 
@@ -165,7 +161,7 @@ static inline u32 star_get_reg(void __iomem *reg)
 {
 	u32 data = ioread32(reg);
 
-	STAR_PR_DEBUG("star_get_reg(%p)=%08x\n", reg, data);
+	STAR_PR_DEBUG("%s(%p)=%08x\n", __func__, reg, data);
 	return data;
 }
 
@@ -174,7 +170,7 @@ static inline void star_set_bit(void __iomem *reg, u32 bit)
 	u32 data = ioread32(reg);
 
 	data |= bit;
-	STAR_PR_DEBUG("star_set_bit(%p,bit:%08x)=%08x\n", reg, bit, data);
+	STAR_PR_DEBUG("%s(%p,bit:%08x)=%08x\n", __func__, reg, bit, data);
 	iowrite32(data, reg);
 	star_mb();
 }
@@ -185,7 +181,7 @@ static inline void star_clear_bit(void __iomem *reg, u32 bit)
 
 	data &= ~bit;
 	STAR_PR_DEBUG(
-		 "star_clear_bit(%p,bit:%08x)=%08x\n", reg, bit, data);
+		 "%s(%p,bit:%08x)=%08x\n", __func__, reg, bit, data);
 	iowrite32(data, reg);
 	star_mb();
 }
@@ -196,8 +192,8 @@ static inline u32 star_get_bit_mask(void __iomem *reg, u32 mask, u32 offset)
 
 	data = ((data >> offset) & mask);
 	STAR_PR_DEBUG(
-		 "star_get_bit_mask(%p,mask:%08x,offset:%08x)=%08x(data)\n",
-		 reg, mask, offset, data);
+		 "%s(%p,mask:%08x,offset:%08x)=%08x(data)\n",
+		 __func__, reg, mask, offset, data);
 	return data;
 }
 
@@ -207,7 +203,7 @@ static inline u32 star_is_set_bit(void __iomem *reg, u32 bit)
 
 	data &= bit;
 	STAR_PR_DEBUG(
-		 "star_is_set_bit(%p,bit:%08x)=%08x\n", reg, bit, data);
+		 "%s(%p,bit:%08x)=%08x\n", __func__, reg, bit, data);
 	return data ? 1 : 0;
 }
 
@@ -215,5 +211,6 @@ int star_get_wol_flag(star_private *star_prv);
 void star_set_wol_flag(star_private *star_prv, bool flag);
 int star_get_dbg_level(void);
 void star_set_dbg_level(int dbg);
+u32 star_dma_rx_valid(u32 ctrl_len);
 
 #endif /* _STAR_H_ */

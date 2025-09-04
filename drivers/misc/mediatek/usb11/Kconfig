@@ -8,6 +8,9 @@ config MTK_USBFSH
 	  This is support for Mediatek customized Host-only MUSB hardware
 	  The USBFSH driver remove USB Device functions
 	  And provide supports for second MODEM or ICUSB, etc.
+	  Enable USB port1. before enable, you must
+	  confirm that your hw can support. if you can't
+	  sure, please set n.
 
 config MTK_ICUSB_SUPPORT
 	bool "MediaTek ICUSB SIM card driver"

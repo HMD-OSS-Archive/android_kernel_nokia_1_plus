@@ -127,7 +127,7 @@ void elm_init(struct platform_driver *emi_ctrl, struct platform_device *pdev)
 		ret = request_irq(elm_irq, (irq_handler_t)elm_isr,
 			IRQF_TRIGGER_NONE, "elm", emi_ctrl);
 		if (ret != 0) {
-			pr_err("[ELM] fail to request IRQ (%d)\n", ret);
+			pr_info("[ELM] fail to request IRQ (%d)\n", ret);
 			return;
 		}
 
@@ -136,7 +136,7 @@ void elm_init(struct platform_driver *emi_ctrl, struct platform_device *pdev)
 
 	ret = driver_create_file(&emi_ctrl->driver, &driver_attr_elm_ctrl);
 	if (ret)
-		pr_err("[ELM] fail to create elm_ctrl\n");
+		pr_info("[ELM] fail to create elm_ctrl\n");
 }
 
 void suspend_elm(void)

@@ -31,10 +31,10 @@
 
 #include "ged_dvfs.h"
 
-static struct dentry* gpsMMDir = NULL;
-static struct dentry* gpsDvfsServiceData = NULL;
+static struct dentry *gpsMMDir;
+static struct dentry *gpsDvfsServiceData;
 
-GED_DVFS_POLICY_DATA* gpDVFSdata=NULL;
+GED_DVFS_POLICY_DATA *gpDVFSdata;
 
 void mmap_open(struct vm_area_struct *vma)
 {
@@ -47,7 +47,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	struct mmap_info *info;
 	/* is the address valid? */			//--changed
 	/*if (address > vma->vm_end) {
-	  printk("invalid address\n");
+	printk("invalid address\n");
 	//return NOPAGE_SIGBUS;
 	return VM_FAULT_SIGBUS;
 	}
@@ -55,7 +55,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	info = (struct mmap_info *)vma->vm_private_data;
 	if (!info) {
 		printk("no data\n");
-		return NULL;	
+		return NULL;
 	}
 
 	/* get the page */
@@ -66,12 +66,12 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	vmf->page = page;					//--changed
 	/* type is the page fault type */
 	/*if (type)
-	 *type = VM_FAULT_MINOR;
-	 */
+	*type = VM_FAULT_MINOR;
+	*/
 	return 0;
 }
 
-struct vm_operations_struct mmap_vm_ops = {
+struct const vm_operations_struct mmap_vm_ops = {
 	.open =     mmap_open,
 	.close =    mmap_open,
 	.fault =    mmap_fault,
@@ -106,7 +106,7 @@ int ged_dvfs_service_data_open(struct inode *inode, struct file *filp)
 	//info = kmalloc(sizeof(GED_DVFS_POLICY_DATA),GFP_KERNEL);
 	info = get_zeroed_page(GFP_KERNEL);
 	//info = kmalloc(sizeof(GED_DVFS_POLICY_DATA),GFP_KERNEL);
-	gpDVFSdata =(GED_DVFS_POLICY_DATA*) info;
+	gpDVFSdata = (GED_DVFS_POLICY_DATA *) info;
 	/* assign this info struct to the file */
 	filp->private_data = info;
 	return 0;
@@ -129,16 +129,13 @@ GED_ERROR ged_mm_init(void)
 			NULL,
 			&gpsMMDir);
 
-	if (unlikely(err != GED_OK))
-	{
+	if (unlikely(err != GED_OK)) {
 		err = GED_ERROR_FAIL;
 		GED_LOGE("ged: failed to create mm dir!\n");
 		goto ERROR;
 	}
 
-
 	gpsDvfsServiceData = debugfs_create_file("ged_dvfs_service_data", 0644, gpsMMDir, NULL, &gsDVFSServiceData);
-
 
 	return err;
 

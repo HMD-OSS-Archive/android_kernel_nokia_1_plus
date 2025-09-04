@@ -36,7 +36,7 @@
  * MACRO
  *****************************************************************************/
 #ifndef ASSERT
-#define ASSERT(expr)        BUG_ON(!(expr))
+#define ASSERT(expr)        WARN_ON(!(expr))
 #endif
 
 /*****************************************************************************
@@ -65,14 +65,14 @@ static struct file *g_osal_fp[OSAL_MAX_FP_COUNT] = { 0 };
  *****************************************************************************/
 void osal_kfree(void *buf)
 {
-/* kfree(buf); */
+	/* kfree(buf); */
 	vfree(buf);
 }
 EXPORT_SYMBOL(osal_kfree);
 
 void *osal_kmalloc(unsigned int size)
 {
-/* return kmalloc(size,GFP_KERNEL); */
+	/* return kmalloc(size,GFP_KERNEL); */
 	return vmalloc(size);
 }
 EXPORT_SYMBOL(osal_kmalloc);
@@ -219,7 +219,9 @@ loff_t osal_filp_seek_set(int fp_id, loff_t off)
 	if (fp_id >= 1 && fp_id < OSAL_MAX_FP_COUNT) {
 		val = down_interruptible(&osal_fp_sem);
 
-		offset = g_osal_fp[fp_id]->f_op->llseek(g_osal_fp[fp_id], off, SEEK_SET);
+		offset = g_osal_fp[fp_id]->f_op->llseek(g_osal_fp[fp_id],
+							off,
+							SEEK_SET);
 
 		up(&osal_fp_sem);
 
@@ -238,7 +240,9 @@ loff_t osal_filp_seek_end(int fp_id, loff_t off)
 	if (fp_id >= 1 && fp_id < OSAL_MAX_FP_COUNT) {
 		val = down_interruptible(&osal_fp_sem);
 
-		offset = g_osal_fp[fp_id]->f_op->llseek(g_osal_fp[fp_id], off, SEEK_END);
+		offset = g_osal_fp[fp_id]->f_op->llseek(g_osal_fp[fp_id],
+							off,
+							SEEK_END);
 
 		up(&osal_fp_sem);
 
@@ -277,8 +281,8 @@ long osal_filp_read(int fp_id, char *buf, unsigned long len)
 		val = down_interruptible(&osal_fp_sem);
 
 		read_len =
-		    g_osal_fp[fp_id]->f_op->read(g_osal_fp[fp_id], buf, len,
-						 &g_osal_fp[fp_id]->f_pos);
+			g_osal_fp[fp_id]->f_op->read(g_osal_fp[fp_id], buf, len,
+						     &g_osal_fp[fp_id]->f_pos);
 
 		up(&osal_fp_sem);
 

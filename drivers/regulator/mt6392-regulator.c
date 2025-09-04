@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 MediaTek Inc.
+ * Copyright (c) 2019 MediaTek Inc.
  * Author: Chen Zhong <chen.zhong@mediatek.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -159,7 +159,7 @@ static int mt6392_get_status(struct regulator_dev *rdev)
 
 	ret = regmap_read(rdev->regmap, info->desc.enable_reg, &regval);
 	if (ret != 0) {
-		dev_err(&rdev->dev, "Failed to get enable reg: %d\n", ret);
+		dev_info(&rdev->dev, "Failed to get enable reg: %d\n", ret);
 		return ret;
 	}
 
@@ -173,7 +173,8 @@ static int mt6392_buck_set_mode(struct regulator_dev *rdev, unsigned int mode)
 	u32 reg_value;
 
 	if (!info->modeset_mask) {
-		dev_err(&rdev->dev, "regulator %s doesn't support set_mode\n", info->desc.name);
+		dev_info(&rdev->dev, "regulator %s doesn't support set_mode\n",
+				info->desc.name);
 		return -EINVAL;
 	}
 
@@ -194,10 +195,11 @@ static int mt6392_buck_set_mode(struct regulator_dev *rdev, unsigned int mode)
 				  info->modeset_mask, val);
 
 	if (regmap_read(rdev->regmap, info->modeset_reg, &reg_value) < 0) {
-		dev_err(&rdev->dev, "Failed to read register value\n");
+		dev_info(&rdev->dev, "Failed to read register value\n");
 		return -EIO;
 	}
-	dev_info(&rdev->dev, "info->modeset_reg 0x%x = 0x%x\n", info->modeset_reg, reg_value);
+	dev_info(&rdev->dev, "info->modeset_reg 0x%x = 0x%x\n",
+			info->modeset_reg, reg_value);
 
 	return ret;
 }
@@ -210,7 +212,8 @@ static unsigned int mt6392_buck_get_mode(struct regulator_dev *rdev)
 	struct mt6392_regulator_info *info = rdev_get_drvdata(rdev);
 
 	if (!info->modeset_mask) {
-		dev_err(&rdev->dev, "regulator %s doesn't support get_mode\n", info->desc.name);
+		dev_info(&rdev->dev, "regulator %s doesn't support get_mode\n",
+				info->desc.name);
 		return -EINVAL;
 	}
 
@@ -235,7 +238,7 @@ static int mt6392_ldo_set_mode(struct regulator_dev *rdev, unsigned int mode)
 	struct mt6392_regulator_info *info = rdev_get_drvdata(rdev);
 
 	if (!info->modeset_mask) {
-		dev_err(&rdev->dev, "regulator %s doesn't support set_mode\n",
+		dev_info(&rdev->dev, "regulator %s doesn't support set_mode\n",
 			info->desc.name);
 		return -EINVAL;
 	}
@@ -267,7 +270,7 @@ static unsigned int mt6392_ldo_get_mode(struct regulator_dev *rdev)
 	struct mt6392_regulator_info *info = rdev_get_drvdata(rdev);
 
 	if (!info->modeset_mask) {
-		dev_err(&rdev->dev, "regulator %s doesn't support get_mode\n",
+		dev_info(&rdev->dev, "regulator %s doesn't support get_mode\n",
 			info->desc.name);
 		return -EINVAL;
 	}
@@ -329,13 +332,15 @@ static struct regulator_ops mt6392_volt_fixed_ops = {
 static struct mt6392_regulator_info mt6392_regulators[] = {
 	MT6392_BUCK("buck_vproc", VPROC, 700000, 1493750, 6250,
 		buck_volt_range1, MT6392_VPROC_CON7, MT6392_VPROC_CON9, 0x7f,
-		MT6392_VPROC_CON10, MT6392_VPROC_CON5, MT6392_VPROC_CON2, 0x100),
+		MT6392_VPROC_CON10, MT6392_VPROC_CON5,
+		MT6392_VPROC_CON2, 0x100),
 	MT6392_BUCK("buck_vsys", VSYS, 1400000, 2987500, 12500,
 		buck_volt_range2, MT6392_VSYS_CON7, MT6392_VSYS_CON9, 0x7f,
 		MT6392_VSYS_CON10, MT6392_VSYS_CON5, MT6392_VSYS_CON2, 0x100),
 	MT6392_BUCK("buck_vcore", VCORE, 700000, 1493750, 6250,
 		buck_volt_range1, MT6392_VCORE_CON7, MT6392_VCORE_CON9, 0x7f,
-		MT6392_VCORE_CON10, MT6392_VCORE_CON5, MT6392_VCORE_CON2, 0x100),
+		MT6392_VCORE_CON10, MT6392_VCORE_CON5,
+		MT6392_VCORE_CON2, 0x100),
 	MT6392_REG_FIXED("ldo_vxo22", VXO22, MT6392_ANALDO_CON1, 10, 2200000,
 		MT6392_ANALDO_CON1, 0x2),
 	MT6392_LDO("ldo_vaud22", VAUD22, ldo_volt_table1,
@@ -402,7 +407,7 @@ static int mt6392_set_buck_vosel_reg(struct platform_device *pdev)
 			if (regmap_read(mt6392->regmap,
 				mt6392_regulators[i].vselctrl_reg,
 				&regval) < 0) {
-				dev_err(&pdev->dev,
+				dev_info(&pdev->dev,
 					"Failed to read buck ctrl\n");
 				return -EIO;
 			}
@@ -432,7 +437,7 @@ static int mt6392_regulator_probe(struct platform_device *pdev)
 
 	/* Read PMIC chip revision to update constraints and voltage table */
 	if (regmap_read(mt6392->regmap, MT6392_CID, &reg_value) < 0) {
-		dev_err(&pdev->dev, "Failed to read Chip ID\n");
+		dev_info(&pdev->dev, "Failed to read Chip ID\n");
 		return -EIO;
 	}
 	dev_info(&pdev->dev, "Chip ID = 0x%x\n", reg_value);
@@ -444,7 +449,7 @@ static int mt6392_regulator_probe(struct platform_device *pdev)
 		rdev = devm_regulator_register(&pdev->dev,
 				&mt6392_regulators[i].desc, &config);
 		if (IS_ERR(rdev)) {
-			dev_err(&pdev->dev, "failed to register %s\n",
+			dev_info(&pdev->dev, "failed to register %s\n",
 				mt6392_regulators[i].desc.name);
 			return PTR_ERR(rdev);
 		}

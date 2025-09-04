@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 MediaTek Inc.
+ * Copyright (C) 2017 MediaTek Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -28,8 +28,14 @@
 #ifdef CONFIG_MTK_FB
 #include "disp_session.h"
 #endif
+
+#define SUPPORT_SWITCH_DEV	(0)
+
+#if SUPPORT_SWITCH_DEV
 /* switch device to sent the (fps limit)uevent */
 #include <linux/switch.h>
+#endif
+
 #include "mach/mtk_thermal.h"
 #include <linux/uidgid.h>
 #ifdef CONFIG_MTK_GPU_SUPPORT
@@ -42,7 +48,7 @@
 
 #ifdef CONFIG_MTK_DYNAMIC_FPS_FRAMEWORK_SUPPORT
 
-#ifdef CONFIG_MTK_FPSGO_FSTB
+#if defined(CONFIG_MTK_FPSGO) || defined(CONFIG_MTK_FPSGO_V3)
 	#define FPS_COOLER_USE_DFPS				(0)
 #else
 	#define FPS_COOLER_USE_DFPS				(1)
@@ -63,7 +69,7 @@ pr_debug("[Thermal/TC/fps]" fmt, ##args)
 #define mtk_cooler_fps_dprintk(fmt, args...) \
 do { \
 	if (cl_fps_klog_on == 1) \
-		pr_err("[Thermal/TC/fps]" fmt, ##args); \
+		pr_notice("[Thermal/TC/fps]" fmt, ##args); \
 } while (0)
 
 #define MAX_NUM_INSTANCE_MTK_COOLER_FPS  4
@@ -83,13 +89,19 @@ static kuid_t uid = KUIDT_INIT(0);
 static kgid_t gid = KGIDT_INIT(1000);
 
 static int cl_fps_klog_on;
-static struct thermal_cooling_device *cl_fps_dev[MAX_NUM_INSTANCE_MTK_COOLER_FPS] = { 0 };
+static struct thermal_cooling_device
+			*cl_fps_dev[MAX_NUM_INSTANCE_MTK_COOLER_FPS] = { 0 };
+
 static unsigned int cl_fps_param[MAX_NUM_INSTANCE_MTK_COOLER_FPS] = { 0 };
 static unsigned long cl_fps_state[MAX_NUM_INSTANCE_MTK_COOLER_FPS] = { 0 };
 
 static unsigned int cl_fps_cur_limit;
 static unsigned int tm_input_fps;
+
+#if SUPPORT_SWITCH_DEV
 static struct switch_dev fps_switch_data;
+#endif
+
 #define FPS_STATS_WAKEUP_TIME_MS		(1000)
 #define FPS_STATS_START_TIME_MS		(60000)
 struct delayed_work fps_stats_work;
@@ -157,17 +169,24 @@ enum {
 };
 #endif
 
+int __attribute__ ((weak))
+disp_mgr_get_session_info(struct disp_session_info *info)
+{
+	pr_notice("E_WF: %s doesn't exist\n", __func__);
+	return 0;
+}
+
 unsigned long  __attribute__ ((weak))
 ged_query_info(enum GED_INFO_TAG eType)
 {
-	pr_err("E_WF: %s doesn't exist\n", __func__);
+	pr_notice("E_WF: %s doesn't exist\n", __func__);
 	return 0;
 }
 
 bool  __attribute__ ((weak))
 mtk_get_gpu_loading(unsigned int *pLoading)
 {
-	pr_err("E_WF: %s doesn't exist\n", __func__);
+	pr_notice("E_WF: %s doesn't exist\n", __func__);
 	return 0;
 }
 
@@ -183,12 +202,17 @@ void dfrc_fps_limit_cb(int fps_limit)
 		cur_time = ktime_get();
 
 		if (fps_adjust_check) {
-			if ((cl_fps_cur_limit > pre_fps_limit) & (pre_fps_limit != -1))
-				fps_target_adjust += ((cl_fps_cur_limit - pre_fps_limit) *
-					ktime_to_ms(ktime_sub(cur_time, pre_time)));
+			if ((cl_fps_cur_limit > pre_fps_limit)
+			& (pre_fps_limit != -1))
+				fps_target_adjust +=
+					((cl_fps_cur_limit - pre_fps_limit) *
+					ktime_to_ms(ktime_sub(
+							cur_time, pre_time)));
 
-			mtk_cooler_fps_dprintk("[%s] dfrc fps: %d, current limit: %d, target adjuct: %d\n",
-				__func__, pre_fps_limit, cl_fps_cur_limit, fps_target_adjust);
+			mtk_cooler_fps_dprintk(
+				"[%s] dfrc fps: %d, current limit: %d, target adjuct: %d\n",
+				__func__, pre_fps_limit, cl_fps_cur_limit,
+				fps_target_adjust);
 		}
 
 		pre_fps_limit = fps_limit;
@@ -235,8 +259,12 @@ static int fps_update(void)
 
 	disp_mgr_get_session_info(&info);
 
-	/* mtk_cooler_fps_dprintk("display update fps is: %d.%d\n", info.updateFPS/100, info.updateFPS%100); */
-	/* mtk_cooler_fps_dprintk("is display fps stable: %d\n", info.is_updateFPS_stable); */
+	/* mtk_cooler_fps_dprintk("display update fps is: %d.%d\n",
+	 * info.updateFPS/100, info.updateFPS%100);
+	 */
+	/* mtk_cooler_fps_dprintk("is display fps stable: %d\n",
+	 * info.is_updateFPS_stable);
+	 */
 #if 0
 	if (info.is_updateFPS_stable)
 		tm_input_fps = info.updateFPS;
@@ -287,34 +315,43 @@ static void mtk_cl_fps_set_fps_limit(void)
 	if (min_param != cl_fps_cur_limit) {
 		cl_fps_cur_limit = min_param;
 #if FPS_COOLER_USE_DFPS
-		ret = dfrc_set_kernel_policy(DFRC_DRV_API_THERMAL, ((cl_fps_cur_limit != 60) ? cl_fps_cur_limit : -1),
+		ret = dfrc_set_kernel_policy(DFRC_DRV_API_THERMAL,
+			((cl_fps_cur_limit != 60) ? cl_fps_cur_limit : -1),
 			DFRC_DRV_MODE_INTERNAL_SW, 0, 0);
-		mtk_cooler_fps_dprintk_always("[DFPS] fps:%d, ret = %d\n", cl_fps_cur_limit, ret);
+
+		mtk_cooler_fps_dprintk_always("[DFPS] fps:%d, ret = %d\n",
+							cl_fps_cur_limit, ret);
 #else
+#if SUPPORT_SWITCH_DEV
 		switch_set_state(&fps_switch_data, cl_fps_cur_limit);
 #endif
-		mtk_cooler_fps_dprintk_always("[%s] fps limit: %d\n", __func__, cl_fps_cur_limit);
+#endif
+		mtk_cooler_fps_dprintk_always("[%s] fps limit: %d\n", __func__,
+							cl_fps_cur_limit);
 	}
 
 err_unreg:
 	return;
 }
 
-static int mtk_cl_fps_get_max_state(struct thermal_cooling_device *cdev, unsigned long *state)
+static int mtk_cl_fps_get_max_state(
+struct thermal_cooling_device *cdev, unsigned long *state)
 {
 	*state = 1;
 	mtk_cooler_fps_dprintk("[%s] %s %lu\n", __func__, cdev->type, *state);
 	return 0;
 }
 
-static int mtk_cl_fps_get_cur_state(struct thermal_cooling_device *cdev, unsigned long *state)
+static int mtk_cl_fps_get_cur_state(
+struct thermal_cooling_device *cdev, unsigned long *state)
 {
 	MTK_CL_FPS_GET_CURR_STATE(*state, *((unsigned long *) cdev->devdata));
 	mtk_cooler_fps_dprintk("[%s] %s %lu\n", __func__, cdev->type, *state);
 	return 0;
 }
 
-static int mtk_cl_fps_set_cur_state(struct thermal_cooling_device *cdev, unsigned long state)
+static int mtk_cl_fps_set_cur_state(
+struct thermal_cooling_device *cdev, unsigned long state)
 {
 	mtk_cooler_fps_dprintk("[%s] %s %lu\n", __func__, cdev->type, state);
 	MTK_CL_FPS_SET_CURR_STATE(state, *((unsigned long *) cdev->devdata));
@@ -325,14 +362,16 @@ static int mtk_cl_fps_set_cur_state(struct thermal_cooling_device *cdev, unsigne
 }
 
 #if ADAPTIVE_FPS_COOLER
-static int adp_fps_get_max_state(struct thermal_cooling_device *cdev, unsigned long *state)
+static int adp_fps_get_max_state(
+struct thermal_cooling_device *cdev, unsigned long *state)
 {
 	*state = 1;
 	mtk_cooler_fps_dprintk("[%s] %s %lu\n", __func__, cdev->type, *state);
 	return 0;
 }
 
-static int adp_fps_get_cur_state(struct thermal_cooling_device *cdev, unsigned long *state)
+static int adp_fps_get_cur_state(
+struct thermal_cooling_device *cdev, unsigned long *state)
 {
 	*state = cl_adp_fps_state;
 	mtk_cooler_fps_dprintk("[%s] %s %lu\n", __func__, cdev->type, *state);
@@ -409,8 +448,10 @@ int find_fps_floor(int fps)
 
 	for (i = 0; i < nr_fps_levels; i++) {
 		/* sma_fps >= fps_limit * 90% */
-		if (fps >= fps_levels[i].end * (100 - fps_error_threshold) / 100) {
-			if (fps_levels[i].start >= fps && fps >= fps_levels[i].end)
+		if (fps >= fps_levels[i].end *
+				(100 - fps_error_threshold) / 100) {
+			if (fps_levels[i].start >= fps
+			&& fps >= fps_levels[i].end)
 				return fps;
 			else
 				return fps_levels[i].end;
@@ -431,7 +472,9 @@ static bool is_system_too_busy(void)
 
 	/* GPU cases */
 	gpu_loading = get_sma_val(gpu_loading_history, gpu_loading_sma_len);
-	mtk_cooler_fps_dprintk("[%s] gpu_loading = %d\n", __func__, gpu_loading);
+	mtk_cooler_fps_dprintk("[%s] gpu_loading = %d\n",
+						__func__, gpu_loading);
+
 	if (gpu_loading >= GPU_LOADING_THRESHOLD)
 		return true;
 
@@ -462,12 +505,14 @@ static int adp_calc_fps_limit(void)
 
 	sma_fps = get_sma_val(fps_history, fps_sma_len);
 
-	mtk_cooler_fps_dprintk("[%s] sma_tpcb = %d, tpcb_change = %d, sma_fps = %d\n",
+	mtk_cooler_fps_dprintk(
+			"[%s] sma_tpcb = %d, tpcb_change = %d, sma_fps = %d\n",
 		__func__, sma_tpcb,  tpcb_change, sma_fps);
 
 #if FPS_COOLER_USE_DFPS
 	/* [Todo] adjust the fps target here */
-	/* fps_limit = fps_limit -(fps_target_adjust/(fps_stable_period*1000));*/
+	/* fps_limit = fps_limit -(fps_target_adjust/(fps_stable_period*1000));
+	 */
 	fps_target_adjust = 0;
 
 	/* Increase fps limit when tpcb keep stable for 100 sec */
@@ -479,31 +524,38 @@ static int adp_calc_fps_limit(void)
 
 	if (fps_limit_always_on || sma_tpcb >= mtk_thermal_get_tpcb_target()) {
 		/* FPS variation is HIGH */
-		if (fps_limit - sma_fps > fps_limit * (fps_error_threshold + fps_target_bias) / 100) {
+		if (fps_limit - sma_fps
+		> fps_limit * (fps_error_threshold + fps_target_bias) / 100) {
 			/* TODO: TBD: is "sma_fpa < 40" still necessary? */
 #if FPS_COOLER_USE_DFPS
 			if (is_system_too_busy() && (!is_cpu_power_unlimit())) {
-				sma_fps = sma_fps + fps_limit * fps_target_bias / 100;
+				sma_fps = sma_fps +
+					fps_limit * fps_target_bias / 100;
 #else
 			if (sma_fps < 40 && is_system_too_busy()) {
 #endif
 				fps_limit = find_fps_floor(sma_fps);
-				mtk_cooler_fps_dprintk("[%s] new_fps_limit = %d\n", __func__, fps_limit);
+				mtk_cooler_fps_dprintk(
+					"[%s] new_fps_limit = %d\n", __func__,
+					fps_limit);
 			}
 		} else {
 			/* For always-on and low tpcb */
 #if FPS_COOLER_USE_DFPS
-			if (fixedT_period >= fps_stable_period || tpcb_change < 0) {
+			if (fixedT_period
+				>= fps_stable_period || tpcb_change < 0) {
 				fps_limit = increase_fps_limit();
 				fixedT_period = 0;
 			}
 #else
-			if (sma_tpcb < mtk_thermal_get_tpcb_target() && tpcb_change < 0)
+			if (sma_tpcb < mtk_thermal_get_tpcb_target()
+			&& tpcb_change < 0)
 				fps_limit = increase_fps_limit();
 #endif
 		}
 	} else if (tpcb_change < 0) { /* not always-on and low tpcb */
-		if (fps_limit - sma_fps <= fps_limit * fps_error_threshold / 100)
+		if (fps_limit - sma_fps
+			<= fps_limit * fps_error_threshold / 100)
 			fps_limit = increase_fps_limit();
 	}
 
@@ -519,7 +571,8 @@ static void clfps_fps_stats(struct work_struct *work)
 	fps_update();
 	set_sma_val(fps_history, fps_sma_len, &fps_history_idx, tm_input_fps);
 
-	queue_delayed_work(system_unbound_wq, &fps_stats_work, msecs_to_jiffies(FPS_STATS_WAKEUP_TIME_MS));
+	queue_delayed_work(system_unbound_wq, &fps_stats_work,
+				msecs_to_jiffies(FPS_STATS_WAKEUP_TIME_MS));
 }
 
 static int adp_fps_set_cur_state(struct thermal_cooling_device *cdev,
@@ -528,7 +581,10 @@ static int adp_fps_set_cur_state(struct thermal_cooling_device *cdev,
 	int gpu_loading;
 
 	if ((state != 0) && (state != 1)) {
-		mtk_cooler_fps_dprintk("[%s] invalid input (0: no thro; 1: adp fps thro on)\n", __func__);
+		mtk_cooler_fps_dprintk(
+				"[%s] invalid input (0: no thro; 1: adp fps thro on)\n",
+				__func__);
+
 		return 0;
 	}
 
@@ -544,7 +600,8 @@ static int adp_fps_set_cur_state(struct thermal_cooling_device *cdev,
 	if (!mtk_get_gpu_loading(&gpu_loading))
 		gpu_loading = 0;
 
-	set_sma_val(gpu_loading_history, gpu_loading_sma_len, &gpu_loading_history_idx,
+	set_sma_val(gpu_loading_history, gpu_loading_sma_len,
+						&gpu_loading_history_idx,
 			gpu_loading);
 
 	/* 1. update the parameter of "cl_adp_fps_limit" */
@@ -630,7 +687,8 @@ static ssize_t clfps_level_write(struct file *file, const char __user *buffer,
 
 	substr = strsep(&sepstr, " ");
 	if (kstrtoint(substr, 10, &new_nr_fps_levels) != 0 ||
-		((new_nr_fps_levels > MAX_NR_FPS_LEVELS) || (new_nr_fps_levels <= 0)))  {
+		((new_nr_fps_levels > MAX_NR_FPS_LEVELS) ||
+		(new_nr_fps_levels <= 0)))  {
 		ret = -EINVAL;
 		goto err;
 	}
@@ -642,7 +700,8 @@ static ssize_t clfps_level_write(struct file *file, const char __user *buffer,
 			goto err;
 		}
 		if (strchr(substr, '-')) { /* maybe contiguous */
-			if (sscanf(substr, "%d-%d", &start_fps, &end_fps) != 2) {
+			if (sscanf(substr, "%d-%d",
+				&start_fps, &end_fps) != 2) {
 				ret = -EINVAL;
 				goto err;
 			}
@@ -714,12 +773,14 @@ static int mtk_cooler_fps_register_ltf(void)
 
 		sprintf(temp, "mtk-cl-fps%02d", i);
 		/* put fps state to cooler devdata */
-		cl_fps_dev[i] = mtk_thermal_cooling_device_register(temp, (void *) &cl_fps_state[i],
-								&mtk_cl_fps_ops);
+		cl_fps_dev[i] = mtk_thermal_cooling_device_register(
+						temp, (void *) &cl_fps_state[i],
+						&mtk_cl_fps_ops);
 }
 
 #if ADAPTIVE_FPS_COOLER
-				cl_adp_fps_dev = mtk_thermal_cooling_device_register("mtk-cl-adp-fps", NULL,
+	cl_adp_fps_dev = mtk_thermal_cooling_device_register("mtk-cl-adp-fps",
+							NULL,
 							&mtk_cl_adp_fps_ops);
 #endif
 
@@ -771,13 +832,15 @@ static int mtk_cl_fps_proc_read(struct seq_file *m, void *v)
 
 			MTK_CL_FPS_GET_CURR_STATE(curr_state, cl_fps_state[i]);
 
-			seq_printf(m, "mtk-cl-fps%02d %u 0x%x, state %lu\n", i, active, cl_fps_param[i], curr_state);
+			seq_printf(m, "mtk-cl-fps%02d %u 0x%x, state %lu\n", i,
+					active, cl_fps_param[i], curr_state);
 		}
 	}
 	return 0;
 }
 
-static ssize_t mtk_cl_fps_proc_write(struct file *filp, const char __user *buffer, size_t count, loff_t *data)
+static ssize_t mtk_cl_fps_proc_write(
+struct file *filp, const char __user *buffer, size_t count, loff_t *data)
 {
 	int len = 0;
 	char desc[128];
@@ -789,20 +852,23 @@ static ssize_t mtk_cl_fps_proc_write(struct file *filp, const char __user *buffe
 
 	desc[len] = '\0';
 
-	/**
-		* sscanf format <klog_on> <mtk-cl-fps00> <mtk-cl-fps01> <mtk-cl-fps02> ...
-		* <klog_on> can only be 0 or 1
-		*/
+	/*
+	 * sscanf format <klog_on> <mtk-cl-fps00> <mtk-cl-fps01> <mtk-cl-fps02>
+	 * <klog_on> can only be 0 or 1
+	 */
 
 	if (data == NULL) {
 		mtk_cooler_fps_dprintk("[%s] null data\n", __func__);
 		return -EINVAL;
 	}
 
-/* WARNING: Modify here if MAX_NUM_INSTANCE_MTK_COOLER_FPS is changed to other than 4 */
+/* WARNING: Modify here if MAX_NUM_INSTANCE_MTK_COOLER_FPS
+ * is changed to other than 4
+ */
 #if (MAX_NUM_INSTANCE_MTK_COOLER_FPS == 4)
 
-	if (sscanf(desc, "%d %d %d %d %d", &klog_on, &fps0, &fps1, &fps2, &fps3) >= 1) {
+	if (sscanf(desc, "%d %d %d %d %d", &klog_on,
+		&fps0, &fps1, &fps2, &fps3) >= 1) {
 		if (klog_on == 0 || klog_on == 1)
 			cl_fps_klog_on = klog_on;
 
@@ -834,7 +900,8 @@ static ssize_t mtk_cl_fps_proc_write(struct file *filp, const char __user *buffe
 		return count;
 	}
 #else
-#error "Change correspondent part when changing MAX_NUM_INSTANCE_MTK_COOLER_FPS!"
+#error	\
+"Change correspondent part when changing MAX_NUM_INSTANCE_MTK_COOLER_FPS!"
 #endif
 
 	mtk_cooler_fps_dprintk("[%s] bad arg\n", __func__);
@@ -856,7 +923,8 @@ static const struct file_operations cl_fps_fops = {
 };
 
 
-static ssize_t fps_tm_count_write(struct file *filp, const char __user *buf, size_t len, loff_t *data)
+static ssize_t fps_tm_count_write(
+struct file *filp, const char __user *buf, size_t len, loff_t *data)
 {
 	char tmp[32] = {0};
 
@@ -879,7 +947,8 @@ static ssize_t fps_tm_count_write(struct file *filp, const char __user *buf, siz
 
 static int fps_tm_count_read(struct seq_file *m, void *v)
 {
-	seq_printf(m, "%d,%d,%d\n", tm_input_fps, cl_fps_cur_limit, in_game_mode);
+	seq_printf(m, "%d,%d,%d\n", tm_input_fps,
+					cl_fps_cur_limit, in_game_mode);
 
 	mtk_cooler_fps_dprintk("[%s] %d\n", __func__, tm_input_fps);
 
@@ -901,38 +970,41 @@ static const struct file_operations tm_fps_fops = {
 };
 
 /* ====FPS_DEBUGFS=========
-*#define debugfs_entry(name) \
-*do { \
-*		dentry_f = debugfs_create_u32(#name, S_IWUSR | S_IRUGO, _d, &name); \
-*		if (IS_ERR_OR_NULL(dentry_f)) {	\
-*			pr_warn("Unable to create debugfsfile: " #name "\n"); \
-*			return; \
-*		} \
-*} while (0)
-*
-*static void create_debugfs_entries(void)
-*{
-*	struct dentry *dentry_f;
-*	struct dentry *_d;
-*
-*	_d = debugfs_create_dir("clfps", NULL);
-*	if (IS_ERR_OR_NULL(_d)) {
-*		pr_info("unable to create debugfs directory\n");
-*		return;
-*	}
-*
-*	debugfs_entry(fps_error_threshold);
-*	debugfs_entry(fps_stable_period);
-*	debugfs_entry(in_game_mode);
-*	debugfs_entry(fps_limit_always_on);
-*}
-*#undef debugfs_entry
-*====FPS_DEBUGFS===========
-*/
+ *#define debugfs_entry(name) \
+ *do { \
+ *		dentry_f = debugfs_create_u32
+ *     (#name, S_IWUSR | S_IRUGO, _d, &name); \
+ *		if (IS_ERR_OR_NULL(dentry_f)) {	\
+ *		pr_notice("Unable to create debugfsfile: " #name "\n"); \
+ *			return; \
+ *		} \
+ *} while (0)
+ *
+ *static void create_debugfs_entries(void)
+ *{
+ *	struct dentry *dentry_f;
+ *	struct dentry *_d;
+ *
+ *	_d = debugfs_create_dir("clfps", NULL);
+ *	if (IS_ERR_OR_NULL(_d)) {
+ *		pr_info("unable to create debugfs directory\n");
+ *		return;
+ *	}
+ *
+ *	debugfs_entry(fps_error_threshold);
+ *	debugfs_entry(fps_stable_period);
+ *	debugfs_entry(in_game_mode);
+ *	debugfs_entry(fps_limit_always_on);
+ *}
+ *#undef debugfs_entry
+ *====FPS_DEBUGFS===========
+ */
 
 static int __init mtk_cooler_fps_init(void)
 {
+#if SUPPORT_SWITCH_DEV
 	int ret = 0;
+#endif
 	int err = 0;
 	int i;
 
@@ -947,6 +1019,7 @@ static int __init mtk_cooler_fps_init(void)
 	if (err)
 		goto err_unreg;
 
+#if SUPPORT_SWITCH_DEV
 	/* switch device to sent the (fps limit)uevent */
 	fps_switch_data.name  = "fps";
 	fps_switch_data.index = 0;
@@ -954,9 +1027,10 @@ static int __init mtk_cooler_fps_init(void)
 	ret = switch_dev_register(&fps_switch_data);
 
 	if (ret)
-		mtk_cooler_fps_dprintk_always("[%s] switch_dev_register failed, returned:%d!\n",
+		mtk_cooler_fps_dprintk_always(
+					"[%s] switch_dev_register failed, returned:%d!\n",
 						__func__, ret);
-
+#endif
 	/* create a proc file */
 	{
 		struct proc_dir_entry *entry = NULL;
@@ -965,18 +1039,26 @@ static int __init mtk_cooler_fps_init(void)
 
 		fps_tm_proc_dir = proc_mkdir("fps_tm", NULL);
 		if (!fps_tm_proc_dir)
-			mtk_cooler_fps_dprintk_always("[%s]: mkdir /proc/fps_tm failed\n", __func__);
+			mtk_cooler_fps_dprintk_always(
+					"[%s]: mkdir /proc/fps_tm failed\n",
+					__func__);
 		else {
-			entry = proc_create("fps_count", S_IRUGO | S_IWUSR | S_IWGRP, fps_tm_proc_dir, &tm_fps_fops);
+			entry = proc_create("fps_count", 0664,
+						fps_tm_proc_dir, &tm_fps_fops);
+
 			if (entry)
 				proc_set_user(entry, uid, gid);
 		}
 
 		dir_entry = mtk_thermal_get_proc_drv_therm_dir_entry();
 		if (!dir_entry)
-			mtk_cooler_fps_dprintk_always("[%s]: mkdir /proc/driver/thermal failed\n", __func__);
+			mtk_cooler_fps_dprintk_always(
+					"[%s]: mkdir /proc/driver/thermal failed\n",
+					__func__);
 		else {
-			entry = proc_create("clfps", S_IRUGO | S_IWUSR | S_IWGRP, dir_entry, &cl_fps_fops);
+			entry = proc_create("clfps", 0664,
+						dir_entry, &cl_fps_fops);
+
 			if (entry)
 				proc_set_user(entry, uid, gid);
 		}
@@ -984,21 +1066,22 @@ static int __init mtk_cooler_fps_init(void)
 #if ADAPTIVE_FPS_COOLER
 		reset_fps_level();
 		if (dir_entry) {
-			entry = proc_create("clfps_level", S_IRUGO | S_IWUSR | S_IWGRP,
+			entry = proc_create("clfps_level", 0664,
 				dir_entry, &clfps_level_fops);
 			if (entry)
 				proc_set_user(entry, uid, gid);
 		}
 
 /* ====FPS_DEBUGFS=========
-*		create_debugfs_entries();
-*====FPS_DEBUGFS===========
-*/
+ *		create_debugfs_entries();
+ *====FPS_DEBUGFS===========
+ */
 
 #endif
 
 	INIT_DEFERRABLE_WORK(&fps_stats_work, clfps_fps_stats);
-	queue_delayed_work(system_unbound_wq, &fps_stats_work, msecs_to_jiffies(FPS_STATS_START_TIME_MS));
+	queue_delayed_work(system_unbound_wq, &fps_stats_work,
+				msecs_to_jiffies(FPS_STATS_START_TIME_MS));
 
 	return 0;
 }

@@ -370,8 +370,10 @@ put_name:
 	 * to use its own hash
 	 */
 	lower_dentry = d_hash_and_lookup(lower_dir_dentry, &dname);
+
 	if (IS_ERR(lower_dentry))
 		return lower_dentry;
+
 	if (!lower_dentry) {
 		/* We called vfs_path_lookup earlier, and did not get a negative
 		 * dentry then. Don't confuse the lower filesystem by forcing
@@ -405,7 +407,7 @@ out:
  * On fail (== error)
  * returns error ptr
  *
- * @dir : Parent inode. It is locked (dir->i_mutex)
+ * @dir : Parent inode.
  * @dentry : Target dentry to lookup. we should set each of fields.
  *	     (dentry->d_name is initialized already)
  * @nd : nameidata of parent inode

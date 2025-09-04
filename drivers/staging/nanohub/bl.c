@@ -128,31 +128,23 @@ static u8 write_bank(struct nanohub_data *data, int bank, u32 addr,
 		if (addr + length >
 		    pdata->flash_banks[bank].address +
 		    pdata->flash_banks[bank].length)
-			status =
-			    nanohub_bl_write_memory(data,
-						    pdata->flash_banks[bank].
-						    address,
-						    pdata->flash_banks[bank].
-						    length, buf + offset);
+			status = nanohub_bl_write_memory
+				(data, pdata->flash_banks[bank].address,
+				 pdata->flash_banks[bank].length, buf + offset);
 		else
-			status =
-			    nanohub_bl_write_memory(data,
-						    pdata->flash_banks[bank].
-						    address, length - offset,
-						    buf + offset);
+			status = nanohub_bl_write_memory
+				(data, pdata->flash_banks[bank].address,
+				 length - offset, buf + offset);
 	} else {
 		if (addr + length >
 		    pdata->flash_banks[bank].address +
 		    pdata->flash_banks[bank].length)
-			status =
-			    nanohub_bl_write_memory(data, addr,
-						    pdata->flash_banks[bank].
-						    address +
-						    pdata->flash_banks[bank].
-						    length - addr, buf);
+			status = nanohub_bl_write_memory
+				(data, addr, pdata->flash_banks[bank].address +
+				 pdata->flash_banks[bank].length - addr, buf);
 		else
-			status =
-			    nanohub_bl_write_memory(data, addr, length, buf);
+			status = nanohub_bl_write_memory(data, addr, length,
+							 buf);
 	}
 
 	return status;
@@ -178,7 +170,7 @@ u8 nanohub_bl_download(struct nanohub_data *data, u32 addr,
 	status = nanohub_bl_sync(data);
 
 	if (status != CMD_ACK) {
-		pr_err("nanohub_bl_download: sync=%02x\n", status);
+		pr_err("%s: sync=%02x\n", __func__, status);
 		goto out;
 	}
 
@@ -270,15 +262,15 @@ u8 nanohub_bl_erase_shared(struct nanohub_data *data)
 	status = nanohub_bl_sync(data);
 
 	if (status != CMD_ACK) {
-		pr_err("nanohub_bl_erase_shared: sync=%02x\n", status);
+		pr_err("%s: sync=%02x\n", __func__, status);
 		goto out;
 	}
 
 	for (i = 0;
 	     status == CMD_ACK && i < pdata->num_shared_flash_banks;
 	     i++) {
-		status = nanohub_bl_erase_sector(data,
-						 pdata->shared_flash_banks[i].bank);
+		status = nanohub_bl_erase_sector
+				(data, pdata->shared_flash_banks[i].bank);
 	}
 out:
 	return status;

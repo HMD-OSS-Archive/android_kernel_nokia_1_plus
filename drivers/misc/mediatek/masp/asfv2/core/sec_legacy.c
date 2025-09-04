@@ -47,8 +47,8 @@ unsigned int masp_secro_md_len(unsigned char *md_info)
 /******************************************************************************
  * RETURN SECROIMG MD PLAINTEXT DATA
  ******************************************************************************/
-unsigned int masp_secro_md_get_data(unsigned char *md_info, unsigned char *buf, unsigned int offset,
-				    unsigned int len)
+unsigned int masp_secro_md_get_data(unsigned char *md_info, unsigned char *buf,
+				    unsigned int offset, unsigned int len)
 {
 	unsigned int ret = 0;
 
@@ -57,7 +57,7 @@ unsigned int masp_secro_md_get_data(unsigned char *md_info, unsigned char *buf, 
 
 /******************************************************************************
  * CHECK IF MODEM AUTH IS NEEDED
-******************************************************************************/
+ ******************************************************************************/
 int sec_modem_auth_enabled(void)
 {
 	return 0;
@@ -86,12 +86,14 @@ int masp_ccci_version_info(void)
 	return CCCI_VERSION;
 }
 
-int masp_ccci_is_cipherfmt(int fp_id, unsigned int start_off, unsigned int *img_len)
+int masp_ccci_is_cipherfmt(int fp_id, unsigned int start_off,
+			   unsigned int *img_len)
 {
 	return 0;
 }
 
-int masp_ccci_decrypt_cipherfmt(int fp_id, unsigned int start_off, char *buf, unsigned int buf_len,
+int masp_ccci_decrypt_cipherfmt(int fp_id, unsigned int start_off, char *buf,
+				unsigned int buf_len,
 				unsigned int *data_offset)
 {
 	return 0;

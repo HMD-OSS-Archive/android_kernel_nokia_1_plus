@@ -67,7 +67,8 @@ static int date2str(char *buf, size_t len, int val)
 	return snprintf(buf, len, "%04d%02d", year, week);
 }
 
-#define __chip_info(id) ((g_chip_drv.get_chip_info) ? (g_chip_drv.get_chip_info(id)) : (0x0000))
+#define __chip_info(id) \
+	((g_chip_drv.get_chip_info) ? (g_chip_drv.get_chip_info(id)) : (0x0000))
 
 static struct proc_dir_entry *chip_proc;
 static struct chip_inf_entry chip_ent[] = {
@@ -102,14 +103,17 @@ static int chip_proc_show(struct seq_file *s, void *v)
 			else if (!ent->to_str)
 				continue;
 			else if (ent->to_str(buf, sizeof(buf), val) > 0)
-				seq_printf(s, "%-16s : %s (%04x)\n", ent->name, buf, val);
+				seq_printf(s, "%-16s:%s (%04x)\n",
+					ent->name, buf, val);
 			else
-				seq_printf(s, "%-16s : %s (%04x)\n", ent->name, "NULL", val);
+				seq_printf(s, "%-16s:%s (%04x)\n",
+					ent->name, "NULL", val);
 		}
-		seq_printf(s, "%-16s : %04X %04X %04X %04X\n", "reg",
+		seq_printf(s, "%-16s:%04X %04X %04X %04X\n", "reg",
 			   __chip_info(CHIP_INFO_REG_HW_CODE),
 			   __chip_info(CHIP_INFO_REG_HW_SUBCODE),
-			   __chip_info(CHIP_INFO_REG_HW_VER), __chip_info(CHIP_INFO_REG_SW_VER));
+			   __chip_info(CHIP_INFO_REG_HW_VER),
+			   __chip_info(CHIP_INFO_REG_SW_VER));
 	}
 	return 0;
 }
@@ -143,7 +147,8 @@ static void __init create_procfs(void)
 
 		if (!CHIP_INFO_SUP(g_chip_drv.info_bit_mask, ent->id))
 			continue;
-		if (proc_create_data(ent->name, S_IRUGO, chip_proc, &chip_proc_fops, ent) == NULL) {
+		if (proc_create_data(ent->name, 0444, chip_proc,
+			&chip_proc_fops, ent) == NULL) {
 			pr_err("create /proc/chip/%s fail\n", ent->name);
 			return;
 		}

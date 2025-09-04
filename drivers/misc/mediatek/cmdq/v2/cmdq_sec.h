@@ -70,10 +70,13 @@ struct cmdqSecContextStruct {
 	void *iwcMessage;	/* message buffer */
 #ifndef CONFIG_MTK_CMDQ_TAB
 #if defined(CMDQ_SECURE_PATH_SUPPORT)
-	struct mc_uuid_t uuid;	/* Universally Unique Identifier of secure tl/dr */
+	/* Universally Unique Identifier of secure tl/dr */
+	struct mc_uuid_t uuid;
 	struct mc_session_handle sessionHandle;	/* session handle */
 #endif
-	uint32_t openMobicoreByOther;	/* true if someone has opened mobicore device in this prpocess context */
+	/* true if someone has opened mobicore */
+	/* device in this prpocess context */
+	uint32_t openMobicoreByOther;
 #else
 #if defined(CMDQ_SECURE_PATH_SUPPORT)
 	KREE_SESSION_HANDLE sessionHandle;
@@ -88,10 +91,14 @@ int32_t cmdq_sec_init_allocate_resource_thread(void *data);
  * Create and destroy non-cachable shared memory,
  * used to share data for CMDQ driver between NWd and SWd
  *
- * Be careful that we should not disvlose any information about secure buffer address of
+ * Be careful that we should not disvlose
+ * any information about secure buffer address of
  */
-int32_t cmdq_sec_create_shared_memory(struct cmdqSecSharedMemoryStruct **pHandle, const uint32_t size);
-int32_t cmdq_sec_destroy_shared_memory(struct cmdqSecSharedMemoryStruct *handle);
+int32_t cmdq_sec_create_shared_memory(
+	struct cmdqSecSharedMemoryStruct **pHandle,
+	const uint32_t size);
+int32_t cmdq_sec_destroy_shared_memory(
+	struct cmdqSecSharedMemoryStruct *handle);
 
 /**
  * Callback to fill message buffer for secure task
@@ -108,26 +115,28 @@ int32_t cmdq_sec_destroy_shared_memory(struct cmdqSecSharedMemoryStruct *handle)
 typedef int32_t(*CmdqSecFillIwcCB) (int32_t, void *, int32_t, void *);
 #else
 typedef int32_t(*CmdqSecFillIwcCB) (struct iwcCmdqMessage_t *_pIwc,
-				    uint32_t iwcCommand,
-				    struct TaskStruct *_pTask, int32_t thread);
+	uint32_t iwcCommand,
+	struct TaskStruct *_pTask, int32_t thread);
 #endif
 
 
 /**
-  * Entry secure world to handle secure path jobs
-  * .submit task
-  * .cancel error task
-  */
+ * Entry secure world to handle secure path jobs
+ * .submit task
+ * .cancel error task
+ */
 
-int32_t cmdq_sec_exec_task_async_unlocked(struct TaskStruct *pTask, int32_t thread);
-int32_t cmdq_sec_cancel_error_task_unlocked(struct TaskStruct *pTask, int32_t thread,
-					    struct cmdqSecCancelTaskResultStruct *pResult);
+int32_t cmdq_sec_exec_task_async_unlocked(
+	struct TaskStruct *pTask, int32_t thread);
+int32_t cmdq_sec_cancel_error_task_unlocked(
+	struct TaskStruct *pTask, int32_t thread,
+	struct cmdqSecCancelTaskResultStruct *pResult);
 int32_t cmdq_sec_allocate_path_resource_unlocked(bool throwAEE);
 
 
 /**
-  * secure path control
-  */
+ * secure path control
+ */
 void cmdq_sec_lock_secure_path(void);
 void cmdq_sec_unlock_secure_path(void);
 
@@ -137,16 +146,19 @@ void cmdqSecDeInitialize(void);
 void cmdqSecEnableProfile(const bool enable);
 
 /* function declaretion */
-struct cmdqSecContextStruct *cmdq_sec_context_handle_create(uint32_t tgid);
+struct cmdqSecContextStruct *cmdq_sec_context_handle_create(
+	uint32_t tgid);
 
 
 
 #ifdef CONFIG_MTK_CMDQ_TAB
-int32_t cmdq_sec_submit_to_secure_world_async_unlocked(uint32_t iwcCommand,
-						       struct TaskStruct *pTask,
-						       int32_t thread,
-						       CmdqSecFillIwcCB iwcFillCB, void *data, bool throwAEE);
-struct cmdqSecContextStruct *cmdq_sec_acquire_context_handle(uint32_t tgid);
+int32_t cmdq_sec_submit_to_secure_world_async_unlocked(
+	uint32_t iwcCommand,
+	struct TaskStruct *pTask,
+	int32_t thread,
+	CmdqSecFillIwcCB iwcFillCB, void *data, bool throwAEE);
+struct cmdqSecContextStruct *cmdq_sec_acquire_context_handle(
+	uint32_t tgid);
 int32_t cmdq_sec_release_context_handle(uint32_t tgid);
 void cmdq_sec_dump_context_list(void);
 
@@ -177,16 +189,22 @@ struct transmitBufferStruct {
 /* the session to communicate with TA */
 KREE_SESSION_HANDLE cmdq_session_handle(void);
 KREE_SESSION_HANDLE cmdq_mem_session_handle(void);
-int32_t cmdq_sec_create_shared_memory(struct cmdqSecSharedMemoryStruct **pHandle, const uint32_t size);
-int32_t cmdq_sec_destroy_shared_memory(struct cmdqSecSharedMemoryStruct *handle);
+int32_t cmdq_sec_create_shared_memory(
+	struct cmdqSecSharedMemoryStruct **pHandle,
+	const uint32_t size);
+int32_t cmdq_sec_destroy_shared_memory(
+	struct cmdqSecSharedMemoryStruct *handle);
 
 
 
 
 
-int32_t cmdqSecRegisterSecureBuffer(struct transmitBufferStruct *pSecureData);
-int32_t cmdqSecServiceCall(struct transmitBufferStruct *pSecureData, int32_t cmd);
-int32_t cmdqSecUnRegisterSecureBuffer(struct transmitBufferStruct *pSecureData);
+int32_t cmdqSecRegisterSecureBuffer(
+	struct transmitBufferStruct *pSecureData);
+int32_t cmdqSecServiceCall(
+	struct transmitBufferStruct *pSecureData, int32_t cmd);
+int32_t cmdqSecUnRegisterSecureBuffer(
+	struct transmitBufferStruct *pSecureData);
 void cmdq_sec_register_secure_irq(void);
 #endif
 

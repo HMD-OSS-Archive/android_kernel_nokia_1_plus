@@ -171,7 +171,7 @@ static long rpmb_ioctl_seq_cmd(struct rpmb_dev *rdev,
 		return -EFAULT;
 
 	if (ncmds > 3) {
-		dev_err(&rdev->dev, "supporting up to 3 packets (%llu)\n",
+		dev_notice(&rdev->dev, "supporting up to 3 packets (%llu)\n",
 			ncmds);
 		return -EINVAL;
 	}
@@ -271,7 +271,7 @@ static long rpmb_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 	case RPMB_IOC_SEQ_CMD:
 		return rpmb_ioctl_seq_cmd(rdev, ptr);
 	default:
-		dev_err(&rdev->dev, "unsupported ioctl 0x%x.\n", cmd);
+		dev_notice(&rdev->dev, "unsupported ioctl 0x%x.\n", cmd);
 		return -ENOIOCTLCMD;
 	}
 }
@@ -319,7 +319,7 @@ int __init rpmb_cdev_init(void)
 
 	ret = alloc_chrdev_region(&rpmb_devt, 0, RPMB_MAX_DEVS, "rpmb");
 	if (ret < 0)
-		pr_err("unable to allocate char dev region\n");
+		pr_notice("unable to allocate char dev region\n");
 
 	return ret;
 }

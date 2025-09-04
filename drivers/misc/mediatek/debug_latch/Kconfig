@@ -8,52 +8,6 @@ menuconfig MTK_DEBUG_LATCH
 
 if  MTK_DEBUG_LATCH
 
-config MTK_LASTPC
-	bool "MediaTek LASTPC LATCH"
-	default n
-	help
-	  LASTPC is a debugging feature on MCUCFG bus.
-	  Which latches the last pc value on each CPUs as debugging
-	  information after sysytem unexpectedly crash or shutdown.
-	  After rebooting, these information could be dumped for
-	  debugging.
-
-config MTK_LASTPC_V2
-	bool "MediaTek LASTPC LATCH V2"
-	select MTK_PLAT_SRAM_FLAG
-	default n
-	help
-	  LASTPC is a debugging feature on MCUCFG bus.
-	  Which latches the last pc value on each CPUs as debugging
-	  information after sysytem unexpectedly crash or shutdown.
-	  After rebooting, these information could be dumped for
-	  debugging.
-	  The major difference to the original lastpc design is power
-	  domain of the latch registers.
-
-config MTK_LASTBUS
-	bool "MediaTek LASTBUS LATCH"
-	default n
-	help
-	  LASTBUS is a debugging feature on MCUSYS and PERISYS bus.
-	  Which latches the last bus status as debugging information
-	  after sysytem unexpectedly crash or shutdown.
-	  After rebooting, these information could be dumped for
-	  debugging.
-
-config MTK_LASTBUS_V2
-	bool "MediaTek LASTBUS LATCH V2"
-	select MTK_LASTBUS
-	default n
-	help
-	  LASTBUS is a debugging feature on MCUSYS and PERISYS bus.
-	  Which latches the last bus status as debugging information
-	  after sysytem unexpectedly crash or shutdown.
-	  After rebooting, these information could be dumped for
-	  debugging.
-	  Compared to the pervious version, V2 has additional monitors
-	  for PERISYS bus.
-
 config MTK_PLAT_SRAM_FLAG
 	bool "MediaTek PLATFORM SRAM FLAG"
 	default n
@@ -63,13 +17,30 @@ config MTK_PLAT_SRAM_FLAG
 	  these flags as hints or inputs to post-processing scripts
 	  for further analyze.
 
+config MTK_CACHE_PARITY_CHECK
+	bool "MediaTek CACHE PARITY CHECK"
+	default n
+	help
+	  Cache parity check is a debugging feature on MCUSYS to
+	  latch the parity error in Cachelines supporting parity.
+	  Enable this feature would provide some interfaces and irq
+	  handling.
+
 config MTK_L2C_PARITY_CHECK
 	bool "MediaTek L2 CACHE PARITY CHECK"
 	default n
 	help
 	  L2 cache parity check is a debugging feature on MCUSYS to
 	  latch the parity error in L2 Cachelines. Enable this feature
-	  would promote a sysfs interface for AEE to dump that whether
-	  there are L2 cache parity errors.
+	  would provide some interfaces and irq handling.
+	  if you don't know how to set please leave it as n
+
+config MTK_LASTBUS_INTERFACE
+	bool "MTK_LASTBUS"
+	default n
+	help
+	  LASTBUS is a tool to get the snapshot of peri and infra bus.
+	  Enable this feature, you can dump LASTBUS status for peri and
+	  infra bus for debug purpose.
 
 endif

@@ -94,9 +94,6 @@
 #include <linux/prefetch.h>
 #include <linux/platform_device.h>
 #include <linux/io.h>
-#ifdef CONFIG_USB_C_SWITCH
-#include <typec.h>
-#endif
 #ifdef CONFIG_USBIF_COMPLIANCE
 #include <linux/proc_fs.h>
 #include <linux/uaccess.h>
@@ -109,8 +106,6 @@
 #include "mu3d_hal_usb_drv.h"
 #include "mu3d_hal_hw.h"
 #include "ssusb_qmu.h"
-
-#include <linux/phy/mediatek/mtk_usb_phy.h>
 
 #ifdef CONFIG_MTK_UART_USB_SWITCH
 #define AP_UART0_COMPATIBLE_NAME "mediatek,gpio"
@@ -1021,6 +1016,9 @@ void musb_start(struct musb *musb)
 		mu3d_hal_u2dev_connect();
 #endif
 	}
+#ifdef CONFIG_DUAL_ROLE_USB_INTF
+	mt_usb_dual_role_to_device();
+#endif
 }
 
 
@@ -1075,6 +1073,9 @@ static void set_ssusb_ip_sleep(struct musb *musb)
 void musb_stop(struct musb *musb)
 {
 	os_printk(K_INFO, "musb_stop\n");
+#ifdef CONFIG_DUAL_ROLE_USB_INTF
+	mt_usb_dual_role_to_none();
+#endif
 
 	/* stop IRQs, timers, ... */
 	musb_platform_disable(musb);
@@ -2071,16 +2072,6 @@ const struct hc_driver musb_hc_driver = {
 	.flags = HCD_USB2 | HCD_MEMORY,
 };
 
-#ifdef CONFIG_USB_C_SWITCH
-#ifndef CONFIG_TCPC_CLASS
-static struct typec_switch_data switch_driver = {
-	.name = (char *)musb_driver_name,
-	.type = DEVICE_TYPE,
-	.enable		= typec_switch_usb_connect,
-	.disable	= typec_switch_usb_disconnect,
-};
-#endif /* CONFIG_TCPC_CLASS */
-#endif
 /* --------------------------------------------------------------------------
  * Init support
  */
@@ -2122,7 +2113,6 @@ allocate_instance(struct device *dev, struct musb_hdrc_config *config, void __io
 		ep->musb = musb;
 		ep->epnum = epnum;
 	}
-	musb->in_ipo_off = false;
 	musb->controller = dev;
 
 	/* added for ssusb: */
@@ -2164,7 +2154,6 @@ static void musb_free(struct musb *musb)
 #endif
 
 	cancel_work_sync(&musb->irq_work);
-	cancel_delayed_work_sync(&musb->connection_work);
 	/* cancel_delayed_work_sync(&musb->check_ltssm_work); */
 	cancel_work_sync(&musb->suspend_work);
 
@@ -2179,7 +2168,7 @@ static void musb_free(struct musb *musb)
  *		dma_controller_destroy(c);
  *	}
 */
-	wake_lock_destroy(&musb->usb_wakelock);
+	wakeup_source_trash(&musb->usb_wakelock);
 
 	/* added for ssusb: */
 #ifdef CONFIG_USBIF_COMPLIANCE
@@ -2231,7 +2220,7 @@ static int __init musb_init_controller(struct device *dev, int nIrq, void __iome
 	}
 
 	/* allocate */
-	musb = allocate_instance(dev, plat->config, ctrl);
+	musb = allocate_instance(dev, (struct musb_hdrc_config *)plat->config, ctrl);
 	if (!musb) {
 		status = -ENOMEM;
 		goto fail0;
@@ -2250,9 +2239,7 @@ static int __init musb_init_controller(struct device *dev, int nIrq, void __iome
 
 	_mu3d_musb = musb;
 
-	wake_lock_init(&musb->usb_wakelock, WAKE_LOCK_SUSPEND, "USB.lock");
-
-	INIT_DELAYED_WORK(&musb->connection_work, connection_work);
+	wakeup_source_init(&musb->usb_wakelock, "USB.lock");
 
 	INIT_DELAYED_WORK(&musb->check_ltssm_work, check_ltssm_work);
 
@@ -2305,16 +2292,6 @@ static int __init musb_init_controller(struct device *dev, int nIrq, void __iome
 				? MUSB_CONTROLLER_MHDRC : MUSB_CONTROLLER_HDRC, musb);
 	if (status < 0)
 		goto fail3;
-
-#ifdef CONFIG_USB_C_SWITCH
-#ifndef CONFIG_TCPC_CLASS
-	switch_driver.priv_data = musb;
-	os_printk(K_INFO, "type c test\n");
-	status = register_typec_switch_callback(&switch_driver);
-	if (status < 0)
-		goto fail3;
-#endif /* CONFIG_TCPC_CLASS */
-#endif
 
 	/* REVISIT-J: Do _NOT_ support OTG functionality */
 	/* setup_timer(&musb->otg_timer, musb_otg_timer_func, (unsigned long) musb); */
@@ -2396,6 +2373,13 @@ static int __init musb_init_controller(struct device *dev, int nIrq, void __iome
 			s = "OTG"; break; }; s; }
 		), ctrl, (is_dma_capable() && musb->dma_controller)
 		? "DMA" : "PIO", musb->nIrq);
+
+	/* only enable on iddig mode */
+#ifndef CONFIG_USB_C_SWITCH
+#ifdef CONFIG_DUAL_ROLE_USB_INTF
+	mt_usb_dual_role_init(musb);
+#endif
+#endif
 
 	return 0;
 
@@ -2909,7 +2893,7 @@ static struct platform_driver musb_driver_probe = {
 };
 
 static int usb_test_wakelock_inited;
-static struct wake_lock usb_test_wakelock;
+static struct wakeup_source usb_test_wakelock;
 int mu3d_force_on;
 static int set_mu3d_force_on(const char *val, const struct kernel_param *kp)
 {
@@ -2943,14 +2927,14 @@ static int set_mu3d_force_on(const char *val, const struct kernel_param *kp)
 		os_printk(K_WARNIN, "wake_lock usb_test_wakelock\n");
 		if (!usb_test_wakelock_inited) {
 			os_printk(K_WARNIN, "%s wake_lock_init\n", __func__);
-			wake_lock_init(&usb_test_wakelock, WAKE_LOCK_SUSPEND, "usb.test.lock");
+			wakeup_source_init(&usb_test_wakelock, "usb.test.lock");
 			usb_test_wakelock_inited = 1;
 		}
-		wake_lock(&usb_test_wakelock);
+		__pm_stay_awake(&usb_test_wakelock);
 		break;
 	case 6:
 		os_printk(K_WARNIN, "wake_unlock usb_test_wakelock\n");
-		wake_unlock(&usb_test_wakelock);
+		__pm_relax(&usb_test_wakelock);
 		break;
 	default:
 		break;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 MediaTek Inc.
+ * Copyright (C) 2017 MediaTek Inc.
 
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -185,7 +185,7 @@ static const int vcama_idx[] = {
 };
 
 static const int vcamd_idx[] = {
-	4, 5, 6, 7, 9, 10,
+	4, 5, 6, 7, 9, 12,
 };
 
 static const int vldo28_idx[] = {
@@ -257,7 +257,8 @@ static int pmic_ldo_vfe28_disable(struct regulator_dev *rdev)
 
 	RGLTRLOG("ldo vfe28 disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vfe28 should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -319,7 +320,8 @@ static int pmic_buck_vs1_disable(struct regulator_dev *rdev)
 
 	RGLTRLOG("buck vs1 disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("buck vs1 should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		RGLTRLOG("buck vs1 don't be disabled\n");
@@ -347,7 +349,8 @@ static int pmic_buck_vs1_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vs1 set_voltage_sel */
-static int pmic_buck_vs1_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_buck_vs1_set_voltage_sel(struct regulator_dev *rdev,
+					 unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -415,7 +418,8 @@ static int pmic_ldo_vxo22_disable(struct regulator_dev *rdev)
 
 	RGLTRLOG("ldo vxo22 disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vxo22 should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -447,7 +451,8 @@ static int pmic_ldo_vxo22_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vxo22 set_voltage_sel */
-static int pmic_ldo_vxo22_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vxo22_set_voltage_sel(struct regulator_dev *rdev,
+					  unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -499,7 +504,8 @@ static int pmic_ldo_vxo22_get_voltage_sel(struct regulator_dev *rdev)
 }
 
 /* Regulator vxo22 list_voltage */
-static int pmic_ldo_vxo22_list_voltage(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vxo22_list_voltage(struct regulator_dev *rdev,
+				       unsigned int selector)
 {
 	int voltage;
 
@@ -539,7 +545,8 @@ static int pmic_ldo_vrf18_disable(struct regulator_dev *rdev)
 
 	RGLTRLOG("ldo vrf18 disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vrf18 should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -601,7 +608,8 @@ static int pmic_ldo_vrf12_disable(struct regulator_dev *rdev)
 
 	RGLTRLOG("ldo vrf12 disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vrf12 should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -663,7 +671,8 @@ static int pmic_ldo_vefuse_disable(struct regulator_dev *rdev)
 
 	pr_info("ldo vefuse disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vefuse should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -695,7 +704,8 @@ static int pmic_ldo_vefuse_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vefuse set_voltage_sel */
-static int pmic_ldo_vefuse_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vefuse_set_voltage_sel(struct regulator_dev *rdev,
+					   unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -747,7 +757,8 @@ static int pmic_ldo_vefuse_get_voltage_sel(struct regulator_dev *rdev)
 }
 
 /* Regulator vefuse list_voltage */
-static int pmic_ldo_vefuse_list_voltage(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vefuse_list_voltage(struct regulator_dev *rdev,
+					unsigned int selector)
 {
 	int voltage;
 
@@ -787,7 +798,8 @@ static int pmic_ldo_vcn33_bt_disable(struct regulator_dev *rdev)
 
 	pr_info("ldo vcn33_bt disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vcn33_bt should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -819,7 +831,8 @@ static int pmic_ldo_vcn33_bt_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vcn33_bt set_voltage_sel */
-static int pmic_ldo_vcn33_bt_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vcn33_bt_set_voltage_sel(struct regulator_dev *rdev,
+					     unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -871,7 +884,8 @@ static int pmic_ldo_vcn33_bt_get_voltage_sel(struct regulator_dev *rdev)
 }
 
 /* Regulator vcn33_bt list_voltage */
-static int pmic_ldo_vcn33_bt_list_voltage(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vcn33_bt_list_voltage(struct regulator_dev *rdev,
+					  unsigned int selector)
 {
 	int voltage;
 
@@ -911,7 +925,8 @@ static int pmic_ldo_vcn33_wifi_disable(struct regulator_dev *rdev)
 
 	RGLTRLOG("ldo vcn33_wifi disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vcn33_wifi should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -943,7 +958,8 @@ static int pmic_ldo_vcn33_wifi_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vcn33_wifi set_voltage_sel */
-static int pmic_ldo_vcn33_wifi_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vcn33_wifi_set_voltage_sel(struct regulator_dev *rdev,
+					       unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -995,7 +1011,8 @@ static int pmic_ldo_vcn33_wifi_get_voltage_sel(struct regulator_dev *rdev)
 }
 
 /* Regulator vcn33_wifi list_voltage */
-static int pmic_ldo_vcn33_wifi_list_voltage(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vcn33_wifi_list_voltage(struct regulator_dev *rdev,
+					    unsigned int selector)
 {
 	int voltage;
 
@@ -1035,7 +1052,8 @@ static int pmic_ldo_vcn28_disable(struct regulator_dev *rdev)
 
 	RGLTRLOG("ldo vcn28 disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vcn28 should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -1097,7 +1115,8 @@ static int pmic_ldo_vcn18_disable(struct regulator_dev *rdev)
 
 	pr_info("ldo vcn18 disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vcn18 should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -1159,7 +1178,8 @@ static int pmic_ldo_vcama_disable(struct regulator_dev *rdev)
 
 	pr_info("ldo vcama disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vcama should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -1191,7 +1211,8 @@ static int pmic_ldo_vcama_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vcama set_voltage_sel */
-static int pmic_ldo_vcama_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vcama_set_voltage_sel(struct regulator_dev *rdev,
+					  unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -1243,7 +1264,8 @@ static int pmic_ldo_vcama_get_voltage_sel(struct regulator_dev *rdev)
 }
 
 /* Regulator vcama list_voltage */
-static int pmic_ldo_vcama_list_voltage(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vcama_list_voltage(struct regulator_dev *rdev,
+				       unsigned int selector)
 {
 	int voltage;
 
@@ -1283,7 +1305,8 @@ static int pmic_ldo_vcamd_disable(struct regulator_dev *rdev)
 
 	pr_info("ldo vcamd disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vcamd should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -1315,7 +1338,8 @@ static int pmic_ldo_vcamd_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vcamd set_voltage_sel */
-static int pmic_ldo_vcamd_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vcamd_set_voltage_sel(struct regulator_dev *rdev,
+					  unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -1367,7 +1391,8 @@ static int pmic_ldo_vcamd_get_voltage_sel(struct regulator_dev *rdev)
 }
 
 /* Regulator vcamd list_voltage */
-static int pmic_ldo_vcamd_list_voltage(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vcamd_list_voltage(struct regulator_dev *rdev,
+				       unsigned int selector)
 {
 	int voltage;
 
@@ -1407,7 +1432,8 @@ static int pmic_buck_vmodem_disable(struct regulator_dev *rdev)
 
 	RGLTRLOG("buck vmodem disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("buck vmodem should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -1439,7 +1465,8 @@ static int pmic_buck_vmodem_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vmodem set_voltage_sel */
-static int pmic_buck_vmodem_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_buck_vmodem_set_voltage_sel(struct regulator_dev *rdev,
+					    unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -1507,7 +1534,8 @@ static int pmic_buck_vcore_disable(struct regulator_dev *rdev)
 
 	RGLTRLOG("buck vcore disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("buck vcore should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -1539,7 +1567,8 @@ static int pmic_buck_vcore_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vcore set_voltage_sel */
-static int pmic_buck_vcore_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_buck_vcore_set_voltage_sel(struct regulator_dev *rdev,
+					   unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -1607,7 +1636,8 @@ static int pmic_ldo_vcamio_disable(struct regulator_dev *rdev)
 
 	pr_info("ldo vcamio disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vcamio should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -1647,7 +1677,7 @@ static int pmic_ldo_vldo28_enable(struct regulator_dev *rdev)
 
 	mreg = container_of(rdesc, struct mtk_regulator, desc);
 
-	RGLTRLOG("ldo vldo28 enable\n");
+	pr_info("ldo vldo28 enable\n");
 	if (mreg->en_cb != NULL) {
 		ret = (mreg->en_cb)(1);
 		/* this OC interrupt needs to delay 1ms after enable power */
@@ -1674,7 +1704,8 @@ static int pmic_ldo_vldo28_disable(struct regulator_dev *rdev)
 
 	RGLTRLOG("ldo vldo28 disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vldo28 should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL) {
@@ -1710,7 +1741,8 @@ static int pmic_ldo_vldo28_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vldo28 set_voltage_sel */
-static int pmic_ldo_vldo28_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vldo28_set_voltage_sel(struct regulator_dev *rdev,
+					   unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -1762,7 +1794,8 @@ static int pmic_ldo_vldo28_get_voltage_sel(struct regulator_dev *rdev)
 }
 
 /* Regulator vldo28 list_voltage */
-static int pmic_ldo_vldo28_list_voltage(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vldo28_list_voltage(struct regulator_dev *rdev,
+					unsigned int selector)
 {
 	int voltage;
 
@@ -1802,13 +1835,14 @@ static int pmic_ldo_vsram_others_disable(struct regulator_dev *rdev)
 
 	RGLTRLOG("ldo vsram_others disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vsram_others should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
 			ret = (mreg->en_cb)(0);
 		else {
-			RGLTRLOG("ldo vsram_others don't have enable callback\n");
+			RGLTRLOG("ldo vsram_others don't have en callback\n");
 			ret = -1;
 		}
 	}
@@ -1834,7 +1868,8 @@ static int pmic_ldo_vsram_others_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vsram_others set_voltage_sel */
-static int pmic_ldo_vsram_others_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vsram_others_set_voltage_sel(struct regulator_dev *rdev,
+						 unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -1902,7 +1937,8 @@ static int pmic_buck_vproc_disable(struct regulator_dev *rdev)
 
 	RGLTRLOG("buck vproc disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("buck vproc should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -1934,7 +1970,8 @@ static int pmic_buck_vproc_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vproc set_voltage_sel */
-static int pmic_buck_vproc_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_buck_vproc_set_voltage_sel(struct regulator_dev *rdev,
+					   unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -2002,7 +2039,8 @@ static int pmic_ldo_vsram_proc_disable(struct regulator_dev *rdev)
 
 	RGLTRLOG("ldo vsram_proc disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vsram_proc should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -2034,7 +2072,8 @@ static int pmic_ldo_vsram_proc_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vsram_proc set_voltage_sel */
-static int pmic_ldo_vsram_proc_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vsram_proc_set_voltage_sel(struct regulator_dev *rdev,
+					       unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -2102,7 +2141,8 @@ static int pmic_ldo_vaux18_disable(struct regulator_dev *rdev)
 
 	RGLTRLOG("ldo vaux18 disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vaux18 should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -2164,7 +2204,8 @@ static int pmic_buck_vpa_disable(struct regulator_dev *rdev)
 
 	RGLTRLOG("buck vpa disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("buck vpa should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -2196,7 +2237,8 @@ static int pmic_buck_vpa_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vpa set_voltage_sel */
-static int pmic_buck_vpa_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_buck_vpa_set_voltage_sel(struct regulator_dev *rdev,
+					 unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -2264,7 +2306,8 @@ static int pmic_ldo_vaud28_disable(struct regulator_dev *rdev)
 
 	pr_info("ldo vaud28 disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vaud28 should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -2326,7 +2369,8 @@ static int pmic_ldo_vio28_disable(struct regulator_dev *rdev)
 
 	RGLTRLOG("ldo vio28 disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vio28 should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		RGLTRLOG("ldo vio28 don't be disabled\n");
@@ -2384,7 +2428,8 @@ static int pmic_ldo_vio18_disable(struct regulator_dev *rdev)
 
 	RGLTRLOG("ldo vio18 disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vio18 should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		RGLTRLOG("ldo vio18 don't be disabled\n");
@@ -2442,7 +2487,8 @@ static int pmic_ldo_vdram_disable(struct regulator_dev *rdev)
 
 	RGLTRLOG("ldo vdram disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vdram should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -2474,7 +2520,8 @@ static int pmic_ldo_vdram_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vdram set_voltage_sel */
-static int pmic_ldo_vdram_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vdram_set_voltage_sel(struct regulator_dev *rdev,
+					  unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -2526,7 +2573,8 @@ static int pmic_ldo_vdram_get_voltage_sel(struct regulator_dev *rdev)
 }
 
 /* Regulator vdram list_voltage */
-static int pmic_ldo_vdram_list_voltage(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vdram_list_voltage(struct regulator_dev *rdev,
+				       unsigned int selector)
 {
 	int voltage;
 
@@ -2566,7 +2614,8 @@ static int pmic_ldo_vmc_disable(struct regulator_dev *rdev)
 
 	pr_info("ldo vmc disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vmc should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -2598,7 +2647,8 @@ static int pmic_ldo_vmc_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vmc set_voltage_sel */
-static int pmic_ldo_vmc_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vmc_set_voltage_sel(struct regulator_dev *rdev,
+					unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -2650,7 +2700,8 @@ static int pmic_ldo_vmc_get_voltage_sel(struct regulator_dev *rdev)
 }
 
 /* Regulator vmc list_voltage */
-static int pmic_ldo_vmc_list_voltage(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vmc_list_voltage(struct regulator_dev *rdev,
+				     unsigned int selector)
 {
 	int voltage;
 
@@ -2690,7 +2741,8 @@ static int pmic_ldo_vmch_disable(struct regulator_dev *rdev)
 
 	pr_info("ldo vmch disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vmch should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -2722,7 +2774,8 @@ static int pmic_ldo_vmch_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vmch set_voltage_sel */
-static int pmic_ldo_vmch_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vmch_set_voltage_sel(struct regulator_dev *rdev,
+					 unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -2774,7 +2827,8 @@ static int pmic_ldo_vmch_get_voltage_sel(struct regulator_dev *rdev)
 }
 
 /* Regulator vmch list_voltage */
-static int pmic_ldo_vmch_list_voltage(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vmch_list_voltage(struct regulator_dev *rdev,
+				      unsigned int selector)
 {
 	int voltage;
 
@@ -2814,7 +2868,8 @@ static int pmic_ldo_vemc_disable(struct regulator_dev *rdev)
 
 	pr_info("ldo vemc disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vemc should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -2846,7 +2901,8 @@ static int pmic_ldo_vemc_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vemc set_voltage_sel */
-static int pmic_ldo_vemc_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vemc_set_voltage_sel(struct regulator_dev *rdev,
+					 unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -2898,7 +2954,8 @@ static int pmic_ldo_vemc_get_voltage_sel(struct regulator_dev *rdev)
 }
 
 /* Regulator vemc list_voltage */
-static int pmic_ldo_vemc_list_voltage(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vemc_list_voltage(struct regulator_dev *rdev,
+				      unsigned int selector)
 {
 	int voltage;
 
@@ -2938,7 +2995,8 @@ static int pmic_ldo_vsim1_disable(struct regulator_dev *rdev)
 
 	pr_info("ldo vsim1 disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vsim1 should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -2970,7 +3028,8 @@ static int pmic_ldo_vsim1_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vsim1 set_voltage_sel */
-static int pmic_ldo_vsim1_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vsim1_set_voltage_sel(struct regulator_dev *rdev,
+					  unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -3022,7 +3081,8 @@ static int pmic_ldo_vsim1_get_voltage_sel(struct regulator_dev *rdev)
 }
 
 /* Regulator vsim1 list_voltage */
-static int pmic_ldo_vsim1_list_voltage(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vsim1_list_voltage(struct regulator_dev *rdev,
+				       unsigned int selector)
 {
 	int voltage;
 
@@ -3062,7 +3122,8 @@ static int pmic_ldo_vsim2_disable(struct regulator_dev *rdev)
 
 	pr_info("ldo vsim2 disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vsim2 should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -3094,7 +3155,8 @@ static int pmic_ldo_vsim2_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vsim2 set_voltage_sel */
-static int pmic_ldo_vsim2_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vsim2_set_voltage_sel(struct regulator_dev *rdev,
+					  unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -3146,7 +3208,8 @@ static int pmic_ldo_vsim2_get_voltage_sel(struct regulator_dev *rdev)
 }
 
 /* Regulator vsim2 list_voltage */
-static int pmic_ldo_vsim2_list_voltage(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vsim2_list_voltage(struct regulator_dev *rdev,
+				       unsigned int selector)
 {
 	int voltage;
 
@@ -3186,7 +3249,8 @@ static int pmic_ldo_vibr_disable(struct regulator_dev *rdev)
 
 	pr_info("ldo vibr disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vibr should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -3218,7 +3282,8 @@ static int pmic_ldo_vibr_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vibr set_voltage_sel */
-static int pmic_ldo_vibr_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vibr_set_voltage_sel(struct regulator_dev *rdev,
+					 unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -3270,7 +3335,8 @@ static int pmic_ldo_vibr_get_voltage_sel(struct regulator_dev *rdev)
 }
 
 /* Regulator vibr list_voltage */
-static int pmic_ldo_vibr_list_voltage(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vibr_list_voltage(struct regulator_dev *rdev,
+				      unsigned int selector)
 {
 	int voltage;
 
@@ -3310,7 +3376,8 @@ static int pmic_ldo_vusb33_disable(struct regulator_dev *rdev)
 
 	RGLTRLOG("ldo vusb33 disable\n");
 	if (rdev->use_count == 0) {
-		RGLTRLOG("ldo vusb33 should not be disable (use_count=%d)\n", rdev->use_count);
+		RGLTRLOG("%s should not be disable. (use_count=0).\n"
+			 , __func__);
 		ret = -1;
 	} else {
 		if (mreg->en_cb != NULL)
@@ -3342,7 +3409,8 @@ static int pmic_ldo_vusb33_is_enabled(struct regulator_dev *rdev)
 }
 
 /* Regulator vusb33 set_voltage_sel */
-static int pmic_ldo_vusb33_set_voltage_sel(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vusb33_set_voltage_sel(struct regulator_dev *rdev,
+					   unsigned int selector)
 {
 	const struct regulator_desc *rdesc = rdev->desc;
 	struct mtk_regulator *mreg;
@@ -3394,7 +3462,8 @@ static int pmic_ldo_vusb33_get_voltage_sel(struct regulator_dev *rdev)
 }
 
 /* Regulator vusb33 list_voltage */
-static int pmic_ldo_vusb33_list_voltage(struct regulator_dev *rdev, unsigned selector)
+static int pmic_ldo_vusb33_list_voltage(struct regulator_dev *rdev,
+					unsigned int selector)
 {
 	int voltage;
 
@@ -3730,7 +3799,9 @@ static struct regulator_ops pmic_ldo_vusb33_ops = {
 
 
 /*------Regulator ATTR------*/
-static ssize_t show_regulator_status(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t show_regulator_status(struct device *dev,
+				     struct device_attribute *attr,
+				     char *buf)
 {
 	struct mtk_regulator *mreg;
 	unsigned int ret_value = 0;
@@ -3746,14 +3817,18 @@ static ssize_t show_regulator_status(struct device *dev, struct device_attribute
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_regulator_status(struct device *dev, struct device_attribute *attr, const char *buf,
-				size_t size)
+static ssize_t store_regulator_status(struct device *dev,
+				      struct device_attribute *attr,
+				      const char *buf,
+				      size_t size)
 {
 	RGLTRLOG("[EM] Not Support Write Function\n");
 	return size;
 }
 
-static ssize_t show_regulator_voltage(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t show_regulator_voltage(struct device *dev,
+				      struct device_attribute *attr,
+				      char *buf)
 {
 	struct mtk_regulator *mreg;
 	const int *pVoltage;
@@ -3778,9 +3853,11 @@ static ssize_t show_regulator_voltage(struct device *dev, struct device_attribut
 				}
 				ret_value = pVoltage[ret];
 			} else
-				ret_value = mreg->desc.min_uV + mreg->desc.uV_step * regVal;
+				ret_value = mreg->desc.min_uV +
+					mreg->desc.uV_step * regVal;
 		} else
-			RGLTRLOG("[EM] %s_VOLTAGE have no da_vol_cb\n", mreg->desc.name);
+			RGLTRLOG("[EM] %s_VOLTAGE have no da_vol_cb\n"
+				 , mreg->desc.name);
 	} else {
 		if (mreg->pvoltages != NULL) {
 			pVoltage = (const int *)mreg->pvoltages;
@@ -3788,7 +3865,8 @@ static ssize_t show_regulator_voltage(struct device *dev, struct device_attribut
 		} else if (mreg->desc.fixed_uV)
 			ret_value = mreg->desc.fixed_uV;
 		else
-			RGLTRLOG("[EM] %s_VOLTAGE have no pVolatges\n", mreg->desc.name);
+			RGLTRLOG("[EM] %s_VOLTAGE have no pVolatges\n"
+				 , mreg->desc.name);
 	}
 
 	ret_value = ret_value / 1000;
@@ -3797,8 +3875,10 @@ static ssize_t show_regulator_voltage(struct device *dev, struct device_attribut
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_regulator_voltage(struct device *dev, struct device_attribute *attr, const char *buf,
-				 size_t size)
+static ssize_t store_regulator_voltage(struct device *dev,
+				       struct device_attribute *attr,
+				       const char *buf,
+				       size_t size)
 {
 	RGLTRLOG("[EM] Not Support Write Function\n");
 	return size;
@@ -3810,11 +3890,16 @@ static ssize_t store_regulator_voltage(struct device *dev, struct device_attribu
 #define BUCK_VOL REGULATOR_CHANGE_VOLTAGE
 #define BUCK_VOL_EN (REGULATOR_CHANGE_STATUS | REGULATOR_CHANGE_VOLTAGE)
 struct mtk_regulator mt_bucks[] = {
-	REGULAR_VOLTAGE_REGULATOR_BUCK_GEN(vs1, buck, 1200000, 2200000, 12500, 0, BUCK_VOL_EN, 1),
-	REGULAR_VOLTAGE_REGULATOR_BUCK_GEN(vmodem, buck, 500000, 1193750, 6250, 0, BUCK_VOL_EN, 1),
-	REGULAR_VOLTAGE_REGULATOR_BUCK_GEN(vcore, buck, 518750, 1193750, 6250, 0, BUCK_VOL_EN, 1),
-	REGULAR_VOLTAGE_REGULATOR_BUCK_GEN(vproc, buck, 518750, 1312500, 6250, 0, BUCK_VOL_EN, 1),
-	REGULAR_VOLTAGE_REGULATOR_BUCK_GEN(vpa, buck, 500000, 3650000, 50000, 0, BUCK_VOL_EN, 1),
+	REGULAR_VOLTAGE_REGULATOR_BUCK_GEN(vs1, buck,
+		1200000, 2200000, 12500, 0, BUCK_VOL_EN, 1),
+	REGULAR_VOLTAGE_REGULATOR_BUCK_GEN(vmodem, buck,
+		500000, 1193750, 6250, 0, BUCK_VOL_EN, 1),
+	REGULAR_VOLTAGE_REGULATOR_BUCK_GEN(vcore, buck,
+		518750, 1312500, 6250, 0, BUCK_VOL_EN, 1),
+	REGULAR_VOLTAGE_REGULATOR_BUCK_GEN(vproc, buck,
+		518750, 1312500, 6250, 0, BUCK_VOL_EN, 1),
+	REGULAR_VOLTAGE_REGULATOR_BUCK_GEN(vpa, buck,
+		500000, 3650000, 50000, 0, BUCK_VOL_EN, 1),
 
 };
 
@@ -3824,33 +3909,60 @@ struct mtk_regulator mt_bucks[] = {
 #define LDO_VOL REGULATOR_CHANGE_VOLTAGE
 #define LDO_VOL_EN (REGULATOR_CHANGE_STATUS | REGULATOR_CHANGE_VOLTAGE)
 struct mtk_regulator mt_ldos[] = {
-	FIXED_REGULAR_VOLTAGE_REGULATOR_GEN(vfe28, ldo, 2800000, LDO_EN, 1),
-	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vxo22, ldo, vxo22_voltages, vxo22_idx, LDO_VOL_EN, 1),
-	FIXED_REGULAR_VOLTAGE_REGULATOR_GEN(vrf18, ldo, 1800000, LDO_EN, 1),
-	FIXED_REGULAR_VOLTAGE_REGULATOR_GEN(vrf12, ldo, 1200000, LDO_EN, 1),
-	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vefuse, ldo, vefuse_voltages, vefuse_idx, LDO_VOL_EN, 1),
-	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vcn33_bt, ldo, vcn33_bt_voltages, vcn33_bt_idx, LDO_VOL_EN, 1),
-	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vcn33_wifi, ldo, vcn33_wifi_voltages, vcn33_wifi_idx, LDO_VOL_EN, 1),
-	FIXED_REGULAR_VOLTAGE_REGULATOR_GEN(vcn28, ldo, 2800000, LDO_EN, 1),
-	FIXED_REGULAR_VOLTAGE_REGULATOR_GEN(vcn18, ldo, 1800000, LDO_EN, 1),
-	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vcama, ldo, vcama_voltages, vcama_idx, LDO_VOL_EN, 1),
-	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vcamd, ldo, vcamd_voltages, vcamd_idx, LDO_VOL_EN, 1),
-	FIXED_REGULAR_VOLTAGE_REGULATOR_GEN(vcamio, ldo, 1800000, LDO_EN, 1),
-	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vldo28, ldo, vldo28_voltages, vldo28_idx, LDO_VOL_EN, 1),
-	REGULAR_VOLTAGE_REGULATOR_LDO_GEN(vsram_others, ldo, 518750, 1312500, 6250, 0, LDO_VOL_EN, 1),
-	REGULAR_VOLTAGE_REGULATOR_LDO_GEN(vsram_proc, ldo, 518750, 1312500, 6250, 0, LDO_VOL_EN, 1),
-	FIXED_REGULAR_VOLTAGE_REGULATOR_GEN(vaux18, ldo, 1800000, LDO_EN, 1),
-	FIXED_REGULAR_VOLTAGE_REGULATOR_GEN(vaud28, ldo, 2800000, LDO_EN, 1),
-	FIXED_REGULAR_VOLTAGE_REGULATOR_GEN(vio28, ldo, 2800000, LDO_EN, 1),
-	FIXED_REGULAR_VOLTAGE_REGULATOR_GEN(vio18, ldo, 1800000, LDO_EN, 1),
-	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vdram, ldo, vdram_voltages, vdram_idx, LDO_VOL_EN, 1),
-	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vmc, ldo, vmc_voltages, vmc_idx, LDO_VOL_EN, 1),
-	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vmch, ldo, vmch_voltages, vmch_idx, LDO_VOL_EN, 1),
-	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vemc, ldo, vemc_voltages, vemc_idx, LDO_VOL_EN, 1),
-	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vsim1, ldo, vsim1_voltages, vsim1_idx, LDO_VOL_EN, 1),
-	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vsim2, ldo, vsim2_voltages, vsim2_idx, LDO_VOL_EN, 1),
-	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vibr, ldo, vibr_voltages, vibr_idx, LDO_VOL_EN, 1),
-	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vusb33, ldo, vusb33_voltages, vusb33_idx, LDO_VOL_EN, 1),
+	FIXED_REGULAR_VOLTAGE_REGULATOR_GEN(vfe28, ldo,
+		2800000, LDO_EN, 1),
+	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vxo22, ldo,
+		vxo22_voltages, vxo22_idx, LDO_VOL_EN, 1),
+	FIXED_REGULAR_VOLTAGE_REGULATOR_GEN(vrf18, ldo,
+		1800000, LDO_EN, 1),
+	FIXED_REGULAR_VOLTAGE_REGULATOR_GEN(vrf12, ldo,
+		1200000, LDO_EN, 1),
+	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vefuse, ldo,
+		vefuse_voltages, vefuse_idx, LDO_VOL_EN, 1),
+	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vcn33_bt, ldo,
+		vcn33_bt_voltages, vcn33_bt_idx, LDO_VOL_EN, 1),
+	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vcn33_wifi, ldo,
+		vcn33_wifi_voltages, vcn33_wifi_idx, LDO_VOL_EN, 1),
+	FIXED_REGULAR_VOLTAGE_REGULATOR_GEN(vcn28, ldo,
+		2800000, LDO_EN, 1),
+	FIXED_REGULAR_VOLTAGE_REGULATOR_GEN(vcn18, ldo,
+		1800000, LDO_EN, 1),
+	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vcama, ldo,
+		vcama_voltages, vcama_idx, LDO_VOL_EN, 1),
+	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vcamd, ldo,
+		vcamd_voltages, vcamd_idx, LDO_VOL_EN, 1),
+	FIXED_REGULAR_VOLTAGE_REGULATOR_GEN(vcamio, ldo,
+		1800000, LDO_EN, 1),
+	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vldo28, ldo,
+		vldo28_voltages, vldo28_idx, LDO_VOL_EN, 1),
+	REGULAR_VOLTAGE_REGULATOR_LDO_GEN(vsram_others, ldo,
+		518750, 1312500, 6250, 0, LDO_VOL_EN, 1),
+	REGULAR_VOLTAGE_REGULATOR_LDO_GEN(vsram_proc, ldo,
+		518750, 1312500, 6250, 0, LDO_VOL_EN, 1),
+	FIXED_REGULAR_VOLTAGE_REGULATOR_GEN(vaux18, ldo,
+		1800000, LDO_EN, 1),
+	FIXED_REGULAR_VOLTAGE_REGULATOR_GEN(vaud28, ldo,
+		2800000, LDO_EN, 1),
+	FIXED_REGULAR_VOLTAGE_REGULATOR_GEN(vio28, ldo,
+		2800000, LDO_EN, 1),
+	FIXED_REGULAR_VOLTAGE_REGULATOR_GEN(vio18, ldo,
+		1800000, LDO_EN, 1),
+	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vdram, ldo,
+		vdram_voltages, vdram_idx, LDO_VOL_EN, 1),
+	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vmc, ldo,
+		vmc_voltages, vmc_idx, LDO_VOL_EN, 1),
+	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vmch, ldo,
+		vmch_voltages, vmch_idx, LDO_VOL_EN, 1),
+	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vemc, ldo,
+		vemc_voltages, vemc_idx, LDO_VOL_EN, 1),
+	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vsim1, ldo,
+		vsim1_voltages, vsim1_idx, LDO_VOL_EN, 1),
+	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vsim2, ldo,
+		vsim2_voltages, vsim2_idx, LDO_VOL_EN, 1),
+	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vibr, ldo,
+		vibr_voltages, vibr_idx, LDO_VOL_EN, 1),
+	NON_REGULAR_VOLTAGE_REGULATOR_GEN(vusb33, ldo,
+		vusb33_voltages, vusb33_idx, LDO_VOL_EN, 1),
 
 };
 

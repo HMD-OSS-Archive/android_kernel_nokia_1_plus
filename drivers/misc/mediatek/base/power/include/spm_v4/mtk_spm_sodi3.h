@@ -17,9 +17,7 @@
 #include <mtk_cpuidle.h>
 #include "mtk_spm_idle.h"
 #include "mtk_spm_misc.h"
-#include "mtk_spm_internal.h"
 #include "mtk_spm_pmic_wrap.h"
-#include "mtk_spm_misc.h"
 #include "mtk_spm_internal.h"
 #include "mtk_spm_sodi.h"
 
@@ -55,14 +53,18 @@ u32 __attribute__((weak)) aee_rr_curr_sodi3_val(void)
 static inline void spm_sodi3_footprint(enum spm_sodi3_step step)
 {
 #if SPM_AEE_RR_REC
-	aee_rr_rec_sodi3_val(aee_rr_curr_sodi3_val() | (1 << step) | (smp_processor_id() << CPU_FOOTPRINT_SHIFT));
+	aee_rr_rec_sodi3_val(aee_rr_curr_sodi3_val() |
+			     (1 << step) |
+			     (smp_processor_id() << CPU_FOOTPRINT_SHIFT));
 #endif
 }
 
 static inline void spm_sodi3_footprint_val(u32 val)
 {
 #if SPM_AEE_RR_REC
-	aee_rr_rec_sodi3_val(aee_rr_curr_sodi3_val() | val | (smp_processor_id() << CPU_FOOTPRINT_SHIFT));
+	aee_rr_rec_sodi3_val(aee_rr_curr_sodi3_val() |
+			     val |
+			     (smp_processor_id() << CPU_FOOTPRINT_SHIFT));
 #endif
 }
 
@@ -76,9 +78,11 @@ static inline void spm_sodi3_aee_init(void)
 #define spm_sodi3_reset_footprint() spm_sodi3_aee_init()
 
 extern void spm_sodi3_post_process(void);
-extern void spm_sodi3_pre_process(struct pwr_ctrl *pwrctrl, u32 operation_cond);
+extern void spm_sodi3_pre_process(struct pwr_ctrl *pwrctrl,
+				  u32 operation_cond);
 extern void spm_sodi3_pcm_setup_before_wfi(
-		u32 cpu, struct pcm_desc *pcmdesc, struct pwr_ctrl *pwrctrl, u32 operation_cond);
+		u32 cpu, struct pcm_desc *pcmdesc,
+		struct pwr_ctrl *pwrctrl, u32 operation_cond);
 
 #endif /* __MTK_SPM_SODI3_H__ */
 

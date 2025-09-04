@@ -22,7 +22,7 @@ typedef GED_BOOL (*ged_hashtable_iterator_func_type)(unsigned long ulID, void *p
 
 typedef void* (*ged_hashtable_search_func_type)(unsigned long ulID, void *pvoid, void *pvParam);
 
-typedef GED_BOOL (*ged_hashtable_iterator_delete_func_type)(unsigned long ulID, void *pvoid, void *pvParam, GED_BOOL * pbDeleted);
+typedef GED_BOOL (*ged_hashtable_iterator_delete_func_type)(unsigned long ulID, void *pvoid, void *pvParam, GED_BOOL *pbDeleted);
 
 GED_HASHTABLE_HANDLE ged_hashtable_create(unsigned int ui32Bits);
 

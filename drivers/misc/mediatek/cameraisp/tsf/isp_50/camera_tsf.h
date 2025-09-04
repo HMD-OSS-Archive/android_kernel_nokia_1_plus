@@ -23,22 +23,22 @@
 #endif
 
 /**
-* enforce kernel log enable
-*/
+ * enforce kernel log enable
+ */
 #define KERNEL_LOG		/*enable debug log flag if defined */
 
 
 #define SIG_ERESTARTSYS 512 /*ERESTARTSYS*/
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 #define TSF_DEV_MAJOR_NUMBER    251
 #define TSF_MAGIC               't'
 #define TSF_REG_RANGE           (0x1000)
 #define TSF_BASE_HW             0x1a0a1000
 /**
-* CAM interrupt status
-*/
+ * CAM interrupt status
+ */
 /* normal siganl */
 #define TSF_INT_ST           (1<<0)
 struct TSF_REG_STRUCT {
@@ -53,22 +53,24 @@ struct TSF_REG_IO_STRUCT {
 };
 
 /**
-* interrupt clear type
-*/
+ * interrupt clear type
+ */
 enum TSF_IRQ_CLEAR_ENUM {
 	TSF_IRQ_CLEAR_NONE,	/*non-clear wait, clear after wait */
 	TSF_IRQ_CLEAR_WAIT,	/*clear wait, clear before and after wait */
-	TSF_IRQ_WAIT_CLEAR,	/*wait the signal and clear it, avoid the hw executime is too s hort. */
+	TSF_IRQ_WAIT_CLEAR,	/*wait the signal and clear it, avoid the
+				 *hw executime is too s hort.
+				 */
 	TSF_IRQ_CLEAR_STATUS,	/*clear specific status only */
 	TSF_IRQ_CLEAR_ALL	/*clear all status */
 };
 
 
 /**
-* module's interrupt , each module should have its own isr.
-* note:
-* mapping to isr table,ISR_TABLE when using no device tree
-*/
+ * module's interrupt , each module should have its own isr.
+ * note:
+ * mapping to isr table,ISR_TABLE when using no device tree
+ */
 enum TSF_IRQ_TYPE_ENUM {
 	TSF_IRQ_TYPE_INT_TSF_ST,	/* TSF */
 	TSF_IRQ_TYPE_AMOUNT
@@ -92,9 +94,9 @@ struct TSF_CLEAR_IRQ_STRUCT {
 
 
 
-/*******************************************************************************
-*
-********************************************************************************/
+/******************************************************************************
+ *
+ ******************************************************************************/
 enum TSF_CMD_ENUM {
 	TSF_CMD_RESET,		/*Reset */
 	TSF_CMD_DUMP_REG,	/*Dump DPE Register */
@@ -124,15 +126,21 @@ struct compat_TSF_REG_IO_STRUCT {
 #define TSF_DUMP_ISR_LOG    _IO(TSF_MAGIC, TSF_CMD_DUMP_ISR_LOG)
 
 
-#define TSF_READ_REGISTER   _IOWR(TSF_MAGIC, TSF_CMD_READ_REG, struct TSF_REG_IO_STRUCT)
-#define TSF_WRITE_REGISTER  _IOWR(TSF_MAGIC, TSF_CMD_WRITE_REG, struct TSF_REG_IO_STRUCT)
-#define TSF_WAIT_IRQ        _IOW(TSF_MAGIC, TSF_CMD_WAIT_IRQ, struct TSF_WAIT_IRQ_STRUCT)
-#define TSF_CLEAR_IRQ       _IOW(TSF_MAGIC, TSF_CMD_CLEAR_IRQ, struct TSF_CLEAR_IRQ_STRUCT)
+#define TSF_READ_REGISTER   \
+	_IOWR(TSF_MAGIC, TSF_CMD_READ_REG, struct TSF_REG_IO_STRUCT)
+#define TSF_WRITE_REGISTER  \
+	_IOWR(TSF_MAGIC, TSF_CMD_WRITE_REG, struct TSF_REG_IO_STRUCT)
+#define TSF_WAIT_IRQ        \
+	_IOW(TSF_MAGIC, TSF_CMD_WAIT_IRQ, struct TSF_WAIT_IRQ_STRUCT)
+#define TSF_CLEAR_IRQ       \
+	_IOW(TSF_MAGIC, TSF_CMD_CLEAR_IRQ, struct TSF_CLEAR_IRQ_STRUCT)
 
 
 #ifdef CONFIG_COMPAT
-#define COMPAT_TSF_WRITE_REGISTER   _IOWR(TSF_MAGIC, TSF_CMD_WRITE_REG, struct compat_TSF_REG_IO_STRUCT)
-#define COMPAT_TSF_READ_REGISTER    _IOWR(TSF_MAGIC, TSF_CMD_READ_REG, struct compat_TSF_REG_IO_STRUCT)
+#define COMPAT_TSF_WRITE_REGISTER   \
+	_IOWR(TSF_MAGIC, TSF_CMD_WRITE_REG, struct compat_TSF_REG_IO_STRUCT)
+#define COMPAT_TSF_READ_REGISTER    \
+	_IOWR(TSF_MAGIC, TSF_CMD_READ_REG, struct compat_TSF_REG_IO_STRUCT)
 
 #endif
 

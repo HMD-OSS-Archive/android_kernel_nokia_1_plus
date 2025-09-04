@@ -46,7 +46,10 @@ struct conn_md_dmp_msg_log {
 extern struct conn_md_dmp_msg_log *conn_md_dmp_init(void);
 extern int conn_md_dmp_deinit(struct conn_md_dmp_msg_log *p_log);
 
-extern int conn_md_dmp_in(struct ipc_ilm *p_ilm, enum conn_md_msg_type msg_type, struct conn_md_dmp_msg_log *p_msg_log);
-extern int conn_md_dmp_out(struct conn_md_dmp_msg_log *p_msg_log, uint32 src_id, uint32 dst_id);
+extern int conn_md_dmp_in(struct ipc_ilm *p_ilm,
+			enum conn_md_msg_type msg_type,
+			struct conn_md_dmp_msg_log *p_msg_log);
+extern int conn_md_dmp_out(struct conn_md_dmp_msg_log *p_msg_log,
+			uint32 src_id, uint32 dst_id);
 
 #endif

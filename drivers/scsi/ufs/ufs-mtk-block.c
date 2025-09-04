@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 MediaTek Inc.
+ * Copyright (C) 2017 MediaTek Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -29,11 +29,6 @@
 #include <mt-plat/mtk_blocktag.h>
 #include "ufs-mtk-block.h"
 
-static void ufs_mtk_bio_ctx_count_usage
-	(struct ufs_mtk_bio_context *ctx, __u64 start, __u64 end);
-static uint64_t ufs_mtk_bio_get_period_busy
-	(struct ufs_mtk_bio_context *ctx);
-
 /* ring trace for debugfs */
 struct mtk_blocktag *ufs_mtk_btag;
 
@@ -61,40 +56,22 @@ static inline uint32_t chbe32_to_u32(const char *str)
 #define scsi_cmnd_len(cmd)  chbe16_to_u16(&cmd->cmnd[7])
 #define scsi_cmnd_cmd(cmd)  (cmd->cmnd[0])
 
-static struct ufs_mtk_bio_context_task *ufs_mtk_bio_get_task(struct ufs_mtk_bio_context *ctx, unsigned int task_id)
+static struct ufs_mtk_bio_context_task *ufs_mtk_bio_get_task(
+	struct ufs_mtk_bio_context *ctx, unsigned int task_id)
 {
 	struct ufs_mtk_bio_context_task *tsk = NULL;
-	unsigned long flags;
-	int i, avail = -1;
 
 	if (!ctx)
 		return NULL;
 
-	spin_lock_irqsave(&ctx->lock, flags);
-
-	for (i = 0; i < UFS_BIOLOG_CONTEXT_TASKS; i++) {
-		tsk = &ctx->task[i];
-		if (tsk->task_id == task_id)
-			goto out;
-		if ((tsk->task_id < 0) && (avail < 0))
-			avail = i;
+	if (task_id >= UFS_BIOLOG_CONTEXT_TASKS) {
+		pr_notice("[BLOCK_TAG] %s: invalid task id %d\n",
+			__func__, task_id);
+		return NULL;
 	}
 
-	if (avail >= 0) {
-		tsk = &ctx->task[avail];
-		tsk->task_id = task_id;
-		tsk->pid = current->pid;
-		tsk->cpu_id = smp_processor_id();
-		goto out;
-	}
+	tsk = &ctx->task[task_id];
 
-	pr_warn("ufs_mtk_bio_get_task: out of task, incoming task id = %d\n", task_id);
-
-	for (i = 0; i < UFS_BIOLOG_CONTEXT_TASKS; i++)
-		pr_warn("ufs_mtk_bio_get_task: task[%d]=%d\n", i, ctx->task[i].task_id);
-
-out:
-	spin_unlock_irqrestore(&ctx->lock, flags);
 	return tsk;
 }
 
@@ -105,7 +82,8 @@ static struct ufs_mtk_bio_context *ufs_mtk_bio_curr_ctx(void)
 	return ctx ? &ctx[0] : NULL;
 }
 
-static struct ufs_mtk_bio_context_task *ufs_mtk_bio_curr_task(unsigned int task_id,
+static struct ufs_mtk_bio_context_task *ufs_mtk_bio_curr_task(
+	unsigned int task_id,
 	struct ufs_mtk_bio_context **curr_ctx)
 {
 	struct ufs_mtk_bio_context *ctx;
@@ -116,7 +94,8 @@ static struct ufs_mtk_bio_context_task *ufs_mtk_bio_curr_task(unsigned int task_
 	return ufs_mtk_bio_get_task(ctx, task_id);
 }
 
-int mtk_btag_pidlog_add_ufs(struct request_queue *q, pid_t pid, __u32 len, int rw)
+int mtk_btag_pidlog_add_ufs(struct request_queue *q, pid_t pid,
+	__u32 len, int rw)
 {
 	unsigned long flags;
 	struct ufs_mtk_bio_context *ctx;
@@ -127,6 +106,7 @@ int mtk_btag_pidlog_add_ufs(struct request_queue *q, pid_t pid, __u32 len, int r
 
 	spin_lock_irqsave(&ctx->lock, flags);
 	mtk_btag_pidlog_insert(&ctx->pidlog, pid, len, rw);
+	mtk_btag_mictx_eval_req(rw, 1, len);
 	spin_unlock_irqrestore(&ctx->lock, flags);
 
 	return 1;
@@ -138,7 +118,7 @@ static const char *task_name[tsk_max] = {
 	"request_start", "send_cmd", "req_compl", "done_start", "done_end"};
 
 static void ufs_mtk_pr_tsk(struct ufs_mtk_bio_context_task *tsk,
-	unsigned stage)
+	unsigned int stage)
 {
 	const char *rw = "?";
 	int klogen = BTAG_KLOGEN(ufs_mtk_btag);
@@ -154,10 +134,8 @@ static void ufs_mtk_pr_tsk(struct ufs_mtk_bio_context_task *tsk,
 		rw = "w";
 
 	bytes = ((__u32)tsk->len) << SECTOR_SHIFT;
-	mtk_btag_task_timetag(buf, 256, stage, tsk_max, task_name, tsk->t, bytes);
-
-	pr_debug("[BLOCK_TAG] ufs: tsk[%d]-(%d),%d,%s,%02X,pid=%u,len=%d%s\n",
-		tsk->task_id, tsk->cpu_id, stage+1,	rw,	tsk->cmd, tsk->pid,	bytes, buf);
+	mtk_btag_task_timetag(buf, 256, stage, tsk_max, task_name, tsk->t,
+		bytes);
 }
 
 void ufs_mtk_biolog_queue_command(unsigned int task_id, struct scsi_cmnd *cmd)
@@ -185,13 +163,17 @@ void ufs_mtk_biolog_queue_command(unsigned int task_id, struct scsi_cmnd *cmd)
 	spin_lock_irqsave(&ctx->lock, flags);
 	if (!ctx->period_start_t)
 		ctx->period_start_t = tsk->t[tsk_request_start];
+
+	ctx->q_depth++;
+	mtk_btag_mictx_update_ctx(ctx->q_depth);
+
 	spin_unlock_irqrestore(&ctx->lock, flags);
 
 	ufs_mtk_pr_tsk(tsk, tsk_request_start);
 
 }
 
-static void ufs_mtk_biolog_update_task(unsigned int task_id, unsigned stage)
+static void ufs_mtk_biolog_update_task(unsigned int task_id, unsigned int stage)
 {
 	struct ufs_mtk_bio_context_task *tsk;
 
@@ -259,67 +241,15 @@ void ufs_mtk_biolog_scsi_done_end(unsigned int task_id)
 		size = tsk->len << SECTOR_SHIFT;
 		tp->usage += busy_time;
 		tp->size += size;
+		mtk_btag_mictx_eval_tp(rw, busy_time, size);
 	}
+
+	ctx->q_depth--;
+	mtk_btag_mictx_update_ctx(ctx->q_depth);
+
 	spin_unlock_irqrestore(&ctx->lock, flags);
 
 	ufs_mtk_pr_tsk(tsk, tsk_scsi_done_end);
-}
-
-static void ufs_mtk_bio_ctx_count_usage(struct ufs_mtk_bio_context *ctx,
-	__u64 start, __u64 end)
-{
-	if (start <= ctx->period_start_t) {
-		ctx->period_end_since_start_t = end;
-		ctx->period_start_in_window_t =
-		ctx->period_end_in_window_t =
-		ctx->period_busy = 0;
-	} else {
-		if (ctx->period_end_since_start_t) {
-			if (start < ctx->period_end_since_start_t)
-				ctx->period_end_since_start_t = end;
-			else
-				goto new_window;
-		} else
-			goto new_window;
-	}
-
-	goto out;
-
-new_window:
-
-	if (ctx->period_start_in_window_t) {
-		if (start > ctx->period_end_in_window_t) {
-			ctx->period_busy +=
-				(ctx->period_end_in_window_t - ctx->period_start_in_window_t);
-			ctx->period_start_in_window_t = start;
-		}
-		ctx->period_end_in_window_t = end;
-	} else {
-		ctx->period_start_in_window_t = start;
-		ctx->period_end_in_window_t = end;
-	}
-
-out:
-	return;
-}
-
-static uint64_t ufs_mtk_bio_get_period_busy(struct ufs_mtk_bio_context *ctx)
-{
-	uint64_t busy;
-
-	busy = ctx->period_busy;
-
-	if (ctx->period_end_since_start_t) {
-		busy +=
-			(ctx->period_end_since_start_t - ctx->period_start_t);
-	}
-
-	if (ctx->period_start_in_window_t) {
-		busy +=
-			(ctx->period_end_in_window_t - ctx->period_start_in_window_t);
-	}
-
-	return busy;
 }
 
 /* evaluate throughput and workload of given context */
@@ -327,20 +257,22 @@ static void ufs_mtk_bio_context_eval(struct ufs_mtk_bio_context *ctx)
 {
 	uint64_t period;
 
-	ctx->workload.usage = ufs_mtk_bio_get_period_busy(ctx);
+	ctx->workload.usage = ctx->period_usage;
 
 	if (ctx->workload.period > (ctx->workload.usage * 100)) {
 		ctx->workload.percent = 1;
 	} else {
 		period = ctx->workload.period;
 		do_div(period, 100);
-		ctx->workload.percent = (__u32)ctx->workload.usage / (__u32)period;
+		ctx->workload.percent =
+			(__u32)ctx->workload.usage / (__u32)period;
 	}
 	mtk_btag_throughput_eval(&ctx->throughput);
 }
 
 /* print context to trace ring buffer */
-static struct mtk_btag_trace *ufs_mtk_bio_print_trace(struct ufs_mtk_bio_context *ctx)
+static struct mtk_btag_trace *ufs_mtk_bio_print_trace(
+	struct ufs_mtk_bio_context *ctx)
 {
 	struct mtk_btag_ringtrace *rt = BTAG_RT(ufs_mtk_btag);
 	struct mtk_btag_trace *tr;
@@ -361,7 +293,8 @@ static struct mtk_btag_trace *ufs_mtk_bio_print_trace(struct ufs_mtk_bio_context
 	mtk_btag_pidlog_eval(&tr->pidlog, &ctx->pidlog);
 	mtk_btag_vmstat_eval(&tr->vmstat);
 	mtk_btag_cpu_eval(&tr->cpu);
-	memcpy(&tr->throughput, &ctx->throughput, sizeof(struct mtk_btag_throughput));
+	memcpy(&tr->throughput, &ctx->throughput,
+		sizeof(struct mtk_btag_throughput));
 	memcpy(&tr->workload, &ctx->workload, sizeof(struct mtk_btag_workload));
 
 	tr->time = sched_clock();
@@ -369,6 +302,19 @@ static struct mtk_btag_trace *ufs_mtk_bio_print_trace(struct ufs_mtk_bio_context
 out:
 	spin_unlock_irqrestore(&rt->lock, flags);
 	return tr;
+}
+
+static void ufs_mtk_bio_ctx_count_usage(struct ufs_mtk_bio_context *ctx,
+	__u64 start, __u64 end)
+{
+	__u64 busy_in_period;
+
+	if (start < ctx->period_start_t)
+		busy_in_period = end - ctx->period_start_t;
+	else
+		busy_in_period = end - start;
+
+	ctx->period_usage += busy_in_period;
 }
 
 /* Check requests after set/clear mask. */
@@ -401,10 +347,7 @@ void ufs_mtk_biolog_check(unsigned long req_mask)
 		tr = ufs_mtk_bio_print_trace(ctx);
 		ctx->period_start_t = end_time;
 		ctx->period_end_t = 0;
-		ctx->period_busy = 0;
-		ctx->period_end_since_start_t = 0;
-		ctx->period_end_in_window_t = 0;
-		ctx->period_start_in_window_t = 0;
+		ctx->period_usage = 0;
 		memset(&ctx->throughput, 0, sizeof(struct mtk_btag_throughput));
 		memset(&ctx->workload, 0, sizeof(struct mtk_btag_workload));
 	}
@@ -413,11 +356,18 @@ void ufs_mtk_biolog_check(unsigned long req_mask)
 	mtk_btag_klog(ufs_mtk_btag, tr);
 }
 
+/*
+ * snprintf may return a value of size or "more" to indicate
+ * that the output was truncated, thus be careful of "more"
+ * case.
+ */
 #define SPREAD_PRINTF(buff, size, evt, fmt, args...) \
 do { \
 	if (buff && size && *(size)) { \
 		unsigned long var = snprintf(*(buff), *(size), fmt, ##args); \
 		if (var > 0) { \
+			if (var > *(size)) \
+				var = *(size); \
 			*(size) -= var; \
 			*(buff) += var; \
 		} \
@@ -441,7 +391,8 @@ static size_t ufs_mtk_bio_seq_debug_show_info(char **buff, unsigned long *size,
 	for (i = 0; i < UFS_BIOLOG_CONTEXTS; i++)	{
 		if (ctx[i].pid == 0)
 			continue;
-		SPREAD_PRINTF(buff, size, seq, "ctx[%d]=ctx_map[%d],pid:%4d,q:%d\n",
+		SPREAD_PRINTF(buff, size, seq,
+			"ctx[%d]=ctx_map[%d],pid:%4d,q:%d\n",
 			i,
 			ctx[i].id,
 			ctx[i].pid,
@@ -453,14 +404,9 @@ static size_t ufs_mtk_bio_seq_debug_show_info(char **buff, unsigned long *size,
 
 static void ufs_mtk_bio_init_ctx(struct ufs_mtk_bio_context *ctx)
 {
-	int i;
-
 	memset(ctx, 0, sizeof(struct ufs_mtk_bio_context));
 	spin_lock_init(&ctx->lock);
 	ctx->period_start_t = sched_clock();
-
-	for (i = 0; i < UFS_BIOLOG_CONTEXT_TASKS; i++)
-		ctx->task[i].task_id = -1;
 }
 
 int ufs_mtk_biolog_init(void)

@@ -28,12 +28,13 @@ void ccci_timer_for_md_init(void)
 	spin_lock_init(&wait_count_lock);
 	wait_count = 0;
 	get_update = 0;
-	mb(); /* ensure the previous line code has been executed before the next line code executed */
+	/* update in order */
+	mb();
 	api_ready = 1;
 }
 
 int wait_time_update_notify(void)
-{				/* Only support one wait currently */
+{	/* Only support one wait currently */
 	int ret = -1;
 	unsigned long flags;
 
@@ -43,7 +44,9 @@ int wait_time_update_notify(void)
 		wait_count++;
 		spin_unlock_irqrestore(&wait_count_lock, flags);
 
-		ret = wait_event_interruptible(time_update_notify_queue_head, get_update);
+		ret = wait_event_interruptible(
+				time_update_notify_queue_head,
+				get_update);
 		if (ret != -ERESTARTSYS)
 			get_update = 0;
 

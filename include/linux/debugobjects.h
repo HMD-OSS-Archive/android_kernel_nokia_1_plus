@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LINUX_DEBUGOBJECTS_H
 #define _LINUX_DEBUGOBJECTS_H
 
@@ -38,8 +39,10 @@ struct debug_obj {
  * @name:		name of the object typee
  * @debug_hint:		function returning address, which have associated
  *			kernel symbol, to allow identify the object
+ * @is_static_object:	return true if the obj is static, otherwise return false
  * @fixup_init:		fixup function, which is called when the init check
- *			fails
+ *			fails. All fixup functions must return true if fixup
+ *			was successful, otherwise return false
  * @fixup_activate:	fixup function, which is called when the activate check
  *			fails
  * @fixup_destroy:	fixup function, which is called when the destroy check
@@ -51,12 +54,13 @@ struct debug_obj {
  */
 struct debug_obj_descr {
 	const char		*name;
-	void *(*debug_hint)	(void *addr);
-	int (*fixup_init)	(void *addr, enum debug_obj_state state);
-	int (*fixup_activate)	(void *addr, enum debug_obj_state state);
-	int (*fixup_destroy)	(void *addr, enum debug_obj_state state);
-	int (*fixup_free)	(void *addr, enum debug_obj_state state);
-	int (*fixup_assert_init)(void *addr, enum debug_obj_state state);
+	void *(*debug_hint)(void *addr);
+	bool (*is_static_object)(void *addr);
+	bool (*fixup_init)(void *addr, enum debug_obj_state state);
+	bool (*fixup_activate)(void *addr, enum debug_obj_state state);
+	bool (*fixup_destroy)(void *addr, enum debug_obj_state state);
+	bool (*fixup_free)(void *addr, enum debug_obj_state state);
+	bool (*fixup_assert_init)(void *addr, enum debug_obj_state state);
 };
 
 #ifdef CONFIG_DEBUG_OBJECTS
@@ -80,7 +84,6 @@ debug_object_active_state(void *addr, struct debug_obj_descr *descr,
 
 extern void debug_objects_early_init(void);
 extern void debug_objects_mem_init(void);
-extern void debug_object_mtk_aee_warning(char *msg);
 #else
 static inline void
 debug_object_init      (void *addr, struct debug_obj_descr *descr) { }
@@ -99,7 +102,6 @@ debug_object_assert_init(void *addr, struct debug_obj_descr *descr) { }
 
 static inline void debug_objects_early_init(void) { }
 static inline void debug_objects_mem_init(void) { }
-static inline void debug_object_mtk_aee_warning(char *msg) { }
 #endif
 
 #ifdef CONFIG_DEBUG_OBJECTS_FREE

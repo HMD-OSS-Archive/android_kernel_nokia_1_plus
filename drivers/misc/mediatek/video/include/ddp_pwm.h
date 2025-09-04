@@ -27,7 +27,8 @@ enum disp_pwm_id_t disp_pwm_get_main(void);
 int disp_pwm_is_enabled(enum disp_pwm_id_t id);
 
 int disp_pwm_set_backlight(enum disp_pwm_id_t id, int level_1024);
-int disp_pwm_set_backlight_cmdq(enum disp_pwm_id_t id, int level_1024, void *cmdq);
+int disp_pwm_set_backlight_cmdq(enum disp_pwm_id_t id,
+	int level_1024, void *cmdq);
 
 int disp_pwm_set_max_backlight(enum disp_pwm_id_t id, unsigned int level_1024);
 int disp_pwm_get_max_backlight(enum disp_pwm_id_t id);

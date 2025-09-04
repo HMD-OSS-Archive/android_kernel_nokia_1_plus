@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 MediaTek Inc.
+ * Copyright (C) 2017 MediaTek Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -30,7 +30,7 @@ static int vproc2_plat_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, chip);
 	ret = isl91302a_regulator_init(chip);
 	if (ret < 0) {
-		pr_err("%s regulator init fail\n", __func__);
+		pr_notice("%s regulator init fail\n", __func__);
 		return -EINVAL;
 	}
 	return ret;

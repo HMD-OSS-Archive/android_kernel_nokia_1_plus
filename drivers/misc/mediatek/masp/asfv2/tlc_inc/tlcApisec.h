@@ -36,9 +36,9 @@
  * @param data Data to processed (cleartext or ciphertext).
  */
 struct dapc_cmd_t {
-	struct tciCommandHeader_t  header;     /**< Command header */
-	uint32_t                   len;        /**< Length of data to process or buffer */
-	uint32_t                   respLen;    /**< Length of response buffer */
+	struct tciCommandHeader_t  header;     /* Command header */
+	uint32_t                   len;        /* Length of data  or buffer */
+	uint32_t                   respLen;    /* Length of response buffer */
 };
 
 /*

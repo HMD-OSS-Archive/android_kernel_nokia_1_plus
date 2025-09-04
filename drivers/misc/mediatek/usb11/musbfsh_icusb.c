@@ -253,7 +253,7 @@ void usb11_wait_disconnect_done(int value)
 		}
 	} else {
 		MYDBG("usb11 is not enabled, skip\n");
-		MYDBG("usb11_wait_disconnect_done()\n");
+		MYDBG("done()\n");
 	}
 
 }

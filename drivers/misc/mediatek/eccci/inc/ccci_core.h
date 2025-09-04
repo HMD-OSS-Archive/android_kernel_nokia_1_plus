@@ -1,15 +1,15 @@
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ * Copyright (C) 2016 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ */
 
 #ifndef __CCCI_CORE_H__
 #define __CCCI_CORE_H__
@@ -21,7 +21,7 @@
 #include <linux/ktime.h>
 #include <linux/netdevice.h>
 #include <linux/platform_device.h>
-#include <linux/wakelock.h>
+#include <linux/pm_wakeup.h>
 #include <linux/kobject.h>
 #include <linux/sysfs.h>
 #include <mt-plat/mtk_ccci_common.h>
@@ -32,21 +32,23 @@
 
 #define CCCI_MAGIC_NUM 0xFFFFFFFF
 /*
-  * this is a trick for port->minor, which is configured in-sequence by different type (char, net, ipc),
-  * but when we use it in code, we need it's unique among all ports for addressing.
-  */
+ * this is a trick for port->minor, which is configured in-sequence
+ * by different type (char, net, ipc),
+ * but when we use it in code, we need it's unique among
+ * all ports for addressing.
+ */
 #define CCCI_IPC_MINOR_BASE 100
 #define CCCI_SMEM_MINOR_BASE 150
 #define CCCI_NET_MINOR_BASE 200
 
 
-/* ================================================================================= */
+/* ============================================================= */
 /* common structures */
-/* ================================================================================= */
-typedef enum {
+/* ============================================================= */
+enum DIRECTION {
 	IN = 0,
 	OUT,
-} DIRECTION;
+};
 
 struct ccci_md_attribute {
 	struct attribute attr;
@@ -99,93 +101,196 @@ extern unsigned int ccb_configs_len;
 extern struct ccci_ccb_config ccb_configs[];
 
 
-/* ================================================================================= */
+/* ======================================================================= */
 /* IOCTL definations */
-/* ================================================================================= */
+/* ======================================================================= */
 #define CCCI_IOC_MAGIC 'C'
-#define CCCI_IOC_MD_RESET			_IO(CCCI_IOC_MAGIC, 0) /* mdlogger, META, muxreport */
-#define CCCI_IOC_GET_MD_STATE			_IOR(CCCI_IOC_MAGIC, 1, unsigned int) /* audio */
-#define CCCI_IOC_PCM_BASE_ADDR			_IOR(CCCI_IOC_MAGIC, 2, unsigned int) /* audio */
-#define CCCI_IOC_PCM_LEN			_IOR(CCCI_IOC_MAGIC, 3, unsigned int) /* audio */
-#define CCCI_IOC_FORCE_MD_ASSERT		_IO(CCCI_IOC_MAGIC, 4) /* muxreport, mdlogger */
-#define CCCI_IOC_ALLOC_MD_LOG_MEM		_IO(CCCI_IOC_MAGIC, 5) /* mdlogger */
-#define CCCI_IOC_DO_MD_RST			_IO(CCCI_IOC_MAGIC, 6) /* md_init */
-#define CCCI_IOC_SEND_RUNTIME_DATA		_IO(CCCI_IOC_MAGIC, 7) /* md_init */
-#define CCCI_IOC_GET_MD_INFO			_IOR(CCCI_IOC_MAGIC, 8, unsigned int) /* md_init */
-#define CCCI_IOC_GET_MD_EX_TYPE			_IOR(CCCI_IOC_MAGIC, 9, unsigned int) /* mdlogger */
-#define CCCI_IOC_SEND_STOP_MD_REQUEST		_IO(CCCI_IOC_MAGIC, 10) /* muxreport */
-#define CCCI_IOC_SEND_START_MD_REQUEST		_IO(CCCI_IOC_MAGIC, 11) /* muxreport */
-#define CCCI_IOC_DO_STOP_MD			_IO(CCCI_IOC_MAGIC, 12) /* md_init */
-#define CCCI_IOC_DO_START_MD			_IO(CCCI_IOC_MAGIC, 13) /* md_init */
-#define CCCI_IOC_ENTER_DEEP_FLIGHT		_IO(CCCI_IOC_MAGIC, 14) /* RILD, factory */
-#define CCCI_IOC_LEAVE_DEEP_FLIGHT		_IO(CCCI_IOC_MAGIC, 15) /* RILD, factory */
-#define CCCI_IOC_POWER_ON_MD			_IO(CCCI_IOC_MAGIC, 16) /* md_init, abandoned */
-#define CCCI_IOC_POWER_OFF_MD			_IO(CCCI_IOC_MAGIC, 17) /* md_init, abandoned */
-#define CCCI_IOC_POWER_ON_MD_REQUEST		_IO(CCCI_IOC_MAGIC, 18) /* md_init, abandoned */
-#define CCCI_IOC_POWER_OFF_MD_REQUEST		_IO(CCCI_IOC_MAGIC, 19) /* md_init, abandoned */
-#define CCCI_IOC_SIM_SWITCH			_IOW(CCCI_IOC_MAGIC, 20, unsigned int) /* RILD, factory */
-#define CCCI_IOC_SEND_BATTERY_INFO		_IO(CCCI_IOC_MAGIC, 21) /* md_init */
-#define CCCI_IOC_SIM_SWITCH_TYPE		_IOR(CCCI_IOC_MAGIC, 22, unsigned int) /* RILD */
-#define CCCI_IOC_STORE_SIM_MODE			_IOW(CCCI_IOC_MAGIC, 23, unsigned int) /* RILD */
-#define CCCI_IOC_GET_SIM_MODE			_IOR(CCCI_IOC_MAGIC, 24, unsigned int) /* RILD */
-#define CCCI_IOC_RELOAD_MD_TYPE			_IO(CCCI_IOC_MAGIC, 25) /* META, md_init, muxreport */
-#define CCCI_IOC_GET_SIM_TYPE			_IOR(CCCI_IOC_MAGIC, 26, unsigned int) /* terservice */
-#define CCCI_IOC_ENABLE_GET_SIM_TYPE		_IOW(CCCI_IOC_MAGIC, 27, unsigned int) /* terservice */
-#define CCCI_IOC_SEND_ICUSB_NOTIFY		_IOW(CCCI_IOC_MAGIC, 28, unsigned int) /* icusbd */
-#define CCCI_IOC_SET_MD_IMG_EXIST		_IOW(CCCI_IOC_MAGIC, 29, unsigned int) /* md_init */
-#define CCCI_IOC_GET_MD_IMG_EXIST		_IOR(CCCI_IOC_MAGIC, 30, unsigned int) /* META */
-#define CCCI_IOC_GET_MD_TYPE			_IOR(CCCI_IOC_MAGIC, 31, unsigned int) /* RILD */
-#define CCCI_IOC_STORE_MD_TYPE			_IOW(CCCI_IOC_MAGIC, 32, unsigned int) /* RILD */
-#define CCCI_IOC_GET_MD_TYPE_SAVING		_IOR(CCCI_IOC_MAGIC, 33, unsigned int) /* META */
-#define CCCI_IOC_GET_EXT_MD_POST_FIX		_IOR(CCCI_IOC_MAGIC, 34, unsigned int) /* mdlogger */
-#define CCCI_IOC_FORCE_FD			_IOW(CCCI_IOC_MAGIC, 35, unsigned int) /* RILD */
-#define CCCI_IOC_AP_ENG_BUILD			_IOW(CCCI_IOC_MAGIC, 36, unsigned int) /* md_init */
-#define CCCI_IOC_GET_MD_MEM_SIZE		_IOR(CCCI_IOC_MAGIC, 37, unsigned int) /* md_init */
-#define CCCI_IOC_UPDATE_SIM_SLOT_CFG		_IOW(CCCI_IOC_MAGIC, 38, unsigned int) /* RILD */
-#define CCCI_IOC_GET_CFG_SETTING		_IOW(CCCI_IOC_MAGIC, 39, unsigned int) /* md_init */
-#define CCCI_IOC_SET_MD_SBP_CFG			_IOW(CCCI_IOC_MAGIC, 40, unsigned int) /* md_init */
-#define CCCI_IOC_GET_MD_SBP_CFG			_IOW(CCCI_IOC_MAGIC, 41, unsigned int) /* md_init */
-#define CCCI_IOC_GET_MD_PROTOCOL_TYPE		_IOR(CCCI_IOC_MAGIC, 42, char[16]) /* mdlogger, META */
-#define CCCI_IOC_SEND_SIGNAL_TO_USER		_IOW(CCCI_IOC_MAGIC, 43, unsigned int) /* md_init */
-#define CCCI_IOC_RESET_MD1_MD3_PCCIF		_IO(CCCI_IOC_MAGIC, 45) /* md_init */
-#define CCCI_IOC_SIM_LOCK_RANDOM_PATTERN	_IOW(CCCI_IOC_MAGIC, 46, unsigned int)
-#define CCCI_IOC_SET_BOOT_DATA			_IOW(CCCI_IOC_MAGIC, 47, unsigned int[16]) /* md_init */
+/* mdlogger, META, muxreport */
+#define CCCI_IOC_MD_RESET			_IO(CCCI_IOC_MAGIC, 0)
+/* audio */
+#define CCCI_IOC_GET_MD_STATE		_IOR(CCCI_IOC_MAGIC, 1, unsigned int)
+/* audio */
+#define CCCI_IOC_PCM_BASE_ADDR		_IOR(CCCI_IOC_MAGIC, 2, unsigned int)
+/* audio */
+#define CCCI_IOC_PCM_LEN			\
+	_IOR(CCCI_IOC_MAGIC, 3, unsigned int)
+/* muxreport, mdlogger */
+#define CCCI_IOC_FORCE_MD_ASSERT		_IO(CCCI_IOC_MAGIC, 4)
+/* mdlogger */
+#define CCCI_IOC_ALLOC_MD_LOG_MEM		_IO(CCCI_IOC_MAGIC, 5)
+/* md_init */
+#define CCCI_IOC_DO_MD_RST			_IO(CCCI_IOC_MAGIC, 6)
+/* md_init */
+#define CCCI_IOC_SEND_RUNTIME_DATA		_IO(CCCI_IOC_MAGIC, 7)
+/* md_init */
+#define CCCI_IOC_GET_MD_INFO		_IOR(CCCI_IOC_MAGIC, 8, unsigned int)
+/* mdlogger */
+#define CCCI_IOC_GET_MD_EX_TYPE		_IOR(CCCI_IOC_MAGIC, 9, unsigned int)
+/* muxreport */
+#define CCCI_IOC_SEND_STOP_MD_REQUEST		_IO(CCCI_IOC_MAGIC, 10)
+/* muxreport */
+#define CCCI_IOC_SEND_START_MD_REQUEST		_IO(CCCI_IOC_MAGIC, 11)
+/* md_init */
+#define CCCI_IOC_DO_STOP_MD			_IO(CCCI_IOC_MAGIC, 12)
+/* md_init */
+#define CCCI_IOC_DO_START_MD			_IO(CCCI_IOC_MAGIC, 13)
+/* RILD, factory */
+#define CCCI_IOC_ENTER_DEEP_FLIGHT		_IO(CCCI_IOC_MAGIC, 14)
+/* RILD, factory */
+#define CCCI_IOC_LEAVE_DEEP_FLIGHT		_IO(CCCI_IOC_MAGIC, 15)
+/* md_init, abandoned */
+#define CCCI_IOC_POWER_ON_MD			_IO(CCCI_IOC_MAGIC, 16)
+/* md_init, abandoned */
+#define CCCI_IOC_POWER_OFF_MD			_IO(CCCI_IOC_MAGIC, 17)
+/* md_init, abandoned */
+#define CCCI_IOC_POWER_ON_MD_REQUEST		_IO(CCCI_IOC_MAGIC, 18)
+/* md_init, abandoned */
+#define CCCI_IOC_POWER_OFF_MD_REQUEST		_IO(CCCI_IOC_MAGIC, 19)
+/* RILD, factory */
+#define CCCI_IOC_SIM_SWITCH		_IOW(CCCI_IOC_MAGIC, 20, unsigned int)
+/* md_init */
+#define CCCI_IOC_SEND_BATTERY_INFO		_IO(CCCI_IOC_MAGIC, 21)
+/* RILD */
+#define CCCI_IOC_SIM_SWITCH_TYPE		\
+	_IOR(CCCI_IOC_MAGIC, 22, unsigned int)
+/* RILD */
+#define CCCI_IOC_STORE_SIM_MODE			\
+	_IOW(CCCI_IOC_MAGIC, 23, unsigned int)
+/* RILD */
+#define CCCI_IOC_GET_SIM_MODE			\
+	_IOR(CCCI_IOC_MAGIC, 24, unsigned int)
+/* META, md_init, muxreport */
+#define CCCI_IOC_RELOAD_MD_TYPE			_IO(CCCI_IOC_MAGIC, 25)
+/* terservice */
+#define CCCI_IOC_GET_SIM_TYPE			\
+	_IOR(CCCI_IOC_MAGIC, 26, unsigned int)
+/* terservice */
+#define CCCI_IOC_ENABLE_GET_SIM_TYPE	\
+	_IOW(CCCI_IOC_MAGIC, 27, unsigned int)
+/* icusbd */
+#define CCCI_IOC_SEND_ICUSB_NOTIFY		\
+	_IOW(CCCI_IOC_MAGIC, 28, unsigned int)
+/* md_init */
+#define CCCI_IOC_SET_MD_IMG_EXIST		\
+	_IOW(CCCI_IOC_MAGIC, 29, unsigned int)
+/* META */
+#define CCCI_IOC_GET_MD_IMG_EXIST		\
+	_IOR(CCCI_IOC_MAGIC, 30, unsigned int)
+/* RILD */
+#define CCCI_IOC_GET_MD_TYPE			\
+	_IOR(CCCI_IOC_MAGIC, 31, unsigned int)
+/* RILD */
+#define CCCI_IOC_STORE_MD_TYPE			\
+	_IOW(CCCI_IOC_MAGIC, 32, unsigned int)
+/* META */
+#define CCCI_IOC_GET_MD_TYPE_SAVING		\
+	_IOR(CCCI_IOC_MAGIC, 33, unsigned int)
+/* mdlogger */
+#define CCCI_IOC_GET_EXT_MD_POST_FIX	\
+	_IOR(CCCI_IOC_MAGIC, 34, unsigned int)
+/* RILD */
+#define CCCI_IOC_FORCE_FD			\
+	_IOW(CCCI_IOC_MAGIC, 35, unsigned int)
+/* md_init */
+#define CCCI_IOC_AP_ENG_BUILD			\
+	_IOW(CCCI_IOC_MAGIC, 36, unsigned int)
+/* md_init */
+#define CCCI_IOC_GET_MD_MEM_SIZE		\
+	_IOR(CCCI_IOC_MAGIC, 37, unsigned int)
+/* RILD */
+#define CCCI_IOC_UPDATE_SIM_SLOT_CFG	\
+	_IOW(CCCI_IOC_MAGIC, 38, unsigned int)
+/* md_init */
+#define CCCI_IOC_GET_CFG_SETTING		\
+	_IOW(CCCI_IOC_MAGIC, 39, unsigned int)
+/* md_init */
+#define CCCI_IOC_SET_MD_SBP_CFG			\
+	_IOW(CCCI_IOC_MAGIC, 40, unsigned int)
+/* md_init */
+#define CCCI_IOC_GET_MD_SBP_CFG			\
+	_IOW(CCCI_IOC_MAGIC, 41, unsigned int)
+/* mdlogger, META */
+#define CCCI_IOC_GET_MD_PROTOCOL_TYPE		\
+	_IOR(CCCI_IOC_MAGIC, 42, char[16])
+/* md_init: phase from P */
+#define CCCI_IOC_SEND_SIGNAL_TO_USER		\
+	_IOW(CCCI_IOC_MAGIC, 43, unsigned int)
+/* md_init */
+#define CCCI_IOC_RESET_MD1_MD3_PCCIF		\
+	_IO(CCCI_IOC_MAGIC, 45)
+#define CCCI_IOC_SIM_LOCK_RANDOM_PATTERN \
+	_IOW(CCCI_IOC_MAGIC, 46, unsigned int)
+/* md_init */
+#define CCCI_IOC_SET_BOOT_DATA			\
+	_IOW(CCCI_IOC_MAGIC, 47, unsigned int[16])
 
 /* for user space share memory user */
-#define CCCI_IOC_SMEM_BASE			_IOR(CCCI_IOC_MAGIC, 48, unsigned int)
-#define CCCI_IOC_SMEM_LEN			_IOR(CCCI_IOC_MAGIC, 49, unsigned int)
-#define CCCI_IOC_SMEM_TX_NOTIFY			_IOW(CCCI_IOC_MAGIC, 50, unsigned int)
-#define CCCI_IOC_SMEM_RX_POLL			_IOR(CCCI_IOC_MAGIC, 51, unsigned int)
-#define CCCI_IOC_SMEM_SET_STATE			_IOW(CCCI_IOC_MAGIC, 52, unsigned int)
-#define CCCI_IOC_SMEM_GET_STATE			_IOR(CCCI_IOC_MAGIC, 53, unsigned int)
+#define CCCI_IOC_SMEM_BASE			\
+	_IOR(CCCI_IOC_MAGIC, 48, unsigned int)
+#define CCCI_IOC_SMEM_LEN			\
+	_IOR(CCCI_IOC_MAGIC, 49, unsigned int)
+#define CCCI_IOC_SMEM_TX_NOTIFY			\
+	_IOW(CCCI_IOC_MAGIC, 50, unsigned int)
+#define CCCI_IOC_SMEM_RX_POLL			\
+	_IOR(CCCI_IOC_MAGIC, 51, unsigned int)
+#define CCCI_IOC_SMEM_SET_STATE			\
+	_IOW(CCCI_IOC_MAGIC, 52, unsigned int)
+#define CCCI_IOC_SMEM_GET_STATE			\
+	_IOR(CCCI_IOC_MAGIC, 53, unsigned int)
 
-#define CCCI_IOC_SET_CCIF_CG			_IOW(CCCI_IOC_MAGIC, 54, unsigned int) /*md_init*/
-#define CCCI_IOC_SET_EFUN			_IOW(CCCI_IOC_MAGIC, 55, unsigned int) /* RILD */
-#define CCCI_IOC_MDLOG_DUMP_DONE		_IO(CCCI_IOC_MAGIC, 56) /*mdlogger*/
-#define CCCI_IOC_GET_OTHER_MD_STATE		_IOR(CCCI_IOC_MAGIC, 57, unsigned int) /* mdlogger */
-#define CCCI_IOC_SET_MD_BOOT_MODE		_IOW(CCCI_IOC_MAGIC, 58, unsigned int) /* META */
-#define CCCI_IOC_GET_MD_BOOT_MODE		_IOR(CCCI_IOC_MAGIC, 59, unsigned int) /* md_init */
-#define CCCI_IOC_GET_AT_CH_NUM			_IOR(CCCI_IOC_MAGIC, 60, unsigned int) /* RILD */
+/*md_init*/
+#define CCCI_IOC_SET_CCIF_CG			\
+	_IOW(CCCI_IOC_MAGIC, 54, unsigned int)
+/* RILD */
+#define CCCI_IOC_SET_EFUN			\
+	_IOW(CCCI_IOC_MAGIC, 55, unsigned int)
+/*mdlogger*/
+#define CCCI_IOC_MDLOG_DUMP_DONE		\
+	_IO(CCCI_IOC_MAGIC, 56)
+/* mdlogger */
+#define CCCI_IOC_GET_OTHER_MD_STATE		\
+	_IOR(CCCI_IOC_MAGIC, 57, unsigned int)
+/* META */
+#define CCCI_IOC_SET_MD_BOOT_MODE		\
+	_IOW(CCCI_IOC_MAGIC, 58, unsigned int)
+/* md_init */
+#define CCCI_IOC_GET_MD_BOOT_MODE		\
+	_IOR(CCCI_IOC_MAGIC, 59, unsigned int)
+/* RILD */
+#define CCCI_IOC_GET_AT_CH_NUM			\
+	_IOR(CCCI_IOC_MAGIC, 60, unsigned int)
 
 /* for user space CCB lib user */
-#define CCCI_IOC_CCB_CTRL_BASE			_IOR(CCCI_IOC_MAGIC, 61, unsigned int)
-#define CCCI_IOC_CCB_CTRL_LEN			_IOR(CCCI_IOC_MAGIC, 62, unsigned int)
-#define CCCI_IOC_GET_CCB_CONFIG_LENGTH		_IOR(CCCI_IOC_MAGIC, 63, unsigned int)
-#define CCCI_IOC_GET_CCB_CONFIG			_IOWR(CCCI_IOC_MAGIC, 64, struct ccci_ccb_config)
-#define CCCI_IOC_CCB_CTRL_OFFSET		_IOR(CCCI_IOC_MAGIC, 65, unsigned int)
-#define CCCI_IOC_GET_CCB_DEBUG_VAL		_IOWR(CCCI_IOC_MAGIC, 67, struct ccci_ccb_debug)
+#define CCCI_IOC_CCB_CTRL_BASE			\
+	_IOR(CCCI_IOC_MAGIC, 61, unsigned int)
+#define CCCI_IOC_CCB_CTRL_LEN			\
+	_IOR(CCCI_IOC_MAGIC, 62, unsigned int)
+#define CCCI_IOC_GET_CCB_CONFIG_LENGTH	\
+	_IOR(CCCI_IOC_MAGIC, 63, unsigned int)
+#define CCCI_IOC_GET_CCB_CONFIG			\
+	_IOWR(CCCI_IOC_MAGIC, 64, struct ccci_ccb_config)
+#define CCCI_IOC_CCB_CTRL_OFFSET		\
+	_IOR(CCCI_IOC_MAGIC, 65, unsigned int)
+#define CCCI_IOC_GET_CCB_DEBUG_VAL		\
+	_IOWR(CCCI_IOC_MAGIC, 67, struct ccci_ccb_debug)
 
-#define CCCI_IOC_ENTER_UPLOAD			_IO(CCCI_IOC_MAGIC, 68) /* modem log for S */
-#define CCCI_IOC_GET_RAT_STR			_IOR(CCCI_IOC_MAGIC, 69, unsigned int[16])
-#define CCCI_IOC_SET_RAT_STR			_IOW(CCCI_IOC_MAGIC, 70, unsigned int[16])
+#define CCCI_IOC_CCB_CTRL_INFO			\
+	_IOWR(CCCI_IOC_MAGIC, 71, struct ccb_ctrl_info)
 
-#define CCCI_IOC_CCB_CTRL_INFO			_IOWR(CCCI_IOC_MAGIC, 71, struct ccb_ctrl_info)
+#define CCCI_IOC_SET_HEADER			\
+	_IO(CCCI_IOC_MAGIC,  112) /* emcs_va */
+#define CCCI_IOC_CLR_HEADER			\
+	_IO(CCCI_IOC_MAGIC,  113) /* emcs_va */
 
-#define CCCI_IOC_SET_HEADER			_IO(CCCI_IOC_MAGIC,  112) /* emcs_va */
-#define CCCI_IOC_CLR_HEADER			_IO(CCCI_IOC_MAGIC,  113) /* emcs_va */
-#define CCCI_IOC_DL_TRAFFIC_CONTROL		_IOW(CCCI_IOC_MAGIC, 119, unsigned int) /* mdlogger */
-#define CCCI_IOC_ENTER_DEEP_FLIGHT_ENHANCED     _IO(CCCI_IOC_MAGIC,  123) /* RILD  factory */
-#define CCCI_IOC_LEAVE_DEEP_FLIGHT_ENHANCED     _IO(CCCI_IOC_MAGIC,  124) /* RILD  factory */
+/* mdlogger */
+#define CCCI_IOC_DL_TRAFFIC_CONTROL		\
+	_IOW(CCCI_IOC_MAGIC, 119, unsigned int)
+/* RILD  factory */
+#define CCCI_IOC_ENTER_DEEP_FLIGHT_ENHANCED     \
+	_IO(CCCI_IOC_MAGIC,  123)
+/* RILD  factory */
+#define CCCI_IOC_LEAVE_DEEP_FLIGHT_ENHANCED     \
+	_IO(CCCI_IOC_MAGIC,  124)
 
 
 #define CCCI_IPC_MAGIC 'P' /* only for IPC user */
@@ -197,15 +302,15 @@ extern struct ccci_ccb_config ccb_configs[];
 #define CCCI_IPC_WAIT_TIME_UPDATE		_IO(CCCI_IPC_MAGIC, 5)
 #define CCCI_IPC_UPDATE_TIMEZONE		_IO(CCCI_IPC_MAGIC, 6)
 
-/* ================================================================================= */
+/* ======================================================================= */
 /* CCCI Channel ID and Message ID definations */
-/* ================================================================================= */
+/* ======================================================================= */
 #define C2K_MD_LOG_TX_Q		3
 #define C2K_MD_LOG_RX_Q		3
 #define C2K_PCM_TX_Q		1
 #define C2K_PCM_RX_Q		1
 
-typedef enum {
+enum CCCI_CH {
 	CCCI_CONTROL_RX = 0,
 	CCCI_CONTROL_TX = 1,
 	CCCI_SYSTEM_RX = 2,
@@ -378,6 +483,14 @@ typedef enum {
 	CCCI_XCAP_TX			= 174,
 	CCCI_BIP_RX			= 175,
 	CCCI_BIP_TX			= 176,
+	CCCI_UDC_RX			= 177,
+	CCCI_UDC_TX			= 178,
+
+	CCCI_TCHE_RX			= 181,
+	CCCI_TCHE_TX			= 182,
+	CCCI_DISP_RX			= 183,
+	CCCI_DISP_TX			= 184,
+
 
 	CCCI_C2K_PPP_DATA, /* data ch for c2k */
 
@@ -400,7 +513,7 @@ typedef enum {
 	CCCI_MONITOR_CH_ID = 0xf0000000, /* for mdinit */
 	CCCI_FORCE_ASSERT_CH = 20090215,
 	CCCI_INVALID_CH_ID = 0xffffffff,
-} CCCI_CH;
+};
 
 enum c2k_channel {
 	CTRL_CH_C2K = 0,
@@ -462,13 +575,20 @@ enum md_bc_event {
 	MD_STA_EV_HS1,
 	MD_STA_EV_READY,
 	MD_STA_EV_EXCEPTION,
+	MD_STA_EV_STOP,
 };
 
-/* ================================================================================= */
+/* ========================================================================= */
 /* common API */
-/* ================================================================================= */
+/* ========================================================================= */
 void ccci_sysfs_add_md(int md_id, void *kobj);
 int ccci_register_dev_node(const char *name, int major_id, int minor);
+
+#ifdef CONFIG_MEDIATEK_MT6577_AUXADC
+int ccci_get_adc_num(void);
+int ccci_get_adc_val(void);
+#endif
+
 #ifdef FEATURE_SCP_CCCI_SUPPORT
 extern void fsm_scp_init0(void);
 #endif

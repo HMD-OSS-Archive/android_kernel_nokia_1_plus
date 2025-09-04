@@ -37,7 +37,7 @@ static irqreturn_t KREE_IrqHandler(int virq, void *dev)
 	struct irq_data *data = irq_get_irq_data(virq);
 	uint32_t paramTypes;
 	union MTEEC_PARAM param[4];
-	TZ_RESULT ret;
+	int ret;
 
 	if (!data)
 		return IRQ_NONE;
@@ -67,12 +67,12 @@ static unsigned int tz_hwirq_to_virq(unsigned int hwirq, unsigned long flags)
 	return hwirq;
 }
 
-TZ_RESULT KREE_ServRequestIrq(u32 op, u8 uparam[REE_SERVICE_BUFFER_SIZE])
+int KREE_ServRequestIrq(u32 op, u8 uparam[REE_SERVICE_BUFFER_SIZE])
 {
 	struct ree_service_irq *param = (struct ree_service_irq *)uparam;
 	int rret;
 	unsigned long flags;
-	TZ_RESULT ret = TZ_RESULT_SUCCESS;
+	int ret = TZ_RESULT_SUCCESS;
 	unsigned int *token;
 	unsigned int virq;
 
@@ -136,7 +136,7 @@ TZ_RESULT KREE_ServRequestIrq(u32 op, u8 uparam[REE_SERVICE_BUFFER_SIZE])
 	return ret;
 }
 
-TZ_RESULT KREE_ServEnableIrq(u32 op, u8 uparam[REE_SERVICE_BUFFER_SIZE])
+int KREE_ServEnableIrq(u32 op, u8 uparam[REE_SERVICE_BUFFER_SIZE])
 {
 	struct ree_service_irq *param = (struct ree_service_irq *)uparam;
 	unsigned int virq;
@@ -162,7 +162,7 @@ static KREE_SESSION_HANDLE irq_session;
 
 void kree_irq_init(void)
 {
-	TZ_RESULT ret;
+	int ret;
 
 	ret = KREE_CreateSession(TZ_TA_IRQ_UUID, &irq_session);
 	if (ret != TZ_RESULT_SUCCESS) {
@@ -174,7 +174,7 @@ void kree_irq_init(void)
 int kree_set_fiq(int irq, unsigned long irq_flags)
 {
 	union MTEEC_PARAM param[4];
-	TZ_RESULT ret;
+	int ret;
 	unsigned long tz_irq_flags = 0;
 
 	if (irq_flags & (IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING)) {
@@ -202,7 +202,7 @@ int kree_set_fiq(int irq, unsigned long irq_flags)
 static void __kree_enable_fiq(int irq, int enable)
 {
 	union MTEEC_PARAM param[4];
-	TZ_RESULT ret;
+	int ret;
 
 	param[0].value.a = irq;
 	param[1].value.a = enable;
@@ -228,7 +228,7 @@ void kree_disable_fiq(int irq)
 void kree_query_fiq(int irq, int *enable, int *pending)
 {
 	union MTEEC_PARAM param[4];
-	TZ_RESULT ret;
+	int ret;
 
 	param[0].value.a = irq;
 	ret = KREE_TeeServiceCall(irq_session, TZCMD_IRQ_QUERY_FIQ,
@@ -247,7 +247,7 @@ void kree_query_fiq(int irq, int *enable, int *pending)
 unsigned int kree_fiq_get_intack(void)
 {
 	union MTEEC_PARAM param[4];
-	TZ_RESULT ret;
+	int ret;
 
 	ret = KREE_TeeServiceCall(irq_session, TZCMD_IRQ_GET_INTACK,
 				  TZ_ParamTypes1(TZPT_VALUE_OUTPUT), param);
@@ -259,7 +259,7 @@ unsigned int kree_fiq_get_intack(void)
 
 void kree_fiq_eoi(unsigned int iar)
 {
-	TZ_RESULT ret;
+	int ret;
 	union MTEEC_PARAM param[4];
 
 	param[0].value.a = iar;
@@ -272,7 +272,7 @@ void kree_fiq_eoi(unsigned int iar)
 int kree_raise_softfiq(unsigned int mask, unsigned int irq)
 {
 	union MTEEC_PARAM param[4];
-	TZ_RESULT ret;
+	int ret;
 
 	param[0].value.a = mask;
 	param[1].value.a = irq;
@@ -286,7 +286,7 @@ int kree_raise_softfiq(unsigned int mask, unsigned int irq)
 void kree_irq_mask_all(unsigned int *pmask, unsigned int size)
 {
 	union MTEEC_PARAM param[4];
-	TZ_RESULT ret;
+	int ret;
 
 	param[0].mem.buffer = pmask;
 	param[0].mem.size = size;
@@ -299,7 +299,7 @@ void kree_irq_mask_all(unsigned int *pmask, unsigned int size)
 void kree_irq_mask_restore(unsigned int *pmask, unsigned int size)
 {
 	union MTEEC_PARAM param[4];
-	TZ_RESULT ret;
+	int ret;
 
 	param[0].mem.buffer = pmask;
 	param[0].mem.size = size;

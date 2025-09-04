@@ -14,7 +14,7 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/gpio.h>
-
+#include <linux/sched/clock.h>
 #include "cust_alsps.h"
 #include "ltr559.h"
 #include "alsps.h"
@@ -2172,11 +2172,11 @@ static long ltr559_unlocked_ioctl(struct file *file, unsigned int cmd,
 			//set_ps_pulse();
 			//set_ps_thres();
 			//break;
-		case ALSPS_IOCTL_GET_ALS_CALI:
+		case ALSPS_IOCTL_ALS_GET_CALI:
 			//do nothing
 			break;
-		case ALSPS_IOCTL_SET_ALS_CALI:
-			APS_ERR("[FIH] entry ioctl: ALSPS_IOCTL_SET_ALS_CALI\n");
+		case ALSPS_ALS_SET_CALI:
+			APS_ERR("[FIH] entry ioctl: ALSPS_ALS_SET_CALI\n");
 			if(copy_from_user(als_cali_data, ptr, sizeof(als_cali_data)))
 			{
 				err = -EFAULT;
@@ -2692,8 +2692,8 @@ static struct alsps_factory_fops ltr559_factory_fops = {
 	.ps_clear_cali = ltr559_ps_factory_clear_cali,
 	.ps_set_cali = ltr559_ps_factory_set_cali,
 	.ps_get_cali = ltr559_ps_factory_get_cali,
-	.ps_set_threashold = ltr559_ps_factory_set_threashold,
-	.ps_get_threashold = ltr559_ps_factory_get_threashold,
+	.ps_set_threshold = ltr559_ps_factory_set_threashold,
+	.ps_get_threshold = ltr559_ps_factory_get_threashold,
 };
 
 static struct alsps_factory_public ltr559_factory_device = {

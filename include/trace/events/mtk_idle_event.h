@@ -60,7 +60,9 @@ TRACE_EVENT(mcdi,
 		__entry->enter = enter;
 	),
 
-	TP_printk("cpu = %d %d", (int)__entry->cpu, (int)__entry->enter)
+	TP_printk("cpu = %d %d",
+				(int)__entry->cpu,
+				(int)__entry->enter)
 );
 
 TRACE_EVENT(sodi,
@@ -82,7 +84,9 @@ TRACE_EVENT(sodi,
 		__entry->enter = enter;
 	),
 
-	TP_printk("cpu = %d %d", (int)__entry->cpu, (int)__entry->enter)
+	TP_printk("cpu = %d %d",
+				(int)__entry->cpu,
+				(int)__entry->enter)
 );
 
 TRACE_EVENT(sodi3,
@@ -104,7 +108,9 @@ TRACE_EVENT(sodi3,
 		__entry->enter = enter;
 	),
 
-	TP_printk("cpu = %d %d", (int)__entry->cpu, (int)__entry->enter)
+	TP_printk("cpu = %d %d",
+				(int)__entry->cpu,
+				(int)__entry->enter)
 );
 
 TRACE_EVENT(dpidle,
@@ -126,7 +132,9 @@ TRACE_EVENT(dpidle,
 		__entry->enter = enter;
 	),
 
-	TP_printk("cpu = %d %d", (int)__entry->cpu, (int)__entry->enter)
+	TP_printk("cpu = %d %d",
+				(int)__entry->cpu,
+				(int)__entry->enter)
 );
 
 TRACE_EVENT(check_anycore,
@@ -151,7 +159,10 @@ TRACE_EVENT(check_anycore,
 		__entry->select_state = select_state;
 	),
 
-	TP_printk("cpu = %d %d %d", (int)__entry->cpu, (int)__entry->enter, (int)__entry->select_state)
+	TP_printk("cpu = %d %d %d",
+				(int)__entry->cpu,
+				(int)__entry->enter,
+				(int)__entry->select_state)
 );
 
 TRACE_EVENT(mcdi_cpu_cluster_stat,
@@ -274,7 +285,9 @@ TRACE_EVENT(mcdi_task_pause,
 		__entry->enter = enter;
 	),
 
-	TP_printk("cpu = %d %d", (int)__entry->cpu, (int)__entry->enter)
+	TP_printk("cpu = %d %d",
+				(int)__entry->cpu,
+				(int)__entry->enter)
 );
 
 TRACE_EVENT(mtk_menu,
@@ -298,7 +311,10 @@ TRACE_EVENT(mtk_menu,
 		__entry->dur = dur;
 	),
 
-	TP_printk("cpu = %d %d %d", (int)__entry->cpu, (int)__entry->ratio, (int)__entry->dur)
+	TP_printk("cpu = %d %d %d",
+				(int)__entry->cpu,
+				(int)__entry->ratio,
+				(int)__entry->dur)
 );
 
 TRACE_EVENT(all_cpu_idle,

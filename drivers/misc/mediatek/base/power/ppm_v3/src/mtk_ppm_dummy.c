@@ -13,24 +13,19 @@
 
 
 #include <linux/cpufreq.h>
-#include "mach/mtk_ppm_api.h"
+#include "mtk_ppm_api.h"
 
-void mt_ppm_set_dvfs_table(unsigned int cpu, struct cpufreq_frequency_table *tbl,
+void mt_ppm_set_dvfs_table(unsigned int cpu,
+	struct cpufreq_frequency_table *tbl,
 	unsigned int num, enum dvfs_table_type type)
 {
 }
 
-void mt_ppm_register_client(enum ppm_client client, void (*limit)(struct ppm_client_req req))
+void mt_ppm_register_client(enum ppm_client client,
+	void (*limit)(struct ppm_client_req req))
 {
 }
 
-void mt_ppm_set_5A_limit_throttle(bool enable)
-{
-}
-
-void mt_ppm_limit_freq_when_ke(void)
-{
-}
 
 /* SYS boost policy */
 void mt_ppm_sysboost_core(enum ppm_sysboost_user user, unsigned int core_num)
@@ -41,13 +36,13 @@ void mt_ppm_sysboost_freq(enum ppm_sysboost_user user, unsigned int freq)
 {
 }
 
-void mt_ppm_sysboost_set_core_limit(enum ppm_sysboost_user user, unsigned int cluster,
-					int min_core, int max_core)
+void mt_ppm_sysboost_set_core_limit(enum ppm_sysboost_user user,
+	unsigned int cluster, int min_core, int max_core)
 {
 }
 
-void mt_ppm_sysboost_set_freq_limit(enum ppm_sysboost_user user, unsigned int cluster,
-					int min_freq, int max_freq)
+void mt_ppm_sysboost_set_freq_limit(enum ppm_sysboost_user user,
+	unsigned int cluster, int min_freq, int max_freq)
 {
 }
 
@@ -56,7 +51,8 @@ void mt_ppm_dlpt_set_limit_by_pbm(unsigned int limited_power)
 {
 }
 
-void mt_ppm_dlpt_kick_PBM(struct ppm_cluster_status *cluster_status, unsigned int cluster_num)
+void mt_ppm_dlpt_kick_PBM(struct ppm_cluster_status *cluster_status,
+	unsigned int cluster_num)
 {
 }
 
@@ -81,18 +77,30 @@ unsigned int mt_ppm_thermal_get_cur_power(void)
 }
 
 /* User limit policy */
-unsigned int mt_ppm_userlimit_cpu_core(unsigned int cluster_num, struct ppm_limit_data *data)
+unsigned int mt_ppm_userlimit_cpu_core(unsigned int cluster_num,
+	struct ppm_limit_data *data)
 {
 	return 0;
 }
 
-unsigned int mt_ppm_userlimit_cpu_freq(unsigned int cluster_num, struct ppm_limit_data *data)
+unsigned int mt_ppm_userlimit_cpu_freq(unsigned int cluster_num,
+	struct ppm_limit_data *data)
 {
 	return 0;
+}
+
+unsigned int mt_ppm_userlimit_freq_limit_by_others(unsigned int cluster)
+{
+	return 0;
+}
+
+void ppm_game_mode_change_cb(int is_game_mode)
+{
 }
 
 /* Force limit policy */
-unsigned int mt_ppm_forcelimit_cpu_core(unsigned int cluster_num, struct ppm_limit_data *data)
+unsigned int mt_ppm_forcelimit_cpu_core(unsigned int cluster_num,
+	struct ppm_limit_data *data)
 {
 	return 0;
 }
@@ -106,24 +114,15 @@ void mt_ppm_ptpod_policy_deactivate(void)
 {
 }
 
-/* HICA policy */
-void mt_ppm_hica_update_algo_data(unsigned int cur_loads,
-				unsigned int cur_nr_heavy_task, unsigned int cur_tlp)
-{
-}
-
-int mt_ppm_main(void)
-{
-	return 0;
-}
-
-/* MET */
-void mt_set_ppm_state_registerCB(met_set_ppm_state_funcMET pCB)
-{
-}
-
 unsigned int mt_ppm_get_leakage_mw(enum ppm_cluster_lkg cluster)
 {
 	return 0;
 }
+
+/* CPI */
+unsigned int ppm_get_cluster_cpi(unsigned int cluster)
+{
+	return 0;
+}
+
 

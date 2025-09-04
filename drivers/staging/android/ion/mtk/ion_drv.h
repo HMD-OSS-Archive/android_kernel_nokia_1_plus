@@ -36,6 +36,8 @@ enum ION_MM_CMDS {
 	ION_MM_CONFIG_BUFFER_EXT,
 	ION_MM_ACQ_CACHE_POOL,
 	ION_MM_QRY_CACHE_POOL,
+	ION_MM_GET_IOVA,
+	ION_MM_GET_IOVA_EXT,
 };
 
 enum ION_SYS_CMDS {
@@ -51,9 +53,9 @@ enum ION_CACHE_SYNC_TYPE {
 	ION_CACHE_CLEAN_BY_RANGE,
 	ION_CACHE_INVALID_BY_RANGE,
 	ION_CACHE_FLUSH_BY_RANGE,
-	ION_CACHE_CLEAN_BY_RANGE_USE_VA,
-	ION_CACHE_INVALID_BY_RANGE_USE_VA,
-	ION_CACHE_FLUSH_BY_RANGE_USE_VA,
+	ION_CACHE_CLEAN_BY_RANGE_USE_PA,
+	ION_CACHE_INVALID_BY_RANGE_USE_PA,
+	ION_CACHE_FLUSH_BY_RANGE_USE_PA,
 	ION_CACHE_CLEAN_ALL,
 	ION_CACHE_INVALID_ALL,
 	ION_CACHE_FLUSH_ALL
@@ -63,7 +65,8 @@ enum ION_ERRORE {
 	ION_ERROR_CONFIG_LOCKED = 0x10000
 };
 
-/* mm or mm_sec heap flag which is do not conflist with ION_HEAP_FLAG_DEFER_FREE */
+/* mm or mm_sec heap flag which is do not conflist */
+/* with ION_HEAP_FLAG_DEFER_FREE */
 #define ION_FLAG_MM_HEAP_INIT_ZERO BIT(16)
 #define ION_FLAG_MM_HEAP_SEC_PA BIT(18)
 
@@ -71,7 +74,7 @@ enum ION_ERRORE {
 
 struct ion_sys_cache_sync_param {
 	union {
-		ion_user_handle_t handle;
+		int handle;
 		struct ion_handle *kernel_handle;
 	};
 	void *va;
@@ -95,9 +98,17 @@ enum ION_DMA_DIR {
 	ION_DMA_BIDIRECTIONAL,
 };
 
+#ifndef CONFIG_MTK_IOMMU_V2
+#define DOMAIN_NUM (2)
+enum ION_M4U_DOMAIN {
+	MM_DOMAIN,
+	VPU_DOMAIN,
+};
+#endif
+
 struct ion_dma_param {
 	union {
-		ion_user_handle_t handle;
+		int handle;
 		void *kernel_handle;
 	};
 	void *va;
@@ -108,10 +119,10 @@ struct ion_dma_param {
 
 struct ion_sys_get_phys_param {
 	union {
-		ion_user_handle_t handle;
+		int handle;
 		struct ion_handle *kernel_handle;
 	};
-	unsigned int phy_addr;
+	unsigned long phy_addr;
 	unsigned long len;
 };
 
@@ -156,7 +167,7 @@ struct ion_sys_data {
 
 struct ion_mm_config_buffer_param {
 	union {
-		ion_user_handle_t handle;
+		int handle;
 		struct ion_handle *kernel_handle;
 	};
 	int module_id;
@@ -168,7 +179,7 @@ struct ion_mm_config_buffer_param {
 
 struct ion_mm_buf_debug_info {
 	union {
-		ion_user_handle_t handle;
+		int handle;
 		struct ion_handle *kernel_handle;
 	};
 	char dbg_name[ION_MM_DBG_NAME_LEN];
@@ -180,13 +191,13 @@ struct ion_mm_buf_debug_info {
 
 struct ion_mm_sf_buf_info {
 	union {
-		ion_user_handle_t handle;
+		int handle;
 		struct ion_handle *kernel_handle;
 	};
 	unsigned int info[ION_MM_SF_BUF_INFO_LEN];
 };
 
-struct ion_mm_cache_pool_info {
+struct ion_mm_pool_info {
 	size_t len;
 	size_t align;
 	unsigned int heap_id_mask;
@@ -194,33 +205,45 @@ struct ion_mm_cache_pool_info {
 	unsigned int ret;
 };
 
+struct ion_mm_get_iova_param {
+	union {
+		int handle;
+		struct ion_handle *kernel_handle;
+	};
+	int module_id;
+	unsigned int security;
+	unsigned int coherent;
+	unsigned int reserve_iova_start;
+	unsigned int reserve_iova_end;
+	unsigned long long phy_addr;
+	unsigned long len;
+};
+
 struct ion_mm_data {
 	enum ION_MM_CMDS mm_cmd;
 	union {
 		struct ion_mm_config_buffer_param config_buffer_param;
 		struct ion_mm_buf_debug_info buf_debug_info_param;
-		struct ion_mm_cache_pool_info cache_pool_info_param;
+		struct ion_mm_pool_info pool_info_param;
+		struct ion_mm_get_iova_param get_phys_param;
 	};
 };
 
 #ifdef __KERNEL__
-#include <aee.h>
 #define ION_LOG_TAG "ion_dbg"
 #define IONMSG(string, args...)	pr_err("[ION]"string, ##args)
 #define IONDBG(string, args...)	pr_debug("[ION]"string, ##args)
-#define ion_aee_print(string, args...) do {\
-	char ion_name[100];\
-	snprintf(ion_name, 100, "[ION_LOG_TAG]"string, ##args); \
-	aee_kernel_warning(ion_name, "[ION_LOG_TAG]error:"string, ##args);  \
-} while (0)
 
 /* Exported global variables */
 extern struct ion_device *g_ion_device;
 
 /* Exported functions */
-long ion_kernel_ioctl(struct ion_client *client, unsigned int cmd, unsigned long arg);
-struct ion_handle *ion_drv_get_handle(struct ion_client *client, int user_handle,
-				      struct ion_handle *kernel_handle, int from_kernel);
+long ion_kernel_ioctl(struct ion_client *client, unsigned int cmd,
+		      unsigned long arg);
+struct ion_handle *ion_drv_get_handle(struct ion_client *client,
+				      int user_handle,
+				      struct ion_handle *kernel_handle,
+				      int from_kernel);
 int ion_drv_put_kernel_handle(void *kernel_handle);
 
 /**
@@ -233,20 +256,22 @@ size_t ion_mm_heap_total_memory(void);
 void ion_mm_heap_memory_detail(void);
 int ion_drv_create_FB_heap(ion_phys_addr_t fb_base, size_t fb_size);
 
-typedef int (ion_mm_buf_destroy_callback_t)(struct ion_buffer *buffer, unsigned int phy_addr);
-int ion_mm_heap_register_buf_destroy_callback(struct ion_buffer *buffer, ion_mm_buf_destroy_callback_t *fn);
+typedef int (ion_mm_buf_destroy_callback_t)(struct ion_buffer *buffer,
+					    unsigned int phy_addr);
+int ion_mm_heap_register_buf_destroy_cb(struct ion_buffer *buffer,
+					ion_mm_buf_destroy_callback_t *fn);
 
 int ion_cache_sync_flush_all(int fd);
-int ion_dma_map_area(int fd, ion_user_handle_t handle, int dir);
-int ion_dma_unmap_area(int fd, ion_user_handle_t handle, int dir);
+int ion_dma_map_area(int fd, int handle, int dir);
+int ion_dma_unmap_area(int fd, int handle, int dir);
 void ion_dma_map_area_va(void *start, size_t size, enum ION_DMA_DIR dir);
 void ion_dma_unmap_area_va(void *start, size_t size, enum ION_DMA_DIR dir);
 
-struct ion_heap *ion_mm_heap_create(struct ion_platform_heap *);
-void ion_mm_heap_destroy(struct ion_heap *);
+struct ion_heap *ion_mm_heap_create(struct ion_platform_heap *unused);
+void ion_mm_heap_destroy(struct ion_heap *heap);
 
-struct ion_heap *ion_fb_heap_create(struct ion_platform_heap *);
-void ion_fb_heap_destroy(struct ion_heap *);
+struct ion_heap *ion_fb_heap_create(struct ion_platform_heap *heap_data);
+void ion_fb_heap_destroy(struct ion_heap *heap);
 
 int ion_device_destroy_heaps(struct ion_device *dev);
 

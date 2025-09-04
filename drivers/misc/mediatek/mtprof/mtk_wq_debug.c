@@ -56,6 +56,8 @@ struct work_info {
 	/* linked pool_workqueue address */
 	unsigned long long	ts;
 	/* timestamp while work queued/exec */
+	char			sfunc[32];
+	/* store name of the work */
 	struct hlist_node	hash;
 };
 
@@ -75,17 +77,19 @@ static bool work_info_equal(struct work_info *a, struct work_info *b)
 
 static struct work_info *find_active_work(struct work_struct *work)
 {
-	struct work_info *wi;
+	struct work_info *wi = NULL;
 	struct hlist_node *tmp;
 	struct work_info target = {
 		.work	= (unsigned long)work,
-		.func	= (unsigned long)work->func,
+//		.func	= (unsigned long)work->func,
 	};
 
 	hash_for_each_possible_safe(active_works, wi, tmp,
 				    hash, work_hash(&target)) {
-		if (work_info_equal(wi, &target))
-			return wi;
+		if (wi) {
+			if (work_info_equal(wi, &target))
+				return wi;
+		}
 	}
 	return NULL;
 }
@@ -98,8 +102,13 @@ static void probe_execute_work(void *ignore, struct work_struct *work)
 
 static void probe_execute_end(void *ignore, struct work_struct *work)
 {
-	pr_debug("execute end work=%p func=%pf\n",
-		 (void *)work, (void *)work->func);
+	struct work_info *work_info = NULL;
+
+	work_info = find_active_work(work);
+	if (work_info) {
+		pr_debug("execute end work=%p func=%pf\n",
+			 (void *)work, (void *)work->func);
+	}
 }
 
 static void probe_activate_work(void *ignore, struct work_struct *work)
@@ -121,7 +130,7 @@ _work_queued(void *ignore, unsigned int req_cpu, struct pool_workqueue *pwq,
 		 struct work_struct *work)
 {
 	gfp_t gfp = GFP_ATOMIC | __GFP_NORETRY | __GFP_NOWARN;
-	struct work_info *work_info;
+	struct work_info *work_info = NULL;
 
 	raw_spin_lock(&works_lock);
 	work_info = find_active_work(work);
@@ -134,6 +143,8 @@ _work_queued(void *ignore, unsigned int req_cpu, struct pool_workqueue *pwq,
 		work_info->func = (unsigned long)work->func;
 		work_info->pwq = (unsigned long)pwq;
 		work_info->state = WORK_QUEUED;
+		snprintf(work_info->sfunc, sizeof(work_info->sfunc), "%pf",
+			(void *)work_info->func);
 		hash_add(active_works, &work_info->hash,
 			 work_hash(work_info));
 	}
@@ -144,7 +155,7 @@ out:
 
 static void _work_exec_start(void *ignore, struct work_struct *work)
 {
-	struct work_info *wi;
+	struct work_info *wi = NULL;
 	unsigned long flags;
 
 	raw_spin_lock_irqsave(&works_lock, flags);
@@ -159,7 +170,7 @@ not_found:
 
 static void _work_exec_end(void *ignore, struct work_struct *work)
 {
-	struct work_info *work_info;
+	struct work_info *work_info = NULL;
 	unsigned long long ts;
 	unsigned long flags, rem_nsec;
 	struct work_info w;
@@ -171,16 +182,17 @@ static void _work_exec_end(void *ignore, struct work_struct *work)
 		return;
 	}
 	ts = sched_clock() - work_info->ts;
-	w.func = work_info->func;
+	strncpy(w.sfunc, work_info->sfunc, sizeof(work_info->sfunc));
 	w.work = work_info->work;
 	hash_del(&work_info->hash);
 	kmem_cache_free(work_info_cache, work_info);
+	work_info = NULL;
 	raw_spin_unlock_irqrestore(&works_lock, flags);
 
 	if (ts > WORK_EXEC_MAX) {
 		rem_nsec = do_div(ts, NSEC_PER_SEC);
-		pr_debug(TAG "work(%pf,%lx) exec %ld.%06lds, more than 1s\n",
-			 (void *)w.func,
+		pr_debug(TAG "work(%s,%lx) exec %ld.%06lds, more than 1s\n",
+			 w.sfunc,
 			 (unsigned long)w.work,
 			 (unsigned long)ts, rem_nsec / NSEC_PER_USEC);
 	}
@@ -189,13 +201,19 @@ static void _work_exec_end(void *ignore, struct work_struct *work)
 static void work_debug_enable(unsigned int on)
 {
 	if (on && !wq_debug) {
-		register_trace_workqueue_queue_work(_work_queued, NULL);
-		register_trace_workqueue_execute_start(_work_exec_start, NULL);
-		register_trace_workqueue_execute_end(_work_exec_end, NULL);
+		register_trace_workqueue_queue_work(_work_queued,
+			NULL);
+		register_trace_workqueue_execute_start(_work_exec_start,
+			NULL);
+		register_trace_workqueue_execute_end(_work_exec_end,
+			NULL);
 	} else if (!on && wq_debug) {
-		unregister_trace_workqueue_queue_work(_work_queued, NULL);
-		unregister_trace_workqueue_execute_start(_work_exec_start, NULL);
-		unregister_trace_workqueue_execute_end(_work_exec_end, NULL);
+		unregister_trace_workqueue_queue_work(_work_queued,
+			NULL);
+		unregister_trace_workqueue_execute_start(_work_exec_start,
+			NULL);
+		unregister_trace_workqueue_execute_end(_work_exec_end,
+			NULL);
 	}
 	wq_debug = !!on;
 }
@@ -205,15 +223,17 @@ static void print_help(struct seq_file *m)
 	if (m != NULL) {
 		SEQ_printf(m, "\n*** Usage ***\n");
 		SEQ_printf(m, "commands to enable logs\n");
-		SEQ_printf(m, "  echo [queue] [activate] [execute] > wq_enable_logs\n");
+		SEQ_printf(m,
+		"  echo [queue] [activate] [execute] > wq_enable_logs\n");
 		SEQ_printf(m, "  ex. 1 1 1 to enable all logs\n");
 		SEQ_printf(m, "  ex. 1 0 0 to enable queue logs\n");
 	} else {
-		pr_err("\n*** Usage ***\n");
-		pr_err("commands to enable logs\n");
-		pr_err("  echo [queue work] [activate work] [execute work] > wq_enable_logs\n");
-		pr_err("  ex. 1 1 1 to enable all logs\n");
-		pr_err("  ex. 1 0 0 to enable queue logs\n");
+		pr_debug("\n*** Usage ***\n");
+		pr_debug("commands to enable logs\n");
+		pr_debug("  echo [queue work] [activate work]");
+		pr_debug(" [execute work] > wq_enable_logs\n");
+		pr_debug("  ex. 1 1 1 to enable all logs\n");
+		pr_debug("  ex. 1 0 0 to enable queue logs\n");
 	}
 }
 
@@ -243,30 +263,38 @@ static void mt_wq_log_config(unsigned int queue, unsigned int activate,
 
 	toggle = (!!queue ^ trace_queue);
 	if (toggle && !trace_queue) {
-		register_trace_workqueue_queue_work(probe_queue_work, NULL);
+		register_trace_workqueue_queue_work(probe_queue_work,
+			NULL);
 		wq_tracing |= WQ_DUMP_QUEUE_WORK;
 	} else if (toggle && trace_queue) {
-		unregister_trace_workqueue_queue_work(probe_queue_work, NULL);
+		unregister_trace_workqueue_queue_work(probe_queue_work,
+			NULL);
 		wq_tracing &= ~WQ_DUMP_QUEUE_WORK;
 	}
 
 	toggle = (!!activate ^ trace_activate);
 	if (toggle && !trace_activate) {
-		register_trace_workqueue_activate_work(probe_activate_work, NULL);
+		register_trace_workqueue_activate_work(probe_activate_work,
+			NULL);
 		wq_tracing |= WQ_DUMP_ACTIVE_WORK;
 	} else if (toggle && trace_activate) {
-		unregister_trace_workqueue_activate_work(probe_activate_work, NULL);
+		unregister_trace_workqueue_activate_work(probe_activate_work,
+			NULL);
 		wq_tracing &= ~WQ_DUMP_ACTIVE_WORK;
 	}
 
 	toggle = (!!execute ^ trace_execute);
 	if (toggle && !trace_execute) {
-		register_trace_workqueue_execute_start(probe_execute_work, NULL);
-		register_trace_workqueue_execute_end(probe_execute_end, NULL);
+		register_trace_workqueue_execute_start(probe_execute_work,
+			NULL);
+		register_trace_workqueue_execute_end(probe_execute_end,
+			NULL);
 		wq_tracing |= WQ_DUMP_EXECUTE_WORK;
 	} else if (toggle && trace_execute) {
-		unregister_trace_workqueue_execute_start(probe_execute_work, NULL);
-		unregister_trace_workqueue_execute_end(probe_execute_end, NULL);
+		unregister_trace_workqueue_execute_start(probe_execute_work,
+			NULL);
+		unregister_trace_workqueue_execute_end(probe_execute_end,
+			NULL);
 		wq_tracing &= ~WQ_DUMP_EXECUTE_WORK;
 	}
 }
@@ -328,12 +356,14 @@ static int mt_wq_debug_show(struct seq_file *m, void *v)
 	struct hlist_node *tmp = NULL;
 	unsigned long long now, ts;
 	unsigned long rem_nsec;
+	unsigned long flags;
 	int i;
 
 	ts = now = sched_clock();
 	rem_nsec = do_div(ts, NSEC_PER_SEC);
-	SEQ_printf(m, "wq_debug: %d, now: %lu.%06lu\n",
+	SEQ_printf(m, "wq_debug: %d, now: %ld.%06lu\n",
 		   wq_debug, (unsigned long)ts, rem_nsec / NSEC_PER_USEC);
+	raw_spin_lock_irqsave(&works_lock, flags);
 	hash_for_each_safe(active_works, i, tmp, wi, hash) {
 		if (wi) {
 			ts = wi->ts;
@@ -342,11 +372,12 @@ static int mt_wq_debug_show(struct seq_file *m, void *v)
 				(unsigned long)wi->pwq,
 				(unsigned long)wi->work,
 				(void *)wi->func);
-			SEQ_printf(m, " state:%s ts:%lu.%06lu\n",
+			SEQ_printf(m, " state:%s ts:%ld.%06lu\n",
 				wi->state?"exec":"queued",
 				(unsigned long)ts, rem_nsec / NSEC_PER_USEC);
 		}
 	}
+	raw_spin_unlock_irqrestore(&works_lock, flags);
 	return 0;
 }
 
@@ -371,7 +402,7 @@ static struct work_struct *test_work;
 
 static void test_work_fn(struct work_struct *work)
 {
-	pr_debug("test_work_fn exec\n");
+	pr_debug("%s exec\n", __func__);
 }
 
 static int mt_wq_selftest_show(struct seq_file *m, void *v)
@@ -431,18 +462,22 @@ static int __init init_wq_debug(void)
 	work_info_cache = kmem_cache_create("work_info_cache",
 					    sizeof(struct work_info), 0,
 					    0, NULL);
+
 	if (work_info_cache) {
 		work_debug_enable(1);
-		pe = proc_create("mtprof/wq_debug", 0664, NULL, &mt_wq_debug_fops);
+		pe = proc_create("mtprof/wq_debug", 0664,
+			NULL, &mt_wq_debug_fops);
 		if (!pe)
 			return -ENOMEM;
 	}
-	pe = proc_create("mtprof/wq_enable_logs", 0664, NULL, &mt_wq_log_fops);
+	pe = proc_create("mtprof/wq_enable_logs", 0664,
+			NULL, &mt_wq_log_fops);
 	if (!pe)
 		return -ENOMEM;
 
 #ifdef CONFIG_WQ_DEBUG_SELFTEST
-	pe = proc_create("mtprof/wq_selftest", 0664, NULL, &mt_wq_selftest_fops);
+	pe = proc_create("mtprof/wq_selftest", 0664,
+		NULL, &mt_wq_selftest_fops);
 	if (!pe)
 		return -ENOMEM;
 #endif

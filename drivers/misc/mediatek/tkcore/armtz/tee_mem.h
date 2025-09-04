@@ -31,10 +31,10 @@ void *tee_shm_pool_p2v(struct device *dev, struct shm_pool *pool,
 unsigned long tee_shm_pool_v2p(struct device *dev, struct shm_pool *pool,
 	void *vaddr);
 
-unsigned long tee_shm_pool_alloc(struct device *dev,
+unsigned long tkcore_shm_pool_alloc(struct device *dev,
 	struct shm_pool *pool, size_t size, size_t alignment);
 
-int tee_shm_pool_free(struct device *dev, struct shm_pool *pool,
+int tkcore_shm_pool_free(struct device *dev, struct shm_pool *pool,
 	unsigned long paddr, size_t *size);
 
 bool tee_shm_pool_incref(struct device *dev, struct shm_pool *pool,

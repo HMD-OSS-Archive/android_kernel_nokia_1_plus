@@ -134,44 +134,57 @@ struct layering_rule_ops {
 	bool (*resizing_rule)(struct disp_layer_info *disp_info);
 	void (*scenario_decision)(struct disp_layer_info *disp_info);
 	int *(*get_bound_table)(enum DISP_HW_MAPPING_TB_TYPE tb_type);
-	int (*get_mapping_table)(enum DISP_HW_MAPPING_TB_TYPE tb_type, int param);
+	int (*get_mapping_table)(enum DISP_HW_MAPPING_TB_TYPE tb_type,
+		int param);
 	int (*get_hrt_bound)(int is_larb, int hrt_level);
 	void (*rsz_by_gpu_info_change)(void);
-	bool (*rollback_to_gpu_by_hw_limitation)(struct disp_layer_info *disp_info);
+	bool (*rollback_to_gpu_by_hw_limitation)(
+		struct disp_layer_info	*disp_info);
 	bool (*adaptive_dc_enabled)(void);
 	bool (*has_hrt_limit)(struct disp_layer_info *disp_info, int disp_idx);
 };
 
 #define HRT_GET_DVFS_LEVEL(hrt_num) (hrt_num & 0xF)
-#define HRT_SET_DVFS_LEVEL(hrt_num, value) (hrt_num = ((hrt_num & ~(0xF)) | (value & 0xF)))
+#define HRT_SET_DVFS_LEVEL(hrt_num, value) \
+	(hrt_num = ((hrt_num & ~(0xF)) | (value & 0xF)))
 #define HRT_GET_SCALE_SCENARIO(hrt_num) ((hrt_num & 0xF0) >> 4)
-#define HRT_SET_SCALE_SCENARIO(hrt_num, value) (hrt_num = ((hrt_num & ~(0xF0)) | ((value & 0xF) << 4)))
+#define HRT_SET_SCALE_SCENARIO(hrt_num, value) \
+	(hrt_num = ((hrt_num & ~(0xF0)) | ((value & 0xF) << 4)))
 #define HRT_GET_AEE_FLAG(hrt_num) ((hrt_num & 0x100) >> 8)
-#define HRT_SET_AEE_FLAG(hrt_num, value) (hrt_num = ((hrt_num & ~(0x100)) | ((value & 0x1) << 8)))
+#define HRT_SET_AEE_FLAG(hrt_num, value) \
+	(hrt_num = ((hrt_num & ~(0x100)) | ((value & 0x1) << 8)))
 #define HRT_GET_DC_FLAG(hrt_num) ((hrt_num & 0x200) >> 9)
-#define HRT_SET_DC_FLAG(hrt_num, value) (hrt_num = ((hrt_num & ~(0x200)) | (((value) & 0x1) << 9)))
+#define HRT_SET_DC_FLAG(hrt_num, value) \
+	(hrt_num = ((hrt_num & ~(0x200)) | (((value) & 0x1) << 9)))
 
 #define HRT_GET_PATH_SCENARIO(hrt_num) ((hrt_num & 0xFFFF0000) >> 16)
-#define HRT_SET_PATH_SCENARIO(hrt_num, value) (hrt_num = ((hrt_num & ~(0xFFFF0000)) | ((value & 0xFFFF) << 16)))
-#define HRT_GET_PATH_RSZ_TYPE(hrt_path) ((hrt_path >> PATH_FMT_RSZ_SHIFT) & 0x3)
-#define HRT_GET_PATH_DISP_TYPE(hrt_path) ((hrt_path >> PATH_FMT_DISP_SHIFT) & 0x3)
-#define HRT_GET_PATH_PIPE_TYPE(hrt_path) ((hrt_path >> PATH_FMT_PIPE_SHIFT) & 0x3)
+#define HRT_SET_PATH_SCENARIO(hrt_num, value) \
+	(hrt_num = ((hrt_num & ~(0xFFFF0000)) | ((value & 0xFFFF) << 16)))
+#define HRT_GET_PATH_RSZ_TYPE(hrt_path) \
+	((hrt_path >> PATH_FMT_RSZ_SHIFT) & 0x3)
+#define HRT_GET_PATH_DISP_TYPE(hrt_path) \
+	((hrt_path >> PATH_FMT_DISP_SHIFT) & 0x3)
+#define HRT_GET_PATH_PIPE_TYPE(hrt_path) \
+	((hrt_path >> PATH_FMT_PIPE_SHIFT) & 0x3)
 #define HRT_GET_PATH_ID(hrt_path) (hrt_path & 0x1F)
 
 int layering_rule_start(struct disp_layer_info *disp_info, int debug_mode);
 extern int hdmi_get_dev_info(int is_sf, void *info);
 int gen_hrt_pattern(void);
 int set_hrt_state(enum HRT_SYS_STATE sys_state, int en);
-void register_layering_rule_ops(struct layering_rule_ops *ops, struct layering_rule_info_t *info);
+void register_layering_rule_ops(struct layering_rule_ops *ops,
+	struct layering_rule_info_t *info);
 int get_phy_layer_limit(int layer_map_tb, int disp_idx);
 bool is_ext_path(struct disp_layer_info *disp_info);
 int get_phy_ovl_layer_cnt(struct disp_layer_info *disp_info, int disp_idx);
 bool is_max_lcm_resolution(void);
 bool is_decouple_path(struct disp_layer_info *disp_info);
-int rollback_all_resize_layer_to_GPU(struct disp_layer_info *disp_info, int disp_idx);
+int rollback_all_resize_layer_to_GPU(struct disp_layer_info *disp_info,
+	int disp_idx);
 bool is_yuv(enum DISP_FORMAT format);
 bool is_argb_fmt(enum DISP_FORMAT format);
-bool is_gles_layer(struct disp_layer_info *disp_info, int disp_idx, int layer_idx);
+bool is_gles_layer(struct disp_layer_info *disp_info,
+	int disp_idx, int layer_idx);
 bool has_layer_cap(struct layer_config *layer_info, enum LAYERING_CAPS l_caps);
 
 #endif

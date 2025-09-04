@@ -30,7 +30,7 @@
 
 extern bool is_already_snap_shot;
 
-enum {
+enum pr_mode {
 	MODE_NORMAL,
 	MODE_COMPARE,
 	MODE_APPLY,
@@ -53,7 +53,7 @@ struct snapshot {
 struct golden {
 	unsigned int is_golden_log;
 
-	unsigned int mode;
+	enum pr_mode mode;
 
 	char func[64];
 	unsigned int line;
@@ -61,9 +61,9 @@ struct golden {
 	unsigned int *buf;
 	unsigned int buf_size;
 
-	struct golden_setting *buf_golden_setting;
-	unsigned int nr_golden_setting;
-	unsigned int max_nr_golden_setting;
+	struct golden_setting *buf_gs;
+	unsigned int nr_gs;
+	unsigned int max_nr_gs;
 
 	struct snapshot *buf_snapshot;
 	unsigned int max_nr_snapshot;
@@ -76,8 +76,8 @@ struct golden {
 };
 
 struct phys_to_virt_table {
-	void __iomem *virt_base;
-	unsigned int phys_base;
+	void __iomem *va;
+	unsigned int pa;
 };
 
 struct base_remap {
@@ -95,11 +95,15 @@ struct pmic_manual_dump {
 unsigned int golden_read_reg(unsigned int addr);
 int snapshot_golden_setting(const char *func, const unsigned int line);
 void mt_power_gs_pmic_manual_dump(void);
-void mt_power_gs_compare(char *scenario, char *pmic_name,
-			 const unsigned int *pmic_gs, unsigned int pmic_gs_len);
+void mt_power_gs_compare(char *scenario,
+			char *pmic_name,
+			 const unsigned int *pmic_gs,
+			 unsigned int pmic_gs_len);
 unsigned int _golden_read_reg(unsigned int addr);
-void _golden_write_reg(unsigned int addr, unsigned int mask, unsigned int reg_val);
-int _snapshot_golden_setting(struct golden *g, const char *func, const unsigned int line);
+void _golden_write_reg(unsigned int addr, unsigned int mask,
+				unsigned int reg_val);
+int _snapshot_golden_setting(struct golden *g, const char *func,
+				const unsigned int line);
 void mt_power_gs_suspend_compare(unsigned int dump_flag);
 void mt_power_gs_dpidle_compare(unsigned int dump_flag);
 void mt_power_gs_sodi_compare(unsigned int dump_flag);
@@ -108,11 +112,11 @@ void mt_power_gs_sp_dump(void);
 bool _is_exist_in_phys_to_virt_table(unsigned int phys_base);
 void __iomem *_get_virt_base_from_table(unsigned int phys_base);
 unsigned int mt_power_gs_base_remap_init(char *scenario, char *pmic_name,
-			 const unsigned int *pmic_gs, unsigned int pmic_gs_len);
+			const unsigned int *pmic_gs, unsigned int pmic_gs_len);
 void mt_power_gs_internal_init(void);
 void mt_power_gs_table_init(void);
 
-extern struct golden _golden;
+extern struct golden _g;
 extern bool slp_chk_golden_diff_mode;
 
 #endif

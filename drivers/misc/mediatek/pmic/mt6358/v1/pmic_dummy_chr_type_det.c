@@ -21,7 +21,7 @@
 #include <linux/list.h>
 #include <linux/mutex.h>
 #include <linux/kthread.h>
-#include <linux/wakelock.h>
+//#include <linux/pm_wakeup.h>
 #include <linux/device.h>
 #include <linux/kdev_t.h>
 #include <linux/cdev.h>
@@ -53,7 +53,8 @@ static struct work_struct chr_work;
 static DEFINE_MUTEX(chrdet_lock);
 
 static struct power_supply *chrdet_psy;
-static int chrdet_inform_psy_changed(enum charger_type chg_type, bool chg_online)
+static int chrdet_inform_psy_changed(enum charger_type chg_type,
+				bool chg_online)
 {
 	int ret = 0;
 	union power_supply_propval propval;
@@ -105,6 +106,10 @@ int hw_charging_get_charger_type(void)
 /*****************************************************************************
  * Charger Detection
  ******************************************************************************/
+void __attribute__((weak)) mtk_pmic_enable_chr_type_det(bool en)
+{
+}
+
 void do_charger_detect(void)
 {
 	if (!mt_usb_is_device()) {
@@ -147,7 +152,7 @@ void chrdet_int_handler(void)
 
 		if (boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT ||
 		    boot_mode == LOW_POWER_OFF_CHARGING_BOOT) {
-			pr_info("[chrdet_int_handler] Unplug Charger/USB\n");
+			pr_info("[%s] Unplug Charger/USB\n", __func__);
 #ifndef CONFIG_TCPC_CLASS
 			orderly_poweroff(true);
 #else

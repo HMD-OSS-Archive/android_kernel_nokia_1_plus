@@ -3,6 +3,7 @@
 #
 config TRUSTONIC_TEE_SUPPORT
 	bool "Enable Trustonic TEE Support"
+	select MTK_TEE_SANITY
 	default n
 	---help---
 	  Enable Trustonic TEE Support.
@@ -13,16 +14,7 @@ config TRUSTONIC_TEE_SUPPORT
 config TRUSTONIC_TEE_VERSION
 	string "TRUSTONIC TEE Version"
 	depends on TRUSTONIC_TEE_SUPPORT
-	default "400b" if (MACH_MT6771 || MACH_MT6775 || MACH_MT6739)
-	default "311c"
-
-#config MT_TRUSTONIC_TEE_DEBUGFS
-#	bool "Enable Trustonic TEE debugfs"
-#	depends on TRUSTONIC_TEE_SUPPORT
-#	default n
-#	---help---
-#	  Enable Trustonic TEE debugfs created by Mediatek.
-#	  This allows TEE logs can be controlled by
+	default "410"
 
 config TRUSTONIC_TEE_DEBUG
 	bool "Trustonic TEE driver debug mode"

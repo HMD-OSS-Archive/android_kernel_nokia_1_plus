@@ -19,45 +19,37 @@
 #include <linux/err.h>
 #include <linux/fs.h>
 #include <linux/list.h>
-#include <linux/module.h>
+#include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/swap.h>
+#include <linux/sched/clock.h>
 #include "ion_priv.h"
-#ifdef CONFIG_MTK_SCHED_CPULOAD
-#include <mt-plat/mtk_sched.h>
-#endif
 
 static unsigned long long last_alloc_ts;
+
 static void *ion_page_pool_alloc_pages(struct ion_page_pool *pool)
 {
 	unsigned long long start, end;
 	struct page *page;
-#ifdef CONFIG_MTK_SCHED_CPULOAD
-	unsigned int cpu = 0;
-#endif
 
 	start = sched_clock();
 	page = alloc_pages(pool->gfp_mask, pool->order);
 	end = sched_clock();
 
 	if ((end - start > 10000000ULL) &&
-	    (end - last_alloc_ts > 500000000ULL)) { /* unit is ns, 10ms */
-		IONMSG("warn: ion page pool alloc pages order: %d time: %lld ns\n",
+	    (end - last_alloc_ts > 1000000000ULL)) { /* unit is ns, 1s */
+		IONMSG("warn: alloc pages order: %d time: %lld ns\n",
 		       pool->order, end - start);
-#ifdef CONFIG_MTK_SCHED_CPULOAD
-		for_each_online_cpu(cpu) {
-			IONMSG("cpu %d, loading %d\n", cpu, sched_get_cpu_load(cpu));
-		}
-#endif
-		show_free_areas(0);
+		show_free_areas(0, NULL);
 		last_alloc_ts = end;
 	}
 
 	if (!page)
 		return NULL;
-	ion_pages_sync_for_device(g_ion_device->dev.this_device, page,
-				  PAGE_SIZE << pool->order,
+	ion_pages_sync_for_device(g_ion_device->dev.this_device,
+				  page, PAGE_SIZE << pool->order,
 				  DMA_BIDIRECTIONAL);
+	atomic64_add_return((1 << pool->order), &page_sz_cnt);
 	return page;
 }
 
@@ -65,6 +57,12 @@ static void ion_page_pool_free_pages(struct ion_page_pool *pool,
 				     struct page *page)
 {
 	__free_pages(page, pool->order);
+	if (atomic64_sub_return((1 << pool->order), &page_sz_cnt) < 0) {
+		IONMSG("underflow!, total_now[%ld]free[%lu]\n",
+		       atomic64_read(&page_sz_cnt),
+		       (unsigned long)(1 << pool->order));
+		atomic64_set(&page_sz_cnt, 0);
+	}
 }
 
 static int ion_page_pool_add(struct ion_page_pool *pool, struct page *page)
@@ -122,12 +120,11 @@ void ion_page_pool_free(struct ion_page_pool *pool, struct page *page)
 {
 	int ret;
 
-	if (WARN_ONCE(pool->order != compound_order(page),
-			"ion_page_pool_free page = 0x%p, compound_order(page) = 0x%x",
-			page, compound_order(page))) {
-		BUG();
-		/*BUG_ON(pool->order != compound_order(page));*/
-	}
+	if (pool->order != compound_order(page))
+		IONMSG("free page = 0x%p, compound_order(page) = 0x%x",
+		       page, compound_order(page));
+
+	BUG_ON(pool->order != compound_order(page));
 
 	ret = ion_page_pool_add(pool, page);
 	if (ret)
@@ -145,7 +142,7 @@ static int ion_page_pool_total(struct ion_page_pool *pool, bool high)
 }
 
 int ion_page_pool_shrink(struct ion_page_pool *pool, gfp_t gfp_mask,
-				int nr_to_scan)
+			 int nr_to_scan)
 {
 	int freed = 0;
 	bool high;
@@ -178,10 +175,11 @@ int ion_page_pool_shrink(struct ion_page_pool *pool, gfp_t gfp_mask,
 	return freed;
 }
 
-struct ion_page_pool *ion_page_pool_create(gfp_t gfp_mask, unsigned int order)
+struct ion_page_pool *ion_page_pool_create(gfp_t gfp_mask, unsigned int order,
+					   bool cached)
 {
-	struct ion_page_pool *pool = kmalloc(sizeof(struct ion_page_pool),
-					     GFP_KERNEL);
+	struct ion_page_pool *pool = kmalloc(sizeof(*pool), GFP_KERNEL);
+
 	if (!pool) {
 		IONMSG("%s kmalloc failed pool is null.\n", __func__);
 		return NULL;
@@ -194,6 +192,8 @@ struct ion_page_pool *ion_page_pool_create(gfp_t gfp_mask, unsigned int order)
 	pool->order = order;
 	mutex_init(&pool->mutex);
 	plist_node_init(&pool->list, order);
+	if (cached)
+		pool->cached = true;
 
 	return pool;
 }

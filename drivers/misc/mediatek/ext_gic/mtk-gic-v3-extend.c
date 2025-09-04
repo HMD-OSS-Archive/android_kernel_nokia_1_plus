@@ -1,5 +1,5 @@
 /*
- t* Copyright (c) 2015 MediaTek Inc.
+ * Copyright (c) 2015 MediaTek Inc.
  * Author: Mars.Cheng <mars.cheng@mediatek.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -23,12 +23,12 @@
 #include <linux/cpu.h>
 #include <linux/smp.h>
 #include <linux/types.h>
-#include <linux/irqchip/arm-gic.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/sizes.h>
-#include <linux/irqchip/arm-gic-v3.h>
+#include <linux/irqchip/arm-gic.h>
+/* #include <linux/irqchip/arm-gic-v3.h> */
 #include <linux/irqchip/mtk-gic-extend.h>
 #include <linux/io.h>
 #include <mt-plat/mtk_secure_api.h>
@@ -40,6 +40,8 @@
 #endif
 
 #define IOMEM(x)        ((void __force __iomem *)(x))
+#define GICD_IROUTER                      0x6000
+#define GICD_IROUTER_SPI_MODE_ANY	  (1U << 31)
 /* for cirq use */
 void __iomem *GIC_DIST_BASE;
 void __iomem *INT_POL_CTL0;
@@ -209,6 +211,7 @@ int mt_irq_mask_all(struct mtk_irq_mask *mask)
 		writel(0xFFFFFFFF, (dist_base + GIC_DIST_ENABLE_CLEAR + 0x28));
 		writel(0xFFFFFFFF, (dist_base + GIC_DIST_ENABLE_CLEAR + 0x2c));
 		writel(0xFFFFFFFF, (dist_base + GIC_DIST_ENABLE_CLEAR + 0x30));
+		/* make sure distributor changes happen */
 		mb();
 
 		mask->header = IRQ_MASK_HEADER;
@@ -251,6 +254,7 @@ int mt_irq_mask_restore(struct mtk_irq_mask *mask)
 	writel(mask->mask10, (dist_base + GIC_DIST_ENABLE_SET + 0x28));
 	writel(mask->mask11, (dist_base + GIC_DIST_ENABLE_SET + 0x2c));
 	writel(mask->mask12, (dist_base + GIC_DIST_ENABLE_SET + 0x30));
+	/* make sure dist changes happen */
 	mb();
 
 	return 0;
@@ -304,7 +308,8 @@ u32 mt_irq_get_pending_vec(u32 start_irq)
 					<<LSB_num;
 		pending_vec = MSB_vec | LSB_vec;
 	} else {
-		pending_vec = readl_relaxed(base + GIC_DIST_PENDING_SET + reg*4);
+		pending_vec = readl_relaxed(base + GIC_DIST_PENDING_SET +
+					    reg * 4);
 	}
 
 	return pending_vec;
@@ -367,6 +372,7 @@ void mt_irq_unmask_for_sleep_ex(unsigned int virq)
 	}
 
 	writel(mask, dist_base + GIC_DIST_ENABLE_SET + hwirq / 32 * 4);
+	/* make sure enable happen */
 	mb();
 }
 
@@ -389,6 +395,7 @@ void mt_irq_unmask_for_sleep(unsigned int hwirq)
 	}
 
 	writel(mask, dist_base + GIC_DIST_ENABLE_SET + hwirq / 32 * 4);
+	/* make sure enable happen */
 	mb();
 }
 
@@ -412,6 +419,7 @@ void mt_irq_mask_for_sleep(unsigned int irq)
 	}
 
 	writel(mask, dist_base + GIC_DIST_ENABLE_CLEAR + irq / 32 * 4);
+	/* make sure clr happen */
 	mb();
 }
 
@@ -427,11 +435,9 @@ char *mt_irq_dump_status_buf(int irq, char *buf)
 		return NULL;
 
 	ptr += sprintf(ptr, "[mt gic dump] irq = %d\n", irq);
-#if defined(CONFIG_ARM_PSCI) || defined(CONFIG_MTK_PSCI)
-	rc = mt_secure_call(MTK_SIP_KERNEL_GIC_DUMP, irq, 0, 0);
-#else
-	rc = -1;
-#endif
+
+	rc = mt_secure_call(MTK_SIP_KERNEL_GIC_DUMP, irq, 0, 0, 0);
+
 	if (rc < 0) {
 		ptr += sprintf(ptr, "[mt gic dump] not allowed to dump!\n");
 		return ptr;
@@ -483,11 +489,7 @@ int mt_irq_dump_cpu(int irq)
 
 	irq = virq_to_hwirq(irq);
 
-#if defined(CONFIG_ARM_PSCI) || defined(CONFIG_MTK_PSCI)
-	rc = mt_secure_call(MTK_SIP_KERNEL_GIC_DUMP, irq, 0, 0);
-#else
-	rc = -1;
-#endif
+	rc = mt_secure_call(MTK_SIP_KERNEL_GIC_DUMP, irq, 0, 0, 0);
 
 	if (rc < 0)
 		return rc;
@@ -600,9 +602,9 @@ static int gic_sched_pm_notifier(struct notifier_block *self,
 	unsigned int cur_cpu = smp_processor_id();
 
 	if (cmd == CPU_PM_EXIT)
-		remove_cpu_from_prefer_schedule_domain(cur_cpu);
-	else if (cmd == CPU_PM_ENTER)
 		add_cpu_to_prefer_schedule_domain(cur_cpu);
+	else if (cmd == CPU_PM_ENTER)
+		remove_cpu_from_prefer_schedule_domain(cur_cpu);
 
 	return NOTIFY_OK;
 }
@@ -620,34 +622,6 @@ static void gic_sched_pm_init(void)
 static inline void gic_cpu_pm_init(void) { }
 #endif /* CONFIG_CPU_PM */
 
-#ifdef CONFIG_HOTPLUG_CPU
-static int gic_sched_hotplug_callback(struct notifier_block *nfb, unsigned long action, void *hcpu)
-{
-	switch (action) {
-	case CPU_STARTING:
-		add_cpu_to_prefer_schedule_domain((unsigned long)hcpu);
-		break;
-	case CPU_DYING:
-		remove_cpu_from_prefer_schedule_domain((unsigned long)hcpu);
-		break;
-	default:
-		break;
-	}
-	return NOTIFY_OK;
-}
-
-struct notifier_block gic_sched_nfb = {
-	.notifier_call = gic_sched_hotplug_callback
-};
-
-static void gic_sched_hoplug_init(void)
-{
-	register_cpu_notifier(&gic_sched_nfb);
-}
-#else
-static void gic_sched_hoplug_init(void){};
-#endif
-
 void irq_sw_mode_init(void)
 {
 	struct device_node *node;
@@ -660,7 +634,6 @@ void irq_sw_mode_init(void)
 	MCUSYS_BASE_SWMODE = of_iomap(node, 0);
 	spin_lock_init(&domain_lock);
 	gic_sched_pm_init();
-	gic_sched_hoplug_init();
 }
 
 int __init mt_gic_ext_init(void)
@@ -695,9 +668,8 @@ int __init mt_gic_ext_init(void)
 				&reg_len_pol0))
 		reg_len_pol0 = 0;
 
-	pr_warn("### gic-v3 init done. ###\n");
 	irq_sw_mode_init();
-	pr_notice("### gic-v3 scheduled pm init done ###\n");
+	pr_warn("### gic-v3 init done. ###\n");
 
 	return 0;
 }

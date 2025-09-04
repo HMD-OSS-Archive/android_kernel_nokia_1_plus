@@ -19,13 +19,14 @@
 #include "mtk_spm_sleep.h"
 
 
-#define TAG     "SPM-Idle"
+#define TAG     "[name:spm&]SPM-Idle"
 
-#define spm_idle_err(fmt, args...)		pr_emerg(TAG fmt, ##args)
-#define spm_idle_warn(fmt, args...)		pr_warn(TAG fmt, ##args)
-#define spm_idle_dbg(fmt, args...)		pr_debug(TAG fmt, ##args)
-#define spm_idle_info(fmt, args...)		pr_debug(TAG fmt, ##args)
-#define spm_idle_ver(fmt, args...)		pr_debug(TAG fmt, ##args)	/* pr_debug show nothing */
+#define spm_idle_err(fmt, args...)		printk_deferred(TAG fmt, ##args)
+#define spm_idle_warn(fmt, args...)		printk_deferred(TAG fmt, ##args)
+/* pr_debug show nothing */
+#define spm_idle_dbg(fmt, args...)		printk_deferred(TAG fmt, ##args)
+#define spm_idle_info(fmt, args...)		printk_deferred(TAG fmt, ##args)
+#define spm_idle_ver(fmt, args...)		printk_deferred(TAG fmt, ##args)
 
 /*
  * for SPM common part
@@ -47,9 +48,12 @@ extern long int spm_get_current_time_ms(void);
  * for Deep Idle
  */
 void spm_deepidle_init(void);
-void spm_dpidle_before_wfi(int cpu);		 /* can be redefined */
-void spm_dpidle_after_wfi(int cpu, u32 spm_debug_flag);		 /* can be redefined */
-unsigned int spm_go_to_dpidle(u32 spm_flags, u32 spm_data, u32 log_cond, u32 operation_cond);
+/* can be redefined */
+void spm_dpidle_before_wfi(int cpu);
+/* can be redefined */
+void spm_dpidle_after_wfi(int cpu, u32 spm_debug_flag);
+unsigned int spm_go_to_dpidle(
+	u32 spm_flags, u32 spm_data, u32 log_cond, u32 operation_cond);
 unsigned int spm_go_to_sleep_dpidle(u32 spm_flags, u32 spm_data);
 int spm_set_dpidle_wakesrc(u32 wakesrc, bool enable, bool replace);
 bool spm_set_dpidle_pcm_init_flag(void);
@@ -69,7 +73,7 @@ bool spm_set_dpidle_pcm_init_flag(void);
  */
 void spm_sodi3_init(void);
 unsigned int spm_go_to_sodi3(u32 spm_flags, u32 spm_data, u32 sodi_flags);
-void spm_enable_sodi3(bool);
+void spm_enable_sodi3(bool en);
 bool spm_get_sodi3_en(void);
 
 /*
@@ -77,10 +81,10 @@ bool spm_get_sodi3_en(void);
  */
 void spm_sodi_init(void);
 unsigned int spm_go_to_sodi(u32 spm_flags, u32 spm_data, u32 sodi_flags);
-void spm_enable_sodi(bool);
+void spm_enable_sodi(bool en);
 bool spm_get_sodi_en(void);
 
-void spm_sodi_set_vdo_mode(bool);
+void spm_sodi_set_vdo_mode(bool vdo_mode);
 void spm_sodi_mempll_pwr_mode(bool pwr_mode);
 bool spm_get_sodi_mempll(void);
 

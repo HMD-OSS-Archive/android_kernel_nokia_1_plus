@@ -29,7 +29,7 @@
 #include "hdmicec.h"
 #endif
 
-#ifdef HDMI_ITE66121_SUPPORT
+#ifdef CONFIG_CUSTOM_KERNEL_HDMI
 #include "extd_hdmi.h"
 #endif
 
@@ -68,24 +68,40 @@ enum IO_DRIVING_CURRENT {
 };
 
 struct HDMI_EDID_INFO_T {
-	unsigned int ui4_ntsc_resolution;	/* use EDID_VIDEO_RES_T, there are many resolution */
-	unsigned int ui4_pal_resolution;	/* use EDID_VIDEO_RES_T */
+	unsigned int ui4_ntsc_resolution;
+	/* use EDID_VIDEO_RES_T, there are many resolution */
+	unsigned int ui4_pal_resolution;
+	/* use EDID_VIDEO_RES_T */
 	unsigned int ui4_sink_native_ntsc_resolution;
 	unsigned int ui4_sink_native_pal_resolution;
-	unsigned int ui4_sink_cea_ntsc_resolution;	/* use EDID_VIDEO_RES_T */
-	unsigned int ui4_sink_cea_pal_resolution;	/* use EDID_VIDEO_RES_T */
-	unsigned int ui4_sink_dtd_ntsc_resolution;	/* use EDID_VIDEO_RES_T */
-	unsigned int ui4_sink_dtd_pal_resolution;	/* use EDID_VIDEO_RES_T */
-	unsigned int ui4_sink_1st_dtd_ntsc_resolution;	/* use EDID_VIDEO_RES_T */
-	unsigned int ui4_sink_1st_dtd_pal_resolution;	/* use EDID_VIDEO_RES_T */
-	unsigned short ui2_sink_colorimetry;	/* use EDID_VIDEO_COLORIMETRY_T */
-	unsigned char ui1_sink_rgb_color_bit;	/* color bit for RGB */
-	unsigned char ui1_sink_ycbcr_color_bit;	/* color bit for YCbCr */
-	unsigned short ui2_sink_aud_dec;	/* use EDID_AUDIO_DECODER_T */
-	unsigned char ui1_sink_is_plug_in;	/* 1: Plug in 0:Plug Out */
-	unsigned int ui4_hdmi_pcm_ch_type;	/* use EDID_A_FMT_CH_TYPE */
-	unsigned int ui4_hdmi_pcm_ch3ch4ch5ch7_type;	/* use EDID_A_FMT_CH_TYPE1 */
-	unsigned int ui4_dac_pcm_ch_type;	/* use EDID_A_FMT_CH_TYPE */
+	unsigned int ui4_sink_cea_ntsc_resolution;
+	/* use EDID_VIDEO_RES_T */
+	unsigned int ui4_sink_cea_pal_resolution;
+	/* use EDID_VIDEO_RES_T */
+	unsigned int ui4_sink_dtd_ntsc_resolution;
+	/* use EDID_VIDEO_RES_T */
+	unsigned int ui4_sink_dtd_pal_resolution;
+	/* use EDID_VIDEO_RES_T */
+	unsigned int ui4_sink_1st_dtd_ntsc_resolution;
+	/* use EDID_VIDEO_RES_T */
+	unsigned int ui4_sink_1st_dtd_pal_resolution;
+	/* use EDID_VIDEO_RES_T */
+	unsigned short ui2_sink_colorimetry;
+	/* use EDID_VIDEO_COLORIMETRY_T */
+	unsigned char ui1_sink_rgb_color_bit;
+	/* color bit for RGB */
+	unsigned char ui1_sink_ycbcr_color_bit;
+	/* color bit for YCbCr */
+	unsigned short ui2_sink_aud_dec;
+	/* use EDID_AUDIO_DECODER_T */
+	unsigned char ui1_sink_is_plug_in;
+	/* 1: Plug in 0:Plug Out */
+	unsigned int ui4_hdmi_pcm_ch_type;
+	/* use EDID_A_FMT_CH_TYPE */
+	unsigned int ui4_hdmi_pcm_ch3ch4ch5ch7_type;
+	/* use EDID_A_FMT_CH_TYPE1 */
+	unsigned int ui4_dac_pcm_ch_type;
+	/* use EDID_A_FMT_CH_TYPE */
 	unsigned char ui1_sink_i_latency_present;
 	unsigned char ui1_sink_p_audio_latency;
 	unsigned char ui1_sink_p_video_latency;
@@ -98,18 +114,24 @@ struct HDMI_EDID_INFO_T {
 	unsigned char ui1_Display_Vertical_Size;
 	unsigned int ui4_ID_Serial_Number;
 	unsigned int ui4_sink_cea_3D_resolution;
-	unsigned char ui1_sink_support_ai;	/* 0: not support AI, 1:support AI */
+	unsigned char ui1_sink_support_ai;
+	/* 0: not support AI, 1:support AI */
 	unsigned short ui2_sink_cec_address;
 	unsigned short ui1_sink_max_tmds_clock;
 	unsigned short ui2_sink_3D_structure;
 	unsigned int ui4_sink_cea_FP_SUP_3D_resolution;
 	unsigned int ui4_sink_cea_TOB_SUP_3D_resolution;
 	unsigned int ui4_sink_cea_SBS_SUP_3D_resolution;
-	unsigned short ui2_sink_ID_manufacturer_name;	/* (08H~09H) */
-	unsigned short ui2_sink_ID_product_code;	/* (0aH~0bH) */
-	unsigned int ui4_sink_ID_serial_number;	/* (0cH~0fH) */
-	unsigned char ui1_sink_week_of_manufacture;	/* (10H) */
-	unsigned char ui1_sink_year_of_manufacture;	/* (11H)  base on year 1990 */
+	unsigned short ui2_sink_ID_manufacturer_name;
+	/* (08H~09H) */
+	unsigned short ui2_sink_ID_product_code;
+	/* (0aH~0bH) */
+	unsigned int ui4_sink_ID_serial_number;
+	/* (0cH~0fH) */
+	unsigned char ui1_sink_week_of_manufacture;
+	/* (10H) */
+	unsigned char ui1_sink_year_of_manufacture;
+	/* (11H)  base on year 1990 */
 };
 
 #ifdef CONFIG_MTK_INTERNAL_HDMI_SUPPORT
@@ -193,6 +215,7 @@ enum HDMI_VIDEO_OUTPUT_FORMAT {
 
 /* Must align to MHL Tx chip driver define */
 enum HDMI_AUDIO_FORMAT {
+	TMP_AUDIO,
 	HDMI_AUDIO_32K_2CH		= 0x01,
 	HDMI_AUDIO_44K_2CH		= 0x02,
 	HDMI_AUDIO_48K_2CH		= 0x03,
@@ -275,8 +298,9 @@ struct HDMI_PARAMS {
 	int is_force_awake;
 	int is_force_landscape;
 
-	unsigned int scaling_factor;	/* determine the scaling of output screen size, valid value 0~10 */
-	/* 0 means no scaling, 5 means scaling to 95%, 10 means 90% */
+	unsigned int scaling_factor;
+/* determine the scaling of output screen size, valid value 0~10 */
+/* 0 means no scaling, 5 means scaling to 95%, 10 means 90% */
 
 	bool NeedSwHDCP;
 	enum HDMI_CABLE_TYPE cabletype;
@@ -284,7 +308,7 @@ struct HDMI_PARAMS {
 	int is_3d_support;
 	unsigned int input_clock;
 #ifndef CONFIG_MTK_INTERNAL_HDMI_SUPPORT
-	LCM_DSI_PARAMS dsi_params;
+	struct LCM_DSI_PARAMS dsi_params;
 #endif
 };
 
@@ -391,7 +415,8 @@ enum IEC_FRAME_RATE_T {
 
 
 union AUDIO_DEC_OUTPUT_CHANNEL_UNION_T {
-	struct HDMI_AUDIO_DEC_OUTPUT_CHANNEL_T bit;	/* HDMI_AUDIO_DEC_OUTPUT_CHANNEL_T */
+	struct HDMI_AUDIO_DEC_OUTPUT_CHANNEL_T bit;
+	/* HDMI_AUDIO_DEC_OUTPUT_CHANNEL_T */
 	unsigned short word;
 
 };
@@ -422,7 +447,7 @@ struct HDMI_AV_INFO_T {
 };
 
 
-/* --------------------------------------------------------------------------- */
+/* ------------------------------------- */
 
 struct HDMI_UTIL_FUNCS {
 	void (*set_reset_pin)(unsigned int value);
@@ -470,8 +495,8 @@ struct HDMI_DRIVER {
 	int (*exit)(void);
 	void (*suspend)(void);
 	void (*resume)(void);
-	int (*video_config)(enum HDMI_VIDEO_RESOLUTION vformat, enum HDMI_VIDEO_INPUT_FORMAT vin,
-			     int vou);
+	int (*video_config)(enum HDMI_VIDEO_RESOLUTION vformat,
+		enum HDMI_VIDEO_INPUT_FORMAT vin, int vou);
 	int  (*audio_config)(enum HDMI_AUDIO_FORMAT aformat, int bitWidth);
 	int (*video_enable)(bool enable);
 	int (*audio_enable)(bool enable);
@@ -489,11 +514,12 @@ struct HDMI_DRIVER {
 	void (*read)(unsigned char u8Reg);
 	void (*write)(unsigned char u8Reg, unsigned char u8Data);
 	void (*log_enable)(bool enable);
-#ifdef HDMI_ITE66121_SUPPORT
+#ifdef CONFIG_CUSTOM_KERNEL_HDMI
 	void (*getedid)(struct _HDMI_EDID_T *pv_get_info);
 #else
 	void (*getedid)(void *pv_get_info);
 #endif
+
 #else
 	void (*read)(unsigned long u2Reg, unsigned int *p4Data);
 	void (*write)(unsigned long u2Reg, unsigned int u4Data);
@@ -516,8 +542,10 @@ struct HDMI_DRIVER {
 	 u8 (*checkedidheader)(void);
 	int (*audiosetting)(struct HDMITX_AUDIO_PARA *audio_para);
 	int (*tmdsonoff)(unsigned char u1ionoff);
-	void (*mutehdmi)(unsigned char u1flagvideomute, unsigned char u1flagaudiomute);
-	void (*svpmutehdmi)(unsigned char u1svpvideomute, unsigned char u1svpaudiomute);
+	void (*mutehdmi)(unsigned char u1flagvideomute,
+		unsigned char u1flagaudiomute);
+	void (*svpmutehdmi)(unsigned char u1svpvideomute,
+		unsigned char u1svpaudiomute);
 	void (*cecusrcmd)(unsigned int cmd, unsigned int *result);
 	void (*getcectxstatus)(struct CEC_ACK_INFO_T *pt);
 	unsigned int (*gethdmistatus)(void);
@@ -525,22 +553,19 @@ struct HDMI_DRIVER {
 #endif
 
 };
-/* --------------------------------------------------------------------------- */
+/* ------------------------------------------- */
 /* HDMI Driver Functions */
-/* --------------------------------------------------------------------------- */
-#ifdef HDMI_ITE66121_SUPPORT
-int it66121_i2c_read_byte(u8 addr, u8 *data);
-int it66121_i2c_write_byte(u8 addr, u8 data);
-int it66121_i2c_read_block(u8 addr, u8 *data, int len);
-int it66121_i2c_write_block(u8 addr, u8 *data, int len);
+
+
 int ite66121_pmic_power_on(void);
 int ite66121_pmic_power_off(void);
 
-#endif
+
 extern unsigned int dst_is_dsi;
 extern struct semaphore hdmi_update_mutex;
 const struct HDMI_DRIVER *HDMI_GetDriver(void);
-void Notify_AP_MHL_TX_Event(unsigned int event, unsigned int event_param, void *param);
+void Notify_AP_MHL_TX_Event(unsigned int event,
+	unsigned int event_param, void *param);
 extern int	chip_device_id;
 extern bool need_reset_usb_switch;
 #endif				/* __HDMI_DRV_H__ */

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM kmem
 
@@ -6,7 +7,7 @@
 
 #include <linux/types.h>
 #include <linux/tracepoint.h>
-#include <trace/events/gfpflags.h>
+#include <trace/events/mmflags.h>
 
 DECLARE_EVENT_CLASS(kmem_alloc,
 
@@ -140,41 +141,18 @@ DEFINE_EVENT(kmem_free, kfree,
 	TP_ARGS(call_site, ptr)
 );
 
-DEFINE_EVENT_CONDITION(kmem_free, kmem_cache_free,
+DEFINE_EVENT(kmem_free, kmem_cache_free,
 
 	TP_PROTO(unsigned long call_site, const void *ptr),
 
-	TP_ARGS(call_site, ptr),
-
-	/*
-	 * This trace can be potentially called from an offlined cpu.
-	 * Since trace points use RCU and RCU should not be used from
-	 * offline cpus, filter such calls out.
-	 * While this trace can be called from a preemptable section,
-	 * it has no impact on the condition since tasks can migrate
-	 * only from online cpus to other online cpus. Thus its safe
-	 * to use raw_smp_processor_id.
-	 */
-	TP_CONDITION(cpu_online(raw_smp_processor_id()))
+	TP_ARGS(call_site, ptr)
 );
 
-TRACE_EVENT_CONDITION(mm_page_free,
+TRACE_EVENT(mm_page_free,
 
 	TP_PROTO(struct page *page, unsigned int order),
 
 	TP_ARGS(page, order),
-
-
-	/*
-	 * This trace can be potentially called from an offlined cpu.
-	 * Since trace points use RCU and RCU should not be used from
-	 * offline cpus, filter such calls out.
-	 * While this trace can be called from a preemptable section,
-	 * it has no impact on the condition since tasks can migrate
-	 * only from online cpus to other online cpus. Thus its safe
-	 * to use raw_smp_processor_id.
-	 */
-	TP_CONDITION(cpu_online(raw_smp_processor_id())),
 
 	TP_STRUCT__entry(
 		__field(	unsigned long,	pfn		)
@@ -276,22 +254,11 @@ DEFINE_EVENT(mm_page, mm_page_alloc_zone_locked,
 	TP_ARGS(page, order, migratetype)
 );
 
-TRACE_EVENT_CONDITION(mm_page_pcpu_drain,
+TRACE_EVENT(mm_page_pcpu_drain,
 
 	TP_PROTO(struct page *page, unsigned int order, int migratetype),
 
 	TP_ARGS(page, order, migratetype),
-
-	/*
-	 * This trace can be potentially called from an offlined cpu.
-	 * Since trace points use RCU and RCU should not be used from
-	 * offline cpus, filter such calls out.
-	 * While this trace can be called from a preemptable section,
-	 * it has no impact on the condition since tasks can migrate
-	 * only from online cpus to other online cpus. Thus its safe
-	 * to use raw_smp_processor_id.
-	 */
-	TP_CONDITION(cpu_online(raw_smp_processor_id())),
 
 	TP_STRUCT__entry(
 		__field(	unsigned long,	pfn		)
@@ -351,6 +318,75 @@ TRACE_EVENT(mm_page_alloc_extfrag,
 		__entry->change_ownership)
 );
 
+TRACE_EVENT(ion_heap_shrink,
+
+	TP_PROTO(const char *heap_name,
+		 size_t len,
+		 long total_allocated),
+
+	TP_ARGS(heap_name, len, total_allocated),
+
+	TP_STRUCT__entry(
+		__string(heap_name, heap_name)
+		__field(size_t, len)
+		__field(long, total_allocated)
+	),
+
+	TP_fast_assign(
+		__assign_str(heap_name, heap_name);
+		__entry->len = len;
+		__entry->total_allocated = total_allocated;
+	),
+
+	TP_printk("heap_name=%s, len=%zu, total_allocated=%ld",
+		  __get_str(heap_name), __entry->len, __entry->total_allocated)
+);
+
+TRACE_EVENT(ion_heap_grow,
+
+	TP_PROTO(const char *heap_name,
+		 size_t len,
+		 long total_allocated),
+
+	TP_ARGS(heap_name, len, total_allocated),
+
+	TP_STRUCT__entry(
+		__string(heap_name, heap_name)
+		__field(size_t, len)
+		__field(long, total_allocated)
+	),
+
+	TP_fast_assign(
+		__assign_str(heap_name, heap_name);
+		__entry->len = len;
+		__entry->total_allocated = total_allocated;
+	),
+
+	TP_printk("heap_name=%s, len=%zu, total_allocated=%ld",
+		  __get_str(heap_name), __entry->len, __entry->total_allocated)
+	);
+
+TRACE_EVENT(rss_stat,
+
+	TP_PROTO(int member,
+		long count),
+
+	TP_ARGS(member, count),
+
+	TP_STRUCT__entry(
+		__field(int, member)
+		__field(long, size)
+	),
+
+	TP_fast_assign(
+		__entry->member = member;
+		__entry->size = (count << PAGE_SHIFT);
+	),
+
+	TP_printk("member=%d size=%ldB",
+		__entry->member,
+		__entry->size)
+	);
 #endif /* _TRACE_KMEM_H */
 
 /* This part must be outside protection */

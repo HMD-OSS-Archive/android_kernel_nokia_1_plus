@@ -13,11 +13,12 @@
 
 #ifndef __IMGSENSOR_CLK_H__
 #define __IMGSENSOR_CLK_H__
+#include "imgsensor_common.h"
 
 #include <linux/atomic.h>
 #include <linux/platform_device.h>
 #include <kd_imgsensor_define.h>
-#include "imgsensor_common.h"
+
 
 enum IMGSENSOR_CCF {
 	IMGSENSOR_CCF_MCLK_TG_MIN_NUM,
@@ -49,7 +50,8 @@ struct IMGSENSOR_CLK {
 
 extern unsigned int mt_get_ckgen_freq(int ID);
 enum IMGSENSOR_RETURN imgsensor_clk_init(struct IMGSENSOR_CLK *pclk);
-int  imgsensor_clk_set(struct IMGSENSOR_CLK *pclk, ACDK_SENSOR_MCLK_STRUCT *pmclk);
+int imgsensor_clk_set(struct IMGSENSOR_CLK *pclk,
+	struct ACDK_SENSOR_MCLK_STRUCT *pmclk);
 void imgsensor_clk_enable_all(struct IMGSENSOR_CLK *pclk);
 void imgsensor_clk_disable_all(struct IMGSENSOR_CLK *pclk);
 int imgsensor_clk_ioctrl_handler(void *pbuff);

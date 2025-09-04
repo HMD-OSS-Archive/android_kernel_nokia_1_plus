@@ -36,7 +36,8 @@
 /*****************************************************************************
  *** CONFIGURATION
  *****************************************************************************/
-/* #define _MC3XXX_SUPPORT_DOT_CALIBRATION_  *//* Just for mcube's calibration APK*/
+/* Just for mcube's calibration APK*/
+/* #define _MC3XXX_SUPPORT_DOT_CALIBRATION_  */
 #define _MC3XXX_SUPPORT_LPF_
 /*#define _MC3XXX_SUPPORT_CONCURRENCY_PROTECTION_ */
 /* #define _MC3XXX_SUPPORT_APPLY_AVERAGE_AGORITHM_ */
@@ -74,6 +75,11 @@
 #define MC3XXX_REGMAP_LENGTH	(64)
 #define C_I2C_FIFO_SIZE	 8
 
+#define ACC_TAG		"<ACCELEROMETER> "
+#define ACC_LOG(fmt, args...)		pr_debug(ACC_TAG"%s %d : "\
+		fmt, __func__, __LINE__, ##args)
+#define ACC_PR_ERR(fmt, args...)	pr_err(ACC_TAG"%s %d : "\
+		fmt, __func__, __LINE__, ##args)
 
 /* Maintain  cust info here */
 struct acc_hw accel_cust;
@@ -115,29 +121,28 @@ struct data_filter {
 
 struct mc3xxx_i2c_data {
 	/* ================================================ */
-	struct i2c_client		  *client;
-	struct acc_hw			  *hw;
-	struct hwmsen_convert	   cvt;
+	struct i2c_client *client;
+	struct acc_hw *hw;
+	struct hwmsen_convert cvt;
 
 	/* ================================================ */
-	struct data_resolution	 *reso;
-	atomic_t					trace;
-	atomic_t					suspend;
-	atomic_t					selftest;
-	atomic_t					filter;
-	s16						 cali_sw[MC3XXX_AXES_NUM + 1];
+	struct data_resolution *reso;
+	atomic_t trace;
+	atomic_t suspend;
+	atomic_t selftest;
+	atomic_t filter;
+	s16	cali_sw[MC3XXX_AXES_NUM + 1];
 
 	/* ================================================ */
-	s16						 offset[MC3XXX_AXES_NUM + 1];
-	s16						 data[MC3XXX_AXES_NUM + 1];
+	s16	offset[MC3XXX_AXES_NUM + 1];
+	s16	data[MC3XXX_AXES_NUM + 1];
 
 	/* ================================================ */
 	#if defined(_MC3XXX_SUPPORT_LPF_)
-	atomic_t				firlen;
-	atomic_t				fir_en;
-	struct data_filter	  fir;
+	atomic_t firlen;
+	atomic_t fir_en;
+	struct data_filter fir;
 	#endif
-
 };
 
 #ifdef _MC3XXX_SUPPORT_LRF_
@@ -160,7 +165,8 @@ struct S_LRF_CB {
 /*****************************************************************************
  *** STATIC FUNCTION
  *****************************************************************************/
-static int mc3xxx_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id);
+static int mc3xxx_i2c_probe(struct i2c_client *client,
+	const struct i2c_device_id *id);
 static int mc3xxx_i2c_remove(struct i2c_client *client);
 static int _mc3xxx_i2c_auto_probe(struct i2c_client *client);
 static int mc3xxx_suspend(struct device *dev);
@@ -168,11 +174,12 @@ static int mc3xxx_resume(struct device *dev);
 static int mc3xxx_local_init(void);
 static int mc3xxx_remove(void);
 static int MC3XXX_SetPowerMode(struct i2c_client *client, bool enable);
-static int MC3XXX_WriteCalibration(struct i2c_client *client, int dat[MC3XXX_AXES_NUM]);
+static int MC3XXX_WriteCalibration(struct i2c_client *client,
+	int dat[MC3XXX_AXES_NUM]);
 static void MC3XXX_SetGain(void);
 
 /*****************************************************************************
- *** STATIC VARIBLE & CONTROL BLOCK DECLARATION
+ *** STATIC VARIABLE & CONTROL BLOCK DECLARATION
  *****************************************************************************/
 static unsigned char	s_bResolution;
 static unsigned char	s_bPCODE;
@@ -191,9 +198,13 @@ static const struct of_device_id accel_of_match[] = {
 	{},
 };
 #endif
-static const struct i2c_device_id mc3xxx_i2c_id[] = { {MC3XXX_DEV_NAME, 0}, {} };
-/* static struct i2c_board_info __initdata mc3xxx_i2c_board_info = { I2C_BOARD_INFO(MC3XXX_DEV_NAME, 0x4C) }; */
-static unsigned short mc3xxx_i2c_auto_probe_addr[] = { 0x4C, 0x6C, 0x4E, 0x6D, 0x6E, 0x6F };
+static const struct i2c_device_id mc3xxx_i2c_id[] = {
+	{MC3XXX_DEV_NAME, 0},
+	{},
+};
+static unsigned short mc3xxx_i2c_auto_probe_addr[] = {
+	0x4C, 0x6C, 0x4E, 0x6D, 0x6E, 0x6F
+};
 #ifdef CONFIG_PM_SLEEP
 static const struct dev_pm_ops mc3xxx_pm_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(mc3xxx_suspend, mc3xxx_resume)
@@ -309,16 +320,19 @@ static void mc3xxx_mutex_unlock(void)
 #endif
 
 #define IS_MCFM12()	((s_bHWID >= 0xC0) && (s_bHWID <= 0xCF))
-#define IS_MCFM3X()	((s_bHWID == 0x20) || ((s_bHWID >= 0x22) && (s_bHWID <= 0x2F)))
+#define IS_MCFM3X()	((s_bHWID == 0x20)\
+	|| ((s_bHWID >= 0x22) && (s_bHWID <= 0x2F)))
 
 /*****************************************************************************
  *** TODO
  *****************************************************************************/
-#define DATA_PATH			  "/sdcard2/mcube-register-map.txt"
+#define DATA_PATH			"/sdcard2/mcube-register-map.txt"
 
 #ifdef _MC3XXX_SUPPORT_DOT_CALIBRATION_
-	static char	file_path[MC3XXX_BUF_SIZE]	= "/data/data/com.mcube.acc/files/mcube-calib.txt";
-	static char	backup_file_path[MC3XXX_BUF_SIZE] = "/data/misc/sensors/mcube-calib.txt";
+	static char	file_path[MC3XXX_BUF_SIZE]	=
+			"/data/data/com.mcube.acc/files/mcube-calib.txt";
+	static char	backup_file_path[MC3XXX_BUF_SIZE] =
+			"/data/misc/sensors/mcube-calib.txt";
 #endif
 
 /*****************************************************************************
@@ -326,18 +340,14 @@ static void mc3xxx_mutex_unlock(void)
  *****************************************************************************/
 
 /**************I2C operate API*****************************/
-static int MC3XXX_i2c_read_block(struct i2c_client *client, u8 addr, u8 *data, u8 len)
+static int MC3XXX_i2c_read_block(struct i2c_client *client, u8 addr,
+	u8 *data, u8 len)
 {
 	u8 beg = addr;
 	int err;
 	struct i2c_msg msgs[2] = {{0}, {0} };
 
 	mutex_lock(&MC3XXX_i2c_mutex);
-
-	if (!client) {
-		mutex_unlock(&MC3XXX_i2c_mutex);
-		return -EINVAL;
-	}
 
 	msgs[0].addr = client->addr;
 	msgs[0].flags = 0;
@@ -349,14 +359,18 @@ static int MC3XXX_i2c_read_block(struct i2c_client *client, u8 addr, u8 *data, u
 	msgs[1].len = len;
 	msgs[1].buf = data;
 
-	if (len > C_I2C_FIFO_SIZE) {
+	if (!client) {
+		mutex_unlock(&MC3XXX_i2c_mutex);
+		return -EINVAL;
+	} else if (len > C_I2C_FIFO_SIZE) {
 		ACC_PR_ERR(" length %d exceeds %d\n", len, C_I2C_FIFO_SIZE);
 		mutex_unlock(&MC3XXX_i2c_mutex);
 		return -EINVAL;
 	}
 	err = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
 	if (err != 2) {
-		ACC_PR_ERR("i2c_transfer error: (%d %p %d) %d\n", addr, data, len, err);
+		ACC_PR_ERR("i2c_transfer error: (%d %p %d) %d\n", addr, data,
+			len, err);
 		err = -EIO;
 	} else
 		err = 0;
@@ -366,8 +380,10 @@ static int MC3XXX_i2c_read_block(struct i2c_client *client, u8 addr, u8 *data, u
 
 }
 
-static int MC3XXX_i2c_write_block(struct i2c_client *client, u8 addr, u8 *data, u8 len)
-{   /*because address also occupies one byte, the maximum length for write is 7 bytes*/
+static int MC3XXX_i2c_write_block(struct i2c_client *client, u8 addr,
+	u8 *data, u8 len)
+{
+	/* address occupies one byte, the max length for write is 7 bytes */
 	int err, idx, num;
 	char buf[C_I2C_FIFO_SIZE];
 
@@ -427,10 +443,9 @@ static struct file *openFile(char *path, int flag, int mode)
 
 	fp = filp_open(path, flag, mode);
 
-	if (IS_ERR(fp) || !fp->f_op) {
-		ACC_LOG("Calibration File filp_open return NULL\n");
+	if (IS_ERR(fp) || !fp->f_op)
 		return NULL;
-	} else
+	else
 		return fp;
 
 }
@@ -475,11 +490,10 @@ static void initKernelEnv(void)
 {
 	oldfs = get_fs();
 	set_fs(KERNEL_DS);
-	ACC_LOG("initKernelEnv\n");
 }
 
 /*****************************************
- *** mcube_write_log_data
+ * mcube_write_log_data
  *****************************************/
 static int mcube_write_log_data(struct i2c_client *client, u8 data[0x3f])
 {
@@ -493,15 +507,21 @@ static int mcube_write_log_data(struct i2c_client *client, u8 data[0x3f])
 	initKernelEnv();
 	fd_file = openFile(DATA_PATH, O_RDWR | O_CREAT, 0);
 	if (fd_file == NULL)
-		ACC_LOG("mcube_write_log_data fail to open\n");
+		ACC_LOG("%s fail to open\n", __func__);
 	else {
-		rbm_data[MC3XXX_AXIS_X] = (s16)((data[0x0d]) | (data[0x0e] << 8));
-		rbm_data[MC3XXX_AXIS_Y] = (s16)((data[0x0f]) | (data[0x10] << 8));
-		rbm_data[MC3XXX_AXIS_Z] = (s16)((data[0x11]) | (data[0x12] << 8));
+		rbm_data[MC3XXX_AXIS_X] = (s16)((data[0x0d]) |
+			(data[0x0e] << 8));
+		rbm_data[MC3XXX_AXIS_Y] = (s16)((data[0x0f]) |
+			(data[0x10] << 8));
+		rbm_data[MC3XXX_AXIS_Z] = (s16)((data[0x11]) |
+			(data[0x12] << 8));
 
-		raw_data[MC3XXX_AXIS_X] = (rbm_data[MC3XXX_AXIS_X] + offset_data[0]/2)*gsensor_gain.x/gain_data[0];
-		raw_data[MC3XXX_AXIS_Y] = (rbm_data[MC3XXX_AXIS_Y] + offset_data[1]/2)*gsensor_gain.y/gain_data[1];
-		raw_data[MC3XXX_AXIS_Z] = (rbm_data[MC3XXX_AXIS_Z] + offset_data[2]/2)*gsensor_gain.z/gain_data[2];
+		raw_data[MC3XXX_AXIS_X] = (rbm_data[MC3XXX_AXIS_X]
+			+ offset_data[0]/2) * gsensor_gain.x / gain_data[0];
+		raw_data[MC3XXX_AXIS_Y] = (rbm_data[MC3XXX_AXIS_Y]
+			+ offset_data[1]/2) * gsensor_gain.y / gain_data[1];
+		raw_data[MC3XXX_AXIS_Z] = (rbm_data[MC3XXX_AXIS_Z]
+			+ offset_data[2]/2) * gsensor_gain.z / gain_data[2];
 
 		_pszBuffer = kzalloc(_WRT_LOG_DATA_BUFFER_SIZE, GFP_KERNEL);
 
@@ -512,18 +532,19 @@ static int mcube_write_log_data(struct i2c_client *client, u8 data[0x3f])
 
 	memset(_pszBuffer, 0, _WRT_LOG_DATA_BUFFER_SIZE);
 
-	n += sprintf(_pszBuffer+n, "G-sensor RAW X = %d  Y = %d  Z = %d\n", raw_data[0], raw_data[1], raw_data[2]);
-	n += sprintf(_pszBuffer+n, "G-sensor RBM X = %d  Y = %d  Z = %d\n", rbm_data[0], rbm_data[1], rbm_data[2]);
+	n += sprintf(_pszBuffer+n, "G-sensor RAW X = %d  Y = %d  Z = %d\n",
+			raw_data[0], raw_data[1], raw_data[2]);
+	n += sprintf(_pszBuffer+n, "G-sensor RBM X = %d  Y = %d  Z = %d\n",
+			rbm_data[0], rbm_data[1], rbm_data[2]);
 
 	for (i = 0; i < 63; i++)
-		n += sprintf(_pszBuffer+n, "mCube register map Register[%x] = 0x%x\n", i, data[i]);
+		n += sprintf(_pszBuffer+n,
+		"mCube register map Register[%x] = 0x%x\n", i, data[i]);
 
 	mdelay(50);
 
 	err = writeFile(fd_file, _pszBuffer, n);
-	if (err > 0)
-		ACC_LOG("buf:%s\n", _pszBuffer);
-	else
+	if (err <= 0)
 		ACC_LOG("write file error %d\n", err);
 
 	kfree(_pszBuffer);
@@ -544,47 +565,41 @@ static int mcube_read_cali_file(struct i2c_client *client)
 	int err = 0;
 	char buf[64] = {0};
 
-	ACC_LOG("[%s]\n", __func__);
-
 	initKernelEnv();
 	fd_file = openFile(file_path, O_RDONLY, 0);
 
 	if (fd_file == NULL) {
-		ACC_LOG("%s:fail to open calibration file: %s\n", __func__, file_path);
+		ACC_LOG("%s:fail to open calibration file: %s\n",
+			__func__, file_path);
 		fd_file = openFile(backup_file_path, O_RDONLY, 0);
 
 		if (fd_file == NULL) {
-			ACC_LOG("%s:fail to open calibration file: %s\n", __func__, backup_file_path);
+			ACC_LOG("%s:fail to open calibration file: %s\n",
+				__func__, backup_file_path);
 			cali_data[0] = 0;
 			cali_data[1] = 0;
 			cali_data[2] = 0;
 			return -1;
 		}
-		ACC_LOG("Open backup calibration file successfully: %s\n", backup_file_path);
 	} else
-		ACC_LOG("Open calibration file successfully: %s\n", file_path);
-
-
-	memset(buf, 0, sizeof(buf));
+		memset(buf, 0, sizeof(buf));
 
 	err = readFile(fd_file, buf, sizeof(buf));
-	if (err > 0)
-		ACC_LOG("cali_file: buf:%s\n", buf);
-	else
+	if (err <= 0)
 		ACC_LOG("read file error %d\n", err);
 
 	set_fs(oldfs);
 	closeFile(fd_file);
 
-	err = sscanf(buf, "%d %d %d", &cali_data[MC3XXX_AXIS_X], &cali_data[MC3XXX_AXIS_Y], &cali_data[MC3XXX_AXIS_Z]);
-	ACC_LOG("cali_data: %d %d %d\n", cali_data[MC3XXX_AXIS_X], cali_data[MC3XXX_AXIS_Y], cali_data[MC3XXX_AXIS_Z]);
+	err = sscanf(buf, "%d %d %d", &cali_data[MC3XXX_AXIS_X],
+			&cali_data[MC3XXX_AXIS_Y], &cali_data[MC3XXX_AXIS_Z]);
 
-	cali_data1[MC3XXX_AXIS_X] = cali_data[MC3XXX_AXIS_X] * gsensor_gain.x / GRAVITY_EARTH_1000;
-	cali_data1[MC3XXX_AXIS_Y] = cali_data[MC3XXX_AXIS_Y] * gsensor_gain.y / GRAVITY_EARTH_1000;
-	cali_data1[MC3XXX_AXIS_Z] = cali_data[MC3XXX_AXIS_Z] * gsensor_gain.z / GRAVITY_EARTH_1000;
-
-	ACC_LOG("cali_data1: %d %d %d\n", cali_data1[MC3XXX_AXIS_X],
-		cali_data1[MC3XXX_AXIS_Y], cali_data1[MC3XXX_AXIS_Z]);
+	cali_data1[MC3XXX_AXIS_X] = cali_data[MC3XXX_AXIS_X] * gsensor_gain.x
+		/ GRAVITY_EARTH_1000;
+	cali_data1[MC3XXX_AXIS_Y] = cali_data[MC3XXX_AXIS_Y] * gsensor_gain.y
+		/ GRAVITY_EARTH_1000;
+	cali_data1[MC3XXX_AXIS_Z] = cali_data[MC3XXX_AXIS_Z] * gsensor_gain.z
+		/ GRAVITY_EARTH_1000;
 
 	MC3XXX_WriteCalibration(client, cali_data1);
 
@@ -597,9 +612,8 @@ static int mcube_read_cali_file(struct i2c_client *client)
 static void	mcube_load_cali(struct i2c_client *pt_i2c_client)
 {
 	if (false == s_nIsCaliLoaded) {
-		ACC_LOG("[%s] loading cali file...\n", __func__);
-
-		if (mcube_read_cali_file(pt_i2c_client) == MC3XXX_RETCODE_SUCCESS)
+		if (mcube_read_cali_file(pt_i2c_client)
+			== MC3XXX_RETCODE_SUCCESS)
 			s_nIsCaliLoaded = true;
 	}
 }
@@ -610,19 +624,23 @@ static void	mcube_load_cali(struct i2c_client *pt_i2c_client)
  *** mcube_psensor_ioctl
  *****************************************/
 #ifdef _MC3XXX_SUPPORT_VPROXIMITY_SENSOR_
-static long mcube_psensor_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long mcube_psensor_ioctl(struct file *file, unsigned int cmd,
+	unsigned long arg)
 {
 	int err = 0;
 	void __user *data;
 	int pSensor = 0;
 
 	if (_IOC_DIR(cmd) & _IOC_READ)
-		err = !access_ok(VERIFY_WRITE, (void __user *)arg, _IOC_SIZE(cmd));
+		err = !access_ok(VERIFY_WRITE, (void __user *)arg,
+			_IOC_SIZE(cmd));
 	else if (_IOC_DIR(cmd) & _IOC_WRITE)
-		err = !access_ok(VERIFY_READ, (void __user *)arg, _IOC_SIZE(cmd));
+		err = !access_ok(VERIFY_READ, (void __user *)arg,
+			_IOC_SIZE(cmd));
 
 	if (err) {
-		PS_ERR("access error: %08X, (%2d, %2d)\n", cmd, _IOC_DIR(cmd), _IOC_SIZE(cmd));
+		PS_ERR("access error: %08X, (%2d, %2d)\n", cmd,
+			_IOC_DIR(cmd), _IOC_SIZE(cmd));
 		return -EFAULT;
 	}
 
@@ -671,8 +689,8 @@ static struct miscdevice mcube_psensor_device = {
 /*****************************************
  *** psensor_ps_operate
  *****************************************/
-static int psensor_ps_operate(void *self, uint32_t command, void *buff_in, int size_in,
-	void *buff_out /*sensor_data*/, int size_out, int *actualout)
+static int psensor_ps_operate(void *self, uint32_t command, void *buff_in,
+	int size_in, void *buff_out, int size_out, int *actualout)
 {
 	int err = 0;
 	int value;
@@ -705,7 +723,8 @@ static int psensor_ps_operate(void *self, uint32_t command, void *buff_in, int s
 
 	case SENSOR_GET_DATA:
 		PS_LOG("fwq get ps data !!!!!!\n");
-		if ((buff_out == NULL) || (size_out < sizeof(hwm_sensor_data))) {
+		if ((buff_out == NULL)
+			|| (size_out < sizeof(hwm_sensor_data))) {
 			PS_ERR("get sensor data parameter error!\n");
 			err = -EINVAL;
 		} else {
@@ -716,16 +735,20 @@ static int psensor_ps_operate(void *self, uint32_t command, void *buff_in, int s
 			if (P_STATUS == 0) {
 				PS_LOG("TURN ON LCD\n");
 				val = 1;
-				PS_LOG("Set val = 1, Proximity sensor far away\n");
+				PS_LOG(
+					"Set val = 1, Proximity sensor far away\n");
 			} else if (P_STATUS == 1) {
 				PS_LOG("TURN OFF LCD\n");
 				val = 0;
 				PS_LOG("Set val = 0, Proximity sensor close\n");
 			}
-			PS_LOG("mcube sensor data prev_P_STATUS=%d, P_STATUS=%d\n", prev_P_STATUS, P_STATUS);
+			PS_LOG(
+				"mcube sensor data prev_P_STATUS=%d, P_STATUS=%d\n",
+				prev_P_STATUS, P_STATUS);
 			prev_P_STATUS = P_STATUS;
 			} else {
-				PS_LOG("P_STATUS %5d=>%5d\n", prev_P_STATUS, P_STATUS);
+				PS_LOG("P_STATUS %5d=>%5d\n",
+					prev_P_STATUS, P_STATUS);
 				prev_P_STATUS = P_STATUS;
 				val = (P_STATUS == 0) ? (1):(0);
 		}
@@ -737,7 +760,9 @@ static int psensor_ps_operate(void *self, uint32_t command, void *buff_in, int s
 		break;
 
 	default:
-		PS_ERR("proxmy sensor operate function has no this command %d!\n", command);
+		PS_ERR(
+			"proxmy sensor operate function has no this command %d!\n",
+			command);
 		err = -1;
 	}
 
@@ -765,8 +790,6 @@ static void MC3XXX_rbm(struct i2c_client *client, int enable)
 
 	MC3XXX_i2c_read_block(client, 0x04, _baDataBuf, 0x01);
 
-	/* ACC_LOG("[%s] REG(0x04): 0x%X, enable: %d\n", __FUNCTION__, _baDataBuf[0], enable); */
-
 	if (0x00 == (_baDataBuf[0] & 0x40)) {
 		_baDataBuf[0] = 0x6D;
 		MC3XXX_i2c_write_block(client, 0x1B, _baDataBuf, 0x01);
@@ -787,8 +810,6 @@ static void MC3XXX_rbm(struct i2c_client *client, int enable)
 
 		s_nIsRBM_Enabled = 1;
 		LPF_FirstRun = 1;
-
-		ACC_LOG("set rbm!!\n");
 	} else if (enable == 0) {
 		_baDataBuf[0] = 0x00;
 		MC3XXX_i2c_write_block(client, 0x14, _baDataBuf, 0x01);
@@ -799,13 +820,9 @@ static void MC3XXX_rbm(struct i2c_client *client, int enable)
 		MC3XXX_SetGain();
 
 		s_nIsRBM_Enabled = 0;
-
-		ACC_LOG("clear rbm!!\n");
 	}
 
 	MC3XXX_i2c_read_block(client, 0x04, _baDataBuf, 0x01);
-
-	/* ACC_LOG("RBM CONTROL DONE - REG(0x04): 0x%X\n", _baDataBuf[0]); */
 
 	if (_baDataBuf[0] & 0x40) {
 		_baDataBuf[0] = 0x6D;
@@ -827,7 +844,8 @@ static void MC3XXX_rbm(struct i2c_client *client, int enable)
 /*****************************************
  *** MC3XXX_ReadData_RBM
  *****************************************/
-static int MC3XXX_ReadData_RBM(struct i2c_client *client, int data[MC3XXX_AXES_NUM])
+static int MC3XXX_ReadData_RBM(struct i2c_client *client,
+	int data[MC3XXX_AXES_NUM])
 {
 	u8 addr = 0x0d;
 	u8 rbm_buf[MC3XXX_DATA_LEN] = {0};
@@ -849,16 +867,10 @@ static int MC3XXX_ReadData_RBM(struct i2c_client *client, int data[MC3XXX_AXES_N
 	data[MC3XXX_AXIS_Y] = (s16)((rbm_buf[2]) | (rbm_buf[3] << 8));
 	data[MC3XXX_AXIS_Z] = (s16)((rbm_buf[4]) | (rbm_buf[5] << 8));
 
-	ACC_LOG("rbm_buf<<<<<[%02x %02x %02x %02x %02x %02x]\n",
-		rbm_buf[0], rbm_buf[2], rbm_buf[2], rbm_buf[3], rbm_buf[4], rbm_buf[5]);
-	ACC_LOG("RBM<<<<<[%04x %04x %04x]\n", data[MC3XXX_AXIS_X], data[MC3XXX_AXIS_Y], data[MC3XXX_AXIS_Z]);
-	ACC_LOG("RBM<<<<<[%04d %04d %04d]\n", data[MC3XXX_AXIS_X], data[MC3XXX_AXIS_Y], data[MC3XXX_AXIS_Z]);
-
 	if (s_bPCODE == MC3XXX_PCODE_3250) {
 		_nTemp = data[MC3XXX_AXIS_X];
 		data[MC3XXX_AXIS_X] = data[MC3XXX_AXIS_Y];
 		data[MC3XXX_AXIS_Y] = -_nTemp;
-		ACC_LOG("[%s] 3250 read remap\n", __func__);
 	} else {
 		if (s_bMPOL & 0x01)
 			data[MC3XXX_AXIS_X] = -data[MC3XXX_AXIS_X];
@@ -872,39 +884,49 @@ static int MC3XXX_ReadData_RBM(struct i2c_client *client, int data[MC3XXX_AXES_N
 /*****************************************
  *** MC3XXX_ValidateSensorIC
  *****************************************/
-static int MC3XXX_ValidateSensorIC(unsigned char *pbPCode, unsigned char *pbHwID)
+static int MC3XXX_ValidateSensorIC(unsigned char *pbPCode,
+	unsigned char *pbHwID)
 {
-	ACC_LOG("[%s] *pbPCode: 0x%02X, *pbHwID: 0x%02X\n", __func__, *pbPCode, *pbHwID);
-
 	if ((*pbHwID == 0x01) || (*pbHwID == 0x03)
 		|| ((*pbHwID >= 0x04) && (*pbHwID <= 0x0F))) {
-		if ((*pbPCode == MC3XXX_PCODE_3210) || (*pbPCode == MC3XXX_PCODE_3230)
+		if ((*pbPCode == MC3XXX_PCODE_3210)
+			|| (*pbPCode == MC3XXX_PCODE_3230)
 			|| (*pbPCode == MC3XXX_PCODE_3250))
 			return MC3XXX_RETCODE_SUCCESS;
 	} else if ((*pbHwID == 0x02) || (*pbHwID == 0x21)
 		 || ((*pbHwID >= 0x10) && (*pbHwID <= 0x1F))) {
-		if ((*pbPCode == MC3XXX_PCODE_3210) || (*pbPCode == MC3XXX_PCODE_3230)
+		if ((*pbPCode == MC3XXX_PCODE_3210)
+			|| (*pbPCode == MC3XXX_PCODE_3230)
 			|| (*pbPCode == MC3XXX_PCODE_3250)
-				|| (*pbPCode == MC3XXX_PCODE_3410) || (*pbPCode == MC3XXX_PCODE_3410N)
-					|| (*pbPCode == MC3XXX_PCODE_3430) || (*pbPCode == MC3XXX_PCODE_3430N)) {
+			|| (*pbPCode == MC3XXX_PCODE_3410)
+			|| (*pbPCode == MC3XXX_PCODE_3410N)
+			|| (*pbPCode == MC3XXX_PCODE_3430)
+			|| (*pbPCode == MC3XXX_PCODE_3430N)) {
 			return MC3XXX_RETCODE_SUCCESS;
 		}
 	} else if ((*pbHwID >= 0xC0) && (*pbHwID <= 0xCF)) {
 		*pbPCode = (*pbPCode & 0x71);
 
-	if ((*pbPCode == MC3XXX_PCODE_3510) || (*pbPCode == MC3XXX_PCODE_3530))
+	if ((*pbPCode == MC3XXX_PCODE_3510)
+		|| (*pbPCode == MC3XXX_PCODE_3530))
 		return MC3XXX_RETCODE_SUCCESS;
-	} else if ((*pbHwID == 0x20) || ((*pbHwID >= 0x22) && (*pbHwID <= 0x2F))) {
+	} else if ((*pbHwID == 0x20) ||
+		((*pbHwID >= 0x22) && (*pbHwID <= 0x2F))) {
 		*pbPCode = (*pbPCode & 0xF1);
 
-		if ((*pbPCode == MC3XXX_PCODE_3210) || (*pbPCode == MC3XXX_PCODE_3216)
-			|| (*pbPCode == MC3XXX_PCODE_3236) || (*pbPCode == MC3XXX_PCODE_RESERVE_1)
-			|| (*pbPCode == MC3XXX_PCODE_RESERVE_2) || (*pbPCode == MC3XXX_PCODE_RESERVE_3)
-			|| (*pbPCode == MC3XXX_PCODE_RESERVE_4) || (*pbPCode == MC3XXX_PCODE_RESERVE_5)
-			|| (*pbPCode == MC3XXX_PCODE_RESERVE_6) || (*pbPCode == MC3XXX_PCODE_RESERVE_7)
-			|| (*pbPCode == MC3XXX_PCODE_RESERVE_8) || (*pbPCode == MC3XXX_PCODE_RESERVE_9))
+		if ((*pbPCode == MC3XXX_PCODE_3210)
+			|| (*pbPCode == MC3XXX_PCODE_3216)
+			|| (*pbPCode == MC3XXX_PCODE_3236)
+			|| (*pbPCode == MC3XXX_PCODE_RESERVE_1)
+			|| (*pbPCode == MC3XXX_PCODE_RESERVE_2)
+			|| (*pbPCode == MC3XXX_PCODE_RESERVE_3)
+			|| (*pbPCode == MC3XXX_PCODE_RESERVE_4)
+			|| (*pbPCode == MC3XXX_PCODE_RESERVE_5)
+			|| (*pbPCode == MC3XXX_PCODE_RESERVE_6)
+			|| (*pbPCode == MC3XXX_PCODE_RESERVE_7)
+			|| (*pbPCode == MC3XXX_PCODE_RESERVE_8)
+			|| (*pbPCode == MC3XXX_PCODE_RESERVE_9))
 			return MC3XXX_RETCODE_SUCCESS;
-
 	}
 
 	return MC3XXX_RETCODE_ERROR_IDENTIFICATION;
@@ -917,8 +939,6 @@ static int MC3XXX_Read_Chip_ID(struct i2c_client *client, char *buf)
 {
 	u8	 _bChipID[4] = { 0 };
 
-	ACC_LOG("[%s]\n", __func__);
-
 	if (!buf || !client)
 		return -EINVAL;
 
@@ -930,31 +950,28 @@ static int MC3XXX_Read_Chip_ID(struct i2c_client *client, char *buf)
 		_bChipID[3] = 0;
 	}
 
-	ACC_LOG("[%s] %02X-%02X-%02X-%02X\n", __func__, _bChipID[3], _bChipID[2], _bChipID[1], _bChipID[0]);
-
-	return sprintf(buf, "%02X-%02X-%02X-%02X\n", _bChipID[3], _bChipID[2], _bChipID[1], _bChipID[0]);
+	return sprintf(buf, "%02X-%02X-%02X-%02X\n", _bChipID[3], _bChipID[2],
+		_bChipID[1], _bChipID[0]);
 }
 
 /*****************************************
  *** MC3XXX_Read_Reg_Map
  *****************************************/
-static int MC3XXX_Read_Reg_Map(struct i2c_client *p_i2c_client, u8 *pbUserBuf)
+static int MC3XXX_Read_Reg_Map(struct i2c_client *p_i2c_client,
+	u8 *pbUserBuf)
 {
 	u8	 _baData[MC3XXX_REGMAP_LENGTH] = { 0 };
 	int	_nIndex = 0;
-
-	ACC_LOG("[%s]\n", __func__);
 
 	if (p_i2c_client == NULL)
 		return (-EINVAL);
 
 	for (_nIndex = 0; _nIndex < MC3XXX_REGMAP_LENGTH; _nIndex++) {
-		MC3XXX_i2c_read_block(p_i2c_client, _nIndex, &_baData[_nIndex], 1);
+		MC3XXX_i2c_read_block(p_i2c_client, _nIndex,
+			&_baData[_nIndex], 1);
 
 		if (pbUserBuf != NULL)
 			pbUserBuf[_nIndex] = _baData[_nIndex];
-
-		ACC_LOG("[Gsensor] REG[0x%02X] = 0x%02X\n", _nIndex, _baData[_nIndex]);
 	}
 
 	mcube_write_log_data(p_i2c_client, _baData);
@@ -967,14 +984,8 @@ static int MC3XXX_Read_Reg_Map(struct i2c_client *p_i2c_client, u8 *pbUserBuf)
  *****************************************/
 static void MC3XXX_SaveDefaultOffset(struct i2c_client *p_i2c_client)
 {
-	ACC_LOG("[%s]\n", __func__);
-
 	MC3XXX_i2c_read_block(p_i2c_client, 0x21, &s_baOTP_OffsetData[0], 3);
 	MC3XXX_i2c_read_block(p_i2c_client, 0x24, &s_baOTP_OffsetData[3], 3);
-
-	ACC_LOG("s_baOTP_OffsetData: 0x%02X - 0x%02X - 0x%02X - 0x%02X - 0x%02X - 0x%02X\n",
-		s_baOTP_OffsetData[0], s_baOTP_OffsetData[1], s_baOTP_OffsetData[2],
-		s_baOTP_OffsetData[3], s_baOTP_OffsetData[4], s_baOTP_OffsetData[5]);
 }
 
 /*****************************************
@@ -984,51 +995,53 @@ static void MC3XXX_SaveDefaultOffset(struct i2c_client *p_i2c_client)
 static void MC3XXX_LPF(struct mc3xxx_i2c_data *priv, s16 data[MC3XXX_AXES_NUM])
 {
 	if (atomic_read(&priv->filter)) {
-		if (atomic_read(&priv->fir_en) && !atomic_read(&priv->suspend)) {
+		if (atomic_read(&priv->fir_en)
+			&& !atomic_read(&priv->suspend)) {
 			int idx, firlen = atomic_read(&priv->firlen);
 
 			if (priv->fir.num < firlen) {
-				priv->fir.raw[priv->fir.num][MC3XXX_AXIS_X] = data[MC3XXX_AXIS_X];
-				priv->fir.raw[priv->fir.num][MC3XXX_AXIS_Y] = data[MC3XXX_AXIS_Y];
-				priv->fir.raw[priv->fir.num][MC3XXX_AXIS_Z] = data[MC3XXX_AXIS_Z];
-				priv->fir.sum[MC3XXX_AXIS_X] += data[MC3XXX_AXIS_X];
-				priv->fir.sum[MC3XXX_AXIS_Y] += data[MC3XXX_AXIS_Y];
-				priv->fir.sum[MC3XXX_AXIS_Z] += data[MC3XXX_AXIS_Z];
-
-				if (atomic_read(&priv->trace) & MCUBE_TRC_FILTER) {
-					ACC_LOG("add [%2d] [%5d %5d %5d] => [%5d %5d %5d]\n", priv->fir.num,
-						priv->fir.raw[priv->fir.num][MC3XXX_AXIS_X],
-						priv->fir.raw[priv->fir.num][MC3XXX_AXIS_Y],
-						priv->fir.raw[priv->fir.num][MC3XXX_AXIS_Z],
-						priv->fir.sum[MC3XXX_AXIS_X],
-						priv->fir.sum[MC3XXX_AXIS_Y], priv->fir.sum[MC3XXX_AXIS_Z]);
-				}
+				priv->fir.raw[priv->fir.num][MC3XXX_AXIS_X]
+					= data[MC3XXX_AXIS_X];
+				priv->fir.raw[priv->fir.num][MC3XXX_AXIS_Y]
+					= data[MC3XXX_AXIS_Y];
+				priv->fir.raw[priv->fir.num][MC3XXX_AXIS_Z]
+					= data[MC3XXX_AXIS_Z];
+				priv->fir.sum[MC3XXX_AXIS_X]
+					+= data[MC3XXX_AXIS_X];
+				priv->fir.sum[MC3XXX_AXIS_Y]
+					+= data[MC3XXX_AXIS_Y];
+				priv->fir.sum[MC3XXX_AXIS_Z]
+					+= data[MC3XXX_AXIS_Z];
 
 				priv->fir.num++;
 				priv->fir.idx++;
 			} else {
 				idx = priv->fir.idx % firlen;
-				priv->fir.sum[MC3XXX_AXIS_X] -= priv->fir.raw[idx][MC3XXX_AXIS_X];
-				priv->fir.sum[MC3XXX_AXIS_Y] -= priv->fir.raw[idx][MC3XXX_AXIS_Y];
-				priv->fir.sum[MC3XXX_AXIS_Z] -= priv->fir.raw[idx][MC3XXX_AXIS_Z];
-				priv->fir.raw[idx][MC3XXX_AXIS_X] = data[MC3XXX_AXIS_X];
-				priv->fir.raw[idx][MC3XXX_AXIS_Y] = data[MC3XXX_AXIS_Y];
-				priv->fir.raw[idx][MC3XXX_AXIS_Z] = data[MC3XXX_AXIS_Z];
-				priv->fir.sum[MC3XXX_AXIS_X] += data[MC3XXX_AXIS_X];
-				priv->fir.sum[MC3XXX_AXIS_Y] += data[MC3XXX_AXIS_Y];
-				priv->fir.sum[MC3XXX_AXIS_Z] += data[MC3XXX_AXIS_Z];
+				priv->fir.sum[MC3XXX_AXIS_X]
+					-= priv->fir.raw[idx][MC3XXX_AXIS_X];
+				priv->fir.sum[MC3XXX_AXIS_Y]
+					-= priv->fir.raw[idx][MC3XXX_AXIS_Y];
+				priv->fir.sum[MC3XXX_AXIS_Z]
+					-= priv->fir.raw[idx][MC3XXX_AXIS_Z];
+				priv->fir.raw[idx][MC3XXX_AXIS_X]
+					= data[MC3XXX_AXIS_X];
+				priv->fir.raw[idx][MC3XXX_AXIS_Y]
+					= data[MC3XXX_AXIS_Y];
+				priv->fir.raw[idx][MC3XXX_AXIS_Z]
+					= data[MC3XXX_AXIS_Z];
+				priv->fir.sum[MC3XXX_AXIS_X]
+					+= data[MC3XXX_AXIS_X];
+				priv->fir.sum[MC3XXX_AXIS_Y]
+					+= data[MC3XXX_AXIS_Y];
+				priv->fir.sum[MC3XXX_AXIS_Z]
+					+= data[MC3XXX_AXIS_Z];
 				priv->fir.idx++;
-				data[MC3XXX_AXIS_X] = priv->fir.sum[MC3XXX_AXIS_X]/firlen;
-				data[MC3XXX_AXIS_Y] = priv->fir.sum[MC3XXX_AXIS_Y]/firlen;
-				data[MC3XXX_AXIS_Z] = priv->fir.sum[MC3XXX_AXIS_Z]/firlen;
-
-				if (atomic_read(&priv->trace) & MCUBE_TRC_FILTER) {
-					ACC_LOG("add [%2d] [%5d %5d %5d] => [%5d %5d %5d] : [%5d %5d %5d]\n", idx,
-					priv->fir.raw[idx][MC3XXX_AXIS_X], priv->fir.raw[idx][MC3XXX_AXIS_Y],
-					priv->fir.raw[idx][MC3XXX_AXIS_Z], priv->fir.sum[MC3XXX_AXIS_X],
-					priv->fir.sum[MC3XXX_AXIS_Y], priv->fir.sum[MC3XXX_AXIS_Z],
-					data[MC3XXX_AXIS_X], data[MC3XXX_AXIS_Y], data[MC3XXX_AXIS_Z]);
-				}
+				data[MC3XXX_AXIS_X]
+					= priv->fir.sum[MC3XXX_AXIS_X] / firlen;
+				data[MC3XXX_AXIS_Y]
+					= priv->fir.sum[MC3XXX_AXIS_Y] / firlen;
+				data[MC3XXX_AXIS_Z]
+					= priv->fir.sum[MC3XXX_AXIS_Z] / firlen;
 			}
 		}
 	}
@@ -1041,10 +1054,10 @@ static void MC3XXX_LPF(struct mc3xxx_i2c_data *priv, s16 data[MC3XXX_AXES_NUM])
  *****************************************/
 static void _MC3XXX_LowResFilter(s16 nAxis, s16 naData[MC3XXX_AXES_NUM])
 {
-	#define _LRF_DIFF_COUNT_POS				  2
-	#define _LRF_DIFF_COUNT_NEG				  (-_LRF_DIFF_COUNT_POS)
-	#define _LRF_DIFF_BOUNDARY_POS			   (_LRF_DIFF_COUNT_POS + 1)
-	#define _LRF_DIFF_BOUNDARY_NEG			   (_LRF_DIFF_COUNT_NEG - 1)
+	#define _LRF_DIFF_COUNT_POS		2
+	#define _LRF_DIFF_COUNT_NEG		(-_LRF_DIFF_COUNT_POS)
+	#define _LRF_DIFF_BOUNDARY_POS	(_LRF_DIFF_COUNT_POS + 1)
+	#define _LRF_DIFF_BOUNDARY_NEG	(_LRF_DIFF_COUNT_NEG - 1)
 	#define _LRF_DIFF_DATA_UNCHANGE_MAX_COUNT	11
 
 	signed int	_nCurrDiff = 0;
@@ -1053,7 +1066,8 @@ static void _MC3XXX_LowResFilter(s16 nAxis, s16 naData[MC3XXX_AXES_NUM])
 
 	_nCurrDiff = (_nCurrData - s_taLRF_CB[nAxis].nRepValue);
 
-	if ((_nCurrDiff > _LRF_DIFF_COUNT_NEG) && (_nCurrDiff < _LRF_DIFF_COUNT_POS)) {
+	if ((_nCurrDiff > _LRF_DIFF_COUNT_NEG)
+		&& (_nCurrDiff < _LRF_DIFF_COUNT_POS)) {
 		if (s_taLRF_CB[nAxis].nIsNewRound) {
 			s_taLRF_CB[nAxis].nMaxValue = _nCurrData;
 			s_taLRF_CB[nAxis].nMinValue = _nCurrData;
@@ -1066,25 +1080,32 @@ static void _MC3XXX_LowResFilter(s16 nAxis, s16 naData[MC3XXX_AXES_NUM])
 			else if (_nCurrData < s_taLRF_CB[nAxis].nMinValue)
 				s_taLRF_CB[nAxis].nMinValue = _nCurrData;
 
-			if (s_taLRF_CB[nAxis].nMinValue != s_taLRF_CB[nAxis].nMaxValue) {
+			if (s_taLRF_CB[nAxis].nMinValue
+				!= s_taLRF_CB[nAxis].nMaxValue) {
 				if (_nCurrData == s_taLRF_CB[nAxis].nPreValue)
-					s_taLRF_CB[nAxis].nNewDataMonitorCount++;
+					s_taLRF_CB[nAxis]
+					.nNewDataMonitorCount++;
 				else
-				s_taLRF_CB[nAxis].nNewDataMonitorCount = 0;
+					s_taLRF_CB[nAxis]
+					.nNewDataMonitorCount = 0;
 			}
 		}
 
-		if (1 != (s_taLRF_CB[nAxis].nMaxValue - s_taLRF_CB[nAxis].nMinValue))
-			s_taLRF_CB[nAxis].nRepValue = ((s_taLRF_CB[nAxis].nMaxValue + s_taLRF_CB[nAxis]
-				.nMinValue) / 2);
+		if (1 != (s_taLRF_CB[nAxis].nMaxValue
+			- s_taLRF_CB[nAxis].nMinValue))
+			s_taLRF_CB[nAxis].nRepValue
+				= ((s_taLRF_CB[nAxis].nMaxValue
+				+ s_taLRF_CB[nAxis].nMinValue) / 2);
 
 		_nSumDiff = (_nCurrDiff + s_taLRF_CB[nAxis].nPreDiff);
 
 		if (_nCurrDiff)
 			s_taLRF_CB[nAxis].nPreDiff = _nCurrDiff;
 
-		if ((_nSumDiff > _LRF_DIFF_BOUNDARY_NEG) && (_nSumDiff < _LRF_DIFF_BOUNDARY_POS)) {
-			if (s_taLRF_CB[nAxis].nNewDataMonitorCount < _LRF_DIFF_DATA_UNCHANGE_MAX_COUNT) {
+		if ((_nSumDiff > _LRF_DIFF_BOUNDARY_NEG)
+			&& (_nSumDiff < _LRF_DIFF_BOUNDARY_POS)) {
+			if (s_taLRF_CB[nAxis].nNewDataMonitorCount
+				< _LRF_DIFF_DATA_UNCHANGE_MAX_COUNT) {
 				naData[nAxis] = s_taLRF_CB[nAxis].nRepValue;
 				goto _LRF_RETURN;
 			}
@@ -1097,10 +1118,6 @@ static void _MC3XXX_LowResFilter(s16 nAxis, s16 naData[MC3XXX_AXES_NUM])
 
 _LRF_RETURN:
 
-	/*
-	* ACC_LOG(">>>>> [_MC3XXX_LowResFilter][%d] _nCurrDiff: %4d _nSumDiff: %4d _nCurrData:%4d	 Rep:%4d\n",
-	*	nAxis, _nCurrDiff, _nSumDiff, _nCurrData, s_taLRF_CB[nAxis].nRepValue);
-	*/
 	s_taLRF_CB[nAxis].nPreValue = _nCurrData;
 
 	#undef _LRF_DIFF_COUNT_POS
@@ -1116,19 +1133,15 @@ _LRF_RETURN:
  *****************************************/
 static void	_MC3XXX_ReadData_RBM2RAW(s16 waData[MC3XXX_AXES_NUM])
 {
-	struct mc3xxx_i2c_data   *_pt_i2c_obj = mc3xxx_obj_i2c_data;
-
-	waData[MC3XXX_AXIS_X] = (waData[MC3XXX_AXIS_X] + offset_data[MC3XXX_AXIS_X] / 2)
+	waData[MC3XXX_AXIS_X] = (waData[MC3XXX_AXIS_X]
+		+ offset_data[MC3XXX_AXIS_X] / 2)
 		* 1024 / gain_data[MC3XXX_AXIS_X] + 8096;
-	waData[MC3XXX_AXIS_Y] = (waData[MC3XXX_AXIS_Y] + offset_data[MC3XXX_AXIS_Y] / 2)
+	waData[MC3XXX_AXIS_Y] = (waData[MC3XXX_AXIS_Y]
+		+ offset_data[MC3XXX_AXIS_Y] / 2)
 		* 1024 / gain_data[MC3XXX_AXIS_Y] + 8096;
-	waData[MC3XXX_AXIS_Z] = (waData[MC3XXX_AXIS_Z] + offset_data[MC3XXX_AXIS_Z] / 2)
+	waData[MC3XXX_AXIS_Z] = (waData[MC3XXX_AXIS_Z]
+		+ offset_data[MC3XXX_AXIS_Z] / 2)
 		* 1024 / gain_data[MC3XXX_AXIS_Z] + 8096;
-
-	if (atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO)
-		ACC_LOG("RBM->RAW <<<<<[%08d %08d %08d]\n", waData[MC3XXX_AXIS_X],
-			waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
-
 
 	iAReal0_X			 = (0x0010 * waData[MC3XXX_AXIS_X]);
 	iAcc1Lpf0_X		   = GetLowPassFilter(iAReal0_X, iAcc1Lpf1_X);
@@ -1144,16 +1157,13 @@ static void	_MC3XXX_ReadData_RBM2RAW(s16 waData[MC3XXX_AXES_NUM])
 	iAcc1Lpf0_Z		   = GetLowPassFilter(iAReal0_Z, iAcc1Lpf1_Z);
 	iAcc0Lpf0_Z		   = GetLowPassFilter(iAcc1Lpf0_Z, iAcc0Lpf1_Z);
 	waData[MC3XXX_AXIS_Z] = (iAcc0Lpf0_Z / 0x0010);
-	if (atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO)
-		ACC_LOG("RBM->RAW->LPF <<<<<[%08d %08d %08d]\n", waData[MC3XXX_AXIS_X],
-			waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
 
-	waData[MC3XXX_AXIS_X] = (waData[MC3XXX_AXIS_X] - 8096) * gsensor_gain.x / 1024;
-	waData[MC3XXX_AXIS_Y] = (waData[MC3XXX_AXIS_Y] - 8096) * gsensor_gain.y / 1024;
-	waData[MC3XXX_AXIS_Z] = (waData[MC3XXX_AXIS_Z] - 8096) * gsensor_gain.z / 1024;
-	if (atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO)
-		ACC_LOG("RBM->RAW->LPF->RAW <<<<<[%08d %08d %08d]\n", waData[MC3XXX_AXIS_X],
-			waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
+	waData[MC3XXX_AXIS_X] = (waData[MC3XXX_AXIS_X] - 8096)
+		* gsensor_gain.x / 1024;
+	waData[MC3XXX_AXIS_Y] = (waData[MC3XXX_AXIS_Y] - 8096)
+		* gsensor_gain.y / 1024;
+	waData[MC3XXX_AXIS_Z] = (waData[MC3XXX_AXIS_Z] - 8096)
+		* gsensor_gain.z / 1024;
 
 	iAcc0Lpf1_X = iAcc0Lpf0_X;
 	iAcc1Lpf1_X = iAcc1Lpf0_X;
@@ -1166,28 +1176,26 @@ static void	_MC3XXX_ReadData_RBM2RAW(s16 waData[MC3XXX_AXES_NUM])
 /*****************************************
  *** MC3XXX_ReadData
  *****************************************/
-static int	MC3XXX_ReadData(struct i2c_client *pt_i2c_client, s16 waData[MC3XXX_AXES_NUM])
+static int	MC3XXX_ReadData(struct i2c_client *pt_i2c_client,
+	s16 waData[MC3XXX_AXES_NUM])
 {
 	u8	_baData[MC3XXX_DATA_LEN] = { 0 };
 	s16 _nTemp = 0;
 	#ifdef _MC3XXX_SUPPORT_LPF_
 		struct mc3xxx_i2c_data   *_ptPrivData = NULL;
 	#endif
-	struct mc3xxx_i2c_data   *_pt_i2c_obj = ((struct mc3xxx_i2c_data *) i2c_get_clientdata(pt_i2c_client));
-
-	if (atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO)
-		ACC_LOG("[%s] s_nIsRBM_Enabled: %d\n", __func__, s_nIsRBM_Enabled);
 
 	if (pt_i2c_client == NULL) {
 		ACC_PR_ERR("ERR: Null Pointer\n");
 
-	return MC3XXX_RETCODE_ERROR_NULL_POINTER;
+		return MC3XXX_RETCODE_ERROR_NULL_POINTER;
 	}
 
 	if (!s_nIsRBM_Enabled) {
 		if (s_bResolution == MC3XXX_RESOLUTION_LOW) {
-			if (MC3XXX_i2c_read_block(pt_i2c_client, MC3XXX_REG_XOUT, _baData,
-			MC3XXX_LOW_REOLUTION_DATA_SIZE)) {
+			if (MC3XXX_i2c_read_block(pt_i2c_client,
+				MC3XXX_REG_XOUT, _baData,
+				MC3XXX_LOW_REOLUTION_DATA_SIZE)) {
 				ACC_PR_ERR("ERR: fail to read data via I2C!\n");
 
 			return MC3XXX_RETCODE_ERROR_I2C;
@@ -1197,59 +1205,47 @@ static int	MC3XXX_ReadData(struct i2c_client *pt_i2c_client, s16 waData[MC3XXX_A
 			waData[MC3XXX_AXIS_Y] = ((s8) _baData[1]);
 			waData[MC3XXX_AXIS_Z] = ((s8) _baData[2]);
 
-			if (atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO)
-				ACC_LOG("[%s][low] X: %d, Y: %d, Z: %d\n",
-					__func__, waData[MC3XXX_AXIS_X], waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
-
 		#ifdef _MC3XXX_SUPPORT_LRF_
 			_MC3XXX_LowResFilter(MC3XXX_AXIS_X, waData);
 			_MC3XXX_LowResFilter(MC3XXX_AXIS_Y, waData);
 			_MC3XXX_LowResFilter(MC3XXX_AXIS_Z, waData);
 		#endif
 		} else if (s_bResolution == MC3XXX_RESOLUTION_HIGH) {
-			if (MC3XXX_i2c_read_block(pt_i2c_client, MC3XXX_REG_XOUT_EX_L, _baData,
-			MC3XXX_HIGH_REOLUTION_DATA_SIZE)) {
+			if (MC3XXX_i2c_read_block(pt_i2c_client,
+				MC3XXX_REG_XOUT_EX_L, _baData,
+				MC3XXX_HIGH_REOLUTION_DATA_SIZE)) {
 				ACC_PR_ERR("ERR: fail to read data via I2C!\n");
 
 			return MC3XXX_RETCODE_ERROR_I2C;
 			}
 
-			waData[MC3XXX_AXIS_X] = ((signed short) ((_baData[0]) | (_baData[1]<<8)));
-			waData[MC3XXX_AXIS_Y] = ((signed short) ((_baData[2]) | (_baData[3]<<8)));
-			waData[MC3XXX_AXIS_Z] = ((signed short) ((_baData[4]) | (_baData[5]<<8)));
-			if (atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO)
-				ACC_LOG("[%s][high] X: %d, Y: %d, Z: %d\n",
-					__func__, waData[MC3XXX_AXIS_X], waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
-
+			waData[MC3XXX_AXIS_X] = ((signed short) ((_baData[0])
+				| (_baData[1]<<8)));
+			waData[MC3XXX_AXIS_Y] = ((signed short) ((_baData[2])
+				| (_baData[3]<<8)));
+			waData[MC3XXX_AXIS_Z] = ((signed short) ((_baData[4])
+				| (_baData[5]<<8)));
 		}
-
-		if (atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO)
-			ACC_LOG("RAW<<<<<[%04d %04d %04d]\n",
-				waData[MC3XXX_AXIS_X], waData[MC3XXX_AXIS_Y], waData[MC3XXX_AXIS_Z]);
 
 	#ifdef _MC3XXX_SUPPORT_LPF_
 		_ptPrivData = i2c_get_clientdata(pt_i2c_client);
 
 		MC3XXX_LPF(_ptPrivData, waData);
-		if (atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO)
-			ACC_LOG("LPF<<<<<[%04d %04d %04d]\n", waData[MC3XXX_AXIS_X], waData[MC3XXX_AXIS_Y],
-				waData[MC3XXX_AXIS_Z]);
 	#endif
 	} else {
-		if (MC3XXX_i2c_read_block(pt_i2c_client, MC3XXX_REG_XOUT_EX_L, _baData,
-		MC3XXX_HIGH_REOLUTION_DATA_SIZE)) {
+		if (MC3XXX_i2c_read_block(pt_i2c_client, MC3XXX_REG_XOUT_EX_L,
+			_baData, MC3XXX_HIGH_REOLUTION_DATA_SIZE)) {
 			ACC_PR_ERR("ERR: fail to read data via I2C!\n");
 
 		return MC3XXX_RETCODE_ERROR_I2C;
 		}
 
-		waData[MC3XXX_AXIS_X] = ((s16)((_baData[0]) | (_baData[1] << 8)));
-		waData[MC3XXX_AXIS_Y] = ((s16)((_baData[2]) | (_baData[3] << 8)));
-		waData[MC3XXX_AXIS_Z] = ((s16)((_baData[4]) | (_baData[5] << 8)));
-
-		if (atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO)
-			ACC_LOG("RBM<<<<<[%08d %08d %08d]\n", waData[MC3XXX_AXIS_X], waData[MC3XXX_AXIS_Y],
-				waData[MC3XXX_AXIS_Z]);
+		waData[MC3XXX_AXIS_X] = ((s16)((_baData[0])
+			| (_baData[1] << 8)));
+		waData[MC3XXX_AXIS_Y] = ((s16)((_baData[2])
+			| (_baData[3] << 8)));
+		waData[MC3XXX_AXIS_Z] = ((s16)((_baData[4])
+			| (_baData[5] << 8)));
 
 		_MC3XXX_ReadData_RBM2RAW(waData);
 	}
@@ -1258,7 +1254,6 @@ static int	MC3XXX_ReadData(struct i2c_client *pt_i2c_client, s16 waData[MC3XXX_A
 		_nTemp = waData[MC3XXX_AXIS_X];
 		waData[MC3XXX_AXIS_X] = waData[MC3XXX_AXIS_Y];
 		waData[MC3XXX_AXIS_Y] = -_nTemp;
-		ACC_LOG("[%s] 3250 read remap\n", __func__);
 	} else {
 		if (s_bMPOL & 0x01)
 			waData[MC3XXX_AXIS_X] = -waData[MC3XXX_AXIS_X];
@@ -1271,21 +1266,26 @@ static int	MC3XXX_ReadData(struct i2c_client *pt_i2c_client, s16 waData[MC3XXX_A
 /*****************************************
  *** MC3XXX_ReadOffset
  *****************************************/
-static int MC3XXX_ReadOffset(struct i2c_client *client, s16 ofs[MC3XXX_AXES_NUM])
+static int MC3XXX_ReadOffset(struct i2c_client *client,
+	s16 ofs[MC3XXX_AXES_NUM])
 {
 	int err = 0;
 	u8 off_data[6] = {0};
 	s16 _nTemp = 0;
 
 	if (s_bResolution == MC3XXX_RESOLUTION_HIGH) {
-		err = MC3XXX_i2c_read_block(client, MC3XXX_REG_XOUT_EX_L, off_data, MC3XXX_DATA_LEN);
+		err = MC3XXX_i2c_read_block(client, MC3XXX_REG_XOUT_EX_L,
+			off_data, MC3XXX_DATA_LEN);
 		if (err) {
 			ACC_PR_ERR("error: %d\n", err);
 			return err;
 		}
-		ofs[MC3XXX_AXIS_X] = ((s16)(off_data[0]))|((s16)(off_data[1])<<8);
-		ofs[MC3XXX_AXIS_Y] = ((s16)(off_data[2]))|((s16)(off_data[3])<<8);
-		ofs[MC3XXX_AXIS_Z] = ((s16)(off_data[4]))|((s16)(off_data[5])<<8);
+		ofs[MC3XXX_AXIS_X] = ((s16)(off_data[0]))
+			| ((s16)(off_data[1])<<8);
+		ofs[MC3XXX_AXIS_Y] = ((s16)(off_data[2]))
+			| ((s16)(off_data[3])<<8);
+		ofs[MC3XXX_AXIS_Z] = ((s16)(off_data[4]))
+			| ((s16)(off_data[5])<<8);
 	} else if (s_bResolution == MC3XXX_RESOLUTION_LOW) {
 		err = MC3XXX_i2c_read_block(client, 0, off_data, 3);
 		if (err) {
@@ -1297,13 +1297,10 @@ static int MC3XXX_ReadOffset(struct i2c_client *client, s16 ofs[MC3XXX_AXES_NUM]
 		ofs[MC3XXX_AXIS_Z] = (s8)off_data[2];
 	}
 
-	ACC_LOG("MC3XXX_ReadOffset %d %d %d\n", ofs[MC3XXX_AXIS_X], ofs[MC3XXX_AXIS_Y], ofs[MC3XXX_AXIS_Z]);
-
 	if (s_bPCODE == MC3XXX_PCODE_3250) {
 		_nTemp = ofs[0];
 		ofs[0] = ofs[1];
 		ofs[1] = -_nTemp;
-		ACC_LOG("[%s] 3250 read remap\n", __func__);
 	} else {
 		if (s_bMPOL & 0x01)
 			ofs[0] = -ofs[0];
@@ -1371,7 +1368,8 @@ static int MC3XXX_ResetCalibration(struct i2c_client *client)
 /*****************************************
  *** MC3XXX_ReadCalibration
  *****************************************/
-static int MC3XXX_ReadCalibration(struct i2c_client *client, int dat[MC3XXX_AXES_NUM])
+static int MC3XXX_ReadCalibration(struct i2c_client *client,
+	int dat[MC3XXX_AXES_NUM])
 {
 	struct mc3xxx_i2c_data *obj = i2c_get_clientdata(client);
 	int err = 0;
@@ -1386,16 +1384,14 @@ static int MC3XXX_ReadCalibration(struct i2c_client *client, int dat[MC3XXX_AXES
 	dat[MC3XXX_AXIS_Y] = obj->offset[MC3XXX_AXIS_Y];
 	dat[MC3XXX_AXIS_Z] = obj->offset[MC3XXX_AXIS_Z];
 
-	ACC_LOG("MC3XXX_ReadCalibration %d %d %d\n",
-		dat[obj->cvt.map[MC3XXX_AXIS_X]], dat[obj->cvt.map[MC3XXX_AXIS_Y]], dat[obj->cvt.map[MC3XXX_AXIS_Z]]);
-
 	return 0;
 }
 
 /*****************************************
  *** MC3XXX_WriteCalibration
  *****************************************/
-static int MC3XXX_WriteCalibration(struct i2c_client *client, int dat[MC3XXX_AXES_NUM])
+static int MC3XXX_WriteCalibration(struct i2c_client *client,
+	int dat[MC3XXX_AXES_NUM])
 {
 	struct mc3xxx_i2c_data *obj = i2c_get_clientdata(client);
 	int err = 0;
@@ -1411,26 +1407,23 @@ static int MC3XXX_WriteCalibration(struct i2c_client *client, int dat[MC3XXX_AXE
 	s32 dwRangePosLimit  = 0x1FFF;
 	s32 dwRangeNegLimit  = -0x2000;
 
-	ACC_LOG("UPDATE dat: (%+3d %+3d %+3d)\n", dat[MC3XXX_AXIS_X], dat[MC3XXX_AXIS_Y], dat[MC3XXX_AXIS_Z]);
-
-	cali[MC3XXX_AXIS_X] = obj->cvt.sign[MC3XXX_AXIS_X]*(dat[obj->cvt.map[MC3XXX_AXIS_X]]);
-	cali[MC3XXX_AXIS_Y] = obj->cvt.sign[MC3XXX_AXIS_Y]*(dat[obj->cvt.map[MC3XXX_AXIS_Y]]);
-	cali[MC3XXX_AXIS_Z] = obj->cvt.sign[MC3XXX_AXIS_Z]*(dat[obj->cvt.map[MC3XXX_AXIS_Z]]);
+	cali[MC3XXX_AXIS_X] = obj->cvt.sign[MC3XXX_AXIS_X]
+		* (dat[obj->cvt.map[MC3XXX_AXIS_X]]);
+	cali[MC3XXX_AXIS_Y] = obj->cvt.sign[MC3XXX_AXIS_Y]
+		* (dat[obj->cvt.map[MC3XXX_AXIS_Y]]);
+	cali[MC3XXX_AXIS_Z] = obj->cvt.sign[MC3XXX_AXIS_Z]
+		* (dat[obj->cvt.map[MC3XXX_AXIS_Z]]);
 
 	if (s_bPCODE == MC3XXX_PCODE_3250) {
 		_nTemp = cali[MC3XXX_AXIS_X];
 		cali[MC3XXX_AXIS_X] = -cali[MC3XXX_AXIS_Y];
 		cali[MC3XXX_AXIS_Y] = _nTemp;
-		ACC_LOG("[%s] 3250 write remap\n", __func__);
 	} else {
 		if (s_bMPOL & 0x01)
 			cali[MC3XXX_AXIS_X] = -cali[MC3XXX_AXIS_X];
 		if (s_bMPOL & 0x02)
 			cali[MC3XXX_AXIS_Y] = -cali[MC3XXX_AXIS_Y];
-		ACC_LOG("[%s] 35X0 remap [s_bMPOL: %d]\n", __func__, s_bMPOL);
 	}
-
-	ACC_LOG("UPDATE dat: (%+3d %+3d %+3d)\n", cali[MC3XXX_AXIS_X], cali[MC3XXX_AXIS_Y], cali[MC3XXX_AXIS_Z]);
 
 	/* read registers 0x21~0x29 */
 	err = MC3XXX_i2c_read_block(client, 0x21, buf, 3);
@@ -1479,9 +1472,12 @@ static int MC3XXX_WriteCalibration(struct i2c_client *client, int dat[MC3XXX_AXE
 	z_gain = ((buf[5] >> 7) << 8) + buf[8];
 
 	/* prepare new offset */
-	x_off = x_off + 16 * cali[MC3XXX_AXIS_X] * 256 * 128 / 3 / gsensor_gain.x / (40 + x_gain);
-	y_off = y_off + 16 * cali[MC3XXX_AXIS_Y] * 256 * 128 / 3 / gsensor_gain.y / (40 + y_gain);
-	z_off = z_off + 16 * cali[MC3XXX_AXIS_Z] * 256 * 128 / 3 / gsensor_gain.z / (40 + z_gain);
+	x_off = x_off + 16 * cali[MC3XXX_AXIS_X] * 256 * 128
+		/ 3 / gsensor_gain.x / (40 + x_gain);
+	y_off = y_off + 16 * cali[MC3XXX_AXIS_Y] * 256 * 128
+		/ 3 / gsensor_gain.y / (40 + y_gain);
+	z_off = z_off + 16 * cali[MC3XXX_AXIS_Z] * 256 * 128
+		/ 3 / gsensor_gain.z / (40 + z_gain);
 
 	/* add for over range */
 	if (x_off > dwRangePosLimit)
@@ -1538,7 +1534,6 @@ static int MC3XXX_SetPowerMode(struct i2c_client *client, bool enable)
 	u8 databuf[2] = {0};
 	int res = 0;
 	u8 addr = MC3XXX_REG_MODE_FEATURE;
-	struct mc3xxx_i2c_data *obj = i2c_get_clientdata(client);
 
 	if (enable == mc3xxx_sensor_power)
 		ACC_LOG("Sensor power status should not be set again!!!\n");
@@ -1548,24 +1543,23 @@ static int MC3XXX_SetPowerMode(struct i2c_client *client, bool enable)
 		return MC3XXX_RETCODE_ERROR_I2C;
 	}
 
-	ACC_LOG("set power read MC3XXX_REG_MODE_FEATURE =%x\n", databuf[0]);
-
 	if (enable) {
 		databuf[0] = 0x41;
-		res = MC3XXX_i2c_write_block(client, MC3XXX_REG_MODE_FEATURE, databuf, 1);
+		res = MC3XXX_i2c_write_block(client, MC3XXX_REG_MODE_FEATURE,
+			databuf, 1);
 	#ifdef _MC3XXX_SUPPORT_DOT_CALIBRATION_
 		mcube_load_cali(client);
 	#endif
 	} else {
 		databuf[0] = 0x43;
-		res = MC3XXX_i2c_write_block(client, MC3XXX_REG_MODE_FEATURE, databuf, 1);
+		res = MC3XXX_i2c_write_block(client, MC3XXX_REG_MODE_FEATURE,
+			databuf, 1);
 	}
 
 	if (res < 0) {
 		ACC_LOG("fwq set power mode failed!\n");
 		return MC3XXX_RETCODE_ERROR_I2C;
-	} else if (atomic_read(&obj->trace) & MCUBE_TRC_INFO)
-		ACC_LOG("fwq set power mode ok %d!\n", databuf[1]);
+	}
 
 	mc3xxx_sensor_power = enable;
 
@@ -1577,8 +1571,6 @@ static int MC3XXX_SetPowerMode(struct i2c_client *client, bool enable)
  *****************************************/
 static void MC3XXX_SetResolution(void)
 {
-	ACC_LOG("[%s]\n", __func__);
-
 	switch (s_bPCODE) {
 	case MC3XXX_PCODE_3230:
 	case MC3XXX_PCODE_3430:
@@ -1622,8 +1614,6 @@ static void MC3XXX_SetResolution(void)
 	default:
 		ACC_PR_ERR("ERR: no resolution assigned!\n");
 	}
-
-	ACC_LOG("[%s] s_bResolution: %d\n", __func__, s_bResolution);
 }
 
 /*****************************************
@@ -1633,8 +1623,6 @@ static void MC3XXX_SetSampleRate(struct i2c_client *pt_i2c_client)
 {
 	unsigned char	_baDataBuf[2] = { 0 };
 
-	ACC_LOG("[%s]\n", __func__);
-
 	_baDataBuf[0] = MC3XXX_REG_SAMPLE_RATE;
 	_baDataBuf[1] = 0x00;
 
@@ -1643,8 +1631,6 @@ static void MC3XXX_SetSampleRate(struct i2c_client *pt_i2c_client)
 
 		_baData2Buf[0] = 0x2A;
 		MC3XXX_i2c_read_block(pt_i2c_client, 0x2A, _baData2Buf, 1);
-
-		ACC_LOG("[%s] REG(0x2A) = 0x%02X\n", __func__, _baData2Buf[0]);
 
 		_baData2Buf[0] = (_baData2Buf[0] & 0xC0);
 
@@ -1662,13 +1648,16 @@ static void MC3XXX_SetSampleRate(struct i2c_client *pt_i2c_client)
 			_baDataBuf[0] = 0x0A;
 			break;
 		default:
-			ACC_PR_ERR("[%s] no chance to get here... check code!\n", __func__);
+			ACC_PR_ERR(
+				"[%s] no chance to get here... check code!\n",
+				__func__);
 			break;
 		}
 	} else
 		_baDataBuf[0] = 0x00;
 
-	MC3XXX_i2c_write_block(pt_i2c_client, MC3XXX_REG_SAMPLE_RATE, _baDataBuf, 1);
+	MC3XXX_i2c_write_block(pt_i2c_client, MC3XXX_REG_SAMPLE_RATE,
+		_baDataBuf, 1);
 }
 
 /*****************************************
@@ -1676,11 +1665,14 @@ static void MC3XXX_SetSampleRate(struct i2c_client *pt_i2c_client)
  *****************************************/
 static void MC3XXX_ConfigRegRange(struct i2c_client *pt_i2c_client)
 {
-	unsigned char	_baDataBuf[2] = { 0 };
+	unsigned char _baDataBuf[2] = { 0 };
 	int res = 0;
 
 	/* _baDataBuf[0] = 0x3F; */
-	/* Modify low pass filter bandwidth to 512hz, for solving sensor data don't change issue */
+	/*********************************************
+	 * Modify low pass filter bandwidth to 512hz,
+	 * for solving sensor data don't change issue
+	 *********************************************/
 	_baDataBuf[0] = 0x0F;
 
 	if (s_bResolution == MC3XXX_RESOLUTION_LOW)
@@ -1692,11 +1684,10 @@ static void MC3XXX_ConfigRegRange(struct i2c_client *pt_i2c_client)
 		else
 			_baDataBuf[0] = 0x25;
 	}
-	res = MC3XXX_i2c_write_block(pt_i2c_client, MC3XXX_REG_RANGE_CONTROL, _baDataBuf, 1);
+	res = MC3XXX_i2c_write_block(pt_i2c_client, MC3XXX_REG_RANGE_CONTROL,
+		_baDataBuf, 1);
 	if (res < 0)
-		ACC_PR_ERR("MC3XXX_ConfigRegRange fail\n");
-
-	ACC_LOG("[%s] set 0x%X\n", __func__, _baDataBuf[1]);
+		ACC_PR_ERR("%s fail\n", __func__);
 }
 
 /*****************************************
@@ -1713,8 +1704,6 @@ static void MC3XXX_SetGain(void)
 			gsensor_gain.x = gsensor_gain.y = gsensor_gain.z = 64;
 
 	}
-
-	ACC_LOG("[%s] gain: %d / %d / %d\n", __func__, gsensor_gain.x, gsensor_gain.y, gsensor_gain.z);
 }
 
 /*****************************************
@@ -1724,13 +1713,9 @@ static int MC3XXX_Init(struct i2c_client *client, int reset_cali)
 {
 	unsigned char	_baDataBuf[2] = { 0 };
 
-	ACC_LOG("[%s]\n", __func__);
-
 	#ifdef _MC3XXX_SUPPORT_POWER_SAVING_SHUTDOWN_POWER_
 	if (_mc3xxx_i2c_auto_probe(client) != MC3XXX_RETCODE_SUCCESS)
 		return MC3XXX_RETCODE_ERROR_I2C;
-
-	/* ACC_LOG("[%s] confirmed i2c addr: 0x%X\n", __FUNCTION__, client->addr); */
 	#endif
 
 	_baDataBuf[0] = 0x43;
@@ -1742,10 +1727,12 @@ static int MC3XXX_Init(struct i2c_client *client, int reset_cali)
 	MC3XXX_SetGain();
 
 	_baDataBuf[0] = 0x00;
-	MC3XXX_i2c_write_block(client, MC3XXX_REG_TAP_DETECTION_ENABLE, _baDataBuf, 1);
+	MC3XXX_i2c_write_block(client, MC3XXX_REG_TAP_DETECTION_ENABLE,
+		_baDataBuf, 1);
 
 	_baDataBuf[0] = 0x00;
-	MC3XXX_i2c_write_block(client, MC3XXX_REG_INTERRUPT_ENABLE, _baDataBuf, 1);
+	MC3XXX_i2c_write_block(client, MC3XXX_REG_INTERRUPT_ENABLE,
+		_baDataBuf, 1);
 
 	_baDataBuf[0] = 0;
 	MC3XXX_i2c_read_block(client, 0x2A, _baDataBuf, 1);
@@ -1771,15 +1758,14 @@ static int MC3XXX_Init(struct i2c_client *client, int reset_cali)
 	init_waitqueue_head(&wq_mc3xxx_open_status);
 	#endif
 
-	ACC_LOG("[%s] init ok.\n", __func__);
-
 	return MC3XXX_RETCODE_SUCCESS;
 }
 
 /*****************************************
  *** MC3XXX_ReadChipInfo
  *****************************************/
-static int MC3XXX_ReadChipInfo(struct i2c_client *client, char *buf, int bufsize)
+static int MC3XXX_ReadChipInfo(struct i2c_client *client, char *buf,
+	int bufsize)
 {
 	if ((buf == NULL) || (bufsize <= 30))
 		return -1;
@@ -1796,10 +1782,12 @@ static int MC3XXX_ReadChipInfo(struct i2c_client *client, char *buf, int bufsize
 /*****************************************
  *** MC3XXX_ReadSensorData
  *****************************************/
-static int MC3XXX_ReadSensorData(struct i2c_client *pt_i2c_client, char *pbBuf, int nBufSize)
+static int MC3XXX_ReadSensorData(struct i2c_client *pt_i2c_client,
+	char *pbBuf, int nBufSize)
 {
-	int					   _naAccelData[MC3XXX_AXES_NUM] = { 0 };
-	struct mc3xxx_i2c_data   *_pt_i2c_obj = ((struct mc3xxx_i2c_data *) i2c_get_clientdata(pt_i2c_client));
+	int	_naAccelData[MC3XXX_AXES_NUM] = { 0 };
+	struct mc3xxx_i2c_data   *_pt_i2c_obj =
+		((struct mc3xxx_i2c_data *) i2c_get_clientdata(pt_i2c_client));
 
 	if ((pt_i2c_client == NULL) || (pbBuf == NULL)) {
 		ACC_PR_ERR("ERR: Null Pointer\n");
@@ -1807,7 +1795,8 @@ static int MC3XXX_ReadSensorData(struct i2c_client *pt_i2c_client, char *pbBuf, 
 	}
 
 	if (false == mc3xxx_sensor_power) {
-		if (MC3XXX_SetPowerMode(pt_i2c_client, true) != MC3XXX_RETCODE_SUCCESS)
+		if (MC3XXX_SetPowerMode(pt_i2c_client, true)
+			!= MC3XXX_RETCODE_SUCCESS)
 			ACC_PR_ERR("ERR: fail to set power mode!\n");
 	}
 
@@ -1819,43 +1808,41 @@ static int MC3XXX_ReadSensorData(struct i2c_client *pt_i2c_client, char *pbBuf, 
 
 		LPF_FirstRun = 0;
 
-		for (_nLoopIndex = 0; _nLoopIndex < (LPF_SamplingRate + LPF_CutoffFrequency); _nLoopIndex++)
+		for (_nLoopIndex = 0;
+			_nLoopIndex < (LPF_SamplingRate + LPF_CutoffFrequency);
+			_nLoopIndex++)
 			MC3XXX_ReadData(pt_i2c_client, _pt_i2c_obj->data);
 	}
 	#endif
 
-	if (MC3XXX_ReadData(pt_i2c_client, _pt_i2c_obj->data) != MC3XXX_RETCODE_SUCCESS) {
+	if (MC3XXX_ReadData(pt_i2c_client, _pt_i2c_obj->data)
+		!= MC3XXX_RETCODE_SUCCESS) {
 		ACC_PR_ERR("ERR: fail to read data!\n");
 
 		return MC3XXX_RETCODE_ERROR_I2C;
 	}
 
 	/* output format: mg */
-	if (atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO)
-		ACC_LOG("[%s] raw data: %d, %d, %d\n", __func__, _pt_i2c_obj->data[MC3XXX_AXIS_X],
-			_pt_i2c_obj->data[MC3XXX_AXIS_Y], _pt_i2c_obj->data[MC3XXX_AXIS_Z]);
-
-	_naAccelData[(_pt_i2c_obj->cvt.map[MC3XXX_AXIS_X])] = (_pt_i2c_obj->cvt.sign[MC3XXX_AXIS_X]
+	_naAccelData[(_pt_i2c_obj->cvt.map[MC3XXX_AXIS_X])]
+		= (_pt_i2c_obj->cvt.sign[MC3XXX_AXIS_X]
 		* _pt_i2c_obj->data[MC3XXX_AXIS_X]);
-	_naAccelData[(_pt_i2c_obj->cvt.map[MC3XXX_AXIS_Y])] = (_pt_i2c_obj->cvt.sign[MC3XXX_AXIS_Y]
+	_naAccelData[(_pt_i2c_obj->cvt.map[MC3XXX_AXIS_Y])]
+		= (_pt_i2c_obj->cvt.sign[MC3XXX_AXIS_Y]
 		* _pt_i2c_obj->data[MC3XXX_AXIS_Y]);
-	_naAccelData[(_pt_i2c_obj->cvt.map[MC3XXX_AXIS_Z])] = (_pt_i2c_obj->cvt.sign[MC3XXX_AXIS_Z]
+	_naAccelData[(_pt_i2c_obj->cvt.map[MC3XXX_AXIS_Z])]
+		= (_pt_i2c_obj->cvt.sign[MC3XXX_AXIS_Z]
 		* _pt_i2c_obj->data[MC3XXX_AXIS_Z]);
 
-	if (atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO)
-		ACC_LOG("[%s] map data: %d, %d, %d!\n", __func__, _naAccelData[MC3XXX_AXIS_X],
-			_naAccelData[MC3XXX_AXIS_Y], _naAccelData[MC3XXX_AXIS_Z]);
-
-	_naAccelData[MC3XXX_AXIS_X] = (_naAccelData[MC3XXX_AXIS_X] * GRAVITY_EARTH_1000 / gsensor_gain.x);
-	_naAccelData[MC3XXX_AXIS_Y] = (_naAccelData[MC3XXX_AXIS_Y] * GRAVITY_EARTH_1000 / gsensor_gain.y);
-	_naAccelData[MC3XXX_AXIS_Z] = (_naAccelData[MC3XXX_AXIS_Z] * GRAVITY_EARTH_1000 / gsensor_gain.z);
-
-	if (atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO)
-		ACC_LOG("[%s] accel data: %d, %d, %d!\n", __func__, _naAccelData[MC3XXX_AXIS_X],
-			_naAccelData[MC3XXX_AXIS_Y], _naAccelData[MC3XXX_AXIS_Z]);
+	_naAccelData[MC3XXX_AXIS_X] = (_naAccelData[MC3XXX_AXIS_X]
+		* GRAVITY_EARTH_1000 / gsensor_gain.x);
+	_naAccelData[MC3XXX_AXIS_Y] = (_naAccelData[MC3XXX_AXIS_Y]
+		* GRAVITY_EARTH_1000 / gsensor_gain.y);
+	_naAccelData[MC3XXX_AXIS_Z] = (_naAccelData[MC3XXX_AXIS_Z]
+		* GRAVITY_EARTH_1000 / gsensor_gain.z);
 
 	sprintf(pbBuf, "%04x %04x %04x",
-		_naAccelData[MC3XXX_AXIS_X], _naAccelData[MC3XXX_AXIS_Y], _naAccelData[MC3XXX_AXIS_Z]);
+		_naAccelData[MC3XXX_AXIS_X], _naAccelData[MC3XXX_AXIS_Y],
+		_naAccelData[MC3XXX_AXIS_Z]);
 
 	return MC3XXX_RETCODE_SUCCESS;
 }
@@ -1866,7 +1853,8 @@ static int MC3XXX_ReadSensorData(struct i2c_client *pt_i2c_client, char *pbBuf, 
 #ifdef _MC3XXX_SUPPORT_APPLY_AVERAGE_AGORITHM_
 static int _MC3XXX_ReadAverageData(struct i2c_client *client, char *buf)
 {
-	struct mc3xxx_i2c_data *obj = (struct mc3xxx_i2c_data *)i2c_get_clientdata(client);
+	struct mc3xxx_i2c_data *obj =
+		(struct mc3xxx_i2c_data *)i2c_get_clientdata(client);
 	int acc[MC3XXX_AXES_NUM] = {0};
 	s16 sensor_data[3] = {0};
 	s16 sensor_data_max[3] = {0};
@@ -1876,8 +1864,6 @@ static int _MC3XXX_ReadAverageData(struct i2c_client *client, char *buf)
 	int i = 0, j = 0;
 
 	MC3XXX_ReadData(client, sensor_data);
-	ACC_LOG("MC3XXX_ReadRawData MC3XXX_ReadData: %d, %d, %d!\n",
-		sensor_data[MC3XXX_AXIS_X], sensor_data[MC3XXX_AXIS_Y], sensor_data[MC3XXX_AXIS_Z]);
 	sensor_data_max[MC3XXX_AXIS_X] = sensor_data[MC3XXX_AXIS_X];
 	sensor_data_max[MC3XXX_AXIS_Y] = sensor_data[MC3XXX_AXIS_Y];
 	sensor_data_max[MC3XXX_AXIS_Z] = sensor_data[MC3XXX_AXIS_Z];
@@ -1892,9 +1878,6 @@ static int _MC3XXX_ReadAverageData(struct i2c_client *client, char *buf)
 
 	for (i = 0; i < 11 ; i++) {
 		MC3XXX_ReadData(client, sensor_data);
-		ACC_LOG("MC3XXX_ReadRawData MC3XXX_ReadData: %d, %d, %d!\n",
-			sensor_data[MC3XXX_AXIS_X], sensor_data[MC3XXX_AXIS_Y], sensor_data[MC3XXX_AXIS_Z]);
-
 		sensor_data_sum[MC3XXX_AXIS_X] += sensor_data[MC3XXX_AXIS_X];
 		sensor_data_sum[MC3XXX_AXIS_Y] += sensor_data[MC3XXX_AXIS_Y];
 		sensor_data_sum[MC3XXX_AXIS_Z] += sensor_data[MC3XXX_AXIS_Z];
@@ -1906,34 +1889,32 @@ static int _MC3XXX_ReadAverageData(struct i2c_client *client, char *buf)
 				sensor_data_mini[j] = sensor_data[j];
 		}
 	}
-	ACC_LOG("MC3XXX_ReadRawData sensor_data_max: %d, %d, %d!\n",
-		sensor_data_max[MC3XXX_AXIS_X], sensor_data_max[MC3XXX_AXIS_Y], sensor_data_max[MC3XXX_AXIS_Z]);
-	ACC_LOG("MC3XXX_ReadRawData sensor_data_mini: %d, %d, %d!\n",
-		sensor_data_mini[MC3XXX_AXIS_X], sensor_data_mini[MC3XXX_AXIS_Y], sensor_data_mini[MC3XXX_AXIS_Z]);
-	sensor_data[MC3XXX_AXIS_X] = (s16)((sensor_data_sum[MC3XXX_AXIS_X]-sensor_data_max[MC3XXX_AXIS_X]
-		-sensor_data_mini[MC3XXX_AXIS_X])/10);
-	sensor_data[MC3XXX_AXIS_Y] = (s16)((sensor_data_sum[MC3XXX_AXIS_Y]-sensor_data_max[MC3XXX_AXIS_Y]
-		-sensor_data_mini[MC3XXX_AXIS_Y])/10);
-	sensor_data[MC3XXX_AXIS_Z] = (s16)((sensor_data_sum[MC3XXX_AXIS_Z]-sensor_data_max[MC3XXX_AXIS_Z]
-		-sensor_data_mini[MC3XXX_AXIS_Z])/10);
-	ACC_LOG("MC3XXX_ReadRawData sensor_data: %d, %d, %d!\n",
-		sensor_data[MC3XXX_AXIS_X], sensor_data[MC3XXX_AXIS_Y], sensor_data[MC3XXX_AXIS_Z]);
+	sensor_data[MC3XXX_AXIS_X] = (s16)((sensor_data_sum[MC3XXX_AXIS_X]
+		- sensor_data_max[MC3XXX_AXIS_X]
+		- sensor_data_mini[MC3XXX_AXIS_X]) / 10);
+	sensor_data[MC3XXX_AXIS_Y] = (s16)((sensor_data_sum[MC3XXX_AXIS_Y]
+		- sensor_data_max[MC3XXX_AXIS_Y]
+		- sensor_data_mini[MC3XXX_AXIS_Y]) / 10);
+	sensor_data[MC3XXX_AXIS_Z] = (s16)((sensor_data_sum[MC3XXX_AXIS_Z]
+		- sensor_data_max[MC3XXX_AXIS_Z]
+		- sensor_data_mini[MC3XXX_AXIS_Z]) / 10);
 
-	acc[(obj->cvt.map[MC3XXX_AXIS_X])] = obj->cvt.sign[MC3XXX_AXIS_X] * sensor_data[MC3XXX_AXIS_X];
-	acc[(obj->cvt.map[MC3XXX_AXIS_Y])] = obj->cvt.sign[MC3XXX_AXIS_Y] * sensor_data[MC3XXX_AXIS_Y];
-	acc[(obj->cvt.map[MC3XXX_AXIS_Z])] = obj->cvt.sign[MC3XXX_AXIS_Z] * sensor_data[MC3XXX_AXIS_Z];
+	acc[(obj->cvt.map[MC3XXX_AXIS_X])] = obj->cvt.sign[MC3XXX_AXIS_X]
+		* sensor_data[MC3XXX_AXIS_X];
+	acc[(obj->cvt.map[MC3XXX_AXIS_Y])] = obj->cvt.sign[MC3XXX_AXIS_Y]
+		* sensor_data[MC3XXX_AXIS_Y];
+	acc[(obj->cvt.map[MC3XXX_AXIS_Z])] = obj->cvt.sign[MC3XXX_AXIS_Z]
+		* sensor_data[MC3XXX_AXIS_Z];
 
-	ACC_LOG("MC3XXX_ReadRawData mapdata: %d, %d, %d!\n",
-		acc[MC3XXX_AXIS_X], acc[MC3XXX_AXIS_Y], acc[MC3XXX_AXIS_Z]);
+	acc[MC3XXX_AXIS_X] = (acc[MC3XXX_AXIS_X] * GRAVITY_EARTH_1000
+		/ gsensor_gain.x);
+	acc[MC3XXX_AXIS_Y] = (acc[MC3XXX_AXIS_Y] * GRAVITY_EARTH_1000
+		/ gsensor_gain.y);
+	acc[MC3XXX_AXIS_Z] = (acc[MC3XXX_AXIS_Z] * GRAVITY_EARTH_1000
+		/ gsensor_gain.z);
 
-	acc[MC3XXX_AXIS_X] = (acc[MC3XXX_AXIS_X]*GRAVITY_EARTH_1000/gsensor_gain.x);
-	acc[MC3XXX_AXIS_Y] = (acc[MC3XXX_AXIS_Y]*GRAVITY_EARTH_1000/gsensor_gain.y);
-	acc[MC3XXX_AXIS_Z] = (acc[MC3XXX_AXIS_Z]*GRAVITY_EARTH_1000/gsensor_gain.z);
-
-	ACC_LOG("MC3XXX_ReadRawData mapdata1: %d, %d, %d!\n",
-		acc[MC3XXX_AXIS_X], acc[MC3XXX_AXIS_Y], acc[MC3XXX_AXIS_Z]);
-
-	sprintf(buf, "%04x %04x %04x", acc[MC3XXX_AXIS_X], acc[MC3XXX_AXIS_Y], acc[MC3XXX_AXIS_Z]);
+	sprintf(buf, "%04x %04x %04x", acc[MC3XXX_AXIS_X], acc[MC3XXX_AXIS_Y],
+		acc[MC3XXX_AXIS_Z]);
 
 	return 0;
 }
@@ -2010,8 +1991,8 @@ static int MC3XXX_ReadRBMData(struct i2c_client *client, char *buf)
  *****************************************/
 static int MC3XXX_JudgeTestResult(struct i2c_client *client)
 {
-	int	res				  = 0;
-	int	self_result		  = 0;
+	int	res	= 0;
+	int	self_result	= 0;
 	s16	acc[MC3XXX_AXES_NUM] = { 0 };
 
 	res = MC3XXX_ReadData(client, acc);
@@ -2029,11 +2010,11 @@ static int MC3XXX_JudgeTestResult(struct i2c_client *client)
 		   + (acc[MC3XXX_AXIS_Z] * acc[MC3XXX_AXIS_Z]));
 
 	if ((self_result > 475923) && (self_result < 2185360)) {
-		ACC_PR_ERR("MC3XXX_JudgeTestResult successful\n");
+		ACC_PR_ERR("%s successful\n", __func__);
 		return MC3XXX_RETCODE_SUCCESS;
 	}
 
-	ACC_PR_ERR("MC3XXX_JudgeTestResult failt\n");
+	ACC_PR_ERR("%s failt\n", __func__);
 	return -EINVAL;
 }
 
@@ -2131,11 +2112,8 @@ static void MC3XXX_SelfCheck(struct i2c_client *client, u8 *pUserBuf)
 #ifdef _MC3XXX_SUPPORT_PERIODIC_DOC_
 static int	MC3XXX_GetOpenStatus(void)
 {
-	/* ACC_LOG("[%s] %d\n", __FUNCTION__, atomic_read(&s_t_mc3xxx_open_status)); */
-
-	wait_event_interruptible(wq_mc3xxx_open_status, (atomic_read(&s_t_mc3xxx_open_status) != 0));
-
-	/* ACC_LOG("[%s] pass wait_event_interruptible: %d\n", __FUNCTION__, atomic_read(&s_t_mc3xxx_open_status)); */
+	wait_event_interruptible(wq_mc3xxx_open_status,
+		(atomic_read(&s_t_mc3xxx_open_status) != 0));
 
 	return atomic_read(&s_t_mc3xxx_open_status);
 }
@@ -2149,7 +2127,6 @@ static ssize_t show_chipinfo_value(struct device_driver *ddri, char *buf)
 	struct i2c_client *client = mc3xxx_i2c_client;
 	char strbuf[MC3XXX_BUF_SIZE] = {0};
 
-	ACC_LOG("fwq show_chipinfo_value\n");
 	if (client == NULL) {
 		ACC_PR_ERR("i2c client is null!!\n");
 		return 0;
@@ -2190,8 +2167,6 @@ static ssize_t show_cali_value(struct device_driver *ddri, char *buf)
 	int mul = 0;
 	int tmp[MC3XXX_AXES_NUM] = { 0 };
 
-	ACC_LOG("fwq show_cali_value\n");
-
 	if (client == NULL) {
 		ACC_PR_ERR("i2c client is null!!\n");
 		return 0;
@@ -2208,16 +2183,30 @@ static ssize_t show_cali_value(struct device_driver *ddri, char *buf)
 		return -EINVAL;
 
 	mul = gsensor_gain.x / mc3xxx_offset_resolution.sensitivity;
-	len += snprintf(buf+len, PAGE_SIZE-len, "[HW] (%+3d, %+3d, %+3d) : (0x%02X, 0x%02X, 0x%02X)\n",
-			obj->offset[MC3XXX_AXIS_X], obj->offset[MC3XXX_AXIS_Y], obj->offset[MC3XXX_AXIS_Z],
-			obj->offset[MC3XXX_AXIS_X], obj->offset[MC3XXX_AXIS_Y], obj->offset[MC3XXX_AXIS_Z]);
-	len += snprintf(buf+len, PAGE_SIZE-len, "[SW][%d] (%+3d, %+3d, %+3d)\n", 1,
-			obj->cali_sw[MC3XXX_AXIS_X], obj->cali_sw[MC3XXX_AXIS_Y], obj->cali_sw[MC3XXX_AXIS_Z]);
-	len += snprintf(buf+len, PAGE_SIZE-len, "[ALL]  (%+3d, %+3d, %+3d) : (%+3d, %+3d, %+3d)\n",
-			obj->offset[MC3XXX_AXIS_X]*mul + obj->cali_sw[MC3XXX_AXIS_X],
-			obj->offset[MC3XXX_AXIS_Y]*mul + obj->cali_sw[MC3XXX_AXIS_Y],
-			obj->offset[MC3XXX_AXIS_Z]*mul + obj->cali_sw[MC3XXX_AXIS_Z],
-			tmp[MC3XXX_AXIS_X], tmp[MC3XXX_AXIS_Y], tmp[MC3XXX_AXIS_Z]);
+	len += snprintf(buf+len, PAGE_SIZE-len,
+			"[HW] (%+3d, %+3d, %+3d) : (0x%02X, 0x%02X, 0x%02X)\n",
+			obj->offset[MC3XXX_AXIS_X],
+			obj->offset[MC3XXX_AXIS_Y],
+			obj->offset[MC3XXX_AXIS_Z],
+			obj->offset[MC3XXX_AXIS_X],
+			obj->offset[MC3XXX_AXIS_Y],
+			obj->offset[MC3XXX_AXIS_Z]);
+	len += snprintf(buf+len, PAGE_SIZE-len,
+			"[SW][%d] (%+3d, %+3d, %+3d)\n", 1,
+			obj->cali_sw[MC3XXX_AXIS_X],
+			obj->cali_sw[MC3XXX_AXIS_Y],
+			obj->cali_sw[MC3XXX_AXIS_Z]);
+	len += snprintf(buf+len, PAGE_SIZE-len,
+			"[ALL]  (%+3d, %+3d, %+3d) : (%+3d, %+3d, %+3d)\n",
+			obj->offset[MC3XXX_AXIS_X]*mul
+			+ obj->cali_sw[MC3XXX_AXIS_X],
+			obj->offset[MC3XXX_AXIS_Y]*mul
+			+ obj->cali_sw[MC3XXX_AXIS_Y],
+			obj->offset[MC3XXX_AXIS_Z]*mul
+			+ obj->cali_sw[MC3XXX_AXIS_Z],
+			tmp[MC3XXX_AXIS_X],
+			tmp[MC3XXX_AXIS_Y],
+			tmp[MC3XXX_AXIS_Z]);
 
 		return len;
 }
@@ -2225,7 +2214,8 @@ static ssize_t show_cali_value(struct device_driver *ddri, char *buf)
 /*****************************************
  *** store_cali_value
  *****************************************/
-static ssize_t store_cali_value(struct device_driver *ddri, const char *buf, size_t count)
+static ssize_t store_cali_value(struct device_driver *ddri, const char *buf,
+	size_t count)
 {
 	struct i2c_client *client = mc3xxx_i2c_client;
 	int err = 0;
@@ -2275,7 +2265,8 @@ static ssize_t show_selftest_value(struct device_driver *ddri, char *buf)
 /*****************************************
  *** store_selftest_value
  *****************************************/
-static ssize_t store_selftest_value(struct device_driver *ddri, const char *buf, size_t count)
+static ssize_t store_selftest_value(struct device_driver *ddri,
+	const char *buf, size_t count)
 {   /*write anything to this register will trigger the process*/
 	struct i2c_client *client = mc3xxx_i2c_client;
 	int num = 0;
@@ -2290,14 +2281,11 @@ static ssize_t store_selftest_value(struct device_driver *ddri, const char *buf,
 		return count;
 	}
 
-	ACC_LOG("NORMAL:\n");
 	mc3xxx_mutex_lock();
 	MC3XXX_SetPowerMode(client, true);
 	mc3xxx_mutex_unlock();
-	ACC_LOG("SELFTEST:\n");
 
 	if (!MC3XXX_JudgeTestResult(client)) {
-		ACC_LOG("SELFTEST : PASS\n");
 		strcpy(selftestRes, "y");
 	} else {
 		ACC_LOG("SELFTEST : FAIL\n");
@@ -2316,24 +2304,8 @@ static ssize_t show_firlen_value(struct device_driver *ddri, char *buf)
 	struct i2c_client *client = mc3xxx_i2c_client;
 	struct mc3xxx_i2c_data *obj = i2c_get_clientdata(client);
 
-	ACC_LOG("fwq show_firlen_value\n");
-	if (atomic_read(&obj->firlen)) {
-		int idx = 0, len = atomic_read(&obj->firlen);
-
-		ACC_LOG("len = %2d, idx = %2d\n", obj->fir.num, obj->fir.idx);
-
-		for (idx = 0; idx < len; idx++)
-			ACC_LOG("[%5d %5d %5d]\n", obj->fir.raw[idx][MC3XXX_AXIS_X],
-				obj->fir.raw[idx][MC3XXX_AXIS_Y], obj->fir.raw[idx][MC3XXX_AXIS_Z]);
-
-		ACC_LOG("sum = [%5d %5d %5d]\n", obj->fir.sum[MC3XXX_AXIS_X],
-			obj->fir.sum[MC3XXX_AXIS_Y], obj->fir.sum[MC3XXX_AXIS_Z]);
-		ACC_LOG("avg = [%5d %5d %5d]\n", obj->fir.sum[MC3XXX_AXIS_X]/len,
-			obj->fir.sum[MC3XXX_AXIS_Y]/len, obj->fir.sum[MC3XXX_AXIS_Z]/len);
-	}
 	return snprintf(buf, PAGE_SIZE, "%d\n", atomic_read(&obj->firlen));
 	#else
-	ACC_LOG("fwq show_firlen_value\n");
 	return snprintf(buf, PAGE_SIZE, "not support\n");
 	#endif
 }
@@ -2341,15 +2313,14 @@ static ssize_t show_firlen_value(struct device_driver *ddri, char *buf)
 /*****************************************
  *** store_firlen_value
  *****************************************/
-static ssize_t store_firlen_value(struct device_driver *ddri, const char *buf, size_t count)
+static ssize_t store_firlen_value(struct device_driver *ddri,
+	const char *buf, size_t count)
 {
 	#ifdef _MC3XXX_SUPPORT_LPF_
 	struct i2c_client *client = mc3xxx_i2c_client;
 	struct mc3xxx_i2c_data *obj = i2c_get_clientdata(client);
 	int firlen = 0;
 	int ret = 0;
-
-	ACC_LOG("fwq store_firlen_value\n");
 
 	ret = kstrtoint(buf, 10, &firlen);
 	if (ret != 0)
@@ -2377,8 +2348,6 @@ static ssize_t show_trace_value(struct device_driver *ddri, char *buf)
 	ssize_t res = 0;
 	struct mc3xxx_i2c_data *obj = mc3xxx_obj_i2c_data;
 
-	ACC_LOG("fwq show_trace_value\n");
-
 	if (obj == NULL) {
 		ACC_PR_ERR("i2c_data obj is null!!\n");
 		return 0;
@@ -2391,12 +2360,11 @@ static ssize_t show_trace_value(struct device_driver *ddri, char *buf)
 /*****************************************
  *** store_trace_value
  *****************************************/
-static ssize_t store_trace_value(struct device_driver *ddri, const char *buf, size_t count)
+static ssize_t store_trace_value(struct device_driver *ddri,
+	const char *buf, size_t count)
 {
 	struct mc3xxx_i2c_data *obj = mc3xxx_obj_i2c_data;
 	int trace = 0;
-
-	ACC_LOG("fwq store_trace_value\n");
 
 	if (obj == NULL) {
 		ACC_PR_ERR("i2c_data obj is null!!\n");
@@ -2419,8 +2387,6 @@ static ssize_t show_status_value(struct device_driver *ddri, char *buf)
 	ssize_t len = 0;
 	struct mc3xxx_i2c_data *obj = mc3xxx_obj_i2c_data;
 
-	ACC_LOG("fwq show_status_value\n");
-
 	if (obj == NULL) {
 		ACC_PR_ERR("i2c_data obj is null!!\n");
 		return 0;
@@ -2428,7 +2394,8 @@ static ssize_t show_status_value(struct device_driver *ddri, char *buf)
 
 	if (obj->hw)
 		len += snprintf(buf+len, PAGE_SIZE-len, "CUST: %d %d (%d %d)\n",
-			obj->hw->i2c_num, obj->hw->direction, obj->hw->power_id, obj->hw->power_vol);
+			obj->hw->i2c_num, obj->hw->direction, obj->hw->power_id,
+			obj->hw->power_vol);
 	else
 		len += snprintf(buf+len, PAGE_SIZE-len, "CUST: NULL\n");
 
@@ -2460,9 +2427,11 @@ static ssize_t show_power_status(struct device_driver *ddri, char *buf)
 static ssize_t show_version_value(struct device_driver *ddri, char *buf)
 {
 	if (1 == VIRTUAL_Z)
-		return snprintf(buf, PAGE_SIZE, "%s\n", MC3XXX_DEV_DRIVER_VERSION_VIRTUAL_Z);
+		return snprintf(buf, PAGE_SIZE, "%s\n",
+			MC3XXX_DEV_DRIVER_VERSION_VIRTUAL_Z);
 	else
-		return snprintf(buf, PAGE_SIZE, "%s\n", MC3XXX_DEV_DRIVER_VERSION);
+		return snprintf(buf, PAGE_SIZE, "%s\n",
+			MC3XXX_DEV_DRIVER_VERSION);
 }
 
 /*****************************************
@@ -2480,7 +2449,8 @@ static ssize_t show_chip_id(struct device_driver *ddri, char *buf)
  *****************************************/
 static ssize_t show_virtual_z(struct device_driver *ddri, char *buf)
 {
-	return snprintf(buf, PAGE_SIZE, "%s\n", VIRTUAL_Z == 1 ? "Virtual Z Support" : "No Virtual Z Support");
+	return snprintf(buf, PAGE_SIZE, "%s\n",
+		VIRTUAL_Z == 1 ? "Virtual Z Support" : "No Virtual Z Support");
 }
 
 /*****************************************
@@ -2513,8 +2483,8 @@ static ssize_t show_regiter_map(struct device_driver *ddri, char *buf)
 		mc3xxx_mutex_unlock();
 
 	for (_bIndex = 0; _bIndex < 64; _bIndex++)
-		_tLength += snprintf((buf + _tLength), (PAGE_SIZE - _tLength), "Reg[0x%02X]: 0x%02X\n",
-			_bIndex, _baRegMap[_bIndex]);
+		_tLength += snprintf((buf + _tLength), (PAGE_SIZE - _tLength),
+		"Reg[0x%02X]: 0x%02X\n", _bIndex, _baRegMap[_bIndex]);
 	}
 
 	return _tLength;
@@ -2523,7 +2493,8 @@ static ssize_t show_regiter_map(struct device_driver *ddri, char *buf)
 /*****************************************
  *** store_regiter_map
  *****************************************/
-static ssize_t store_regiter_map(struct device_driver *ddri, const char *buf, size_t count)
+static ssize_t store_regiter_map(struct device_driver *ddri,
+	const char *buf, size_t count)
 {
 	return count;
 }
@@ -2531,14 +2502,14 @@ static ssize_t store_regiter_map(struct device_driver *ddri, const char *buf, si
 /*****************************************
  *** show_chip_orientation
  *****************************************/
-static ssize_t show_chip_orientation(struct device_driver *ptDevDrv, char *pbBuf)
+static ssize_t show_chip_orientation(struct device_driver *ptDevDrv,
+	char *pbBuf)
 {
 	ssize_t		  _tLength = 0;
 	struct acc_hw   *_ptAccelHw = get_cust_acc();
 
-	ACC_LOG("[%s] default direction: %d\n", __func__, _ptAccelHw->direction);
-
-	_tLength = snprintf(pbBuf, PAGE_SIZE, "default direction = %d\n", _ptAccelHw->direction);
+	_tLength = snprintf(pbBuf, PAGE_SIZE, "default direction = %d\n",
+		_ptAccelHw->direction);
 
 	return _tLength;
 }
@@ -2546,7 +2517,8 @@ static ssize_t show_chip_orientation(struct device_driver *ptDevDrv, char *pbBuf
 /*****************************************
  *** store_chip_orientation
  *****************************************/
-static ssize_t store_chip_orientation(struct device_driver *ptDevDrv, const char *pbBuf, size_t tCount)
+static ssize_t store_chip_orientation(struct device_driver *ptDevDrv,
+	const char *pbBuf, size_t tCount)
 {
 	int _nDirection = 0;
 	int ret = 0;
@@ -2560,8 +2532,6 @@ static ssize_t store_chip_orientation(struct device_driver *ptDevDrv, const char
 		if (hwmsen_get_convert(_nDirection, &_pt_i2c_obj->cvt))
 			ACC_PR_ERR("ERR: fail to set direction\n");
 	}
-
-	ACC_LOG("[%s] set direction: %d\n", __func__, _nDirection);
 
 	return tCount;
 }
@@ -2577,7 +2547,8 @@ static ssize_t show_accuracy_status(struct device_driver *ddri, char *buf)
 /*****************************************
  *** store_accuracy_status
  *****************************************/
-static ssize_t store_accuracy_status(struct device_driver *ddri, const char *buf, size_t count)
+static ssize_t store_accuracy_status(struct device_driver *ddri,
+	const char *buf, size_t count)
 {
 	int	_nAccuracyStatus = 0;
 	int ret = 0;
@@ -2601,7 +2572,8 @@ static ssize_t store_accuracy_status(struct device_driver *ddri, const char *buf
 /*****************************************
  *** show_selfcheck_value
  *****************************************/
-static ssize_t show_selfcheck_value(struct device_driver *ptDevDriver, char *pbBuf)
+static ssize_t show_selfcheck_value(struct device_driver *ptDevDriver,
+	char *pbBuf)
 {
 	struct i2c_client   *_pt_i2c_client = mc3xxx_i2c_client;
 
@@ -2618,7 +2590,8 @@ static ssize_t show_selfcheck_value(struct device_driver *ptDevDriver, char *pbB
 /*****************************************
  *** store_selfcheck_value
  *****************************************/
-static ssize_t store_selfcheck_value(struct device_driver *ddri, const char *buf, size_t count)
+static ssize_t store_selfcheck_value(struct device_driver *ddri,
+	const char *buf, size_t count)
 {
 	/* reserved */
 	/* ACC_LOG("[%s] buf[0]: 0x%02X\n", __FUNCTION__, buf[0]); */
@@ -2629,7 +2602,8 @@ static ssize_t store_selfcheck_value(struct device_driver *ddri, const char *buf
 /*****************************************
  *** show_chip_validate_value
  *****************************************/
-static ssize_t show_chip_validate_value(struct device_driver *ptDevDriver, char *pbBuf)
+static ssize_t show_chip_validate_value(struct device_driver *ptDevDriver,
+	char *pbBuf)
 {
 	unsigned char	_bChipValidation = 0;
 
@@ -2641,7 +2615,8 @@ static ssize_t show_chip_validate_value(struct device_driver *ptDevDriver, char 
 /*****************************************
  *** show_pdoc_enable_value
  *****************************************/
-static ssize_t show_pdoc_enable_value(struct device_driver *ptDevDriver, char *pbBuf)
+static ssize_t show_pdoc_enable_value(struct device_driver *ptDevDriver,
+	char *pbBuf)
 {
 	#ifdef _MC3XXX_SUPPORT_PERIODIC_DOC_
 	return snprintf(pbBuf, PAGE_SIZE, "%d\n", s_bIsPDOC_Enabled);
@@ -2655,43 +2630,45 @@ static ssize_t show_pdoc_enable_value(struct device_driver *ptDevDriver, char *p
 /*****************************************
  *** DRIVER ATTRIBUTE LIST TABLE
  *****************************************/
-static DRIVER_ATTR(chipinfo,		   S_IRUGO, show_chipinfo_value,   NULL);
-static DRIVER_ATTR(sensordata,		   S_IRUGO, show_sensordata_value, NULL);
-static DRIVER_ATTR(cali, S_IWUSR | S_IRUGO, show_cali_value,	   store_cali_value);
-static DRIVER_ATTR(selftest, S_IWUSR | S_IRUGO, show_selftest_value,   store_selftest_value);
-static DRIVER_ATTR(firlen, S_IWUSR | S_IRUGO, show_firlen_value,	 store_firlen_value);
-static DRIVER_ATTR(trace, S_IWUSR | S_IRUGO, show_trace_value,	  store_trace_value);
-static DRIVER_ATTR(status,		   S_IRUGO, show_status_value,	 NULL);
-static DRIVER_ATTR(power,		   S_IRUGO, show_power_status,	 NULL);
-static DRIVER_ATTR(version,		   S_IRUGO, show_version_value,	NULL);
-static DRIVER_ATTR(chipid,		   S_IRUGO, show_chip_id,		  NULL);
-static DRIVER_ATTR(virtualz,		   S_IRUGO, show_virtual_z,		NULL);
-static DRIVER_ATTR(regmap, S_IWUSR | S_IRUGO, show_regiter_map,	  store_regiter_map);
-static DRIVER_ATTR(orientation, S_IWUSR | S_IRUGO, show_chip_orientation, store_chip_orientation);
-static DRIVER_ATTR(accuracy, S_IWUSR | S_IRUGO, show_accuracy_status, store_accuracy_status);
-static DRIVER_ATTR(selfcheck, S_IWUSR | S_IRUGO, show_selfcheck_value, store_selfcheck_value);
-static DRIVER_ATTR(validate,		   S_IRUGO, show_chip_validate_value, NULL);
-static DRIVER_ATTR(pdoc,		   S_IRUGO, show_pdoc_enable_value, NULL);
+static DRIVER_ATTR(chipinfo,	0444, show_chipinfo_value,   NULL);
+static DRIVER_ATTR(sensordata,	0444, show_sensordata_value, NULL);
+static DRIVER_ATTR(cali, 0644, show_cali_value,	   store_cali_value);
+static DRIVER_ATTR(selftest, 0644, show_selftest_value,   store_selftest_value);
+static DRIVER_ATTR(firlen, 0644, show_firlen_value,	 store_firlen_value);
+static DRIVER_ATTR(trace, 0644, show_trace_value,	  store_trace_value);
+static DRIVER_ATTR(status, 0444, show_status_value,	 NULL);
+static DRIVER_ATTR(power,	0444, show_power_status,	 NULL);
+static DRIVER_ATTR(version, 0444, show_version_value,	NULL);
+static DRIVER_ATTR(chipid,	 0444, show_chip_id,		  NULL);
+static DRIVER_ATTR(virtualz, 0444, show_virtual_z,		NULL);
+static DRIVER_ATTR(regmap, 0644, show_regiter_map,	  store_regiter_map);
+static DRIVER_ATTR(orientation, 0644, show_chip_orientation,
+	store_chip_orientation);
+static DRIVER_ATTR(accuracy, 0644, show_accuracy_status, store_accuracy_status);
+static DRIVER_ATTR(selfcheck, 0644, show_selfcheck_value,
+	store_selfcheck_value);
+static DRIVER_ATTR(validate, 0444, show_chip_validate_value, NULL);
+static DRIVER_ATTR(pdoc, 0444, show_pdoc_enable_value, NULL);
 
-static struct driver_attribute   *mc3xxx_attr_list[] = {
-							   &driver_attr_chipinfo,
-							   &driver_attr_sensordata,
-							   &driver_attr_cali,
-							   &driver_attr_selftest,
-							   &driver_attr_firlen,
-							   &driver_attr_trace,
-							   &driver_attr_status,
-							   &driver_attr_power,
-							   &driver_attr_version,
-							   &driver_attr_chipid,
-							   &driver_attr_virtualz,
-							   &driver_attr_regmap,
-							   &driver_attr_orientation,
-							   &driver_attr_accuracy,
-							   &driver_attr_selfcheck,
-							   &driver_attr_validate,
-							   &driver_attr_pdoc,
-							   };
+static struct driver_attribute *mc3xxx_attr_list[] = {
+	&driver_attr_chipinfo,
+	&driver_attr_sensordata,
+	&driver_attr_cali,
+	&driver_attr_selftest,
+	&driver_attr_firlen,
+	&driver_attr_trace,
+	&driver_attr_status,
+	&driver_attr_power,
+	&driver_attr_version,
+	&driver_attr_chipid,
+	&driver_attr_virtualz,
+	&driver_attr_regmap,
+	&driver_attr_orientation,
+	&driver_attr_accuracy,
+	&driver_attr_selfcheck,
+	&driver_attr_validate,
+	&driver_attr_pdoc,
+};
 
 /*****************************************
  *** mc3xxx_create_attr
@@ -2707,7 +2684,8 @@ static int mc3xxx_create_attr(struct device_driver *driver)
 	for (idx = 0; idx < num; idx++) {
 		err = driver_create_file(driver, mc3xxx_attr_list[idx]);
 		if (err) {
-			ACC_PR_ERR("driver_create_file (%s) = %d\n", mc3xxx_attr_list[idx]->attr.name, err);
+			ACC_PR_ERR("driver_create_file (%s) = %d\n",
+				mc3xxx_attr_list[idx]->attr.name, err);
 			break;
 		}
 	}
@@ -2797,8 +2775,6 @@ static int mc3xxx_suspend(struct device *dev)
 	struct mc3xxx_i2c_data *obj = i2c_get_clientdata(client);
 	int err = 0;
 
-	ACC_LOG("mc3xxx_suspend\n");
-
 	if (obj == NULL) {
 		ACC_PR_ERR("null pointer!!\n");
 		return -EINVAL;
@@ -2826,7 +2802,6 @@ static int mc3xxx_resume(struct device *dev)
 	struct mc3xxx_i2c_data *obj = i2c_get_clientdata(client);
 	int err;
 
-	ACC_LOG("mc3xxx_resume\n");
 	if (obj == NULL) {
 		ACC_PR_ERR("null pointer!!\n");
 		return -EINVAL;
@@ -2889,7 +2864,8 @@ _I2C_AUTO_PROBE_RECHECK_:
 		_baData2Buf[0] = 0;
 		MC3XXX_i2c_read_block(client, 0x18, _baData2Buf, 1);
 		s_bPCODER = _baData1Buf[0];
-		if (MC3XXX_ValidateSensorIC(&_baData1Buf[0], &_baData2Buf[0]) == MC3XXX_RETCODE_SUCCESS) {
+		if (MC3XXX_ValidateSensorIC(&_baData1Buf[0], &_baData2Buf[0])
+			== MC3XXX_RETCODE_SUCCESS) {
 			s_bPCODE = _baData1Buf[0];
 			s_bHWID  = _baData2Buf[0];
 			MC3XXX_SaveDefaultOffset(client);
@@ -2902,14 +2878,20 @@ _I2C_AUTO_PROBE_RECHECK_:
 	#undef _MC3XXX_I2C_PROBE_ADDR_COUNT_
 }
 
-/* if use  this typ of enable , Gsensor should report inputEvent(x, y, z ,stats, div) to HAL */
+/**************************************************************
+ * if use  this type of enable ,
+ * Gsensor should report inputEvent(x, y, z ,stats, div) to HAL
+ **************************************************************/
 static int mc3xxx_open_report_data(int open)
 {
 	/* should queuq work to report event if  is_report_input_direct=true */
 	return 0;
 }
 
-/* if use  this typ of enable , Gsensor only enabled but not report inputEvent to HAL */
+/**************************************************************
+ * if use  this type of enable ,
+ * Gsensor only enabled but not report inputEvent to HAL
+ *************************************************************/
 static int mc3xxx_enable_nodata(int en)
 {
 	int res = 0;
@@ -2923,10 +2905,8 @@ static int mc3xxx_enable_nodata(int en)
 
 	for (retry = 0; retry < 3; retry++) {
 		res = MC3XXX_SetPowerMode(mc3xxx_obj_i2c_data->client, power);
-		if (res == 0) {
-			ACC_LOG("MC3XXX_SetPowerMode done\n");
+		if (res == 0)
 			break;
-		}
 		ACC_LOG("MC3XXX_SetPowerMode fail\n");
 	}
 
@@ -2934,7 +2914,6 @@ static int mc3xxx_enable_nodata(int en)
 		ACC_LOG("MC3XXX_SetPowerMode fail!\n");
 		return -1;
 	}
-	ACC_LOG("mc3xxx_enable_nodata OK!\n");
 	return 0;
 }
 
@@ -2943,7 +2922,6 @@ static int mc3xxx_set_delay(u64 ns)
 	int value = 0;
 
 	value = (int)ns/1000/1000;
-	ACC_LOG("mc3xxx_set_delay (%d), chip only use 1024HZ\n", value);
 	return 0;
 }
 
@@ -2952,7 +2930,8 @@ static int mc3xxx_get_data(int *x, int *y, int *z, int *status)
 	char buff[MC3XXX_BUF_SIZE];
 	int ret;
 
-	MC3XXX_ReadSensorData(mc3xxx_obj_i2c_data->client, buff, MC3XXX_BUF_SIZE);
+	MC3XXX_ReadSensorData(mc3xxx_obj_i2c_data->client, buff,
+		MC3XXX_BUF_SIZE);
 	ret = sscanf(buff, "%x %x %x", x, y, z);
 	*status = SENSOR_STATUS_ACCURACY_MEDIUM;
 
@@ -2960,34 +2939,34 @@ static int mc3xxx_get_data(int *x, int *y, int *z, int *status)
 }
 
 
-static int mc3xxx_batch(int flag, int64_t samplingPeriodNs, int64_t maxBatchReportLatencyNs)
+static int mc3xxx_batch(int flag, int64_t samplingPeriodNs,
+	int64_t maxBatchReportLatencyNs)
 {
 	int value = 0;
 /*
-*	int err = 0;
-*	int sample_delay = 0;
-*/
+ *	int err = 0;
+ *	int sample_delay = 0;
+ */
 
 	value = (int)samplingPeriodNs/1000/1000;
 	/*FIX ME */
 	/*NEED SUPPORT batch ?*/
 /*
-*	if (value <= 5)
-*		sample_delay = MC3410_ACCEL_ODR_400HZ;
-*	else if (value <= 10)
-*		sample_delay = MC3410_ACCEL_ODR_200HZ;
-*	else
-*		sample_delay = MC3410_ACCEL_ODR_100HZ;
-*
-*	err = MC3XXX_SetSampleRate(mc3xxx_obj_i2c_data->client);
-*
-*	if (err < 0) {
-*		ACC_PR_ERR("set delay parameter error!\n");
-*		return -1;
-*	}
-*	ACC_LOG("mc3xxx_batch acc set delay = (%d) ok.\n", value);
-*/
-	ACC_LOG("mc3xxx_batch (%d), chip only use 1024HZ\n", value);
+ *	if (value <= 5)
+ *		sample_delay = MC3410_ACCEL_ODR_400HZ;
+ *	else if (value <= 10)
+ *		sample_delay = MC3410_ACCEL_ODR_200HZ;
+ *	else
+ *		sample_delay = MC3410_ACCEL_ODR_100HZ;
+ *
+ *	err = MC3XXX_SetSampleRate(mc3xxx_obj_i2c_data->client);
+ *
+ *	if (err < 0) {
+ *		ACC_PR_ERR("set delay parameter error!\n");
+ *		return -1;
+ *	}
+ *	ACC_LOG("mc3xxx_batch acc set delay = (%d) ok.\n", value);
+ */
 	return 0;
 }
 
@@ -2996,7 +2975,8 @@ static int mc3xxx_flush(void)
 	return acc_flush_report();
 }
 
-static int mc3xxx_factory_enable_sensor(bool enabledisable, int64_t sample_periods_ms)
+static int mc3xxx_factory_enable_sensor(bool enabledisable,
+	int64_t sample_periods_ms)
 {
 	int err;
 
@@ -3022,7 +3002,6 @@ static int mc3xxx_factory_get_raw_data(int32_t data[3])
 	char strbuf[MC3XXX_BUF_SIZE] = { 0 };
 
 	MC3XXX_ReadRawData(mc3xxx_i2c_client, strbuf);
-	ACC_LOG("support mc3xxx_factory_get_raw_data!\n");
 	return 0;
 }
 static int mc3xxx_factory_enable_calibration(void)
@@ -3093,7 +3072,8 @@ static struct accel_factory_public mc3xxx_factory_device = {
 /*****************************************
  *** mc3xxx_i2c_probe
  *****************************************/
-static int mc3xxx_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
+static int mc3xxx_i2c_probe(struct i2c_client *client,
+	const struct i2c_device_id *id)
 {
 	struct i2c_client *new_client;
 	struct mc3xxx_i2c_data *obj;
@@ -3101,7 +3081,6 @@ static int mc3xxx_i2c_probe(struct i2c_client *client, const struct i2c_device_i
 	struct acc_data_path data = {0};
 	int err = 0;
 
-	ACC_LOG("mc3xxx_i2c_probe\n");
 	err = get_accel_dts_func(client->dev.of_node, hw);
 	if (err < 0) {
 		ACC_PR_ERR("get cust_baro dts info fail\n");
@@ -3159,7 +3138,8 @@ static int mc3xxx_i2c_probe(struct i2c_client *client, const struct i2c_device_i
 		goto exit_misc_device_register_failed;
 	}
 
-	err = mc3xxx_create_attr(&(mc3xxx_init_info.platform_diver_addr->driver));
+	err = mc3xxx_create_attr(
+		&(mc3xxx_init_info.platform_diver_addr->driver));
 	if (err) {
 		ACC_PR_ERR("create attribute err = %d\n", err);
 		goto exit_create_attr_failed;
@@ -3184,7 +3164,6 @@ static int mc3xxx_i2c_probe(struct i2c_client *client, const struct i2c_device_i
 		ACC_PR_ERR("register acc data path err= %d\n", err);
 		goto exit_kfree;
 	}
-	ACC_LOG("%s: OK\n", __func__);
 	s_nInitFlag = MC3XXX_INIT_SUCC;
 	return 0;
 
@@ -3208,7 +3187,8 @@ static int mc3xxx_i2c_remove(struct i2c_client *client)
 {
 	int err = 0;
 
-	err = mc3xxx_delete_attr(&(mc3xxx_init_info.platform_diver_addr->driver));
+	err = mc3xxx_delete_attr(
+		&(mc3xxx_init_info.platform_diver_addr->driver));
 	if (err)
 		ACC_PR_ERR("mc3xxx_delete_attr fail: %d\n", err);
 
@@ -3240,8 +3220,6 @@ static int mc3xxx_remove(void)
  *****************************************/
 static int  mc3xxx_local_init(void)
 {
-	ACC_LOG("mc3xxx_local_init\n");
-
 	if (i2c_add_driver(&mc3xxx_i2c_driver)) {
 		ACC_PR_ERR("add driver error\n");
 		return -1;
@@ -3266,16 +3244,15 @@ static int __init mc3xxx_init(void)
  *****************************************/
 static void __exit mc3xxx_exit(void)
 {
-	ACC_LOG("mc3xxx_exit\n");
 #ifdef CONFIG_CUSTOM_KERNEL_ACCELEROMETER_MODULE
 	success_Flag = false;
 #endif
 }
 
-/*----------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 module_init(mc3xxx_init);
 module_exit(mc3xxx_exit);
-/*----------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 MODULE_DESCRIPTION("mc3XXX G-Sensor Driver");
 MODULE_AUTHOR("Mediatek");
 MODULE_LICENSE("GPL");

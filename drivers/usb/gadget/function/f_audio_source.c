@@ -14,7 +14,6 @@
  *
  */
 
-#ifdef CONFIG_SND_PCM
 #include <linux/device.h>
 #include <linux/usb/audio.h>
 #include <linux/wait.h>
@@ -33,9 +32,9 @@
 #define SAMPLE_RATE 44100
 #define FRAMES_PER_MSEC (SAMPLE_RATE / 1000)
 
-#define BYTES_PER_FRAME 4
 #define IN_EP_MAX_PACKET_SIZE 256
 
+/* Number of requests to allocate */
 #define IN_EP_REQ_COUNT 4
 
 #define AUDIO_AC_INTERFACE	0
@@ -318,11 +317,7 @@ static struct usb_request *audio_request_new(struct usb_ep *ep, int buffer_size)
 	if (!req)
 		return NULL;
 
-#if defined(CONFIG_64BIT) && defined(CONFIG_MTK_LM_MODE)
-	req->buf = kmalloc(buffer_size, GFP_KERNEL | GFP_DMA);
-#else
 	req->buf = kmalloc(buffer_size, GFP_KERNEL);
-#endif
 	if (!req->buf) {
 		usb_ep_free_request(ep, req);
 		return NULL;
@@ -377,7 +372,6 @@ static void audio_send(struct audio_dev *audio)
 	unsigned long flags;
 
 	spin_lock_irqsave(&audio->lock, flags);
-
 	/* audio->substream will be null if we have been closed */
 	if (!audio->substream) {
 		spin_unlock_irqrestore(&audio->lock, flags);
@@ -388,8 +382,10 @@ static void audio_send(struct audio_dev *audio)
 		spin_unlock_irqrestore(&audio->lock, flags);
 		return;
 	}
+
 	runtime = audio->substream->runtime;
 	spin_unlock_irqrestore(&audio->lock, flags);
+
 	/* compute number of frames to send */
 	now = ktime_get();
 	msecs = div_s64((ktime_to_ns(now) - ktime_to_ns(audio->start_time)),
@@ -400,8 +396,6 @@ static void audio_send(struct audio_dev *audio)
 	 * If we get too far behind it is better to drop some frames than
 	 * to keep sending data too fast in an attempt to catch up.
 	 */
-
-
 	if (frames - audio->frames_sent > 10 * FRAMES_PER_MSEC)
 		audio->frames_sent = frames - FRAMES_PER_MSEC;
 
@@ -413,6 +407,7 @@ static void audio_send(struct audio_dev *audio)
 
 	while (frames > 0) {
 		req = audio_req_get(audio);
+
 		spin_lock_irqsave(&audio->lock, flags);
 		/* audio->substream will be null if we have been closed */
 		if (!audio->substream) {
@@ -651,18 +646,19 @@ audio_bind(struct usb_configuration *c, struct usb_function *f)
 	int status;
 	struct usb_ep *ep;
 	struct usb_request *req;
-
-	struct audio_source_instance *fi_audio = to_fi_audio_source(f->fi);
-	struct audio_source_config *config = fi_audio->config;
 	int i;
 	int err;
 
+	if (IS_ENABLED(CONFIG_USB_CONFIGFS)) {
+		struct audio_source_instance *fi_audio =
+				to_fi_audio_source(f->fi);
+		struct audio_source_config *config =
+				fi_audio->config;
+
 		err = snd_card_setup(c, config);
-	if (err) {
-		pr_err("snd_card_setup failed with %d\n", err);
+		if (err)
 			return err;
 	}
-
 
 	audio_build_desc(audio);
 
@@ -719,23 +715,30 @@ audio_unbind(struct usb_configuration *c, struct usb_function *f)
 {
 	struct audio_dev *audio = func_to_audio(f);
 	struct usb_request *req;
-	struct audio_source_instance *fi_audio = to_fi_audio_source(f->fi);
-	struct audio_source_config *config = fi_audio->config;
 	unsigned long flags;
 
 	while ((req = audio_req_get(audio)))
 		audio_request_free(req, audio->in_ep);
 
 	snd_card_free_when_closed(audio->card);
+
 	spin_lock_irqsave(&audio->lock, flags);
 	audio->card = NULL;
 	audio->pcm = NULL;
 	audio->substream = NULL;
 	audio->in_ep = NULL;
-	spin_unlock_irqrestore(&audio->lock, flags);
+
+	if (IS_ENABLED(CONFIG_USB_CONFIGFS)) {
+		struct audio_source_instance *fi_audio =
+				to_fi_audio_source(f->fi);
+		struct audio_source_config *config =
+				fi_audio->config;
+
 		config->card = -1;
 		config->device = -1;
 	}
+	spin_unlock_irqrestore(&audio->lock, flags);
+}
 
 static void audio_pcm_playback_start(struct audio_dev *audio)
 {
@@ -769,8 +772,10 @@ static int audio_pcm_open(struct snd_pcm_substream *substream)
 	spin_lock_irqsave(&audio->lock, flags);
 	audio->substream = substream;
 	spin_unlock_irqrestore(&audio->lock, flags);
+
 	/* Add the QoS request and set the latency to 0 */
 	pm_qos_add_request(&audio->pm_qos, PM_QOS_CPU_DMA_LATENCY, 0);
+
 	return 0;
 }
 
@@ -779,10 +784,11 @@ static int audio_pcm_close(struct snd_pcm_substream *substream)
 	struct audio_dev *audio = substream->private_data;
 	unsigned long flags;
 
+	spin_lock_irqsave(&audio->lock, flags);
+
 	/* Remove the QoS request */
 	pm_qos_remove_request(&audio->pm_qos);
 
-	spin_lock_irqsave(&audio->lock, flags);
 	audio->substream = NULL;
 	spin_unlock_irqrestore(&audio->lock, flags);
 
@@ -1095,4 +1101,3 @@ static struct usb_function *audio_source_alloc(struct usb_function_instance *fi)
 DECLARE_USB_FUNCTION_INIT(audio_source, audio_source_alloc_inst,
 			audio_source_alloc);
 MODULE_LICENSE("GPL");
-#endif

@@ -25,11 +25,7 @@ struct proc_dir_entry *policy_dir;
 struct proc_dir_entry *profile_dir;
 struct proc_dir_entry *cpi_dir;
 unsigned int ppm_debug;
-#if 0
-unsigned int ppm_func_lv_mask = (FUNC_LV_MODULE  | FUNC_LV_API | FUNC_LV_MAIN | FUNC_LV_POLICY);
-#else
 unsigned int ppm_func_lv_mask;
-#endif
 
 
 char *ppm_copy_from_user_for_proc(const char __user *buffer, size_t count)
@@ -62,10 +58,10 @@ static int ppm_func_debug_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-static ssize_t ppm_func_debug_proc_write(struct file *file, const char __user *buffer, size_t count,
-					loff_t *pos)
+static ssize_t ppm_func_debug_proc_write(struct file *file,
+	const char __user *buffer, size_t count, loff_t *pos)
 {
-	unsigned int func_dbg_lv;
+	unsigned int func_dbg_lv = 0;
 
 	char *buf = ppm_copy_from_user_for_proc(buffer, count);
 
@@ -88,10 +84,10 @@ static int ppm_debug_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-static ssize_t ppm_debug_proc_write(struct file *file, const char __user *buffer, size_t count,
-					loff_t *pos)
+static ssize_t ppm_debug_proc_write(struct file *file,
+	const char __user *buffer, size_t count, loff_t *pos)
 {
-	unsigned int dbg_lv;
+	unsigned int dbg_lv = 0;
 
 	char *buf = ppm_copy_from_user_for_proc(buffer, count);
 
@@ -117,10 +113,10 @@ static int ppm_enabled_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-static ssize_t ppm_enabled_proc_write(struct file *file, const char __user *buffer, size_t count,
-					loff_t *pos)
+static ssize_t ppm_enabled_proc_write(struct file *file,
+	const char __user *buffer, size_t count, loff_t *pos)
 {
-	unsigned int enabled;
+	unsigned int enabled = 0;
 
 	char *buf = ppm_copy_from_user_for_proc(buffer, count);
 
@@ -133,8 +129,10 @@ static ssize_t ppm_enabled_proc_write(struct file *file, const char __user *buff
 		ppm_main_info.is_enabled = (enabled) ? true : false;
 		if (!ppm_main_info.is_enabled) {
 			int i;
-			struct ppm_client_req *c_req = &(ppm_main_info.client_req);
-			struct ppm_client_req *last_req = &(ppm_main_info.last_req);
+			struct ppm_client_req *c_req =
+				&(ppm_main_info.client_req);
+			struct ppm_client_req *last_req =
+				&(ppm_main_info.last_req);
 
 			/* send default limit to client */
 			ppm_main_clear_client_req(c_req);
@@ -143,13 +141,16 @@ static ssize_t ppm_enabled_proc_write(struct file *file, const char __user *buff
 			ppm_ipi_update_limit(*c_req);
 #endif
 			for_each_ppm_clients(i) {
-				if (ppm_main_info.client_info[i].limit_cb)
-					ppm_main_info.client_info[i].limit_cb(*c_req);
+				if (!ppm_main_info.client_info[i].limit_cb)
+					continue;
+
+				ppm_main_info.client_info[i].limit_cb(*c_req);
 			}
 			memcpy(last_req->cpu_limit, c_req->cpu_limit,
-				ppm_main_info.cluster_num * sizeof(*c_req->cpu_limit));
+				ppm_main_info.cluster_num *
+				sizeof(*c_req->cpu_limit));
 
-			ppm_info("send no limit to clinet since ppm is disabled!\n");
+			ppm_info("PPM disabled, send no limit to clinet!\n");
 		}
 	} else
 		ppm_err("echo [0/1] > /proc/ppm/enabled\n");
@@ -162,15 +163,16 @@ static ssize_t ppm_enabled_proc_write(struct file *file, const char __user *buff
 
 static int ppm_exclusive_core_proc_show(struct seq_file *m, void *v)
 {
-	seq_printf(m, "ppm exclusive core = %*pbl\n", cpumask_pr_args(ppm_main_info.exclusive_core));
+	seq_printf(m, "ppm exclusive core = %*pbl\n",
+		cpumask_pr_args(ppm_main_info.exclusive_core));
 
 	return 0;
 }
 
-static ssize_t ppm_exclusive_core_proc_write(struct file *file, const char __user *buffer, size_t count,
-					loff_t *pos)
+static ssize_t ppm_exclusive_core_proc_write(struct file *file,
+	const char __user *buffer, size_t count, loff_t *pos)
 {
-	unsigned int mask;
+	unsigned int mask = 0;
 	int cpu;
 
 	char *buf = ppm_copy_from_user_for_proc(buffer, count);
@@ -183,11 +185,13 @@ static ssize_t ppm_exclusive_core_proc_write(struct file *file, const char __use
 		cpumask_clear(ppm_main_info.exclusive_core);
 		for_each_present_cpu(cpu) {
 			if (mask & 0x1)
-				cpumask_set_cpu(cpu, ppm_main_info.exclusive_core);
+				cpumask_set_cpu(cpu,
+					ppm_main_info.exclusive_core);
 			mask >>= 1;
 		}
 		ppm_unlock(&ppm_main_info.lock);
-		ppm_info("update exclusive core = %*pbl\n", cpumask_pr_args(ppm_main_info.exclusive_core));
+		ppm_info("update exclusive core = %*pbl\n",
+			cpumask_pr_args(ppm_main_info.exclusive_core));
 		mt_ppm_main();
 	} else
 		ppm_err("echo <bitmask> > /proc/ppm/exclusive_core\n");
@@ -222,15 +226,18 @@ static int ppm_dump_policy_list_proc_show(struct seq_file *m, void *v)
 	list_for_each_entry(pos, &ppm_main_info.policy_list, link) {
 		ppm_lock(&pos->lock);
 
-		seq_printf(m, "[%d] %s (priority: %d)\n", i, pos->name, pos->priority);
+		seq_printf(m, "[%d] %s (priority: %d)\n",
+			i, pos->name, pos->priority);
 		seq_printf(m, "is_enabled = %d, is_activated = %d\n",
-				pos->is_enabled, pos->is_activated);
+			pos->is_enabled, pos->is_activated);
 		seq_printf(m, "req_perf_idx = %d, req_power_budget = %d\n",
-				pos->req.perf_idx, pos->req.power_budget);
+			pos->req.perf_idx, pos->req.power_budget);
 		for_each_ppm_clusters(j) {
 			seq_printf(m, "cluster %d: (%d)(%d)(%d)(%d)\n", j,
-				pos->req.limit[j].min_cpufreq_idx, pos->req.limit[j].max_cpufreq_idx,
-				pos->req.limit[j].min_cpu_core, pos->req.limit[j].max_cpu_core);
+				pos->req.limit[j].min_cpufreq_idx,
+				pos->req.limit[j].max_cpufreq_idx,
+				pos->req.limit[j].min_cpu_core,
+				pos->req.limit[j].max_cpu_core);
 		}
 		seq_puts(m, "\n");
 		ppm_unlock(&pos->lock);
@@ -250,14 +257,15 @@ static int ppm_policy_status_proc_show(struct seq_file *m, void *v)
 		seq_printf(m, "[%d] %s: %s\n", pos->policy, pos->name,
 				(pos->is_enabled) ? "enabled" : "disabled");
 
-	seq_puts(m, "\nUsage: echo <policy_idx> <1:enable/0:disable> > /proc/ppm/policy_status\n\n");
+	seq_puts(m, "\nUsage: echo <idx> <1/0> > /proc/ppm/policy_status\n\n");
 
 	return 0;
 }
 
-static ssize_t ppm_policy_status_proc_write(struct file *file, const char __user *buffer, size_t count, loff_t *pos)
+static ssize_t ppm_policy_status_proc_write(struct file *file,
+	const char __user *buffer, size_t count, loff_t *pos)
 {
-	struct ppm_policy_data *list_pos;
+	struct ppm_policy_data *l_pos;
 	unsigned int policy_idx, enabled;
 
 	char *buf = ppm_copy_from_user_for_proc(buffer, count);
@@ -269,23 +277,27 @@ static ssize_t ppm_policy_status_proc_write(struct file *file, const char __user
 		if (enabled > 1)
 			enabled = 1;
 
-		/* set target mode status and notify the policy via status change callback */
-		list_for_each_entry(list_pos, &ppm_main_info.policy_list, link) {
-			if (list_pos->policy == policy_idx && list_pos->is_enabled != enabled) {
-				ppm_lock(&list_pos->lock);
-				list_pos->is_enabled = (enabled) ? true : false;
-				if (!list_pos->is_enabled)
-					list_pos->is_activated = false;
-				if (list_pos->status_change_cb)
-					list_pos->status_change_cb(list_pos->is_enabled);
-				ppm_unlock(&list_pos->lock);
+		/* set mode status and notify policy via status change cb */
+		list_for_each_entry(l_pos,
+			&ppm_main_info.policy_list, link) {
+			if (l_pos->policy == policy_idx
+				&& l_pos->is_enabled != enabled) {
+				ppm_lock(&l_pos->lock);
+				l_pos->is_enabled =
+					(enabled) ? true : false;
+				if (!l_pos->is_enabled)
+					l_pos->is_activated = false;
+				if (l_pos->status_change_cb)
+					l_pos->status_change_cb(
+						l_pos->is_enabled);
+				ppm_unlock(&l_pos->lock);
 
 				mt_ppm_main();
 				break;
 			}
 		}
 	} else
-		ppm_err("Invalid input! Usage: echo <policy_idx> <1(enable)/0(disable)> > /proc/ppm/policy_status\n");
+		ppm_err("Usage: echo <idx> <1/0> > /proc/ppm/policy_status\n");
 
 	free_page((unsigned long)buf);
 	return count;
@@ -297,7 +309,8 @@ static int ppm_dump_dvfs_table_proc_show(struct seq_file *m, void *v)
 	unsigned int i;
 
 	if (!info->dvfs_tbl) {
-		ppm_err("DVFS table for cluster %d is NULL!\n", info->cluster_id);
+		ppm_err("DVFS table for cluster %d is NULL!\n",
+			info->cluster_id);
 		goto end;
 	}
 
@@ -310,68 +323,6 @@ end:
 	return 0;
 }
 
-#ifdef PPM_VPROC_5A_LIMIT_CHECK
-static int ppm_5A_limit_enable_proc_show(struct seq_file *m, void *v)
-{
-	seq_printf(m, "%d\n", ppm_main_info.is_5A_limit_enable);
-
-	return 0;
-}
-
-static ssize_t ppm_5A_limit_enable_proc_write(struct file *file, const char __user *buffer,
-					size_t count, loff_t *pos)
-{
-	int enable;
-
-	char *buf = ppm_copy_from_user_for_proc(buffer, count);
-
-	if (!buf)
-		return -EINVAL;
-
-	if (!kstrtoint(buf, 10, &enable)) {
-		ppm_lock(&ppm_main_info.lock);
-		ppm_main_info.is_5A_limit_enable = (enable == 0) ? false : true;
-		ppm_info("is_5A_limit_enable = %d\n", ppm_main_info.is_5A_limit_enable);
-		ppm_unlock(&ppm_main_info.lock);
-
-		mt_ppm_main();
-	} else
-		ppm_err("echo 1(enable)/0(disable) > /proc/ppm/5A_limit_enable\n");
-
-	free_page((unsigned long)buf);
-	return count;
-}
-
-static int ppm_5A_limit_onoff_proc_show(struct seq_file *m, void *v)
-{
-	seq_printf(m, "%d\n", ppm_main_info.is_5A_limit_on);
-
-	return 0;
-}
-
-static ssize_t ppm_5A_limit_onoff_proc_write(struct file *file, const char __user *buffer,
-					size_t count, loff_t *pos)
-{
-	int onoff;
-
-	char *buf = ppm_copy_from_user_for_proc(buffer, count);
-
-	if (!buf)
-		return -EINVAL;
-
-	if (!kstrtoint(buf, 10, &onoff)) {
-		if (!onoff)
-			mt_ppm_set_5A_limit_throttle(false);
-		else
-			mt_ppm_set_5A_limit_throttle(true);
-	} else
-		ppm_err("echo 1(on)/0(off) > /proc/ppm/5A_limit_onoff\n");
-
-	free_page((unsigned long)buf);
-	return count;
-}
-#endif
-
 static int ppm_cobra_budget_to_limit_proc_show(struct seq_file *m, void *v)
 {
 	ppm_cobra_lookup_get_result(m, LOOKUP_BY_BUDGET);
@@ -379,8 +330,8 @@ static int ppm_cobra_budget_to_limit_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-static ssize_t ppm_cobra_budget_to_limit_proc_write(struct file *file, const char __user *buffer,
-					size_t count, loff_t *pos)
+static ssize_t ppm_cobra_budget_to_limit_proc_write(struct file *file,
+	const char __user *buffer, size_t count, loff_t *pos)
 {
 	unsigned int budget;
 
@@ -405,8 +356,8 @@ static int ppm_cobra_limit_to_budget_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-static ssize_t ppm_cobra_limit_to_budget_proc_write(struct file *file, const char __user *buffer,
-					size_t count, loff_t *pos)
+static ssize_t ppm_cobra_limit_to_budget_proc_write(struct file *file,
+	const char __user *buffer, size_t count, loff_t *pos)
 {
 	char *tok, *tmp;
 	unsigned int i = 0, data;
@@ -419,7 +370,8 @@ static ssize_t ppm_cobra_limit_to_budget_proc_write(struct file *file, const cha
 	tmp = buf;
 	while ((tok = strsep(&tmp, " ")) != NULL) {
 		if (i == NR_PPM_CLUSTERS * 2) {
-			ppm_err("@%s: number of arguments > %d!\n", __func__, NR_PPM_CLUSTERS * 2);
+			ppm_err("@%s: number of arguments > %d!\n",
+				__func__, NR_PPM_CLUSTERS * 2);
 			goto out;
 		}
 
@@ -449,10 +401,6 @@ PROC_FOPS_RO(dump_power_table);
 PROC_FOPS_RO(dump_policy_list);
 PROC_FOPS_RW(policy_status);
 PROC_FOPS_RO(dump_dvfs_table);
-#ifdef PPM_VPROC_5A_LIMIT_CHECK
-PROC_FOPS_RW(5A_limit_enable);
-PROC_FOPS_RW(5A_limit_onoff);
-#endif
 PROC_FOPS_RW(cobra_budget_to_limit);
 PROC_FOPS_RW(cobra_limit_to_budget);
 
@@ -475,10 +423,6 @@ int ppm_procfs_init(void)
 		PROC_ENTRY(dump_power_table),
 		PROC_ENTRY(dump_policy_list),
 		PROC_ENTRY(policy_status),
-#ifdef PPM_VPROC_5A_LIMIT_CHECK
-		PROC_ENTRY(5A_limit_enable),
-		PROC_ENTRY(5A_limit_onoff),
-#endif
 		PROC_ENTRY(cobra_budget_to_limit),
 		PROC_ENTRY(cobra_limit_to_budget),
 	};
@@ -492,33 +436,37 @@ int ppm_procfs_init(void)
 	/* mkdir for policies */
 	policy_dir = proc_mkdir("policy", dir);
 	if (!policy_dir) {
-		ppm_err("@%s: fail to create /proc/ppm/policy dir\n", __func__);
+		ppm_err("fail to create /proc/ppm/policy dir\n");
 		return -ENOMEM;
 	}
 
 	profile_dir = proc_mkdir("profile", dir);
 	if (!profile_dir) {
-		ppm_err("@%s: fail to create /proc/ppm/profile dir\n", __func__);
+		ppm_err("fail to create /proc/ppm/profile dir\n");
 		return -ENOMEM;
 	}
 
 	cpi_dir = proc_mkdir("cpi", dir);
 	if (!cpi_dir) {
-		ppm_err("@%s: fail to create /proc/ppm/cpi dir\n", __func__);
+		ppm_err("fail to create /proc/ppm/cpi dir\n");
 		return -ENOMEM;
 	}
 
 	for (i = 0; i < ARRAY_SIZE(entries); i++) {
-		if (!proc_create(entries[i].name, S_IRUGO | S_IWUSR | S_IWGRP, dir, entries[i].fops))
-			ppm_err("%s(), create /proc/ppm/%s failed\n", __func__, entries[i].name);
+		if (!proc_create(entries[i].name, 0664,
+			dir, entries[i].fops))
+			ppm_err("%s(), create /proc/ppm/%s failed\n",
+				__func__, entries[i].name);
 	}
 
 	for_each_ppm_clusters(i) {
 		sprintf(str, "dump_cluster_%d_dvfs_table", i);
 
-		if (!proc_create_data(str, S_IRUGO | S_IWUSR | S_IWGRP,
-			dir, &ppm_dump_dvfs_table_proc_fops, &ppm_main_info.cluster_info[i]))
-			ppm_err("%s(), create /proc/ppm/%s failed\n", __func__, str);
+		if (!proc_create_data(str, 0644,
+			dir, &ppm_dump_dvfs_table_proc_fops,
+			&ppm_main_info.cluster_info[i]))
+			ppm_err("%s(), create /proc/ppm/%s failed\n",
+				__func__, str);
 	}
 
 	return 0;

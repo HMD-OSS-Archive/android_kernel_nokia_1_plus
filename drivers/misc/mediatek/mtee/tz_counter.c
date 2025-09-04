@@ -29,7 +29,7 @@ uint32_t TEECK_Icnt_Counter(KREE_SESSION_HANDLE session,
 {
 	union MTEEC_PARAM param[4];
 	uint32_t paramTypes;
-	TZ_RESULT ret;
+	int ret;
 
 	paramTypes = TZ_ParamTypes2(TZPT_VALUE_OUTPUT, TZPT_VALUE_OUTPUT);
 
@@ -47,7 +47,7 @@ uint32_t TEECK_Icnt_Rate(KREE_SESSION_HANDLE session, uint32_t *a)
 {
 	union MTEEC_PARAM param[4];
 	uint32_t paramTypes;
-	TZ_RESULT ret;
+	int ret;
 
 	paramTypes = TZ_ParamTypes1(TZPT_VALUE_OUTPUT);
 
@@ -63,7 +63,7 @@ uint32_t TEECK_Icnt_Rate(KREE_SESSION_HANDLE session, uint32_t *a)
 #define THREAD_COUNT_FREQ 10
 int update_counter_thread(void *data)
 {
-	TZ_RESULT ret;
+	int ret;
 	KREE_SESSION_HANDLE icnt_session;
 	uint32_t result;
 	uint32_t a, b, rate;

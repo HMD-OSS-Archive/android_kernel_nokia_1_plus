@@ -13,13 +13,13 @@
 
 # common driver code for CMDQ
 
+
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/cmdq/v2/$(MTK_PLATFORM) \
              -I$(srctree)/drivers/misc/mediatek/smi/ \
              -I$(srctree)/drivers/misc/mediatek/mmp/ \
-             -I$(srctree)/drivers/misc/mediatek/mdp/ \
-             -I$(srctree)/drivers/iommu/ \
-             -I$(srctree)/drivers/misc/mediatek/m4u/$(MTK_PLATFORM) \
              -I$(srctree)/drivers/misc/mediatek/mach/$(MTK_PLATFORM)/include
+
+ccflags-y += -I$(srctree)/kernel
 
 # Enable AEE
 ccflags-y += -DCMDQ_AEE_READY
@@ -36,7 +36,6 @@ endif
 ifeq ($(strip $(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT)),y)
 ifeq ($(strip $(CONFIG_TRUSTONIC_TEE_SUPPORT)),y)
 include $(srctree)/drivers/misc/mediatek/gud/Makefile.include
-
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/cmdq/v2/inc/cmdq_sec_dr \
              -I$(srctree)/drivers/misc/mediatek/cmdq/v2/inc/cmdq_sec_tl
 
@@ -48,6 +47,7 @@ ccflags-y += -DCMDQ_EVENT_SVP_BACKUP
 endif
 endif
 
+
 # platform dependent definition
 ccflags-$(CONFIG_MTK_SMI_EXT) += -DCMDQ_CONFIG_SMI
 # ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6755"))
@@ -56,9 +56,9 @@ ccflags-$(CONFIG_MTK_SMI_EXT) += -DCMDQ_CONFIG_SMI
 ccflags-y += -DCMDQ_LARGE_MAX_FIRSTERROR_BUFFER
 ccflags-y += -DCMDQ_SPECIAL_ESD_PRIORITY
 ccflags-y += -D_CMDQ_DISABLE_MARKER_
-ccflags-y += -DCMDQ_PROFILE_MMP
+#ccflags-y += -DCMDQ_PROFILE_MMP
 
-ifeq ($(CONFIG_MTK_CMDQ_TAB), y)
+ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt8167"))
 #ccflags-y += -DCMDQ_USE_LEGACY
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/cmdq/v2/inc/cmdq_sec_dr \
              -I$(srctree)/drivers/misc/mediatek/cmdq/v2/inc/cmdq_sec_tl \
@@ -79,7 +79,7 @@ obj-y += cmdq_mmp.o
 obj-y += cmdq_mdp_common.o
 obj-y += cmdq_prof.o
 obj-y += cmdq_test.o
-ifneq ($(CONFIG_MTK_CMDQ_TAB),y)
+ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt8167"))
 obj-y += cmdq_sec.o
 else
 obj-y += mtee/

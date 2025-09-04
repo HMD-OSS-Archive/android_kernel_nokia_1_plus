@@ -19,11 +19,12 @@
 #include <linux/usb/gadget.h>
 
 #ifdef CONFIG_USB_CONFIGFS_UEVENT
-#include "serial.h"
+#include "mtk_gadget.h"
 #endif
 
+
 /**
- * usb_gadget_get_string - fill out a string descriptor
+ * usb_gadget_get_string - fill out a string descriptor 
  * @table: of c strings encoded using UTF-8
  * @id: string id, from low byte of wValue in get string descriptor
  * @buf: at least 256 bytes, must be 16-bit aligned
@@ -61,7 +62,6 @@ usb_gadget_get_string (struct usb_gadget_strings *table, int id, u8 *buf)
 	if (!s || !s->s)
 		return -EINVAL;
 
-	/* string descriptors have length, tag, then UTF16-LE text */
 #ifdef CONFIG_USB_CONFIGFS_UEVENT
 	if ((id == serial_idx) && (serial_string[0] != '\0')) {
 		len = min_t(size_t, 126, strlen(serial_string));
@@ -74,6 +74,7 @@ usb_gadget_get_string (struct usb_gadget_strings *table, int id, u8 *buf)
 				(wchar_t *) &buf[2], 126);
 	}
 #else
+	/* string descriptors have length, tag, then UTF16-LE text */
 	len = min ((size_t) 126, strlen (s->s));
 	len = utf8s_to_utf16s(s->s, len, UTF16_LITTLE_ENDIAN,
 			(wchar_t *) &buf[2], 126);

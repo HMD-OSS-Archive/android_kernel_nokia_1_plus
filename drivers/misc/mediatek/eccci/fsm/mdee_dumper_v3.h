@@ -27,24 +27,25 @@
 #define MD_CORE_TOTAL_NUM   (9)
 #endif
 #define MD_CORE_NAME_LEN    (11)
-#define MD_CORE_NAME_DEBUG  (MD_CORE_NAME_LEN + 1 + 5 + 16) /* +1 for end '\0', +5 for 16, +16 for str TDD FDD */
+/* +1 for end '\0', +5 for 16, +16 for str TDD FDD */
+#define MD_CORE_NAME_DEBUG  (MD_CORE_NAME_LEN + 1 + 5 + 16)
 #define EX_BRIEF_FATALERR_SIZE	(276)
 
-typedef struct EX_STEP_V3 {
+struct ex_step_v3 {
 	u32 step;
 	u32 timestap;
-} __packed EX_STEP_T;
+} __packed;
 
-typedef struct EX_ASSERT_V3 {
+struct ex_assert_v3 {
 	char	filepath[256];
 	u32	line_number;
 	u32	para1;
 	u32	para2;
 	u32	para3;
 	u32	lr;
-} __packed EX_ASSERT_V3_T;
+} __packed;
 
-typedef struct EX_FATAL_V3 {
+struct ex_fatal_v3 {
 	u32	code1;
 	u32	code2;
 	u32	code3;
@@ -60,20 +61,21 @@ typedef struct EX_FATAL_V3 {
 	u32	error_address;
 	u32	error_cause;
 	char	filename[0];
-} __packed EX_FATAL_V3_T;
+} __packed;
 
-typedef union {
-	EX_FATAL_V3_T fatalerr;
-	EX_ASSERT_V3_T assert;
-} __packed EX_MAIN_CONTENT_T;
+union ex_main_content {
+	struct ex_fatal_v3 fatalerr;
+	struct ex_assert_v3 assert;
+} __packed;
 
-typedef enum {
+enum exception_class {
 	MD_EX_CLASS_ASSET,
 	MD_EX_CLASS_FATAL,
+	MD_EX_CLASS_CUSTOM,
 	MD_EX_CLASS_INVALID,
-} EXCEPTION_CLASS;
+}; /* EXCEPTION_CLASS*/
 
-typedef struct ex_brief_maininfo_t_v3 {
+struct ex_brief_maininfo {
 	u16 ex_type;
 	u8 e_type_format;
 	u8 maincontent_type;
@@ -81,29 +83,29 @@ typedef struct ex_brief_maininfo_t_v3 {
 	u8 system_info1;/* vpe */
 	u8 system_info2;/* tc */
 	u8 pad;
-	EX_MAIN_CONTENT_T info;
+	union ex_main_content info;
 } __packed EX_BRIEF_MAININFO_T;
 
-typedef struct ex_main_reason_v3_t {
+struct ex_main_reason_v3 {
 	char core_name[11];/* MD_CORE_NAME_LEN */
 	u8 is_offender;
-} __packed EX_MAIN_REASON_V3_T;
+} __packed;
 
-typedef struct ex_overview_t {
+struct ex_overview_t {
 	u32 overview_verno;
 	u32 core_num;
-	EX_MAIN_REASON_V3_T main_reson[MD_CORE_TOTAL_NUM];
-	EX_BRIEF_MAININFO_T ex_info;
+	struct ex_main_reason_v3 main_reson[MD_CORE_TOTAL_NUM];
+	struct ex_brief_maininfo ex_info;
 	u32 mips_vpe_num;/* value == 7 */
-	EX_STEP_T ex_step_logging[6];/* 6 == mips_vpe_num - 1 */
+	struct ex_step_v3 ex_step_logging[6];/* 6 == mips_vpe_num - 1 */
 	u32 ect_status;
 	u32 cs_offending_core;
 	u32 md32_offending_status;
 	u32 pad;
 	u32 core_offset[MD_CORE_TOTAL_NUM];
-} __packed EX_OVERVIEW_T;
+} __packed;
 
-typedef enum {
+enum {
 	/* mips exception codes in cause[exccode] */
 	INTERRUPT_EXCEPTION = 0x0,
 	TLB_MOD_EXCEPTION = 0x1,
@@ -143,9 +145,9 @@ typedef enum {
 	CACHE_ERROR_EXCEPTION = 0x21,
 
 	/* These are used to replace TLB_MISS_LOAD/STORE_EXCEPTION
-	* codes when using tlb refill exception vector.
-	* TLB_MISS_LOAD/STORE_EXCEPTION code is used for tlb invalid
-	*/
+	 * codes when using tlb refill exception vector.
+	 * TLB_MISS_LOAD/STORE_EXCEPTION code is used for tlb invalid
+	 */
 	TLB_REFILL_LOAD_EXCEPTION = 0x22,
 	TLB_REFILL_STORE_EXCEPTION = 0x23,
 	TLB_REFILL_MAX_NUM,
@@ -160,6 +162,8 @@ typedef enum {
 	ASSERT_FAIL_EXCEPTION = 0x50,
 	ASSERT_DUMP_EXTENDED_RECORD = 0x51,
 	ASSERT_FAIL_NATIVE = 0x52,
+	ASSERT_CUSTOM_ADDR = 0x53,
+	ASSERT_CUSTOM_MODID = 0x54,
 	ASSERT_FAIL_MAX_NUM,
 	/* cross core triggered */
 	CC_INVALID_EXCEPTION = 0x60,
@@ -175,30 +179,35 @@ typedef enum {
 
 	MAX_EXCEPTION_NUM,
 	END_EXCEPTION_TYPE = 0xFFFF,
-} exception_type;
+};/* exception_type */
 
-typedef struct dump_info_assert {
+struct dump_info_assert {
 	char file_name[256]; /* use pCore: file path, contain file name */
 	int line_num;
 	unsigned int parameters[3];
-} DUMP_INFO_ASSERT;
+};
 
-typedef struct dump_info_fatal {
+struct dump_info_fatal {
 	int err_code1;
 	int err_code2;
 	int err_code3;
+	unsigned int error_address;
+	unsigned int error_pc;
 	char *ExStr;
 	char *err_sec;
 	char offender[64];
-	char fatal_fname[EX_BRIEF_FATALERR_SIZE]; /*must be larger than EX_FATAL_V3_T filename: pre-fix + fatal_fname*/
-} DUMP_INFO_FATAL;
+	/*must be larger than struct ex_fatal_v3 filename:
+	 * pre-fix + fatal_fname
+	 */
+	char fatal_fname[EX_BRIEF_FATALERR_SIZE];
+};
 
 enum {
 	MD_EE_DATA_IN_SMEM,
 	MD_EE_DATA_IN_GPD,
 };
 
-typedef struct dump_debug_info {
+struct debug_info_t {
 	unsigned int type;
 	unsigned int ex_type;
 	u8 par_data_source;
@@ -206,19 +215,20 @@ typedef struct dump_debug_info {
 	char *name;/* exception name */
 	char *ELM_status;
 	union {
-		DUMP_INFO_ASSERT dump_assert;
-		DUMP_INFO_FATAL dump_fatal;
+		struct dump_info_assert dump_assert;
+		struct dump_info_fatal dump_fatal;
 	};
 	void *ext_mem;
 	size_t ext_size;
-} DEBUG_INFO_T;
+};
 
 struct mdee_dumper_v3 {
 	unsigned int more_info;
-	DEBUG_INFO_T debug_info;
+	struct debug_info_t debug_info;
 	unsigned char ex_core_num;
 	unsigned char ex_type;
-	unsigned char ex_pl_info[MD_HS1_FAIL_DUMP_SIZE]; /* request by modem, change to 2k: include EX_PL_LOG_T*/
+	/* request by modem, change to 2k: include struct ex_PL_log*/
+	unsigned char ex_pl_info[MD_HS1_FAIL_DUMP_SIZE];
 };
 #endif	/* __MDEE_DUMPER_V3_H__ */
 

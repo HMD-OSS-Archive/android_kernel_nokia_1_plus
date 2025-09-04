@@ -22,10 +22,7 @@
 
 #include "tz_cross/trustzone.h"
 #include "tz_cross/ree_service.h"
-
-
-/* / KREE session handle type. */
-typedef uint32_t KREE_SESSION_HANDLE;
+#include "kree/system.h"
 
 #define KREE_SESSION_HANDLE_NULL    ((KREE_SESSION_HANDLE)0)
 #define KREE_SESSION_HANDLE_FAIL    ((KREE_SESSION_HANDLE)-1)
@@ -41,9 +38,6 @@ typedef uint32_t KREE_SESSION_HANDLE;
  * According to their different purpose, they are redefined to specific name.
  * Just for easy programming.
  */
-
-/* Shared memory handle define */
-typedef uint32_t KREE_SHAREDMEM_HANDLE;
 
 /* Secure memory handle define */
 typedef uint32_t KREE_SECUREMEM_HANDLE;
@@ -68,11 +62,11 @@ struct KREE_SHAREDMEM_PARAM {
 };
 
 /* map_p: 0 = no remap, 1 = remap */
-TZ_RESULT kree_register_sharedmem(KREE_SESSION_HANDLE session,
+int kree_register_sharedmem(KREE_SESSION_HANDLE session,
 		KREE_SHAREDMEM_HANDLE *mem_handle, void *start,
 		uint32_t size, void *map_p, const char *tag);
 
-TZ_RESULT kree_unregister_sharedmem(KREE_SESSION_HANDLE session,
+int kree_unregister_sharedmem(KREE_SESSION_HANDLE session,
 					KREE_SHAREDMEM_HANDLE mem_handle);
 
 /**
@@ -109,7 +103,7 @@ TZ_RESULT kree_unregister_sharedmem(KREE_SESSION_HANDLE session,
  * @param param    A pointer to shared memory parameters.
  * @return    return code.
  */
-TZ_RESULT KREE_RegisterSharedmem(KREE_SESSION_HANDLE session,
+int KREE_RegisterSharedmem(KREE_SESSION_HANDLE session,
 		KREE_SHAREDMEM_HANDLE *shm_handle,
 		struct KREE_SHAREDMEM_PARAM *param);
 
@@ -121,7 +115,7 @@ TZ_RESULT KREE_RegisterSharedmem(KREE_SESSION_HANDLE session,
  * @param shm_handle    The shared memory handle.
  * @return    return code.
  */
-TZ_RESULT KREE_UnregisterSharedmem(KREE_SESSION_HANDLE session,
+int KREE_UnregisterSharedmem(KREE_SESSION_HANDLE session,
 					KREE_SHAREDMEM_HANDLE shm_handle);
 
 /**
@@ -164,7 +158,7 @@ TZ_RESULT KREE_UnregisterSharedmem(KREE_SESSION_HANDLE session,
  * @param size    The size of the buffer to be allocated in bytes.
  * @return    return code.
  */
-TZ_RESULT KREE_AllocSecuremem(KREE_SESSION_HANDLE session,
+int KREE_AllocSecuremem(KREE_SESSION_HANDLE session,
 	KREE_SECUREMEM_HANDLE *mem_handle, uint32_t alignment, uint32_t size);
 
 /**
@@ -179,7 +173,7 @@ TZ_RESULT KREE_AllocSecuremem(KREE_SESSION_HANDLE session,
  & @param tag     The string for marking the allocation
  * @return    return code.
  */
-TZ_RESULT KREE_AllocSecurememWithTag(KREE_SESSION_HANDLE session,
+int KREE_AllocSecurememWithTag(KREE_SESSION_HANDLE session,
 	KREE_SECUREMEM_HANDLE *mem_handle, uint32_t alignment, uint32_t size,
 	const char *tag);
 
@@ -195,7 +189,7 @@ TZ_RESULT KREE_AllocSecurememWithTag(KREE_SESSION_HANDLE session,
  & @param tag     The string for marking the allocation
  * @return    return code.
  */
-TZ_RESULT KREE_ZallocSecurememWithTag(KREE_SESSION_HANDLE session,
+int KREE_ZallocSecurememWithTag(KREE_SESSION_HANDLE session,
 	KREE_SECUREMEM_HANDLE *mem_handle, uint32_t alignment, uint32_t size,
 	const char *tag);
 
@@ -214,7 +208,7 @@ TZ_RESULT KREE_ZallocSecurememWithTag(KREE_SESSION_HANDLE session,
  * @param mem_handle    The secure memory handle.
  * @param return    return code.
  */
-TZ_RESULT KREE_ReferenceSecuremem(KREE_SESSION_HANDLE session,
+int KREE_ReferenceSecuremem(KREE_SESSION_HANDLE session,
 					KREE_SECUREMEM_HANDLE mem_handle);
 
 /**
@@ -228,7 +222,7 @@ TZ_RESULT KREE_ReferenceSecuremem(KREE_SESSION_HANDLE session,
  * @param mem_handle    The secure memory handle.
  * @param return    return code.
  */
-TZ_RESULT KREE_UnreferenceSecuremem(KREE_SESSION_HANDLE session,
+int KREE_UnreferenceSecuremem(KREE_SESSION_HANDLE session,
 					KREE_SECUREMEM_HANDLE mem_handle);
 
 /**
@@ -270,7 +264,7 @@ TZ_RESULT KREE_UnreferenceSecuremem(KREE_SESSION_HANDLE session,
 
  * @return    return code.
  */
-TZ_RESULT KREE_AllocSecurechunkmem(KREE_SESSION_HANDLE session,
+int KREE_AllocSecurechunkmem(KREE_SESSION_HANDLE session,
 	KREE_SECURECM_HANDLE *cm_handle, uint32_t alignment, uint32_t size);
 
 /**
@@ -286,7 +280,7 @@ TZ_RESULT KREE_AllocSecurechunkmem(KREE_SESSION_HANDLE session,
 
  * @return    return code.
  */
-TZ_RESULT KREE_AllocSecurechunkmemWithTag(KREE_SESSION_HANDLE session,
+int KREE_AllocSecurechunkmemWithTag(KREE_SESSION_HANDLE session,
 	KREE_SECURECM_HANDLE *cm_handle, uint32_t alignment, uint32_t size,
 	const char *tag);
 
@@ -304,7 +298,7 @@ TZ_RESULT KREE_AllocSecurechunkmemWithTag(KREE_SESSION_HANDLE session,
 
  * @return    return code.
  */
-TZ_RESULT KREE_ZallocSecurechunkmemWithTag(KREE_SESSION_HANDLE session,
+int KREE_ZallocSecurechunkmemWithTag(KREE_SESSION_HANDLE session,
 	KREE_SECURECM_HANDLE *cm_handle, uint32_t alignment, uint32_t size,
 	const char *tag);
 
@@ -323,7 +317,7 @@ TZ_RESULT KREE_ZallocSecurechunkmemWithTag(KREE_SESSION_HANDLE session,
  * @param cm_handle    The secure chunk memory handle.
  * @param return    return code.
  */
-TZ_RESULT KREE_ReferenceSecurechunkmem(KREE_SESSION_HANDLE session,
+int KREE_ReferenceSecurechunkmem(KREE_SESSION_HANDLE session,
 					KREE_SECURECM_HANDLE cm_handle);
 
 /**
@@ -337,7 +331,7 @@ TZ_RESULT KREE_ReferenceSecurechunkmem(KREE_SESSION_HANDLE session,
  * @param cm_handle    The secure chunk memory handle.
  * @param return    return code.
  */
-TZ_RESULT KREE_UnreferenceSecurechunkmem(KREE_SESSION_HANDLE session,
+int KREE_UnreferenceSecurechunkmem(KREE_SESSION_HANDLE session,
 					 KREE_SECURECM_HANDLE cm_handle);
 
 /**
@@ -351,7 +345,7 @@ TZ_RESULT KREE_UnreferenceSecurechunkmem(KREE_SESSION_HANDLE session,
  * @param buffer    The pointer to read buffer.
  * @param return    return code.
  */
-TZ_RESULT KREE_ReadSecurechunkmem(KREE_SESSION_HANDLE session,
+int KREE_ReadSecurechunkmem(KREE_SESSION_HANDLE session,
 				uint32_t offset, uint32_t size, void *buffer);
 
 /**
@@ -365,7 +359,7 @@ TZ_RESULT KREE_ReadSecurechunkmem(KREE_SESSION_HANDLE session,
  * @param buffer    The pointer to write buffer.
  * @param return    return code.
  */
-TZ_RESULT KREE_WriteSecurechunkmem(KREE_SESSION_HANDLE session,
+int KREE_WriteSecurechunkmem(KREE_SESSION_HANDLE session,
 			uint32_t offset, uint32_t size, void *buffer);
 
 /**
@@ -377,7 +371,7 @@ TZ_RESULT KREE_WriteSecurechunkmem(KREE_SESSION_HANDLE session,
  * @param size    [out] The pointer to size in bytes.
  * @param return    return code.
  */
-TZ_RESULT KREE_GetSecurechunkReleaseSize(KREE_SESSION_HANDLE session,
+int KREE_GetSecurechunkReleaseSize(KREE_SESSION_HANDLE session,
 					uint32_t *size);
 
 
@@ -391,7 +385,7 @@ TZ_RESULT KREE_GetSecurechunkReleaseSize(KREE_SESSION_HANDLE session,
  * @param size       The size in bytes of chunk memory buffer.
  * @param return    return code.
  */
-TZ_RESULT KREE_StartSecurechunkmemSvc(KREE_SESSION_HANDLE session,
+int KREE_StartSecurechunkmemSvc(KREE_SESSION_HANDLE session,
 				unsigned long start_pa, uint32_t size);
 
 /**
@@ -404,7 +398,7 @@ TZ_RESULT KREE_StartSecurechunkmemSvc(KREE_SESSION_HANDLE session,
  * @param size       The size in bytes of chunk memory buffer.
  * @param return    return code.
  */
-TZ_RESULT KREE_StopSecurechunkmemSvc(KREE_SESSION_HANDLE session,
+int KREE_StopSecurechunkmemSvc(KREE_SESSION_HANDLE session,
 					unsigned long *cm_pa, uint32_t *size);
 
 /**
@@ -417,7 +411,7 @@ TZ_RESULT KREE_StopSecurechunkmemSvc(KREE_SESSION_HANDLE session,
  * @param size       The size in bytes of chunk memory buffer.
  * @param return    return code.
  */
-TZ_RESULT KREE_QuerySecurechunkmem(KREE_SESSION_HANDLE session,
+int KREE_QuerySecurechunkmem(KREE_SESSION_HANDLE session,
 				unsigned long *cm_pa, uint32_t *size);
 
 #ifdef CONFIG_MTEE_CMA_SECURE_MEMORY
@@ -430,7 +424,7 @@ TZ_RESULT KREE_QuerySecurechunkmem(KREE_SESSION_HANDLE session,
  * @param uparam     the exchange buffer for parameters.
  * @param return     return code.
  */
-TZ_RESULT KREE_ServGetChunkmemPool(u32 op,
+int KREE_ServGetChunkmemPool(u32 op,
 				   u8 uparam[REE_SERVICE_BUFFER_SIZE]);
 
 /**
@@ -442,7 +436,7 @@ TZ_RESULT KREE_ServGetChunkmemPool(u32 op,
  * @param uparam     the exchange buffer for parameters.
  * @param return     return code.
  */
-TZ_RESULT KREE_ServReleaseChunkmemPool(u32 op,
+int KREE_ServReleaseChunkmemPool(u32 op,
 				       u8 uparam[REE_SERVICE_BUFFER_SIZE]);
 #endif  /* CONFIG_MTEE_CMA_SECURE_MEMORY */
 

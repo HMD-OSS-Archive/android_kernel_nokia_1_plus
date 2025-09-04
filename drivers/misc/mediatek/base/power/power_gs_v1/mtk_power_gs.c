@@ -1,14 +1,14 @@
 /*
- * Copyright (C) 2015 MediaTek Inc.
+ * Copyright (C) 2017 MediaTek Inc.
  *
- * This program is free software: you can redistribute it and/or modify
+ * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 #include <linux/init.h>
@@ -32,7 +32,7 @@
 
 struct proc_dir_entry *mt_power_gs_dir;
 
-struct golden _golden;
+struct golden _g;
 
 bool is_already_snap_shot;
 
@@ -43,23 +43,20 @@ bool slp_chk_golden_diff_mode = true;
 
 void __weak mt_power_gs_suspend_compare(unsigned int dump_flag)
 {
-	pr_info("Power_gs: %s does not implement intead of dump suspend\n", __func__);
+	pr_info("Power_gs: %s does not implement\n", __func__);
 }
 void __weak mt_power_gs_dpidle_compare(unsigned int dump_flag)
 {
-	pr_info("Power_gs: %s does not implement intead of dump dpidle\n", __func__);
+	pr_info("Power_gs: %s does not implement\n", __func__);
 }
 void __weak mt_power_gs_sodi_compare(unsigned int dump_flag)
 {
-	pr_info("Power_gs: %s does not implement intead of dump sodi\n", __func__);
+	pr_info("Power_gs: %s does not implement\n", __func__);
 }
 
 /* deprecated, temp used for api argument transfer */
 void mt_power_gs_f_dump_suspend(unsigned int dump_flag)
 {
-#ifdef POWER_GS_DEBUG
-	pr_warn("Power_gs: %s arg = %d\n", __func__, dump_flag);
-#endif
 	if (slp_chk_golden_suspend)
 		mt_power_gs_suspend_compare(dump_flag);
 }
@@ -70,13 +67,8 @@ void mt_power_gs_t_dump_suspend(int count, ...)
 
 	va_start(v, count);
 
-	/* C pre-processor macros do not distinguish well between zero and one arguments */
 	if (count)
 		p1 = va_arg(v, unsigned int);
-
-#ifdef POWER_GS_DEBUG
-	pr_warn("Power_gs: %s arg count = %d, arg = %d\n", __func__, count, p1);
-#endif
 
 	/* if the argument is void, va_arg will get -1 */
 	if (p1 > GS_ALL)
@@ -88,9 +80,6 @@ void mt_power_gs_t_dump_suspend(int count, ...)
 EXPORT_SYMBOL(mt_power_gs_t_dump_suspend);
 void mt_power_gs_f_dump_dpidle(unsigned int dump_flag)
 {
-#ifdef POWER_GS_DEBUG
-	pr_warn("Power_gs: %s arg = %d\n", __func__, dump_flag);
-#endif
 	if (slp_chk_golden_dpidle)
 		mt_power_gs_dpidle_compare(dump_flag);
 }
@@ -101,13 +90,8 @@ void mt_power_gs_t_dump_dpidle(int count, ...)
 
 	va_start(v, count);
 
-	/* C pre-processor macros do not distinguish well between zero and one arguments */
 	if (count)
 		p1 = va_arg(v, unsigned int);
-
-#ifdef POWER_GS_DEBUG
-	pr_warn("Power_gs: %s arg count = %d, arg = %d\n", __func__, count, p1);
-#endif
 
 	/* if the argument is void, va_arg will get -1 */
 	if (p1 > GS_ALL)
@@ -119,9 +103,6 @@ void mt_power_gs_t_dump_dpidle(int count, ...)
 EXPORT_SYMBOL(mt_power_gs_t_dump_dpidle);
 void mt_power_gs_f_dump_sodi3(unsigned int dump_flag)
 {
-#ifdef POWER_GS_DEBUG
-	pr_warn("Power_gs: %s arg = %d\n", __func__, dump_flag);
-#endif
 	if (slp_chk_golden_sodi3)
 		mt_power_gs_sodi_compare(dump_flag);
 }
@@ -132,13 +113,8 @@ void mt_power_gs_t_dump_sodi3(int count, ...)
 
 	va_start(v, count);
 
-	/* C pre-processor macros do not distinguish well between zero and one arguments */
 	if (count)
 		p1 = va_arg(v, unsigned int);
-
-#ifdef POWER_GS_DEBUG
-	pr_warn("Power_gs: %s arg count = %d, arg = %d\n", __func__, count, p1);
-#endif
 
 	/* if the argument is void, va_arg will get -1 */
 	if (p1 > GS_ALL)
@@ -168,7 +144,7 @@ EXPORT_SYMBOL(mt_power_gs_dump_sodi3);
 int snapshot_golden_setting(const char *func, const unsigned int line)
 {
 	if (!is_already_snap_shot)
-		return _snapshot_golden_setting(&_golden, func, line);
+		return _snapshot_golden_setting(&_g, func, line);
 
 	return 0;
 }

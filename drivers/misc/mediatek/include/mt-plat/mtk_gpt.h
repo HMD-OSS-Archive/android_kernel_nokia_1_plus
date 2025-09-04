@@ -70,7 +70,8 @@ extern int gpt_get_cmp(unsigned int id, unsigned int *ptr);
 extern int gpt_get_cnt(unsigned int id, unsigned int *ptr);
 extern int gpt_check_irq(unsigned int id);
 extern int gpt_check_and_ack_irq(unsigned int id);
-extern int gpt_set_clk(unsigned int id, unsigned int clksrc, unsigned int clkdiv);
+extern int gpt_set_clk(unsigned int id, unsigned int clksrc,
+			  unsigned int clkdiv);
 
 extern void mt_gpt_clkevt_aee_dump(void);
 extern u64 mtk_timer_get_cnt(u8 timer);

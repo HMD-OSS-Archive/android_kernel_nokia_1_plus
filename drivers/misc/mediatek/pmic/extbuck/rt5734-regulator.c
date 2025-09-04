@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 MediaTek Inc.
+ * Copyright (C) 2017 MediaTek Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -74,7 +74,8 @@ static struct mtk_simple_regulator_control_ops rt5734_mreg_ctrl_ops = {
 };
 
 static int rt5734_list_voltage(
-		struct mtk_simple_regulator_desc *mreg_desc, unsigned selector)
+		struct mtk_simple_regulator_desc *mreg_desc,
+		unsigned int selector)
 {
 	unsigned int vout = 0;
 
@@ -172,7 +173,7 @@ static unsigned int rt5734_get_mode(
 
 	ret = rt5734_read_byte(mreg_desc->client, info->mode_reg, &regval);
 	if (ret < 0) {
-		RT5734_PR_ERR("%s read mode fail\n", __func__);
+		RT5734_pr_notice("%s read mode fail\n", __func__);
 		return ret;
 	}
 
@@ -252,7 +253,7 @@ int rt5734_regulator_init(struct rt5734_chip *chip)
 	int ret = 0, i = 0;
 
 	if (chip == NULL) {
-		RT5734_PR_ERR("%s Null chip info\n", __func__);
+		RT5734_pr_notice("%s Null chip info\n", __func__);
 		return -1;
 	}
 
@@ -263,13 +264,14 @@ int rt5734_regulator_init(struct rt5734_chip *chip)
 		ret = mtk_simple_regulator_register(&rt5734_desc_table[i],
 				chip->dev, &rt5734_regulator_ext_ops, NULL);
 		if (ret < 0) {
-			RT5734_PR_ERR("%s register mtk simple regulator fail\n",
-				__func__);
+			RT5734_pr_notice(
+				"%s register mtk simple regulator fail\n"
+				, __func__);
 		}
 		ret = rt5734_set_ramp_dly(
 			&rt5734_desc_table[i], RT5734_RAMP_RATE);
 		if (ret < 0) {
-			RT5734_PR_ERR("%s (%s)set ramp dly fail\n", __func__,
+			RT5734_pr_notice("%s (%s)set ramp dly fail\n", __func__,
 				rt5734_desc_table[i].rdesc.name);
 		}
 	}

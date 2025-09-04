@@ -9,7 +9,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ */
 
 #ifndef __MTK_SPM_SLEEP_INTERNAL_H__
 #define __MTK_SPM_SLEEP_INTERNAL_H__
@@ -38,7 +38,8 @@
 
 #define WAIT_UART_ACK_TIMES     10	/* 10 * 10us */
 
-#define spm_is_wakesrc_invalid(wakesrc)     (!!((u32)(wakesrc) & 0xc0003803))
+#define spm_is_wakesrc_invalid(wakesrc)	\
+	(!!((u32)(wakesrc) & 0xc0003803))
 
 enum spm_suspend_step {
 	SPM_SUSPEND_ENTER = 0x00000001,

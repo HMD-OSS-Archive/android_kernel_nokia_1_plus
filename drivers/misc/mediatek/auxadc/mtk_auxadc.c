@@ -79,7 +79,8 @@ void __iomem *auxadc_efuse_base;
 #include <linux/clk.h>
 
 #define READ_REGISTER_UINT16(reg) (*(unsigned short * const)(reg))
-#define INREG16(x)          READ_REGISTER_UINT16((unsigned short *)((void *)(x)))
+#define INREG16(x)          \
+	READ_REGISTER_UINT16((unsigned short *)((void *)(x)))
 #define DRV_Reg16(addr)             INREG16(addr)
 #define DRV_Reg(addr)               DRV_Reg16(addr)
 
@@ -113,9 +114,11 @@ mt_reg_sync_writew(temp, addr);\
 
 #define AUXADC_DRV_ClearBits16(addr, data)           DRV_ClearBits(addr, data)
 #define AUXADC_DRV_SetBits16(addr, data)             DRV_SetBits(addr, data)
-#define AUXADC_DRV_WriteReg16(addr, data)            mt_reg_sync_writew(data, addr)
+#define AUXADC_DRV_WriteReg16(addr, data)            \
+		mt_reg_sync_writew(data, addr)
 #define AUXADC_DRV_ReadReg16(addr)                   DRV_Reg(addr)
-#define AUXADC_DRV_SetData16(addr, bitmask, value)   DRV_SetData(addr, bitmask, value)
+#define AUXADC_DRV_SetData16(addr, bitmask, value)   \
+		DRV_SetData(addr, bitmask, value)
 #if defined(AUXADC_SPM)
 #define AUXADC_DRV_ReadReg32(addr)                   DRV_Reg32(addr)
 #endif
@@ -141,9 +144,9 @@ mt_reg_sync_writel(temp, REG);\
 
 /*****************************************************************************
  * Integrate with NVRAM
-****************************************************************************/
+ */
 #define AUXADC_CALI_DEVNAME    "mtk-adc-cali"
-
+#define TAG                    "[AUXADC]"
 #define TEST_ADC_CALI_PRINT _IO('k', 0)
 #define SET_ADC_CALI_Slop   _IOW('k', 1, int)
 #define SET_ADC_CALI_Offset _IOW('k', 2, int)
@@ -207,25 +210,35 @@ static void mt_auxadc_update_cali(void)
 	if (((cali_reg & ADC_CALI_EN_A_MASK) >> ADC_CALI_EN_A_SHIFT) != 0) {
 		cali_oe_a = (cali_reg & ADC_OE_A_MASK) >> ADC_OE_A_SHIFT;
 		cali_ge_a = ((cali_reg & ADC_GE_A_MASK) >> ADC_GE_A_SHIFT);
-		/*In sw implement guide, ge should div 4096. But we don't do that now due to it will multi 4096 later*/
+		/* In sw implement guide, ge should div 4096.
+		 * But we don't do that now due to it will multi 4096 later
+		 */
 		cali_ge = cali_ge_a - 512;
 		cali_oe = cali_oe_a - 512;
 		gain = 1 + cali_ge;
-		/*In sw implement guide, gain = 1 + GE = 1 + cali_ge / 4096, we doen't use the variable here */
+		/* In sw implement guide, gain = 1 + GE = 1 + cali_ge / 4096,
+		 * we doen't use the variable here
+		 */
 	}
 #endif
 }
 
-static void mt_auxadc_get_cali_data(unsigned int rawdata, int data[4], bool enable_cali)
+static void mt_auxadc_get_cali_data(unsigned int rawdata, int data[4],
+			bool enable_cali)
 {
 
 	if (enable_cali == true) {
 #if defined(EFUSE_CALI)
-		/*In sw implement guide, 4096 * gain = 4096 * (1 + GE) = 4096 * (1 + cali_ge / 4096) = 4096 + cali_ge)*/
+		/* In sw implement guide, 4096 * gain = 4096 * (1 + GE)
+		 * = 4096 * (1 + cali_ge / 4096) = 4096 + cali_ge)
+		 */
 		rawdata = rawdata - cali_oe;
-		data[0] = (rawdata * 1500 / (4096 + cali_ge)) / 1000;	/* convert to volt */
-		data[1] = (rawdata * 150 / (4096 + cali_ge)) % 100;  /* convert to mv, need multiply 10 */
-		data[2] = (rawdata * 1500 / (4096 + cali_ge)) % 1000; /* data[2] provide high precision mv */
+		/* convert to volt */
+		data[0] = (rawdata * 1500 / (4096 + cali_ge)) / 1000;
+		/* convert to mv, need multiply 10 */
+		data[1] = (rawdata * 150 / (4096 + cali_ge)) % 100;
+		/* data[2] provide high precision mv */
+		data[2] = (rawdata * 1500 / (4096 + cali_ge)) % 1000;
 #else
 		data[0] = (rawdata * 150 / AUXADC_PRECISE / 100);
 		data[1] = ((rawdata * 150 / AUXADC_PRECISE) % 100);
@@ -248,8 +261,9 @@ static u16 mt_tpd_read_adc(u16 pos)
 {
 	AUXADC_DRV_SetBits16((u16 *)AUXADC_TP_ADDR, pos);
 	AUXADC_DRV_SetBits16((u16 *)AUXADC_TP_CON0, 0x01);
+	/* wait for write finish */
 	while (0x01 & AUXADC_DRV_ReadReg16((u16 *)AUXADC_TP_CON0))
-		pr_debug("AUXADC_TP_CON0 waiting.\n");	/* wait for write finish */
+		pr_debug(TAG "AUXADC_TP_CON0 waiting.\n");
 	return AUXADC_DRV_ReadReg16((u16 *)AUXADC_TP_DATA0);
 }
 
@@ -267,10 +281,12 @@ static void mt_auxadc_disable_penirq(void)
 #endif
 
 /* HAL API */
-static int IMM_auxadc_GetOneChannelValue(int dwChannel, int data[4], int *rawdata)
+static int IMM_auxadc_GetOneChannelValue(int dwChannel, int data[4],
+		int *rawdata)
 {
-	unsigned int channel[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-	int idle_count = 0;
+	unsigned int channel[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+				0, 0, 0, 0, 0 };
+	/* int idle_count = 0; */
 	int data_ready_count = 0;
 	int ret = 0;
 
@@ -279,72 +295,86 @@ static int IMM_auxadc_GetOneChannelValue(int dwChannel, int data[4], int *rawdat
 	if (clk_auxadc) {
 		ret = clk_prepare_enable(clk_auxadc);
 		if (ret) {
-			pr_err("hwEnableClock AUXADC failed.");
+			pr_err(TAG "hwEnableClock AUXADC failed.");
 			mutex_unlock(&mutex_get_cali_value);
 			return -1;
 		}
 	} else {
-		pr_err("hwEnableClock AUXADC failed.");
+		pr_err(TAG "hwEnableClock AUXADC failed.");
 		mutex_unlock(&mutex_get_cali_value);
 		return -1;
 	}
 
 	if (dwChannel == PAD_AUX_XP || dwChannel == PAD_AUX_YM)
 		mt_auxadc_disable_penirq();
+
 	/* step1 check con2 if auxadc is busy */
+	/* Remove because hw/sw may access in the same time */
+	#if 0
 	while (AUXADC_DRV_ReadReg16((u16 *)AUXADC_CON2) & 0x01) {
-		pr_debug("[adc_api]: wait for module idle\n");
 		mdelay(1);
 		idle_count++;
 		if (idle_count > 30) {
-			/* wait for idle time out */
-			pr_err("[adc_api]: wait for auxadc idle time out\n");
+			pr_warn(TAG "wait for auxadc idle time out\n");
 			mutex_unlock(&mutex_get_cali_value);
 			return -1;
 		}
 	}
+	#endif
+
 	/* step2 clear bit */
 	if (adc_auto_set == 0) {
 		/* clear bit */
+#if defined(CONFIG_MACH_MT6739)
 		AUXADC_DRV_ClearBits16((u16 *)AUXADC_CON1, (1 << dwChannel));
+#else
+		AUXADC_DRV_WriteReg16((u16 *)AUXADC_CON1_CLR, (1 << dwChannel));
+#endif
 	}
 
-
-	/* step3  read channel and make sure old ready bit ==0 */
-	while (AUXADC_DRV_ReadReg16(AUXADC_DAT0 + dwChannel * 0x04) & (1 << 12)) {
-		pr_debug("[adc_api]: wait for channel[%d] ready bit clear\n", dwChannel);
+	/* step3 read channel and make sure old ready bit == 0 */
+	while (AUXADC_DRV_ReadReg16(AUXADC_DAT0 + dwChannel * 0x04) &
+			(1 << 12)) {
+		pr_debug(TAG "wait for channel[%d] ready\n", dwChannel);
 		mdelay(1);
 		data_ready_count++;
 		if (data_ready_count > 30) {
 			/* wait for idle time out */
-			pr_err("[adc_api]: wait for channel[%d] ready bit clear time out\n",
+			pr_err(TAG "wait for channel[%d] ready timeout\n",
 			       dwChannel);
 			mutex_unlock(&mutex_get_cali_value);
 			return -2;
 		}
 	}
 
-	/* step4 set bit  to trigger sample */
+	/* step4 set bit to trigger sample */
 	if (adc_auto_set == 0)
+#if defined(CONFIG_MACH_MT6739)
 		AUXADC_DRV_SetBits16((u16 *)AUXADC_CON1, (1 << dwChannel));
-
-	/* step5  read channel and make sure  ready bit ==1 */
-	udelay(25);		/* we must dealay here for hw sample cahnnel data */
-	while (0 == (AUXADC_DRV_ReadReg16(AUXADC_DAT0 + dwChannel * 0x04) & (1 << 12))) {
-		pr_debug("[adc_api]: wait for channel[%d] ready bit ==1\n", dwChannel);
+#else
+		AUXADC_DRV_WriteReg16((u16 *)AUXADC_CON1_SET, (1 << dwChannel));
+#endif
+	/* step5 read channel and make sure ready bit == 1
+	 * we must dealay here for hw sample cahnnel data
+	 */
+	udelay(25);
+	while (0 == (AUXADC_DRV_ReadReg16(AUXADC_DAT0 + dwChannel * 0x04) &
+			(1 << 12))) {
 		mdelay(1);
 		data_ready_count++;
 
 		if (data_ready_count > 30) {
 			/* wait for idle time out */
-			pr_err("[adc_api]: wait for channel[%d] data ready time out\n", dwChannel);
+			pr_err(TAG "wait for channel[%d] data ready timeout\n",
+					dwChannel);
 			mutex_unlock(&mutex_get_cali_value);
 			return -3;
 		}
 	}
-	/* step6 read data */
 
-	channel[dwChannel] = AUXADC_DRV_ReadReg16(AUXADC_DAT0 + dwChannel * 0x04) & 0x0FFF;
+	/* step6 read data */
+	channel[dwChannel] = AUXADC_DRV_ReadReg16(AUXADC_DAT0 + dwChannel *
+			0x04) & 0x0FFF;
 
 	if (rawdata != NULL)
 		*rawdata = channel[dwChannel];
@@ -353,7 +383,7 @@ static int IMM_auxadc_GetOneChannelValue(int dwChannel, int data[4], int *rawdat
 	if (clk_auxadc) {
 		clk_disable_unprepare(clk_auxadc);
 	} else {
-		pr_err("hwdisableClock AUXADC failed.");
+		pr_err(TAG "hwdisableClock AUXADC failed.");
 		mutex_unlock(&mutex_get_cali_value);
 		return -1;
 	}
@@ -370,18 +400,17 @@ static int IMM_auxadc_GetOneChannelValue_Cali(int Channel, int *voltage)
 {
 	int ret = 0, data[4], rawvalue;
 	u_int64_t temp_vol;
+	int tmp;
 
 	ret = IMM_auxadc_GetOneChannelValue(Channel, data, &rawvalue);
 	if (ret) {
-		pr_err("[adc_api]:IMM_auxadc_GetOneChannelValue_Cali get raw value error %d\n",
-		       ret);
+		pr_err(TAG "get raw value error %d\n", ret);
 		return -1;
 	}
-	temp_vol = (u_int64_t) rawvalue * 1500000 / AUXADC_PRECISE;
+	tmp = data[0] * 1000 + data[2];
+	temp_vol = (u_int64_t) tmp * 1000;
 	*voltage = temp_vol;
-	/* pr_debug("[adc_api]:IMM_auxadc_GetOneChannelValue_Cali  voltage= %d uv\n",*voltage); */
 	return 0;
-
 }
 
 static void mt_auxadc_cal_prepare(void)
@@ -392,7 +421,8 @@ static void mt_auxadc_cal_prepare(void)
 #if defined(CONFIG_AUXADC_NEED_POWER_ON)
 static void mt_auxadc_power_on(void)
 {
-	AUXADC_DRV_SetBits16((u16 *)AUXADC_MISC, 1 << 14);	/* power on ADC */
+	/* power on ADC */
+	AUXADC_DRV_SetBits16((u16 *)AUXADC_MISC, 1 << 14);
 }
 #else
 static void mt_auxadc_power_on(void)
@@ -408,48 +438,45 @@ void mt_auxadc_hal_init(struct platform_device *dev)
 	if (node) {
 		/* Setup IO addresses */
 		auxadc_apmix_base = of_iomap(node, 0);
-		pr_debug("[AUXADC] auxadc auxadc_apmix_base=0x%p\n", auxadc_apmix_base);
+		pr_debug(TAG "auxadc_apmix_base=0x%p\n", auxadc_apmix_base);
 	} else
-		pr_err("[AUXADC] auxadc_apmix_base error\n");
+		pr_err(TAG "auxadc_apmix_base error\n");
 
 	node = of_find_compatible_node(NULL, NULL, AUXADC_NODE);
 	if (!node)
-		pr_err("[AUXADC] find node failed\n");
+		pr_err(TAG "find node failed\n");
 
 	auxadc_base = of_iomap(node, 0);
 	if (!auxadc_base)
-		pr_err("[AUXADC] base failed\n");
+		pr_err(TAG "base failed\n");
 
-#if defined(EFUSE_CALI)
+#if defined(EFUSE_CALI) && !defined(AUXADC_INDEX)
 	node = of_find_compatible_node(NULL, NULL, "mediatek,efusec");
 	if (!node)
-		pr_err("[AUXADC] find node failed\n");
+		pr_err(TAG "find node failed\n");
 
 	auxadc_efuse_base = of_iomap(node, 0);
 	if (!auxadc_efuse_base)
-		pr_err("[AUXADC] auxadc_efuse_base base failed\n");
+		pr_err(TAG "auxadc_efuse_base base failed\n");
 
-	pr_debug("[AUXADC]: auxadc_efuse_base:0x%p\n", auxadc_efuse_base);
+	pr_debug(TAG "auxadc_efuse_base:0x%p\n", auxadc_efuse_base);
 #endif
-	pr_debug("[AUXADC]: auxadc:0x%p\n", auxadc_base);
+	pr_debug(TAG "auxadc:0x%p\n", auxadc_base);
 
 	mt_auxadc_cal_prepare();
 	mt_auxadc_power_on();
-
-	/* AUXADC_DRV_SetBits16((volatile u16 *)AUXADC_CON_RTP, 1);             //disable RTP */
 }
 
-#ifdef CONFIG_PM
 static void mt_auxadc_hal_suspend(void)
 {
-	pr_debug("******** MT auxadc driver suspend!! ********\n");
+	pr_debug(TAG "******** MT auxadc driver suspend!! ********\n");
 #if defined(AUXADC_SPM)
 	AUXADC_SET_BITS((0x3 << 6) | (0x3 << 16), AUXADC_TS_X_BUFFER);
 	AUXADC_CLR_BITS(0xffff << 0, AUXADC_CON1);
 #endif
 
 #if !defined(AUXADC_CLOCK_BY_SPM)
-	pr_debug("auxadc suspend disable clock.\n");
+	pr_debug(TAG "auxadc suspend disable clock.\n");
 	clk_disable_unprepare(clk_auxadc);
 #if defined(AUXADC_CLK_CTR)
 	clk_disable_unprepare(clk_top_auxadc1);
@@ -466,49 +493,41 @@ static void mt_auxadc_hal_resume(void)
 	int ret = 0;
 #endif
 
-	pr_debug("******** MT auxadc driver resume!! ********\n");
+	pr_debug(TAG "******** MT auxadc driver resume!! ********\n");
 #if !defined(AUXADC_CLOCK_BY_SPM)
-	pr_debug("auxadc resume enable clock.\n");
 	ret = clk_prepare_enable(clk_auxadc);
 	if (ret)
-		pr_err("auxadc enable auxadc clk failed.");
+		pr_err(TAG "auxadc enable auxadc clk failed.");
 #if defined(AUXADC_CLK_CTR)
 	ret = clk_prepare_enable(clk_top_auxadc1);
 	if (ret)
-		pr_err("auxadc enable auxadc1 clk failed.");
+		pr_err(TAG "auxadc enable auxadc1 clk failed.");
 
 	ret = clk_prepare_enable(clk_top_auxadc2);
 	if (ret)
-		pr_err("auxadc enable auxadc2 clk failed.");
+		pr_err(TAG "auxadc enable auxadc2 clk failed.");
 
 	ret = clk_prepare_enable(clk_top_aux_tp);
 	if (ret)
-		pr_err("auxadc enable aux_tp clk failed.");
+		pr_err(TAG "auxadc enable aux_tp clk failed.");
 #endif
 #endif
 	mt_auxadc_power_on();
 #if defined(AUXADC_SPM)
 	AUXADC_CLR_BITS((0x3 << 6) | (0x3 << 16), AUXADC_TS_X_BUFFER);
 #endif
-	/* AUXADC_DRV_SetBits16((volatile u16 *)AUXADC_CON_RTP, 1);             //disable RTP */
 }
-#endif
 
 static int mt_auxadc_dump_register(char *buf)
 {
-	pr_debug("[auxadc]: AUXADC_CON0=%x\n", *(u16 *)AUXADC_CON0);
-	pr_debug("[auxadc]: AUXADC_CON1=%x\n", *(u16 *)AUXADC_CON1);
-	pr_debug("[auxadc]: AUXADC_CON2=%x\n", *(u16 *)AUXADC_CON2);
+	pr_debug(TAG "AUXADC_CON0=%x AUXADC_CON1=%x AUXADC_CON2=%x\n",
+		*(u16 *)AUXADC_CON0, *(u16 *)AUXADC_CON1, *(u16 *)AUXADC_CON2);
 
-	return sprintf(buf, "AUXADC_CON0:%x\n AUXADC_CON1:%x\n AUXADC_CON2:%x\n",
+	return sprintf(buf, "AUXADC_CON0:%x\nAUXADC_CON1:%x\nAUXADC_CON2:%x\n",
 		       *(u16 *)AUXADC_CON0, *(u16 *)AUXADC_CON1,
 		       *(u16 *)AUXADC_CON2);
 }
 
-/*  */
-/* ///////////////////////////////////////////////////////////////////////////////////////// */
-/* // fop Common API */
-/* ///////////////////////////////////////////////////////////////////////////////////////// */
 int IMM_IsAdcInitReady(void)
 {
 	return g_adc_init_flag;
@@ -520,17 +539,17 @@ int IMM_get_adc_channel_num(char *channel_name, int len)
 	int ret = 0;
 
 	if (channel_name == NULL) {
-		pr_err("[ADC] error: channel_name is NULL!\n");
+		pr_err(TAG "error: channel_name is NULL!\n");
 		return -1;
 	}
 
-	pr_debug("[ADC] name=%s, name_len=%d\n", channel_name, len);
+	pr_debug(TAG "name=%s, name_len=%d\n", channel_name, len);
 	for (i = 0; i < ADC_CHANNEL_MAX; i++) {
 		ret = strncmp(channel_name, g_adc_info[i].channel_name, len);
 		if (!ret)
 			return g_adc_info[i].channel_number;
 	}
-	pr_err("[ADC] find channel number failed\n");
+	pr_err(TAG "find channel number failed\n");
 	return -1;
 }
 
@@ -539,18 +558,16 @@ int IMM_GetOneChannelValue(int dwChannel, int data[4], int *rawdata)
 	return IMM_auxadc_GetOneChannelValue(dwChannel, data, rawdata);
 }
 
-/* 1v == 1000000 uv */
-/* this function voltage Unit is uv */
+/* 1v == 1000000 uv
+ * this function voltage Unit is uv
+ */
 int IMM_GetOneChannelValue_Cali(int Channel, int *voltage)
 {
 	return IMM_auxadc_GetOneChannelValue_Cali(Channel, voltage);
 }
 
-
-/* ///////////////////////////////////////////////////////////////////////////////////////// */
-/* // fop API */
-/* ///////////////////////////////////////////////////////////////////////////////////////// */
-static long auxadc_cali_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long auxadc_cali_unlocked_ioctl(struct file *file, unsigned int cmd,
+		unsigned long arg)
 {
 	int i = 0, ret = 0;
 	long *user_data_addr;
@@ -569,13 +586,13 @@ static long auxadc_cali_unlocked_ioctl(struct file *file, unsigned int cmd, unsi
 		g_AUXADC_Cali = false;
 		/* Protection */
 		for (i = 0; i < ADC_CHANNEL_MAX; i++) {
-			if ((*(auxadc_cali_slop + i) == 0) || (*(auxadc_cali_slop + i) == 1))
+			if ((*(auxadc_cali_slop + i) == 0) || (*
+					(auxadc_cali_slop + i) == 1))
 				*(auxadc_cali_slop + i) = 1000;
 		}
 		for (i = 0; i < ADC_CHANNEL_MAX; i++)
-			pr_debug("auxadc_cali_slop[%d] = %d\n", i, *(auxadc_cali_slop + i));
-
-		pr_debug("**** MT auxadc_cali ioctl : SET_ADC_CALI_Slop Done!\n");
+			pr_debug(TAG "auxadc_cali_slop[%d] = %d\n",
+					i, *(auxadc_cali_slop + i));
 		break;
 
 	case SET_ADC_CALI_Offset:
@@ -583,34 +600,28 @@ static long auxadc_cali_unlocked_ioctl(struct file *file, unsigned int cmd, unsi
 		ret = copy_from_user(auxadc_cali_offset, nvram_data_addr, 36);
 		g_AUXADC_Cali = false;
 		for (i = 0; i < ADC_CHANNEL_MAX; i++)
-			pr_debug("auxadc_cali_offset[%d] = %d\n", i, *(auxadc_cali_offset + i));
-
-		pr_debug("**** MT auxadc_cali ioctl : SET_ADC_CALI_Offset Done!\n");
+			pr_debug(TAG "auxadc_cali_offset[%d] = %d\n",
+					i, *(auxadc_cali_offset + i));
 		break;
 
 	case SET_ADC_CALI_Cal:
 		nvram_data_addr = (long *)arg;
 		ret = copy_from_user(auxadc_cali_cal, nvram_data_addr, 4);
-		g_AUXADC_Cali = true;	/* enable calibration after setting AUXADC_CALI_Cal */
+		/* enable calibration after setting AUXADC_CALI_Cal */
+		g_AUXADC_Cali = true;
 		if (auxadc_cali_cal[0] == 1)
 			g_AUXADC_Cali = true;
 		else
 			g_AUXADC_Cali = false;
-
-		for (i = 0; i < 1; i++)
-			pr_debug("auxadc_cali_cal[%d] = %d\n", i, *(auxadc_cali_cal + i));
-
-		pr_debug("**** MT auxadc_cali ioctl : SET_ADC_CALI_Cal Done!\n");
 		break;
 
 	case ADC_CHANNEL_READ:
-		g_AUXADC_Cali = false;	/* 20100508 Infinity */
+		g_AUXADC_Cali = false;
 		user_data_addr = (long *)arg;
-		ret = copy_from_user(auxadc_in_data, user_data_addr, 8);	/* 2*int = 2*4 */
-
-		pr_debug("this api is removed !!\n");
+		ret = copy_from_user(auxadc_in_data, user_data_addr, 8);
 		ret = copy_to_user(user_data_addr, auxadc_out_data, 8);
-		pr_debug("**** ioctl : AUXADC Channel %d * %d times = %d\n", auxadc_in_data[0],
+		pr_debug(TAG "AUXADC Channel %d * %d times = %d\n",
+				auxadc_in_data[0],
 			 auxadc_in_data[1], auxadc_out_data[0]);
 		break;
 
@@ -625,11 +636,12 @@ static long auxadc_cali_unlocked_ioctl(struct file *file, unsigned int cmd, unsi
 }
 
 #ifdef CONFIG_COMPAT
-static long compat_auxadc_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+static long compat_auxadc_unlocked_ioctl(struct file *filp, unsigned int cmd,
+		unsigned long arg)
 {
 
 	if (!filp->f_op || !filp->f_op->unlocked_ioctl) {
-		pr_err("compat_ion_ioctl file has no f_op or no f_op->unlocked_ioctl.\n");
+		pr_err(TAG "copat unlocked ioctl fail.\n");
 		return -ENOTTY;
 	}
 
@@ -642,7 +654,7 @@ static long compat_auxadc_unlocked_ioctl(struct file *filp, unsigned int cmd, un
 		return filp->f_op->unlocked_ioctl(filp, cmd,
 			(unsigned long)compat_ptr(arg));
 	default:
-		pr_err("compat_ion_ioctl : No such command!! 0x%x\n", cmd);
+		pr_err(TAG "compat_ion_ioctl : No such command!! 0x%x\n", cmd);
 		return -ENOIOCTLCMD;
 	}
 }
@@ -668,43 +680,43 @@ static const struct file_operations auxadc_cali_fops = {
 #endif
 };
 
-/* ///////////////////////////////////////////////////////////////////////////////////////// */
-/* // Create File For EM : AUXADC_Channel_X_Slope/Offset */
-/* ///////////////////////////////////////////////////////////////////////////////////////// */
+/*
+ * Create File For EM : AUXADC_Channel_X_Slope/Offset
+ */
 #if ADC_CHANNEL_MAX > 0
-static ssize_t show_AUXADC_Channel_0_Slope(struct device *dev, struct device_attribute *attr,
-					   char *buf)
+static ssize_t show_AUXADC_Channel_0_Slope(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_slop + 0));
-	pr_debug("[EM] AUXADC_Channel_0_Slope : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_0_Slope : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_0_Slope(struct device *dev, struct device_attribute *attr,
-					    const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_0_Slope(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
 static DEVICE_ATTR(AUXADC_Channel_0_Slope, 0664, show_AUXADC_Channel_0_Slope,
 		   store_AUXADC_Channel_0_Slope);
-static ssize_t show_AUXADC_Channel_0_Offset(struct device *dev, struct device_attribute *attr,
-					    char *buf)
+static ssize_t show_AUXADC_Channel_0_Offset(struct device *dev,
+			struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_offset + 0));
-	pr_debug("[EM] AUXADC_Channel_0_Offset : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_0_Offset : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_0_Offset(struct device *dev, struct device_attribute *attr,
-					     const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_0_Offset(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
@@ -714,39 +726,39 @@ static DEVICE_ATTR(AUXADC_Channel_0_Offset, 0664, show_AUXADC_Channel_0_Offset,
 
 
 #if ADC_CHANNEL_MAX > 1
-static ssize_t show_AUXADC_Channel_1_Slope(struct device *dev, struct device_attribute *attr,
-					   char *buf)
+static ssize_t show_AUXADC_Channel_1_Slope(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_slop + 1));
-	pr_debug("[EM] AUXADC_Channel_1_Slope : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_1_Slope : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_1_Slope(struct device *dev, struct device_attribute *attr,
-					    const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_1_Slope(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
 static DEVICE_ATTR(AUXADC_Channel_1_Slope, 0664, show_AUXADC_Channel_1_Slope,
 		   store_AUXADC_Channel_1_Slope);
-static ssize_t show_AUXADC_Channel_1_Offset(struct device *dev, struct device_attribute *attr,
-					    char *buf)
+static ssize_t show_AUXADC_Channel_1_Offset(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_offset + 1));
-	pr_debug("[EM] AUXADC_Channel_1_Offset : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_1_Offset : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_1_Offset(struct device *dev, struct device_attribute *attr,
-					     const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_1_Offset(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
@@ -756,39 +768,39 @@ static DEVICE_ATTR(AUXADC_Channel_1_Offset, 0664, show_AUXADC_Channel_1_Offset,
 
 
 #if ADC_CHANNEL_MAX > 2
-static ssize_t show_AUXADC_Channel_2_Slope(struct device *dev, struct device_attribute *attr,
-					   char *buf)
+static ssize_t show_AUXADC_Channel_2_Slope(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_slop + 2));
-	pr_debug("[EM] AUXADC_Channel_2_Slope : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_2_Slope : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_2_Slope(struct device *dev, struct device_attribute *attr,
-					    const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_2_Slope(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
 static DEVICE_ATTR(AUXADC_Channel_2_Slope, 0664, show_AUXADC_Channel_2_Slope,
 		   store_AUXADC_Channel_2_Slope);
-static ssize_t show_AUXADC_Channel_2_Offset(struct device *dev, struct device_attribute *attr,
-					    char *buf)
+static ssize_t show_AUXADC_Channel_2_Offset(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_offset + 2));
-	pr_debug("[EM] AUXADC_Channel_2_Offset : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_2_Offset : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_2_Offset(struct device *dev, struct device_attribute *attr,
-					     const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_2_Offset(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
@@ -798,39 +810,39 @@ static DEVICE_ATTR(AUXADC_Channel_2_Offset, 0664, show_AUXADC_Channel_2_Offset,
 
 
 #if ADC_CHANNEL_MAX > 3
-static ssize_t show_AUXADC_Channel_3_Slope(struct device *dev, struct device_attribute *attr,
-					   char *buf)
+static ssize_t show_AUXADC_Channel_3_Slope(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_slop + 3));
-	pr_debug("[EM] AUXADC_Channel_3_Slope : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_3_Slope : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_3_Slope(struct device *dev, struct device_attribute *attr,
-					    const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_3_Slope(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
 static DEVICE_ATTR(AUXADC_Channel_3_Slope, 0664, show_AUXADC_Channel_3_Slope,
 		   store_AUXADC_Channel_3_Slope);
-static ssize_t show_AUXADC_Channel_3_Offset(struct device *dev, struct device_attribute *attr,
-					    char *buf)
+static ssize_t show_AUXADC_Channel_3_Offset(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_offset + 3));
-	pr_debug("[EM] AUXADC_Channel_3_Offset : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_3_Offset : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_3_Offset(struct device *dev, struct device_attribute *attr,
-					     const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_3_Offset(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
@@ -840,39 +852,39 @@ static DEVICE_ATTR(AUXADC_Channel_3_Offset, 0664, show_AUXADC_Channel_3_Offset,
 
 
 #if ADC_CHANNEL_MAX > 4
-static ssize_t show_AUXADC_Channel_4_Slope(struct device *dev, struct device_attribute *attr,
-					   char *buf)
+static ssize_t show_AUXADC_Channel_4_Slope(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_slop + 4));
-	pr_debug("[EM] AUXADC_Channel_4_Slope : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_4_Slope : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_4_Slope(struct device *dev, struct device_attribute *attr,
-					    const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_4_Slope(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
 static DEVICE_ATTR(AUXADC_Channel_4_Slope, 0664, show_AUXADC_Channel_4_Slope,
 		   store_AUXADC_Channel_4_Slope);
-static ssize_t show_AUXADC_Channel_4_Offset(struct device *dev, struct device_attribute *attr,
-					    char *buf)
+static ssize_t show_AUXADC_Channel_4_Offset(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_offset + 4));
-	pr_debug("[EM] AUXADC_Channel_4_Offset : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_4_Offset : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_4_Offset(struct device *dev, struct device_attribute *attr,
-					     const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_4_Offset(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
@@ -882,39 +894,39 @@ static DEVICE_ATTR(AUXADC_Channel_4_Offset, 0664, show_AUXADC_Channel_4_Offset,
 
 
 #if ADC_CHANNEL_MAX > 5
-static ssize_t show_AUXADC_Channel_5_Slope(struct device *dev, struct device_attribute *attr,
-					   char *buf)
+static ssize_t show_AUXADC_Channel_5_Slope(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_slop + 5));
-	pr_debug("[EM] AUXADC_Channel_5_Slope : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_5_Slope : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_5_Slope(struct device *dev, struct device_attribute *attr,
-					    const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_5_Slope(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
 static DEVICE_ATTR(AUXADC_Channel_5_Slope, 0664, show_AUXADC_Channel_5_Slope,
 		   store_AUXADC_Channel_5_Slope);
-static ssize_t show_AUXADC_Channel_5_Offset(struct device *dev, struct device_attribute *attr,
-					    char *buf)
+static ssize_t show_AUXADC_Channel_5_Offset(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_offset + 5));
-	pr_debug("[EM] AUXADC_Channel_5_Offset : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_5_Offset : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_5_Offset(struct device *dev, struct device_attribute *attr,
-					     const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_5_Offset(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
@@ -924,39 +936,39 @@ static DEVICE_ATTR(AUXADC_Channel_5_Offset, 0664, show_AUXADC_Channel_5_Offset,
 
 
 #if ADC_CHANNEL_MAX > 6
-static ssize_t show_AUXADC_Channel_6_Slope(struct device *dev, struct device_attribute *attr,
-					   char *buf)
+static ssize_t show_AUXADC_Channel_6_Slope(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_slop + 6));
-	pr_debug("[EM] AUXADC_Channel_6_Slope : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_6_Slope : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_6_Slope(struct device *dev, struct device_attribute *attr,
-					    const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_6_Slope(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
 static DEVICE_ATTR(AUXADC_Channel_6_Slope, 0664, show_AUXADC_Channel_6_Slope,
 		   store_AUXADC_Channel_6_Slope);
-static ssize_t show_AUXADC_Channel_6_Offset(struct device *dev, struct device_attribute *attr,
-					    char *buf)
+static ssize_t show_AUXADC_Channel_6_Offset(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_offset + 6));
-	pr_debug("[EM] AUXADC_Channel_6_Offset : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_6_Offset : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_6_Offset(struct device *dev, struct device_attribute *attr,
-					     const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_6_Offset(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
@@ -966,39 +978,39 @@ static DEVICE_ATTR(AUXADC_Channel_6_Offset, 0664, show_AUXADC_Channel_6_Offset,
 
 
 #if ADC_CHANNEL_MAX > 7
-static ssize_t show_AUXADC_Channel_7_Slope(struct device *dev, struct device_attribute *attr,
-					   char *buf)
+static ssize_t show_AUXADC_Channel_7_Slope(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_slop + 7));
-	pr_debug("[EM] AUXADC_Channel_7_Slope : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_7_Slope : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_7_Slope(struct device *dev, struct device_attribute *attr,
-					    const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_7_Slope(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
 static DEVICE_ATTR(AUXADC_Channel_7_Slope, 0664, show_AUXADC_Channel_7_Slope,
 		   store_AUXADC_Channel_7_Slope);
-static ssize_t show_AUXADC_Channel_7_Offset(struct device *dev, struct device_attribute *attr,
-					    char *buf)
+static ssize_t show_AUXADC_Channel_7_Offset(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_offset + 7));
-	pr_debug("[EM] AUXADC_Channel_7_Offset : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_7_Offset : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_7_Offset(struct device *dev, struct device_attribute *attr,
-					     const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_7_Offset(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
@@ -1008,39 +1020,39 @@ static DEVICE_ATTR(AUXADC_Channel_7_Offset, 0664, show_AUXADC_Channel_7_Offset,
 
 
 #if ADC_CHANNEL_MAX > 8
-static ssize_t show_AUXADC_Channel_8_Slope(struct device *dev, struct device_attribute *attr,
-					   char *buf)
+static ssize_t show_AUXADC_Channel_8_Slope(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_slop + 8));
-	pr_debug("[EM] AUXADC_Channel_8_Slope : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_8_Slope : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_8_Slope(struct device *dev, struct device_attribute *attr,
-					    const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_8_Slope(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
 static DEVICE_ATTR(AUXADC_Channel_8_Slope, 0664, show_AUXADC_Channel_8_Slope,
 		   store_AUXADC_Channel_8_Slope);
-static ssize_t show_AUXADC_Channel_8_Offset(struct device *dev, struct device_attribute *attr,
-					    char *buf)
+static ssize_t show_AUXADC_Channel_8_Offset(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_offset + 8));
-	pr_debug("[EM] AUXADC_Channel_8_Offset : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_8_Offset : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_8_Offset(struct device *dev, struct device_attribute *attr,
-					     const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_8_Offset(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
@@ -1050,39 +1062,39 @@ static DEVICE_ATTR(AUXADC_Channel_8_Offset, 0664, show_AUXADC_Channel_8_Offset,
 
 
 #if ADC_CHANNEL_MAX > 9
-static ssize_t show_AUXADC_Channel_9_Slope(struct device *dev, struct device_attribute *attr,
-					   char *buf)
+static ssize_t show_AUXADC_Channel_9_Slope(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_slop + 9));
-	pr_debug("[EM] AUXADC_Channel_9_Slope : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_9_Slope : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_9_Slope(struct device *dev, struct device_attribute *attr,
-					    const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_9_Slope(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
 static DEVICE_ATTR(AUXADC_Channel_9_Slope, 0664, show_AUXADC_Channel_9_Slope,
 		   store_AUXADC_Channel_9_Slope);
-static ssize_t show_AUXADC_Channel_9_Offset(struct device *dev, struct device_attribute *attr,
-					    char *buf)
+static ssize_t show_AUXADC_Channel_9_Offset(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_offset + 9));
-	pr_debug("[EM] AUXADC_Channel_9_Offset : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_9_Offset : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_9_Offset(struct device *dev, struct device_attribute *attr,
-					     const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_9_Offset(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
@@ -1092,344 +1104,334 @@ static DEVICE_ATTR(AUXADC_Channel_9_Offset, 0664, show_AUXADC_Channel_9_Offset,
 
 
 #if ADC_CHANNEL_MAX > 10
-static ssize_t show_AUXADC_Channel_10_Slope(struct device *dev, struct device_attribute *attr,
-					    char *buf)
+static ssize_t show_AUXADC_Channel_10_Slope(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_slop + 10));
-	pr_debug("[EM] AUXADC_Channel_10_Slope : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_10_Slope : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_10_Slope(struct device *dev, struct device_attribute *attr,
-					     const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_10_Slope(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
 static DEVICE_ATTR(AUXADC_Channel_10_Slope, 0664, show_AUXADC_Channel_10_Slope,
 		   store_AUXADC_Channel_10_Slope);
-static ssize_t show_AUXADC_Channel_10_Offset(struct device *dev, struct device_attribute *attr,
-					     char *buf)
+static ssize_t show_AUXADC_Channel_10_Offset(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_offset + 10));
-	pr_debug("[EM] AUXADC_Channel_10_Offset : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_10_Offset : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_10_Offset(struct device *dev, struct device_attribute *attr,
-					      const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_10_Offset(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
-static DEVICE_ATTR(AUXADC_Channel_10_Offset, 0664, show_AUXADC_Channel_10_Offset,
-		   store_AUXADC_Channel_10_Offset);
+static DEVICE_ATTR(AUXADC_Channel_10_Offset, 0664,
+		show_AUXADC_Channel_10_Offset, store_AUXADC_Channel_10_Offset);
 #endif
 
 
 #if ADC_CHANNEL_MAX > 11
-static ssize_t show_AUXADC_Channel_11_Slope(struct device *dev, struct device_attribute *attr,
-					    char *buf)
+static ssize_t show_AUXADC_Channel_11_Slope(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_slop + 11));
-	pr_debug("[EM] AUXADC_Channel_11_Slope : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_11_Slope : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_11_Slope(struct device *dev, struct device_attribute *attr,
-					     const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_11_Slope(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
 static DEVICE_ATTR(AUXADC_Channel_11_Slope, 0664, show_AUXADC_Channel_11_Slope,
 		   store_AUXADC_Channel_11_Slope);
-static ssize_t show_AUXADC_Channel_11_Offset(struct device *dev, struct device_attribute *attr,
-					     char *buf)
+static ssize_t show_AUXADC_Channel_11_Offset(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_offset + 11));
-	pr_debug("[EM] AUXADC_Channel_11_Offset : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_11_Offset : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_11_Offset(struct device *dev, struct device_attribute *attr,
-					      const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_11_Offset(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
-static DEVICE_ATTR(AUXADC_Channel_11_Offset, 0664, show_AUXADC_Channel_11_Offset,
-		   store_AUXADC_Channel_11_Offset);
+static DEVICE_ATTR(AUXADC_Channel_11_Offset, 0664,
+		show_AUXADC_Channel_11_Offset, store_AUXADC_Channel_11_Offset);
 #endif
 
 
 #if ADC_CHANNEL_MAX > 12
-static ssize_t show_AUXADC_Channel_12_Slope(struct device *dev, struct device_attribute *attr,
-					    char *buf)
+static ssize_t show_AUXADC_Channel_12_Slope(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_slop + 12));
-	pr_debug("[EM] AUXADC_Channel_12_Slope : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_12_Slope : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_12_Slope(struct device *dev, struct device_attribute *attr,
-					     const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_12_Slope(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
 static DEVICE_ATTR(AUXADC_Channel_12_Slope, 0664, show_AUXADC_Channel_12_Slope,
 		   store_AUXADC_Channel_12_Slope);
-static ssize_t show_AUXADC_Channel_12_Offset(struct device *dev, struct device_attribute *attr,
-					     char *buf)
+static ssize_t show_AUXADC_Channel_12_Offset(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_offset + 12));
-	pr_debug("[EM] AUXADC_Channel_12_Offset : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_12_Offset : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_12_Offset(struct device *dev, struct device_attribute *attr,
-					      const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_12_Offset(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
-static DEVICE_ATTR(AUXADC_Channel_12_Offset, 0664, show_AUXADC_Channel_12_Offset,
-		   store_AUXADC_Channel_12_Offset);
+static DEVICE_ATTR(AUXADC_Channel_12_Offset, 0664,
+		show_AUXADC_Channel_12_Offset, store_AUXADC_Channel_12_Offset);
 #endif
 
 
 #if ADC_CHANNEL_MAX > 13
-static ssize_t show_AUXADC_Channel_13_Slope(struct device *dev, struct device_attribute *attr,
-					    char *buf)
+static ssize_t show_AUXADC_Channel_13_Slope(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_slop + 13));
-	pr_debug("[EM] AUXADC_Channel_13_Slope : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_13_Slope : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_13_Slope(struct device *dev, struct device_attribute *attr,
-					     const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_13_Slope(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
 static DEVICE_ATTR(AUXADC_Channel_13_Slope, 0664, show_AUXADC_Channel_13_Slope,
 		   store_AUXADC_Channel_13_Slope);
-static ssize_t show_AUXADC_Channel_13_Offset(struct device *dev, struct device_attribute *attr,
-					     char *buf)
+static ssize_t show_AUXADC_Channel_13_Offset(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_offset + 13));
-	pr_debug("[EM] AUXADC_Channel_13_Offset : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_13_Offset : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_13_Offset(struct device *dev, struct device_attribute *attr,
-					      const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_13_Offset(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
-static DEVICE_ATTR(AUXADC_Channel_13_Offset, 0664, show_AUXADC_Channel_13_Offset,
-		   store_AUXADC_Channel_13_Offset);
+static DEVICE_ATTR(AUXADC_Channel_13_Offset, 0664,
+		show_AUXADC_Channel_13_Offset, store_AUXADC_Channel_13_Offset);
 #endif
 
 
 #if ADC_CHANNEL_MAX > 14
-static ssize_t show_AUXADC_Channel_14_Slope(struct device *dev, struct device_attribute *attr,
-					    char *buf)
+static ssize_t show_AUXADC_Channel_14_Slope(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_slop + 14));
-	pr_debug("[EM] AUXADC_Channel_14_Slope : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_14_Slope : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_14_Slope(struct device *dev, struct device_attribute *attr,
-					     const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_14_Slope(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
 static DEVICE_ATTR(AUXADC_Channel_14_Slope, 0664, show_AUXADC_Channel_14_Slope,
 		   store_AUXADC_Channel_14_Slope);
-static ssize_t show_AUXADC_Channel_14_Offset(struct device *dev, struct device_attribute *attr,
-					     char *buf)
+static ssize_t show_AUXADC_Channel_14_Offset(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_offset + 14));
-	pr_debug("[EM] AUXADC_Channel_14_Offset : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_14_Offset : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_14_Offset(struct device *dev, struct device_attribute *attr,
-					      const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_14_Offset(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
-static DEVICE_ATTR(AUXADC_Channel_14_Offset, 0664, show_AUXADC_Channel_14_Offset,
-		   store_AUXADC_Channel_14_Offset);
+static DEVICE_ATTR(AUXADC_Channel_14_Offset, 0664,
+		show_AUXADC_Channel_14_Offset, store_AUXADC_Channel_14_Offset);
 #endif
 
 
 #if ADC_CHANNEL_MAX > 15
-static ssize_t show_AUXADC_Channel_15_Slope(struct device *dev, struct device_attribute *attr,
-					    char *buf)
+static ssize_t show_AUXADC_Channel_15_Slope(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_slop + 15));
-	pr_debug("[EM] AUXADC_Channel_15_Slope : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_15_Slope : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_15_Slope(struct device *dev, struct device_attribute *attr,
-					     const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_15_Slope(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
 static DEVICE_ATTR(AUXADC_Channel_15_Slope, 0664, show_AUXADC_Channel_15_Slope,
 		   store_AUXADC_Channel_15_Slope);
-static ssize_t show_AUXADC_Channel_15_Offset(struct device *dev, struct device_attribute *attr,
-					     char *buf)
+static ssize_t show_AUXADC_Channel_15_Offset(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 1;
 
 	ret_value = (*(auxadc_cali_offset + 15));
-	pr_debug("[EM] AUXADC_Channel_15_Offset : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_15_Offset : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
-static ssize_t store_AUXADC_Channel_15_Offset(struct device *dev, struct device_attribute *attr,
-					      const char *buf, size_t size)
+static ssize_t store_AUXADC_Channel_15_Offset(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
-static DEVICE_ATTR(AUXADC_Channel_15_Offset, 0664, show_AUXADC_Channel_15_Offset,
-		   store_AUXADC_Channel_15_Offset);
+static DEVICE_ATTR(AUXADC_Channel_15_Offset, 0664,
+		show_AUXADC_Channel_15_Offset, store_AUXADC_Channel_15_Offset);
 #endif
 
-/* ///////////////////////////////////////////////////////////////////////////////////////// */
-/* // Create File For EM : AUXADC_Channel_Is_Calibration */
-/* ///////////////////////////////////////////////////////////////////////////////////////// */
-static ssize_t show_AUXADC_Channel_Is_Calibration(struct device *dev, struct device_attribute *attr,
-						  char *buf)
+/*
+ * Create File For EM : AUXADC_Channel_Is_Calibration
+ */
+static ssize_t show_AUXADC_Channel_Is_Calibration(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	int ret_value = 2;
 
 	ret_value = g_AUXADC_Cali;
-	pr_debug("[EM] AUXADC_Channel_Is_Calibration : %d\n", ret_value);
+	pr_debug(TAG "[EM] AUXADC_Channel_Is_Calibration : %d\n", ret_value);
 	return sprintf(buf, "%u\n", ret_value);
 }
 
 static ssize_t store_AUXADC_Channel_Is_Calibration(struct device *dev,
-						   struct device_attribute *attr, const char *buf,
-						   size_t size)
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support Write Function\n");
+	pr_debug(TAG "[EM] Not Support Write Function\n");
 	return size;
 }
 
-static DEVICE_ATTR(AUXADC_Channel_Is_Calibration, 0664, show_AUXADC_Channel_Is_Calibration,
-		   store_AUXADC_Channel_Is_Calibration);
+static DEVICE_ATTR(AUXADC_Channel_Is_Calibration, 0664,
+		show_AUXADC_Channel_Is_Calibration,
+			store_AUXADC_Channel_Is_Calibration);
 
-static ssize_t show_AUXADC_register(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t show_AUXADC_register(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	return mt_auxadc_dump_register(buf);
 }
 
-static ssize_t store_AUXADC_register(struct device *dev, struct device_attribute *attr,
-				     const char *buf, size_t size)
+static ssize_t store_AUXADC_register(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_debug("[EM] Not Support store_AUXADC_register\n");
+	pr_debug(TAG "[EM] Not Support %s\n", __func__);
 	return size;
 }
 
-static DEVICE_ATTR(AUXADC_register, 0664, show_AUXADC_register, store_AUXADC_register);
+static DEVICE_ATTR(AUXADC_register, 0664, show_AUXADC_register,
+		store_AUXADC_register);
 
-static ssize_t show_AUXADC_channel(struct device *dev, struct device_attribute *attr, char *buf)
-{/* for support factory mode, It will make a fatal error if you delete this */
+/* for support factory mode, It will make a fatal error if you delete this */
+static ssize_t show_AUXADC_channel(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
 	int ret = 0;
 	int i = 0;
-	int j = 0;
 	int tmp_len = 0;
 	int rawdata = 0;
 	int tmp_vol[4] = { 0, 0, 0, 0 };
 	char tmp_buf[256];
-	char channel_name[64];
 
 	for (i = 0; i < ADC_CHANNEL_MAX; i++) {
-		/* Find correct channel name to show */
-		memset(channel_name, 0, 64);
-		for (j = 0; j < ADC_CHANNEL_MAX; j++) {
-			if (i == g_adc_info[j].channel_number) {
-				memcpy(channel_name, g_adc_info[j].channel_name, 64);
-				break;
-			}
-		}
-
-		if (i == PAD_AUX_XP || i == PAD_AUX_YM) {
-		/* For avoid the illegal pointer access as auxadc_apmix_base get error. */
-		/* As the channels don't use,  we set a consist value. */
-		/* Maybe it can delete after you confirm the auxadc_apmix_base is OK. */
+		ret = IMM_auxadc_GetOneChannelValue(i, tmp_vol,
+							&rawdata);
+		if (ret < 0) {
+			pr_err(TAG "get chn[%d] data error\n", i);
 			rawdata = 0;
-			tmp_vol[0] = 0;
-			tmp_len = snprintf(tmp_buf, 255, "[%2d,%4d,%4d]-%15.15s-\n",
-				i, rawdata, tmp_vol[0], channel_name);
+			tmp_vol[0] = -1;
+			tmp_len = snprintf(tmp_buf, 255,
+					"[%2d,%4d,%4d]-%15.15s-\n",
+					i, rawdata, tmp_vol[0],
+					g_adc_info[i].channel_name);
 			strncat(buf, tmp_buf, strlen(tmp_buf));
 		} else {
-			ret = IMM_auxadc_GetOneChannelValue(i, tmp_vol, &rawdata);
-			if (ret < 0) {
-				pr_err("[auxadc]: show_AUXADC_channel, get chn[%d] data error\n", i);
-				rawdata = 0;
-				tmp_vol[0] = -1;
-				tmp_len = snprintf(tmp_buf, 255, "[%2d,%4d,%4d]-%15.15s-\n",
-					i, rawdata, tmp_vol[0], channel_name);
-				strncat(buf, tmp_buf, strlen(tmp_buf));
-			} else {
-				tmp_len = snprintf(tmp_buf, 255, "[%2d,%4d,%4d]-%15.15s-\n", i, rawdata,
-					(tmp_vol[0]*1000+tmp_vol[2]), channel_name);
-				strncat(buf, tmp_buf, strlen(tmp_buf));
-				pr_err("[auxadc]:len:%d,chn[%d]=%d mv, [%s]\n", (int)strlen(buf), i,
-					(tmp_vol[0]*1000+tmp_vol[2]), channel_name);
-			}
+			tmp_len = snprintf(tmp_buf, 255,
+					"[%2d,%4d,%4d]-%15.15s-\n", i, rawdata,
+					(tmp_vol[0]*1000+tmp_vol[2]),
+					g_adc_info[i].channel_name);
+			strncat(buf, tmp_buf, strlen(tmp_buf));
+			pr_info(TAG "len:%d,chn[%d]=%d mv, [%s]\n",
+					(int)strlen(buf), i,
+					(tmp_vol[0]*1000+tmp_vol[2]),
+					g_adc_info[i].channel_name);
 		}
 	}
 
-	sprintf(tmp_buf, "-->REG:0x%4x,GAIN:%4u,GE_A:%4u,OE_A:%4u,GE:%4d,OE:%4d\n",
+	sprintf(tmp_buf,
+		"-->REG:0x%4x,GAIN:%4u,GE_A:%4u,OE_A:%4u,GE:%4d,OE:%4d\n",
 		cali_reg, gain, cali_ge_a, cali_oe_a, cali_ge, cali_oe);
 	strncat(buf, tmp_buf, strlen(tmp_buf));
 	/* mt_auxadc_dump_register(tmp_buf); */
@@ -1448,18 +1450,18 @@ static int dbug_thread(void *unused)
 		for (i = 0; i < ADC_CHANNEL_MAX; i++) {
 			res = IMM_auxadc_GetOneChannelValue(i, data, &rawdata);
 			if (res < 0) {
-				pr_debug("[adc_driver]: get data error\n");
-			} else {
-				pr_debug("[adc_driver]: channel[%d]raw =%d\n", i, rawdata);
-				pr_debug("[adc_driver]: channel[%d]=%d.%.02d\n", i, data[0],
-					 data[1]);
-			}
-			res = IMM_auxadc_GetOneChannelValue_Cali(i, &cali_voltage);
-			if (res < 0) {
-				pr_debug("[adc_driver]: get cali voltage error\n");
+				pr_debug(TAG "get data error\n");
 			} else
-				pr_debug("[adc_driver]: channel[%d] cali_voltage =%d\n", i,
-					 cali_voltage);
+				pr_debug(TAG "ch[%d]raw =%d, data=%d.%.02d\n",
+						i, rawdata, data[0], data[1]);
+
+			res = IMM_auxadc_GetOneChannelValue_Cali(i,
+					&cali_voltage);
+			if (res < 0) {
+				pr_debug(TAG "get cali voltage error\n");
+			} else
+				pr_debug(TAG "channel[%d] cali_voltage =%d\n",
+						i, cali_voltage);
 
 			msleep(500);
 
@@ -1471,42 +1473,39 @@ static int dbug_thread(void *unused)
 }
 
 
-static ssize_t store_AUXADC_channel(struct device *dev, struct device_attribute *attr,
-				    const char *buf, size_t size)
+static ssize_t store_AUXADC_channel(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
 	int start_flag = 0;
 	int error = 0;
 	int ret = 0;
 
 	if (buf == NULL) {
-		pr_debug("[%s] Invalid input!!\n", __func__);
-		return 0;
+		pr_debug(TAG "[%s] Invalid input!!\n", __func__);
+		return size;
 	}
 
 	ret = kstrtoint(buf, sizeof(int), &start_flag);
 	if (ret < 0) {
-		pr_debug("[%s] Invalid invalues!!\n", __func__);
-		return 0;
+		pr_debug(TAG "[%s] Invalid invalues!!\n", __func__);
+		return size;
 	}
 
-	pr_debug("[adc_driver] start flag =%d\n", start_flag);
+	pr_debug(TAG "start flag =%d\n", start_flag);
+	g_start_debug_thread = start_flag;
 	if (start_flag) {
-		g_start_debug_thread = start_flag;
 		thread = kthread_run(dbug_thread, 0, "AUXADC");
-
 		if (IS_ERR(thread)) {
 			error = PTR_ERR(thread);
-			pr_debug("[adc_driver] failed to create kernel thread: %d\n", error);
+			pr_debug(TAG "create kthread fail: %d\n", error);
 		}
-	} else {
-		pr_debug("[%s] Invalid input!!\n", __func__);
 	}
-
 	return size;
 }
 
 
-static DEVICE_ATTR(AUXADC_read_channel, 0664, show_AUXADC_channel, store_AUXADC_channel);
+static DEVICE_ATTR(AUXADC_read_channel, 0664, show_AUXADC_channel,
+		store_AUXADC_channel);
 
 static int mt_auxadc_create_device_attr(struct device *dev)
 {
@@ -1666,29 +1665,35 @@ static int proc_utilization_show(struct seq_file *m, void *v)
 
 	seq_puts(m, "********** Auxadc status dump **********\n");
 
-	seq_printf(m, "reg=0x%x ADC_GE_A=%d ADC_OE_A=%d GE:%d OE:%d gain:0x%x\n",
+	seq_printf(m, "reg=0x%x ADC_GE_A=%d ADC_OE_A=%d GE:%d OE:%dgain:0x%x\n",
 	cali_reg, cali_ge_a, cali_oe_a, cali_ge, cali_oe, gain);
 #if defined(EFUSE_CALI)
-	seq_printf(m, "ADC_GE_A_MASK:0x%x ADC_GE_A_SHIFT:0x%x\n", ADC_GE_A_MASK, ADC_GE_A_SHIFT);
-	seq_printf(m, "ADC_OE_A_MASK:0x%x ADC_OE_A_SHIFT:0x%x\n", ADC_OE_A_MASK, ADC_OE_A_SHIFT);
-	seq_printf(m, "ADC_CALI_EN_A_MASK:0x%x ADC_CALI_EN_A_SHIFT:0x%x\n", ADC_CALI_EN_A_MASK,
-		ADC_CALI_EN_A_SHIFT);
+	seq_printf(m, "ADC_GE_A_MASK:0x%x ADC_GE_A_SHIFT:0x%x\n",
+			ADC_GE_A_MASK, ADC_GE_A_SHIFT);
+	seq_printf(m, "ADC_OE_A_MASK:0x%x ADC_OE_A_SHIFT:0x%x\n",
+			ADC_OE_A_MASK, ADC_OE_A_SHIFT);
+	seq_printf(m, "ADC_CALI_EN_A_MASK:0x%x ADC_CALI_EN_A_SHIFT:0x%x\n",
+			ADC_CALI_EN_A_MASK, ADC_CALI_EN_A_SHIFT);
 #endif
 	for (i = 100; i <= 1000; i = i + 100) {
 		mt_auxadc_get_cali_data(i, data, true);
-		seq_printf(m, "raw:%d data:%d %d %d with cali\n", i, data[0], data[1], data[2]);
+		seq_printf(m, "raw:%d data:%d %d %d with cali\n",
+				i, data[0], data[1], data[2]);
 		mt_auxadc_get_cali_data(i, data, false);
-		seq_printf(m, "raw:%d data:%d %d %d without cali\n", i, data[0], data[1], data[2]);
+		seq_printf(m, "raw:%d data:%d %d %d without cali\n",
+				i, data[0], data[1], data[2]);
 	}
 
 	for (i = 0; i < 5; i++) {
 		res = IMM_auxadc_GetOneChannelValue(i, data, &raw);
 		if (res < 0)
-			seq_printf(m, "[adc_driver]: get data error res:%d\n", res);
+			seq_printf(m, "get data error res:%d\n", res);
 		else {
-			seq_printf(m, "channel[%d]=%d %d %d\n", i, data[0], data[1], data[2]);
+			seq_printf(m, "channel[%d]=%d %d %d\n",
+					i, data[0], data[1], data[2]);
 			mt_auxadc_get_cali_data(raw, data_raw, false);
-			seq_printf(m, "channel[%d] raw data =%d %d %d\n", i, data_raw[0], data_raw[1], data_raw[2]);
+			seq_printf(m, "channel[%d] raw data =%d %d %d\n",
+				i, data_raw[0], data_raw[1], data_raw[2]);
 		}
 	}
 
@@ -1712,11 +1717,12 @@ static void adc_debug_init(void)
 
 	mt_auxadc_dir = proc_mkdir("mt-auxadc", NULL);
 	if (!mt_auxadc_dir) {
-		pr_err("fail to mkdir /proc/mt-auxadc\n");
+		pr_err(TAG "fail to mkdir /proc/mt-auxadc\n");
 		return;
 	}
-	proc_create("dump_auxadc_status", S_IRUGO | S_IWUSR, mt_auxadc_dir, &auxadc_debug_proc_fops);
-	pr_err("proc_create auxadc_debug_proc_fops\n");
+	proc_create("dump_auxadc_status", 0644, mt_auxadc_dir,
+			&auxadc_debug_proc_fops);
+	pr_info(TAG "proc_create auxadc_debug_proc_fops\n");
 }
 
 
@@ -1730,171 +1736,194 @@ static int mt_auxadc_probe(struct platform_device *dev)
 	int of_value = 0;
 	struct device_node *node;
 
-	pr_debug("******** MT AUXADC driver probe!! ********\n");
+	pr_info(TAG "******** MT AUXADC driver probe!! ********\n");
 
 	/* Integrate with NVRAM */
-	ret = alloc_chrdev_region(&auxadc_cali_devno, 0, 1, AUXADC_CALI_DEVNAME);
+	ret = alloc_chrdev_region(&auxadc_cali_devno, 0, 1,
+			AUXADC_CALI_DEVNAME);
 	if (ret)
-		pr_err("[AUXADC_AP]Error: Can't Get Major number for auxadc_cali\n");
+		pr_err(TAG "Error: Can't Get Major number for auxadc_cali\n");
 
 	auxadc_cali_cdev = cdev_alloc();
 	auxadc_cali_cdev->owner = THIS_MODULE;
 	auxadc_cali_cdev->ops = &auxadc_cali_fops;
 	ret = cdev_add(auxadc_cali_cdev, auxadc_cali_devno, 1);
 	if (ret)
-		pr_err("auxadc_cali Error: cdev_add\n");
+		pr_err(TAG "auxadc_cali Error: cdev_add\n");
 
 	auxadc_cali_major = MAJOR(auxadc_cali_devno);
 	auxadc_cali_class = class_create(THIS_MODULE, AUXADC_CALI_DEVNAME);
 	adc_dev = (struct device *)device_create(auxadc_cali_class,
 						 NULL, auxadc_cali_devno, NULL,
 						 AUXADC_CALI_DEVNAME);
-	pr_debug("[MT AUXADC_probe] NVRAM prepare : done !!\n");
 
 	/* read calibration data from EFUSE */
 	mt_auxadc_hal_init(dev);
 
-	pr_debug("[MT AUXADC_probe2] mt_auxadc_hal_init : done !!\n");
-
-	pr_warn("[MT AUXADC_probe3] get device tree info : start !!\n");
-
 	node = of_find_compatible_node(NULL, NULL, "mediatek,adc_channel");
 	if (node) {
-		ret = of_property_read_u32_array(node, "mediatek,temperature0", &of_value, 1);
+		ret = of_property_read_u32_array(node, "mediatek,temperature0",
+				&of_value, 1);
 		if (ret == 0) {
-			sprintf(g_adc_info[used_channel_counter].channel_name, "ADC_RFTMP");
-			g_adc_info[used_channel_counter].channel_number = of_value;
-			pr_warn("[AUXADC_AP] find node TEMPERATURE:%d\n", of_value);
+			sprintf(g_adc_info[used_channel_counter].channel_name,
+					"ADC_RFTMP");
+			g_adc_info[used_channel_counter].channel_number =
+					of_value;
+			pr_info(TAG "find node TEMPERATURE:%d\n", of_value);
 			used_channel_counter++;
 		}
-		ret = of_property_read_u32_array(node, "mediatek,temperature1", &of_value, 1);
+		ret = of_property_read_u32_array(node, "mediatek,temperature1",
+				&of_value, 1);
 		if (ret == 0) {
-			sprintf(g_adc_info[used_channel_counter].channel_name, "ADC_APTMP");
-			g_adc_info[used_channel_counter].channel_number = of_value;
-			pr_warn("[AUXADC_AP] find node TEMPERATURE1:%d\n", of_value);
+			sprintf(g_adc_info[used_channel_counter].channel_name,
+					"ADC_APTMP");
+			g_adc_info[used_channel_counter].channel_number =
+					of_value;
+			pr_info(TAG "find node TEMPERATURE1:%d\n", of_value);
 			used_channel_counter++;
 		}
-		ret =
-		    of_property_read_u32_array(node, "mediatek,adc_fdd_rf_params_dynamic_custom_ch",
-					       &of_value, 1);
+		ret = of_property_read_u32_array(node,
+				"mediatek,adc_fdd_rf_params_dynamic_custom_ch",
+					&of_value, 1);
 		if (ret == 0) {
 			sprintf(g_adc_info[used_channel_counter].channel_name,
 				"ADC_FDD_Rf_Params_Dynamic_Custom");
-			g_adc_info[used_channel_counter].channel_number = of_value;
-			pr_warn("[AUXADC_AP] find node ADC_FDD_RF_PARAMS_DYNAMIC_CUSTOM_CH:%d\n",
-				 of_value);
+			g_adc_info[used_channel_counter].channel_number =
+					of_value;
+			pr_info(TAG "find adc_fdd_rf node:%d\n", of_value);
 			used_channel_counter++;
 		}
-		ret = of_property_read_u32_array(node, "mediatek,hf_mic", &of_value, 1);
+		ret = of_property_read_u32_array(node, "mediatek,hf_mic",
+				&of_value, 1);
 		if (ret == 0) {
-			sprintf(g_adc_info[used_channel_counter].channel_name, "ADC_MIC");
-			g_adc_info[used_channel_counter].channel_number = of_value;
-			pr_warn("[AUXADC_AP] find node HF_MIC:%d\n", of_value);
+			sprintf(g_adc_info[used_channel_counter].channel_name,
+					"ADC_MIC");
+			g_adc_info[used_channel_counter].channel_number =
+					of_value;
+			pr_info(TAG "find node HF_MIC:%d\n", of_value);
 			used_channel_counter++;
 		}
-		ret = of_property_read_u32_array(node, "mediatek,lcm_voltage", &of_value, 1);
+		ret = of_property_read_u32_array(node, "mediatek,lcm_voltage",
+				&of_value, 1);
 		if (ret == 0) {
-			sprintf(g_adc_info[used_channel_counter].channel_name, "ADC_LCM_VOLTAGE");
-			g_adc_info[used_channel_counter].channel_number = of_value;
-			pr_warn("[AUXADC_AP] find node LCM_VOLTAGE:%d\n", of_value);
+			sprintf(g_adc_info[used_channel_counter].channel_name,
+					"ADC_LCM_VOLTAGE");
+			g_adc_info[used_channel_counter].channel_number =
+					of_value;
+			pr_info(TAG "find node LCM_VOLTAGE:%d\n", of_value);
 			used_channel_counter++;
 		}
-		ret = of_property_read_u32_array(node, "mediatek,battery_voltage", &of_value, 1);
+		ret = of_property_read_u32_array(node,
+				"mediatek,battery_voltage", &of_value, 1);
 		if (ret == 0) {
 			sprintf(g_adc_info[used_channel_counter].channel_name,
 				"ADC_BATTERY_VOLTAGE");
-			g_adc_info[used_channel_counter].channel_number = of_value;
-			pr_warn("[AUXADC_AP] find node BATTERY_VOLTAGE:%d\n", of_value);
+			g_adc_info[used_channel_counter].channel_number =
+					of_value;
+			pr_info(TAG "find node BATTERY_VOLTAGE:%d\n", of_value);
 			used_channel_counter++;
 		}
-		ret = of_property_read_u32_array(node, "mediatek,charger_voltage", &of_value, 1);
+		ret = of_property_read_u32_array(node,
+				"mediatek,charger_voltage", &of_value, 1);
 		if (ret == 0) {
 			sprintf(g_adc_info[used_channel_counter].channel_name,
 				"ADC_CHARGER_VOLTAGE");
-			g_adc_info[used_channel_counter].channel_number = of_value;
-			pr_warn("[AUXADC_AP] find node CHARGER_VOLTAGE:%d\n", of_value);
+			g_adc_info[used_channel_counter].channel_number =
+					of_value;
+			pr_info(TAG "find node CHARGER_VOLTAGE:%d\n",
+					of_value);
 			used_channel_counter++;
 		}
-		ret = of_property_read_u32_array(node, "mediatek,utms", &of_value, 1);
+		ret = of_property_read_u32_array(node, "mediatek,utms",
+				&of_value, 1);
 		if (ret == 0) {
-			sprintf(g_adc_info[used_channel_counter].channel_name, "ADC_UTMS");
-			g_adc_info[used_channel_counter].channel_number = of_value;
-			pr_warn("[AUXADC_AP] find node UTMS:%d\n", of_value);
+			sprintf(g_adc_info[used_channel_counter].channel_name,
+					"ADC_UTMS");
+			g_adc_info[used_channel_counter].channel_number =
+					of_value;
+			pr_info(TAG "find node UTMS:%d\n", of_value);
 			used_channel_counter++;
 		}
-		ret = of_property_read_u32_array(node, "mediatek,ref_current", &of_value, 1);
+		ret = of_property_read_u32_array(node, "mediatek,ref_current",
+				&of_value, 1);
 		if (ret == 0) {
-			sprintf(g_adc_info[used_channel_counter].channel_name, "ADC_REF_CURRENT");
-			g_adc_info[used_channel_counter].channel_number = of_value;
-			pr_warn("[AUXADC_AP] find node REF_CURRENT:%d\n", of_value);
+			sprintf(g_adc_info[used_channel_counter].channel_name,
+					"ADC_REF_CURRENT");
+			g_adc_info[used_channel_counter].channel_number =
+					of_value;
+			pr_info(TAG "find node REF_CURRENT:%d\n", of_value);
 			used_channel_counter++;
 		}
-		ret = of_property_read_u32_array(node, "mediatek,board_id", &of_value, 1);
+		ret = of_property_read_u32_array(node, "mediatek,board_id",
+					&of_value, 1);
 		if (ret == 0) {
-			sprintf(g_adc_info[used_channel_counter].channel_name, "BOARD_ID");
-			g_adc_info[used_channel_counter].channel_number = of_value;
-			pr_warn("[AUXADC_AP] find node BOARD_ID:%d\n", of_value);
+			sprintf(g_adc_info[used_channel_counter].channel_name,
+					"BOARD_ID");
+			g_adc_info[used_channel_counter].channel_number =
+					of_value;
+			pr_info(TAG "find node BOARD_ID:%d\n", of_value);
 			used_channel_counter++;
 		}
-		ret = of_property_read_u32_array(node, "mediatek,board_id_2", &of_value, 1);
+		ret = of_property_read_u32_array(node, "mediatek,board_id_2",
+				&of_value, 1);
 		if (ret == 0) {
-			sprintf(g_adc_info[used_channel_counter].channel_name, "BOARD_ID_2");
-			g_adc_info[used_channel_counter].channel_number = of_value;
-			pr_warn("[AUXADC_AP] find node BOARD_ID_2:%d\n", of_value);
+			sprintf(g_adc_info[used_channel_counter].channel_name,
+					"BOARD_ID_2");
+			g_adc_info[used_channel_counter].channel_number =
+					of_value;
+			pr_info(TAG "find node BOARD_ID_2:%d\n", of_value);
 			used_channel_counter++;
 		}
-		ret = of_property_read_u32_array(node, "mediatek,board_id_3", &of_value, 1);
+		ret = of_property_read_u32_array(node, "mediatek,board_id_3",
+				&of_value, 1);
 		if (ret == 0) {
-			sprintf(g_adc_info[used_channel_counter].channel_name, "BOARD_ID_3");
-			g_adc_info[used_channel_counter].channel_number = of_value;
-			pr_warn("[AUXADC_AP] find node BOARD_ID_3:%d\n", of_value);
+			sprintf(g_adc_info[used_channel_counter].channel_name,
+					"BOARD_ID_3");
+			g_adc_info[used_channel_counter].channel_number =
+					of_value;
+			pr_info(TAG "find node BOARD_ID_3:%d\n", of_value);
 			used_channel_counter++;
 		}
 	} else {
-		pr_err("[AUXADC_AP] find node failed\n");
+		pr_err(TAG "find node failed\n");
 	}
-
-	pr_warn("[MT AUXADC_AP] adc_channel_info_init : done !!\n");
 
 	clk_auxadc = devm_clk_get(&dev->dev, "auxadc-main");
 	if (IS_ERR(clk_auxadc)) {
-		pr_err("[AUXADC] devm_clk_get failed\n");
+		pr_err(TAG "[AUXADC] devm_clk_get failed\n");
 		return PTR_ERR(clk_auxadc);
 	}
-	pr_debug("[AUXADC]: auxadc CLK:0x%p\n", clk_auxadc);
+	pr_debug(TAG "[AUXADC]: auxadc CLK:0x%p\n", clk_auxadc);
 	ret = clk_prepare_enable(clk_auxadc);
 	if (ret)
-		pr_err("hwEnableClock AUXADC failed.");
+		pr_err(TAG "hwEnableClock AUXADC failed.");
 #if defined(AUXADC_CLK_CTR)
 	clk_top_auxadc1 = devm_clk_get(&dev->dev, "auxadc1");
 	if (IS_ERR(clk_top_auxadc1)) {
-		pr_err("[AUXADC] devm_clk_get auxadc1 failed\n");
+		pr_err(TAG "[AUXADC] devm_clk_get auxadc1 failed\n");
 		return PTR_ERR(clk_top_auxadc1);
 	}
-	pr_debug("[AUXADC]: auxadc CLK:0x%p\n", clk_top_auxadc1);
 	ret = clk_prepare_enable(clk_top_auxadc1);
 	if (ret)
-		pr_err("hwEnableClock auxadc1 failed.");
+		pr_err(TAG "hwEnableClock auxadc1 failed.");
 
 	clk_top_auxadc2 = devm_clk_get(&dev->dev, "auxadc2");
 	if (IS_ERR(clk_top_auxadc2)) {
-		pr_err("[AUXADC] devm_clk_get auxadc2 failed\n");
+		pr_err(TAG "[AUXADC] devm_clk_get auxadc2 failed\n");
 		return PTR_ERR(clk_top_auxadc2);
 	}
-	pr_debug("[AUXADC]: auxadc CLK:0x%p\n", clk_top_auxadc2);
 	ret = clk_prepare_enable(clk_top_auxadc2);
 	if (ret)
-		pr_err("hwEnableClock auxadc2 failed.");
+		pr_err(TAG "hwEnableClock auxadc2 failed.");
 
 	clk_top_aux_tp = devm_clk_get(&dev->dev, "auxadc-tp");
 	if (IS_ERR(clk_top_aux_tp)) {
-		pr_err("[AUXADC] devm_clk_get auxadc-tp failed\n");
+		pr_err(TAG "[AUXADC] devm_clk_get auxadc-tp failed\n");
 		return PTR_ERR(clk_top_aux_tp);
 	}
-	pr_debug("[AUXADC]: auxadc CLK:0x%p\n", clk_top_aux_tp);
 	ret = clk_prepare_enable(clk_top_aux_tp);
 	if (ret)
-		pr_err("hwEnableClock auxadc-tp failed.");
+		pr_err(TAG "hwEnableClock auxadc-tp failed.");
 #endif
 
 	adc_debug_init();
@@ -1903,30 +1932,31 @@ static int mt_auxadc_probe(struct platform_device *dev)
 
 	mt_auxadc_create_device_attr(adc_dev);
 	mt_auxadc_update_cali();
+
+	pr_info(TAG "MT AUXADC driver probe Done!\n");
+
 	return ret;
 }
 
 static int mt_auxadc_remove(struct platform_device *dev)
 {
-	pr_debug("******** MT auxadc driver remove!! ********\n");
+	pr_debug(TAG "******** MT auxadc driver remove!! ********\n");
 	return 0;
 }
 
 static void mt_auxadc_shutdown(struct platform_device *dev)
 {
-	pr_debug("******** MT auxadc driver shutdown!! ********\n");
+	pr_debug(TAG "******** MT auxadc driver shutdown!! ********\n");
 }
 
 static int mt_auxadc_suspend(struct platform_device *dev, pm_message_t state)
 {
-	/* pr_debug("******** MT auxadc driver suspend!! ********\n" ); */
 	mt_auxadc_hal_suspend();
 	return 0;
 }
 
 static int mt_auxadc_resume(struct platform_device *dev)
 {
-	/* pr_debug("******** MT auxadc driver resume!! ********\n" ); */
 	mt_auxadc_hal_resume();
 	return 0;
 }
@@ -1958,10 +1988,9 @@ static int __init mt_auxadc_init(void)
 
 	ret = platform_driver_register(&mt_auxadc_driver);
 	if (ret) {
-		pr_err("****[mt_auxadc_driver] Unable to register driver (%d)\n", ret);
+		pr_err(TAG "Unable to register driver (%d)\n", ret);
 		return ret;
 	}
-	pr_debug("****[mt_auxadc_driver] Initialization : DONE\n");
 
 	return 0;
 }

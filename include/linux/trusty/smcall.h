@@ -32,29 +32,38 @@
 #define SMC_ENTITY(smc_nr)	(((smc_nr) & 0x3F000000) >> 24)
 #define SMC_FUNCTION(smc_nr)	((smc_nr) & 0x0000FFFF)
 
-#define SMC_NR(entity, fn, fastcall, smc64) ((((fastcall)&0x1) << 31) | \
-					     (((smc64)&0x1) << 30) | \
-					     (((entity)&0x3F) << 24) | \
-					     ((fn)&0xFFFF) \
-					    )
+#define SMC_NR(entity, fn, fastcall, smc64) ((((fastcall)&0x1) << 31) |\
+					     (((smc64)&0x1) << 30) |\
+					     (((entity)&0x3F) << 24) |\
+					     ((fn)&0xFFFF))
 
 #define SMC_FASTCALL_NR(entity, fn)	SMC_NR((entity), (fn), 1, 0)
 #define SMC_STDCALL_NR(entity, fn)	SMC_NR((entity), (fn), 0, 0)
 #define SMC_FASTCALL64_NR(entity, fn)	SMC_NR((entity), (fn), 1, 1)
 #define SMC_STDCALL64_NR(entity, fn)	SMC_NR((entity), (fn), 0, 1)
 
-#define	SMC_ENTITY_ARCH			0	/* ARM Architecture calls */
-#define	SMC_ENTITY_CPU			1	/* CPU Service calls */
-#define	SMC_ENTITY_SIP			2	/* SIP Service calls */
-#define	SMC_ENTITY_OEM			3	/* OEM Service calls */
-#define	SMC_ENTITY_STD			4	/* Standard Service calls */
-#define	SMC_ENTITY_RESERVED		5	/* Reserved for future use */
-#define	SMC_ENTITY_TRUSTED_APP		48	/* Trusted Application calls */
-#define	SMC_ENTITY_TRUSTED_OS		50	/* Trusted OS calls */
-#define	SMC_ENTITY_LOGGING		51	/* Used for secure -> nonsecure logging */
-#define	SMC_ENTITY_MT_TRUSTED_OS	59	/* MTK Trusted OS calls */
-#define	SMC_ENTITY_SECURE_MONITOR	60	/* Trusted OS calls internal to secure monitor */
-
+/* ARM Architecture calls */
+#define	SMC_ENTITY_ARCH			0
+/* CPU Service calls */
+#define	SMC_ENTITY_CPU			1
+/* SIP Service calls */
+#define	SMC_ENTITY_SIP			2
+/* OEM Service calls */
+#define	SMC_ENTITY_OEM			3
+/* Standard Service calls */
+#define	SMC_ENTITY_STD			4
+/* Reserved for future use */
+#define	SMC_ENTITY_RESERVED		5
+/* Trusted Application calls */
+#define	SMC_ENTITY_TRUSTED_APP		48
+/* Trusted OS calls */
+#define	SMC_ENTITY_TRUSTED_OS		50
+/* Used for secure -> nonsecure logging */
+#define	SMC_ENTITY_LOGGING		51
+/* MTK Trusted OS calls */
+#define	SMC_ENTITY_MT_TRUSTED_OS	59
+/* Trusted OS calls internal to secure monitor */
+#define	SMC_ENTITY_SECURE_MONITOR	60
 
 /* FC = Fast call, SC = Standard call */
 #define SMC_SC_RESTART_LAST	SMC_STDCALL_NR(SMC_ENTITY_SECURE_MONITOR, 0)
@@ -122,25 +131,34 @@
  */
 #define TRUSTY_API_VERSION_RESTART_FIQ	(1)
 #define TRUSTY_API_VERSION_SMP		(2)
+#define TRUSTY_API_VERSION_SMP_NOP	(3)
 #define TRUSTY_API_VERSION_CURRENT	(2)
 #define SMC_FC_API_VERSION	SMC_FASTCALL_NR(SMC_ENTITY_SECURE_MONITOR, 11)
+
+#define SMC_FC_FIQ_RESUME	SMC_FASTCALL_NR(SMC_ENTITY_SECURE_MONITOR, 12)
 
 /* TRUSTED_OS entity calls */
 #define SMC_SC_VIRTIO_GET_DESCR	SMC_STDCALL_NR(SMC_ENTITY_TRUSTED_OS, 20)
 #define SMC_SC_VIRTIO_START	SMC_STDCALL_NR(SMC_ENTITY_TRUSTED_OS, 21)
-#define SMC_SC_VIRTIO_STOP	SMC_STDCALL_NR(SMC_ENTITY_TRUSTED_OS, 22)
+#define SMC_SC_VIRTIO_STOP SMC_STDCALL_NR(SMC_ENTITY_TRUSTED_OS, 22)
 
-#define SMC_SC_VDEV_RESET	SMC_STDCALL_NR(SMC_ENTITY_TRUSTED_OS, 23)
+#define SMC_SC_VDEV_RESET SMC_STDCALL_NR(SMC_ENTITY_TRUSTED_OS, 23)
 #define SMC_SC_VDEV_KICK_VQ	SMC_STDCALL_NR(SMC_ENTITY_TRUSTED_OS, 24)
+#define SMC_NC_VDEV_KICK_VQ	SMC_STDCALL_NR(SMC_ENTITY_TRUSTED_OS, 25)
 
 /* Debugging only */
 #ifdef CONFIG_MT_TRUSTY_DEBUGFS
-#define MT_SMC_SC_ADD			SMC_STDCALL_NR(SMC_ENTITY_MT_TRUSTED_OS, 0xFF00)
+#define MT_SMC_SC_ADD SMC_STDCALL_NR(SMC_ENTITY_MT_TRUSTED_OS, 0xFF00)
 #endif
 #define MT_SMC_FC_THREADS SMC_FASTCALL_NR(SMC_ENTITY_MT_TRUSTED_OS, 0xFF00)
 #define MT_SMC_FC_THREADSTATS SMC_FASTCALL_NR(SMC_ENTITY_MT_TRUSTED_OS, 0xFF01)
 #define MT_SMC_FC_THREADLOAD SMC_FASTCALL_NR(SMC_ENTITY_MT_TRUSTED_OS, 0xFF02)
-#define MT_SMC_FC_HEAP_DUMP	SMC_FASTCALL_NR(SMC_ENTITY_MT_TRUSTED_OS, 0xFF03)
-#define MT_SMC_FC_APPS	SMC_FASTCALL_NR(SMC_ENTITY_MT_TRUSTED_OS, 0xFF04)
+#define MT_SMC_FC_HEAP_DUMP SMC_FASTCALL_NR(SMC_ENTITY_MT_TRUSTED_OS, 0xFF03)
+#define MT_SMC_FC_APPS SMC_FASTCALL_NR(SMC_ENTITY_MT_TRUSTED_OS, 0xFF04)
+
+#ifdef CONFIG_MTK_ENABLE_GENIEZONE
+#define MT_SMC_SC_SET_RAMCONSOLE \
+	SMC_STDCALL_NR(SMC_ENTITY_MT_TRUSTED_OS, 0xFF80)
+#endif
 
 #endif /* __LINUX_TRUSTY_SMCALL_H */

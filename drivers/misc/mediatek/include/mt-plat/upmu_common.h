@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 MediaTek Inc.
+ * Copyright (C) 2019 MediaTek Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -135,6 +135,34 @@ extern signed int g_I_SENSE_offset;
 /*
  * PMIC extern functions
  */
+#if (!defined(CONFIG_MTK_PMIC_COMMON) && !defined(CONFIG_MACH_MT8167))
+static inline unsigned int pmic_read_interface(unsigned int RegNum,
+	unsigned int *val, unsigned int MASK, unsigned int SHIFT)
+{
+	return 0;
+}
+static inline unsigned int pmic_config_interface(unsigned int RegNum,
+	unsigned int *val, unsigned int MASK, unsigned int SHIFT)
+{
+	return 0;
+}
+static inline unsigned short pmic_set_register_value(
+	PMU_FLAGS_LIST_ENUM flagname, unsigned int val)
+{
+	return 0;
+}
+static inline unsigned short pmic_get_register_value(
+	PMU_FLAGS_LIST_ENUM flagname)
+{
+	return 0;
+}
+static inline void upmu_set_reg_value(
+	unsigned int reg, unsigned int reg_val) {}
+static inline unsigned int upmu_get_reg_value(unsigned int reg)
+{
+	return 0;
+}
+#else
 extern unsigned int pmic_read_interface(unsigned int RegNum,
 					unsigned int *val,
 					unsigned int MASK,
@@ -173,6 +201,7 @@ extern unsigned short bc11_get_register_value(PMU_FLAGS_LIST_ENUM flagname);
 #endif
 extern void upmu_set_reg_value(unsigned int reg, unsigned int reg_val);
 extern unsigned int upmu_get_reg_value(unsigned int reg);
+#endif
 extern void pmic_lock(void);
 extern void pmic_unlock(void);
 
@@ -192,6 +221,7 @@ extern void unlockadcch3(void);
 extern unsigned int pmic_Read_Efuse_HPOffset(int i);
 extern void Charger_Detect_Init(void);
 extern void Charger_Detect_Release(void);
+extern void usb_dpdm_pulldown(bool enable);
 
 extern int get_dlpt_imix_spm(void);
 extern int get_dlpt_imix(void);
@@ -199,24 +229,9 @@ extern int dlpt_check_power_off(void);
 extern unsigned int pmic_read_vbif28_volt(unsigned int *val);
 extern unsigned int pmic_get_vbif28_volt(void);
 extern void pmic_auxadc_debug(int index);
-#ifndef CONFIG_MACH_MT8167
-#ifndef CONFIG_MTK_PMIC_NEW_ARCH
-#ifndef CONFIG_FPGA_EARLY_PORTING
-extern void pmic_auxadc_init(void);
-extern signed int PMIC_IMM_GetCurrent(void);
-extern unsigned int PMIC_IMM_GetOneChannelValue(
-					pmic_adc_ch_list_enum dwChannel,
-					int deCount,
-					int trimd);
-extern bool hwPowerOn(MT65XX_POWER powerId, int voltage_uv, char *mode_name);
-extern bool hwPowerDown(MT65XX_POWER powerId, char *mode_name);
-#endif
-#endif
-#else
 extern int PMIC_IMM_GetOneChannelValue(unsigned int dwChannel,
 				       int deCount,
 				       int trimd);
-#endif
 
 extern int get_battery_plug_out_status(void);
 
@@ -241,13 +256,11 @@ extern int is_ext_buck2_exist(void);
 extern int is_ext_buck_gpio_exist(void);
 extern int is_ext_vbat_boost_exist(void);
 extern int is_ext_swchr_exist(void);
-#ifdef CONFIG_MTK_PMIC_CHIP_MT6357
-extern unsigned int PMIC_CHIP_VER(void);
-extern unsigned int PMIC_LP_CHIP_VER(void);
-#endif
-
 
 /*----- Smart Reset -----*/
 extern void pmic_enable_smart_reset(unsigned char smart_en,
 				    unsigned char smart_sdn_en);
+/*----- BAT_TEMP detection -----*/
+extern void enable_bat_temp_det(bool en);
+
 #endif				/* _MT_PMIC_COMMON_H_ */

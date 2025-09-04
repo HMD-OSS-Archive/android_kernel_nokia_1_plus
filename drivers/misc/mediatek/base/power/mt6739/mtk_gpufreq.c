@@ -33,8 +33,9 @@
 #include <linux/input.h>
 #include <linux/sched.h>
 #include <linux/sched/rt.h>
+#include <linux/sched/task.h>
 #include <linux/kthread.h>
-
+#include <uapi/linux/sched/types.h>
 #ifdef CONFIG_OF
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -48,10 +49,10 @@
 */
 #include "mt-plat/upmu_common.h"
 #include "mt-plat/sync_write.h"
-#include "mt-plat/mtk_pmic_wrap.h"
+#include "mach/mtk_pmic_wrap.h"
 
-#include "mach/mtk_fhreg.h"
-#include "mach/mtk_freqhopping.h"
+#include "mtk_fhreg.h"
+#include "mtk_freqhopping_drv.h"
 
 static void __iomem *g_apmixed_base;
 
@@ -464,7 +465,7 @@ get_immediate_gpu_wrap(void)
  * e.g: VCO range is 1.5GHz - 3.8GHz
  *	  required frequency is 900MHz, so pos div could be 2(1.8/2), 4(3.6/4), 8(X), 16(X)
  * It may have special requiremt by DE in different efuse value
- * e.g: In Olympus, efuse value(3'b001) ,VCO range is 1.5GHz - 3.8GHz
+ * e.g: In MT6757, efuse value(3'b001) ,VCO range is 1.5GHz - 3.8GHz
  *	  375MHz - 900MHz, It can only use post div 4, no pos div 2
  *
  * @param[in] freq: required frequency
@@ -473,7 +474,7 @@ get_immediate_gpu_wrap(void)
  **************************************************************************************/
 static enum post_div_order_enum _get_post_div_order(unsigned int freq, unsigned int efuse)
 {
-	/* [Olympus]VCO range: 1.5G - 3.8GHz by div 1/2/4/8/16
+	/* [MT6757]VCO range: 1.5G - 3.8GHz by div 1/2/4/8/16
 	*
 	*	PLL range: 125MHz - 3.8GHz
 	*	Version(eFuse Value)			Info	 POSTDIV		   FOUT

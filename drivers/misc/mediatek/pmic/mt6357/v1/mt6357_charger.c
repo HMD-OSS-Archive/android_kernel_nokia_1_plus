@@ -117,7 +117,7 @@ static u32 bmt_find_closest_level(const u32 *pList, u32 number, u32 level)
 		/* max value in the last element */
 		for (i = (number - 1); i >= 0; i--) {
 			if (pList[i] <= level) {
-				/* pr_debug("zzf_%d<=%d i=%d\n", pList[i], level, i); */
+/* pr_debug("zzf_%d<=%d i=%d\n", pList[i], level, i); */
 				return pList[i];
 			}
 		}
@@ -136,7 +136,8 @@ static u32 bmt_find_closest_level(const u32 *pList, u32 number, u32 level)
 	return pList[number - 1];
 }
 
-static int mt6357_charger_parse_dt(struct mt6357_charger *info, struct device *dev)
+static int mt6357_charger_parse_dt(struct mt6357_charger *info,
+	struct device *dev)
 {
 	struct device_node *np = dev->of_node;
 	struct mt6357_charger_desc *desc = NULL;
@@ -154,7 +155,8 @@ static int mt6357_charger_parse_dt(struct mt6357_charger *info, struct device *d
 	if (!desc)
 		return -ENOMEM;
 
-	memcpy(desc, &mt6357_chg_default_desc, sizeof(struct mt6357_charger_desc));
+	memcpy(desc, &mt6357_chg_default_desc,
+		sizeof(struct mt6357_charger_desc));
 
 	if (of_property_read_string(np, "charger_name",
 		&info->charger_dev_name) < 0) {
@@ -227,7 +229,9 @@ static int mt6357_enable_charging(struct charger_device *chg_dev, bool en)
 
 		/* pmic_enable_interrupt(INT_WATCHDOG, 1, "PMIC"); */
 	} else {
-		/* pmic_set_register_value(PMIC_RG_INT_EN_WATCHDOG, 0); TODO: remove it */
+		/* pmic_set_register_value(PMIC_RG_INT_EN_WATCHDOG, 0);
+		 * TODO: remove it
+		 */
 		/* pmic_enable_interrupt(INT_WATCHDOG, 0, "PMIC"); */
 		pmic_set_register_value(PMIC_RG_CHRWDT_EN, 0);
 #if 0
@@ -272,7 +276,8 @@ static int mt6357_set_ichg(struct charger_device *chg_dev, u32 ichg)
 
 	array_size = ARRAY_SIZE(CS_VTH);
 	set_ichg = bmt_find_closest_level(CS_VTH, array_size, ichg);
-	register_value = charging_parameter_to_value(CS_VTH, array_size, set_ichg);
+	register_value = charging_parameter_to_value(CS_VTH,
+						array_size, set_ichg);
 	ret = pmic_set_register_value(PMIC_RG_CS_VTH, register_value);
 	chr_debug("%s: 0x%x %d %d\n", __func__, register_value, ichg, set_ichg);
 
@@ -310,7 +315,8 @@ static int mt6357_set_cv(struct charger_device *chg_dev, u32 cv)
 
 	array_size = ARRAY_SIZE(VBAT_CV_VTH);
 	set_cv = bmt_find_closest_level(VBAT_CV_VTH, array_size, cv);
-	register_value = charging_parameter_to_value(VBAT_CV_VTH, array_size, set_cv);
+	register_value = charging_parameter_to_value(VBAT_CV_VTH,
+						array_size, set_cv);
 	pmic_set_register_value(PMIC_RG_VBAT_CV_VTH, register_value);
 	chr_debug("%s: cv = %d mV (0x%x)\n", __func__, set_cv, register_value);
 
@@ -352,7 +358,8 @@ static int mt6357_dump_register(struct charger_device *chg_dev)
 		chr_debug("[0x%x]=0x%x\t", i, upmu_get_reg_value(i));
 	chr_debug("\n");
 
-	pr_info("ICHG = %dmA, CV = %dmV, CHG_EN = %d\n", ichg / 1000, cv / 1000, chg_en);
+	pr_info("ICHG = %dmA, CV = %dmV, CHG_EN = %d\n",
+		ichg / 1000, cv / 1000, chg_en);
 
 	return ret;
 }
@@ -414,8 +421,8 @@ static int mt6357_charger_init_setting(struct mt6357_charger *info)
 #if 1 /* TODO: Default value */
 	pmic_set_register_value(PMIC_RG_VCDT_MODE, 0);
 	pmic_set_register_value(PMIC_RG_VCDT_HV_EN, 1);
-
-	pmic_set_register_value(PMIC_RG_USBDL_SET, 0); /* force leave USBDL mode  */
+ /* force leave USBDL mode  */
+	pmic_set_register_value(PMIC_RG_USBDL_SET, 0);
 	pmic_set_register_value(PMIC_RG_USBDL_RST, 1);
 
 	pmic_set_register_value(PMIC_RG_BC11_BB_CTRL, 1);

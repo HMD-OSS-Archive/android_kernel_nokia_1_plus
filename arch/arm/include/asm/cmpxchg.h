@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __ASM_ARM_CMPXCHG_H
 #define __ASM_ARM_CMPXCHG_H
 
@@ -36,7 +37,6 @@ static inline unsigned long __xchg(unsigned long x, volatile void *ptr, int size
 #endif
 
 	prefetchw((const void *)ptr);
-	errata_855872_dmb();
 
 	switch (size) {
 #if __LINUX_ARM_ARCH__ >= 6
@@ -159,7 +159,6 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 	unsigned long oldval, res;
 
 	prefetchw((const void *)ptr);
-	errata_855872_dmb();
 
 	switch (size) {
 #ifndef CONFIG_CPU_V6	/* min ARCH >= ARMv6K */
@@ -250,7 +249,6 @@ static inline unsigned long long __cmpxchg64(unsigned long long *ptr,
 	unsigned long res;
 
 	prefetchw(ptr);
-	errata_855872_dmb();
 
 	__asm__ __volatile__(
 "1:	ldrexd		%1, %H1, [%3]\n"

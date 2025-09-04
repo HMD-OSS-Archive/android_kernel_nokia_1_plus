@@ -183,7 +183,7 @@ static const struct reg_config revd_general_config[] = {
 	{ 0x83, 0x54},
 	{ 0x86, 0x38},
 	{ 0x87, 0x1f},
-	{ 0x92, 0x57},
+	{ 0x92, 0x54},
 	{ 0x93, 0xd4},
 	{ 0x94, 0x12},
 	{ 0x9a, 0xdc},
@@ -511,7 +511,7 @@ static int rt5509_adap_coefficent_fix(struct snd_soc_codec *codec)
 	ret = snd_soc_read(codec, RT5509_REG_CALIB_DCR);
 	ret &= 0xffffff;
 	dev_info(codec->dev, "dcr otp -> 0x%08x\n", ret);
-	if (ret == 0xffffff)
+	if (ret == 0xffffff || ret == 0)
 		ret = 0x800000;
 	/* rspk otp value */
 	w = ret;
@@ -539,6 +539,28 @@ static int rt5509_adap_coefficent_fix(struct snd_soc_codec *codec)
 		}
 	}
 	return 0;
+}
+
+static int rt5509_init_impedance_ctrl_fix(struct snd_soc_codec *codec)
+{
+	u32 gsense_otp, rspk_otp, result;
+	int ret = 0;
+
+	dev_dbg(codec->dev, "%s\n", __func__);
+	ret = snd_soc_read(codec, RT5509_REG_ISENSEGAIN);
+	if (ret == 0)
+		ret = 0x800000;
+	gsense_otp = ret & 0xffffff;
+	dev_dbg(codec->dev, "gsense otp 0x%08x\n", gsense_otp);
+	ret = snd_soc_read(codec, RT5509_REG_CALIB_DCR);
+	if (ret == 0)
+		ret = 0x800000;
+	rspk_otp = ret & 0xffffff;
+	dev_dbg(codec->dev, "rspk otp 0x%08x\n", rspk_otp);
+	result = ((rspk_otp << 7) / gsense_otp) << 16;
+	result &= 0xffffff;
+	dev_dbg(codec->dev, "final result 0x%08x\n", result);
+	return snd_soc_write(codec, RT5509_REG_DELAYRES, result);
 }
 
 static int rt5509_init_proprietary_setting(struct snd_soc_codec *codec)
@@ -577,6 +599,9 @@ static int rt5509_init_proprietary_setting(struct snd_soc_codec *codec)
 	ret = rt5509_adap_coefficent_fix(codec);
 	if (ret < 0)
 		dev_err(chip->dev, "fix adap coefficient fail\n");
+	ret = rt5509_init_impedance_ctrl_fix(codec);
+	if (ret < 0)
+		dev_err(chip->dev, "init impedance ctrl fix fail\n");
 	if (p_param->cfg_size[RT5509_CFG_SPEAKERPROT]) {
 		ret = snd_soc_update_bits(codec, RT5509_REG_CHIPEN,
 			RT5509_SPKPROT_ENMASK, RT5509_SPKPROT_ENMASK);
@@ -663,10 +688,9 @@ static ssize_t rt5509_proprietary_store(struct device *dev,
 	}
 	/* start to copy */
 	param = devm_kzalloc(chip->dev, sizeof(*param), GFP_KERNEL);
-	if (!param) {
-		dev_err(chip->dev, "allocation memory fail\n");
+	if (!param)
 		goto out_param_write;
-	}
+
 	bin_offset = buf + 7;
 	for (i = 0; i < RT5509_CFG_MAX; i++) {
 		sptr = (u32 *)(buf + cnt - 40 + i * 4);
@@ -694,7 +718,7 @@ out_param_write:
 static struct device_attribute rt5509_proprietary_attr = {
 	.attr = {
 		.name = "prop_param",
-		.mode = S_IRUGO | S_IWUSR,
+		.mode = 0644,
 	},
 	.show = rt5509_proprietary_show,
 	.store = rt5509_proprietary_store,
@@ -785,7 +809,7 @@ static int rt5509_codec_probe(struct snd_soc_codec *codec)
 	dev_info(codec->dev, "%s\n", __func__);
 	return rt5509_set_bias_level(codec, SND_SOC_BIAS_OFF);
 err_out_probe:
-	dev_err(codec->dev, "chip io error\n");
+	dev_info(codec->dev, "chip io error\n");
 	/* Chip Disable */
 	ret = snd_soc_update_bits(codec, RT5509_REG_CHIPEN,
 		RT5509_CHIPPD_ENMASK, RT5509_CHIPPD_ENMASK);
@@ -859,10 +883,6 @@ static int rt5509_boost_event(struct snd_soc_dapm_widget *w,
 			goto out_boost_event;
 		ret = snd_soc_update_bits(codec, RT5509_REG_CHIPEN,
 			RT5509_TRIWAVE_ENMASK, RT5509_TRIWAVE_ENMASK);
-		if (ret < 0)
-			goto out_boost_event;
-		ret = snd_soc_update_bits(codec, RT5509_REG_BLOCKREF2,
-			0x08, 0x08);
 		if (ret < 0)
 			goto out_boost_event;
 		mdelay(1);
@@ -1083,10 +1103,6 @@ static int rt5509_boost_event(struct snd_soc_dapm_widget *w,
 			goto out_boost_event;
 		ret = snd_soc_update_bits(codec, RT5509_REG_BSTTM,
 			0x40, 0x00);
-		if (ret < 0)
-			goto out_boost_event;
-		ret = snd_soc_update_bits(codec, RT5509_REG_BLOCKREF2,
-			0x08, 0x00);
 		if (ret < 0)
 			goto out_boost_event;
 		ret = snd_soc_update_bits(codec, RT5509_REG_CHIPEN,
@@ -1625,17 +1641,22 @@ static const struct soc_enum rt5509_enum[] = {
 static const struct snd_kcontrol_new rt5509_controls[] = {
 	SOC_SINGLE_EXT_TLV("DAC Volume", RT5509_REG_VOLUME, 0, 255, 1,
 		snd_soc_get_volsw, rt5509_put_spk_volsw, dacvol_tlv),
-	SOC_SINGLE_EXT("Speaker Protection", RT5509_REG_CHIPEN, RT5509_SPKPROT_ENSHFT,
+	SOC_SINGLE_EXT("Speaker Protection", RT5509_REG_CHIPEN,
+		RT5509_SPKPROT_ENSHFT,
 		1, 0, snd_soc_get_volsw, rt5509_put_spk_volsw),
-	SOC_SINGLE_EXT("Limiter Func", RT5509_REG_FUNCEN, RT5509_LMTEN_SHFT, 1, 0,
+	SOC_SINGLE_EXT("Limiter Func", RT5509_REG_FUNCEN,
+		RT5509_LMTEN_SHFT, 1, 0,
 		snd_soc_get_volsw, rt5509_put_spk_volsw),
 	SOC_SINGLE_EXT("ALC Func", RT5509_REG_FUNCEN, RT5509_ALCEN_SHFT, 1, 0,
 		snd_soc_get_volsw, rt5509_put_spk_volsw),
-	SOC_SINGLE_EXT("CLIP Func", RT5509_REG_CLIP_CTRL, RT5509_CLIPEN_SHFT, 1, 0,
+	SOC_SINGLE_EXT("CLIP Func", RT5509_REG_CLIP_CTRL,
+		RT5509_CLIPEN_SHFT, 1, 0,
 		snd_soc_get_volsw, rt5509_put_spk_volsw),
-	SOC_SINGLE_EXT("BoostMode", RT5509_REG_BST_MODE, RT5509_BSTMODE_SHFT, 3, 0,
+	SOC_SINGLE_EXT("BoostMode", RT5509_REG_BST_MODE,
+		RT5509_BSTMODE_SHFT, 3, 0,
 		snd_soc_get_volsw, rt5509_put_spk_volsw),
-	SOC_SINGLE_EXT("I2S_Channel", RT5509_REG_I2SSEL, RT5509_I2SLRSEL_SHFT, 3, 0,
+	SOC_SINGLE_EXT("I2S_Channel", RT5509_REG_I2SSEL,
+		RT5509_I2SLRSEL_SHFT, 3, 0,
 		snd_soc_get_volsw, rt5509_put_spk_volsw),
 	SOC_SINGLE_EXT("Ext_DO_Enable", RT5509_REG_I2SDOSEL, 0, 1, 0,
 		snd_soc_get_volsw, rt5509_put_spk_volsw),
@@ -1667,12 +1688,14 @@ static const struct snd_soc_codec_driver rt5509_codec_drv = {
 	.suspend = rt5509_codec_suspend,
 	.resume = rt5509_codec_resume,
 
+	.component_driver = {
 	.controls = rt5509_controls,
 	.num_controls = ARRAY_SIZE(rt5509_controls),
 	.dapm_widgets = rt5509_dapm_widgets,
 	.num_dapm_widgets = ARRAY_SIZE(rt5509_dapm_widgets),
 	.dapm_routes = rt5509_dapm_routes,
 	.num_dapm_routes = ARRAY_SIZE(rt5509_dapm_routes),
+	},
 
 	.set_bias_level = rt5509_set_bias_level,
 	.idle_bias_off = true,
@@ -1716,23 +1739,18 @@ static int rt5509_aif_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 static int rt5509_aif_hw_params(struct snd_pcm_substream *substream,
 	struct snd_pcm_hw_params *hw_params, struct snd_soc_dai *dai)
 {
-	return 0;
-}
-
-static int rt5509_aif_prepare(struct snd_pcm_substream *substream,
-	struct snd_soc_dai *dai)
-{
 	struct rt5509_chip *chip = snd_soc_codec_get_drvdata(dai->codec);
-	const struct snd_pcm_runtime *runtime = substream->runtime;
+	unsigned int rate = params_rate(hw_params);
+	snd_pcm_format_t format = params_format(hw_params);
 	/* 0 for sr and bckfs, 1 for audbits */
 	u8 regval[2] = {0};
 	u32 pll_divider = 0;
 	u8 word_len = 0;
 	int ret = 0;
 
-	dev_dbg(dai->dev, "%s\n", __func__);
-	dev_dbg(dai->dev, "format %d\n", runtime->format);
-	switch (runtime->format) {
+	dev_info(dai->dev, "%s(), format %d, rate %u\n",
+		 __func__, format, rate);
+	switch (format) {
 	case SNDRV_PCM_FORMAT_S16:
 	case SNDRV_PCM_FORMAT_U16:
 		regval[0] |= (RT5509_BCKMODE_32FS << RT5509_BCKMODE_SHFT);
@@ -1776,10 +1794,10 @@ static int rt5509_aif_prepare(struct snd_pcm_substream *substream,
 		break;
 	default:
 		ret = -EINVAL;
-		goto out_prepare;
+		goto out_hw_params;
 	}
-	dev_dbg(dai->dev, "rate %d\n", runtime->rate);
-	switch (runtime->rate) {
+
+	switch (rate) {
 	case 8000:
 		regval[0] |= (RT5509_SRMODE_8K << RT5509_SRMODE_SHFT);
 		pll_divider *= 6;
@@ -1818,7 +1836,7 @@ static int rt5509_aif_prepare(struct snd_pcm_substream *substream,
 		break;
 	default:
 		ret = -EINVAL;
-		goto out_prepare;
+		goto out_hw_params;
 	}
 	if (chip->tdm_mode)
 		pll_divider >>= 1;
@@ -1826,24 +1844,30 @@ static int rt5509_aif_prepare(struct snd_pcm_substream *substream,
 			RT5509_BCKMODE_MASK | RT5509_SRMODE_MASK, regval[0]);
 	if (ret < 0) {
 		dev_err(dai->dev, "configure bck and sr fail\n");
-		goto out_prepare;
+		goto out_hw_params;
 	}
 	ret = snd_soc_update_bits(dai->codec, RT5509_REG_AUDFMT,
 			RT5509_AUDBIT_MASK, regval[1]);
 	if (ret < 0) {
 		dev_err(dai->dev, "configure audbit fail\n");
-		goto out_prepare;
+		goto out_hw_params;
 	}
 	ret = snd_soc_write(dai->codec, RT5509_REG_PLLDIVISOR, pll_divider);
 	if (ret < 0) {
 		dev_err(dai->dev, "configure pll divider fail\n");
-		goto out_prepare;
+		goto out_hw_params;
 	}
 	ret = snd_soc_write(dai->codec, RT5509_REG_DMGFLAG, word_len);
 	if (ret < 0)
 		dev_err(dai->dev, "configure word len fail\n");
-out_prepare:
+out_hw_params:
 	return ret;
+}
+
+static int rt5509_aif_prepare(struct snd_pcm_substream *substream,
+	struct snd_soc_dai *dai)
+{
+	return 0;
 }
 
 static int rt5509_aif_startup(struct snd_pcm_substream *substream,
@@ -2026,10 +2050,9 @@ static inline int rt5509_parse_dt(struct device *dev,
 		else {
 			p_param->cfg[i] = devm_kzalloc(dev, len * sizeof(u8),
 						     GFP_KERNEL);
-			if (!p_param->cfg[i]) {
-				dev_err(dev, "alloc %s fail\n", prop_str[i]);
+			if (!p_param->cfg[i])
 				return -ENOMEM;
-			}
+
 			memcpy(p_param->cfg[i], prop->value, len);
 			p_param->cfg_size[i] = len;
 		}
@@ -2058,10 +2081,9 @@ int rt5509_i2c_probe(struct i2c_client *client,
 
 	if (client->dev.of_node) {
 		pdata = devm_kzalloc(&client->dev, sizeof(*pdata), GFP_KERNEL);
-		if (!pdata) {
-			dev_err(&client->dev, "Failed to allocate memory\n");
+		if (!pdata)
 			return -ENOMEM;
-		}
+
 		ret = rt5509_parse_dt(&client->dev, pdata);
 		if (ret < 0)
 			goto err_parse_dt;
@@ -2074,10 +2096,9 @@ int rt5509_i2c_probe(struct i2c_client *client,
 		}
 	}
 	chip = devm_kzalloc(&client->dev, sizeof(*chip), GFP_KERNEL);
-	if (!chip) {
-		dev_err(&client->dev, "Failed, on memory allocation\n");
+	if (!chip)
 		goto err_parse_dt;
-	}
+
 	chip->i2c = client;
 	chip->dev = &client->dev;
 	chip->pdata = pdata;
@@ -2145,14 +2166,14 @@ int rt5509_i2c_probe(struct i2c_client *client,
 		dev_err(chip->dev, "power off fail\n");
 		goto err_put_sync;
 	}
-	dev_set_name(chip->dev, "%s",
-		     kasprintf(GFP_KERNEL, "RT5509_MT_%d", chip->dev_cnt));
+	dev_set_name(chip->dev, "RT5509_MT_%d", chip->dev_cnt);
 	ret = rt5509_codec_register(chip);
 	if (ret < 0) {
 		dev_err(chip->dev, "codec register fail\n");
 		goto err_put_sync;
 	}
-	dev_info(&client->dev, "RT5509_MT_%d successfully driver probed\n", dev_cnt);
+	dev_info(&client->dev, "RT5509_MT_%d driver probed\n",
+		dev_cnt);
 	dev_cnt++;
 	return 0;
 err_put_sync:
@@ -2240,4 +2261,8 @@ module_exit(rt5509_driver_exit);
 MODULE_AUTHOR("CY_Huang <cy_huang@richtek.com>");
 MODULE_DESCRIPTION("RT5509 SPKAMP Driver");
 MODULE_LICENSE("GPL");
-MODULE_VERSION("1.0.13_M");
+MODULE_VERSION("1.0.15_M");
+/*
+ * 1.0.15_M
+ *	fix DCR_VAL = 0, div 0 issue
+ */

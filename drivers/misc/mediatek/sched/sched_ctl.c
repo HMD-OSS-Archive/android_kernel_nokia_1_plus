@@ -1,38 +1,29 @@
-/* Copyright (c) 2010-2013, The Linux Foundation. All rights reserved.
+/*
+ * Copyright (C) 2017 MediaTek Inc.
  *
  * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
-/*
- * Support asynchronus hint for external modules to get loading change
- * in time from scheduler's help.
- *
- * 1. call-back function for notification of status change
- *   - int register_sched_hint_notifier( void(*fp)(int status) )
- *
- * 2. control interface for user
- *   - /sys/devices/system/cpu/sched/...
- *
- */
-#include <linux/irq_work.h>
-#include <linux/kthread.h>
-#include <linux/module.h>
-#include <linux/string.h>
-#include <trace/events/sched.h>
 #include <linux/cpu.h>
-#include <linux/kobject.h>
 #include <linux/sysfs.h>
+#include <linux/kthread.h>
+#include <linux/kobject.h>
+#include <linux/irq_work.h>
+#include <linux/sched/task.h>
+#include <uapi/linux/sched/types.h>
+#include <trace/events/sched.h>
+
 #include "rq_stats.h"
 #include "sched_ctl.h"
-#include <mt-plat/met_drv.h>
+//TODO: remove comment after met ready
+//#include <mt-plat/met_drv.h>
 #include <mt-plat/mtk_sched.h>
 
 #define SCHED_HINT_THROTTLE_NSEC 10000000 /* 10ms for throttle */
@@ -47,28 +38,15 @@ struct sched_hint_data {
 	struct kobject *kobj;
 };
 
-#if 0
-/* debugging */
-static char met_cpu_load[16][32] = {
-	"sched_load_cpu0",
-	"sched_load_cpu1",
-	"sched_load_cpu2",
-	"sched_load_cpu3",
-	"sched_load_cpu4",
-	"sched_load_cpu5",
-	"sched_load_cpu6",
-	"sched_load_cpu7",
-	"sched_load_cpu8",
-	"sched_load_cpu9",
-	"NULL"
-};
-#endif
-
 /* global */
 static u64 sched_hint_check_timestamp;
 static u64 sched_hint_check_interval;
 static struct sched_hint_data g_shd;
 static int sched_hint_inited;
+static struct kobj_attribute sched_iso_attr;
+static struct kobj_attribute set_sched_iso_attr;
+static struct kobj_attribute set_sched_deiso_attr;
+
 #ifdef CONFIG_MTK_SCHED_SYSHINT
 static int sched_hint_on = 1; /* default on */
 #else
@@ -79,11 +57,9 @@ static enum sched_status_t sched_status = SCHED_STATUS_INIT;
 static int sched_hint_loading_thresh = 5; /* 5% (max 100%) */
 static BLOCKING_NOTIFIER_HEAD(sched_hint_notifier_list);
 static DEFINE_SPINLOCK(status_lock);
-static struct kobj_attribute sched_iso_attr;
-static struct kobj_attribute set_sched_iso_attr;
-static struct kobj_attribute set_sched_deiso_attr;
 #ifdef CONFIG_MTK_SCHED_BOOST
 static struct kobj_attribute sched_boost_attr;
+static struct kobj_attribute sched_cpu_prefer_attr;
 #endif
 
 static int sched_hint_status(int util, int cap)
@@ -114,13 +90,17 @@ static int sched_hint_thread(void *data)
 
 			kthread_status = sched_status;
 
-			met_tag_oneshot(0, "sched_hint", kthread_status);
+			//TODO: remove comment after met ready
+			//met_tag_oneshot(0, "sched_hint", kthread_status);
 
-			ret = blocking_notifier_call_chain(&sched_hint_notifier_list,
+			ret = blocking_notifier_call_chain
+					(&sched_hint_notifier_list,
 					kthread_status, NULL);
 
 			/* reset throttle time */
-			g_shd.throttle = ktime_add_ns(ktime_get(), SCHED_HINT_THROTTLE_NSEC);
+			g_shd.throttle = ktime_add_ns(
+					ktime_get(),
+					SCHED_HINT_THROTTLE_NSEC);
 		}
 
 		#if 0
@@ -129,7 +109,8 @@ static int sched_hint_thread(void *data)
 
 			for (iter_cpu = 0; iter_cpu < nr_cpu_ids; iter_cpu++)
 				#ifdef CONFIG_MTK_SCHED_CPULOAD
-				met_tag_oneshot(0, met_cpu_load[iter_cpu], sched_get_cpu_load(iter_cpu));
+				met_tag_oneshot(0, met_cpu_load[iter_cpu],
+						sched_get_cpu_load(iter_cpu));
 				#endif
 		}
 		#endif
@@ -163,7 +144,8 @@ static bool do_check(u64 wallclock)
 
 	/* check interval */
 	spin_lock_irqsave(&status_lock, flags);
-	if ((wallclock - sched_hint_check_timestamp) >= sched_hint_check_interval) {
+	if ((wallclock - sched_hint_check_timestamp)
+			>= sched_hint_check_interval) {
 		sched_hint_check_timestamp = wallclock;
 		do_check = true;
 	}
@@ -245,83 +227,26 @@ static ssize_t show_sched_info(struct kobject *kobj,
 	unsigned int max_len = 4096;
 
 	len +=  snprintf(buf, max_len, "capacity total=%d\n", g_shd.sys_cap);
-	len +=  snprintf(buf+len, max_len - len, "capacity used=%d\n", g_shd.sys_util);
+	len +=  snprintf(buf+len, max_len - len,
+		"capacity used=%d\n", g_shd.sys_util);
 
 	if (sched_hint_on) {
 		if (kthread_status != SCHED_STATUS_INIT)
-			len +=  snprintf(buf+len, max_len - len, "status=(%s)\n",
-					(kthread_status != SCHED_STATUS_OVERUTIL) ?
+			len +=  snprintf(buf+len,
+					max_len - len,
+					"status=(%s)\n",
+					(kthread_status !=
+					SCHED_STATUS_OVERUTIL) ?
 					"under" : "over");
 		else
-			len +=  snprintf(buf+len, max_len - len, "status=(init)\n");
+			len +=  snprintf(buf+len,
+					max_len - len,
+					"status=(init)\n");
 	} else
 		len +=  snprintf(buf+len, max_len - len, "status=(off)\n");
 
-	len +=  snprintf(buf+len, max_len - len, "load thresh=%d%c\n", sched_hint_loading_thresh, '%');
-
-	return len;
-}
-
-static DEFINE_MUTEX(ip_mutex);
-
-static ssize_t store_idle_prefer(struct kobject *kobj,
-		struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	unsigned int val = 0;
-	static unsigned int backup_mc;
-	static unsigned int backup_dvfs_margin;
-	static int is_dirty;
-	int en;
-
-	mutex_lock(&ip_mutex);
-
-	if (sscanf(buf, "%iu", &val) != 0)
-		idle_prefer_mode = val;
-
-	en = (idle_prefer_mode > 0) ? 1 : 0;
-
-	/* backup system settings */
-	if (!is_dirty) {
-		backup_mc = sysctl_sched_migration_cost;
-		backup_dvfs_margin = capacity_margin_dvfs;
-	}
-
-#ifdef CONFIG_SCHED_TUNE
-	/*
-	 * set top-app prefer idle cpu via stune
-	 * 1: fg
-	 * 2: bg
-	 * 3: top-app
-	 */
-	prefer_idle_for_perf_idx(3, en);
-	prefer_idle_for_perf_idx(1, en);
-#endif
-
-	/* migration cost to 33us */
-	sysctl_sched_migration_cost = en ? 33000UL : backup_mc; /*500000UL;*/
-
-#if defined(CONFIG_MACH_MT6771)
-	/* marginless DVFS control for high TLP scene */
-	capacity_margin_dvfs = en ? 1024 : backup_dvfs_margin;
-
-	/* display idle timeout */
-	display_set_wait_idle_time(en ? 200 : 50);
-#endif
-	is_dirty = en;
-
-	mutex_unlock(&ip_mutex);
-
-	return count;
-}
-
-static ssize_t show_idle_prefer(struct kobject *kobj,
-		struct kobj_attribute *attr, char *buf)
-{
-	unsigned int len = 0;
-	unsigned int max_len = 4096;
-
-	len +=  snprintf(buf, max_len, "idle prefer = %d\n", idle_prefer_mode);
-	len +=  snprintf(buf+len, max_len - len, "idle needed = %d\n", idle_prefer_need());
+	len +=  snprintf(buf+len, max_len - len, "load thresh=%d%c\n",
+					sched_hint_loading_thresh, '%');
 
 	return len;
 }
@@ -333,32 +258,30 @@ static ssize_t store_walt_info(struct kobject *kobj,
 		struct kobj_attribute *attr, const char *buf, size_t count);
 
 static struct kobj_attribute sched_enable_attr =
-__ATTR(hint_enable, S_IWUSR, NULL, store_sched_enable);
+__ATTR(hint_enable, 0200 /* S_IWUSR */, NULL, store_sched_enable);
 
 static struct kobj_attribute sched_load_thresh_attr =
-__ATTR(hint_load_thresh, S_IWUSR, NULL, store_sched_load_thresh);
+__ATTR(hint_load_thresh, 0200 /* S_IWUSR */, NULL, store_sched_load_thresh);
 
 static struct kobj_attribute sched_info_attr =
-__ATTR(hint_info, S_IRUSR, show_sched_info, NULL);
-
-static struct kobj_attribute sched_idle_prefer_attr =
-__ATTR(idle_prefer, S_IWUSR | S_IRUSR, show_idle_prefer, store_idle_prefer);
+__ATTR(hint_info, 0400 /* S_IRUSR */, show_sched_info, NULL);
 
 static struct kobj_attribute sched_walt_info_attr =
-__ATTR(walt_debug, S_IWUSR | S_IRUSR, show_walt_info, store_walt_info);
+__ATTR(walt_debug, 0600 /* S_IWUSR | S_IRUSR */,
+			show_walt_info, store_walt_info);
 
 static struct attribute *sched_attrs[] = {
 	&sched_info_attr.attr,
 	&sched_load_thresh_attr.attr,
 	&sched_enable_attr.attr,
+	&sched_walt_info_attr.attr,
+#ifdef CONFIG_MTK_SCHED_BOOST
+	&sched_cpu_prefer_attr.attr,
+	&sched_boost_attr.attr,
+#endif
 	&sched_iso_attr.attr,
 	&set_sched_iso_attr.attr,
 	&set_sched_deiso_attr.attr,
-#ifdef CONFIG_MTK_SCHED_BOOST
-	&sched_boost_attr.attr,
-#endif
-	&sched_idle_prefer_attr.attr,
-	&sched_walt_info_attr.attr,
 	NULL,
 };
 
@@ -374,30 +297,24 @@ EXPORT_SYMBOL(register_sched_hint_notifier);
 
 int unregister_sched_hint_notifier(struct notifier_block *nb)
 {
-	return blocking_notifier_chain_unregister(&sched_hint_notifier_list, nb);
+	return blocking_notifier_chain_unregister
+				(&sched_hint_notifier_list, nb);
 }
 EXPORT_SYMBOL(unregister_sched_hint_notifier);
 
 /* init function */
 static int __init sched_hint_init(void)
 {
-	struct sched_param param;
 	int ret;
 
 	/* create thread */
 	g_shd.task = kthread_create(sched_hint_thread, NULL, "ksched_hint");
 
 	if (IS_ERR_OR_NULL(g_shd.task)) {
-		pr_info("%s: failed to create ksched_hint thread.\n", __func__);
+		printk_deferred("%s: failed to create ksched_hint thread.\n",
+		__func__);
 		goto err;
 	}
-
-	/* priority setting */
-	param.sched_priority = 120;
-	ret = sched_setscheduler_nocheck(g_shd.task, SCHED_NORMAL, &param);
-
-	if (ret)
-		pr_info("%s: failed to set sched_fifo\n", __func__);
 
 	/* keep thread alive */
 	get_task_struct(g_shd.task);
@@ -421,7 +338,8 @@ static int __init sched_hint_init(void)
 	 * /sys/devices/system/cpu/sched/...
 	 */
 	g_shd.attr_group = &sched_attr_group;
-	g_shd.kobj = kobject_create_and_add("sched", &cpu_subsys.dev_root->kobj);
+	g_shd.kobj = kobject_create_and_add("sched",
+					&cpu_subsys.dev_root->kobj);
 
 	if (g_shd.kobj) {
 		ret = sysfs_create_group(g_shd.kobj, g_shd.attr_group);
@@ -440,98 +358,172 @@ err:
 
 late_initcall(sched_hint_init);
 
-/*
- * sched_ktime_clock()
- *  - to get wall time but not to update in suspended.
- */
-#include <linux/syscore_ops.h>
-
-static ktime_t ktime_last;
-static bool sched_ktime_suspended;
-
-u64 sched_ktime_clock(void)
-{
-	if (unlikely(sched_ktime_suspended))
-		return ktime_to_ns(ktime_last);
-	return ktime_get_ns();
-}
-
-static void sched_resume(void)
-{
-	sched_ktime_suspended = false;
-}
-
-static int sched_suspend(void)
-{
-	ktime_last = ktime_get();
-	sched_ktime_suspended = true;
-	return 0;
-}
-
-static struct syscore_ops sched_syscore_ops = {
-	.resume = sched_resume,
-	.suspend = sched_suspend
-};
-
-static int __init sched_init_ops(void)
-{
-	register_syscore_ops(&sched_syscore_ops);
-	return 0;
-}
-late_initcall(sched_init_ops);
-
-/* turn on/off sched boost scheduling */
-static ssize_t show_sched_iso(struct kobject *kobj,
-		struct kobj_attribute *attr, char *buf)
-{
-	unsigned int len = 0;
-	unsigned int max_len = 4096;
-
-	len += snprintf(buf+len, max_len-len, "cpu_isolated_mask=0x%lx\n", cpu_isolated_mask->bits[0]);
-	len += snprintf(buf+len, max_len-len, "iso_prio=%d\n", iso_prio);
-
-	return len;
-}
-
-static ssize_t set_sched_iso(struct kobject *kobj,
-		struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	unsigned int val = 0;
-
-	if (sscanf(buf, "%iu", &val) < nr_cpu_ids)
-		sched_isolate_cpu(val);
-
-	return count;
-}
-
-static ssize_t set_sched_deiso(struct kobject *kobj,
-		struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	unsigned int val = 0;
-
-	if (sscanf(buf, "%iu", &val) < nr_cpu_ids)
-		sched_deisolate_cpu(val);
-
-	return count;
-}
-
-static struct kobj_attribute sched_iso_attr =
-__ATTR(sched_isolation, S_IRUSR, show_sched_iso, NULL);
-
-static struct kobj_attribute set_sched_iso_attr =
-__ATTR(set_sched_isolation, S_IWUSR, NULL, set_sched_iso);
-
-static struct kobj_attribute set_sched_deiso_attr =
-__ATTR(set_sched_deisolation, S_IWUSR, NULL, set_sched_deiso);
-
 #ifdef CONFIG_MTK_SCHED_BOOST
 static int sched_boost_type = SCHED_NO_BOOST;
 
-bool sched_boost(void)
+inline int valid_cpu_prefer(int task_prefer)
 {
-	return (sched_boost_type == SCHED_ALL_BOOST);
+	if (task_prefer < SCHED_PREFER_NONE || task_prefer >= SCHED_PREFER_END)
+		return 0;
+
+	return 1;
 }
-EXPORT_SYMBOL(sched_boost);
+
+int sched_set_cpuprefer(pid_t pid, unsigned int prefer_type)
+{
+	struct task_struct *p;
+	unsigned long flags;
+	int retval = 0;
+
+	if (!valid_cpu_prefer(prefer_type) || pid < 0)
+		return -EINVAL;
+
+	rcu_read_lock();
+	retval = -ESRCH;
+	p = find_task_by_vpid(pid);
+	if (p != NULL) {
+		raw_spin_lock_irqsave(&p->pi_lock, flags);
+		p->cpu_prefer = prefer_type;
+		raw_spin_unlock_irqrestore(&p->pi_lock, flags);
+		trace_sched_set_cpuprefer(p);
+	}
+	rcu_read_unlock();
+
+	return retval;
+}
+
+inline int hinted_cpu_prefer(int task_prefer)
+{
+	if (task_prefer <= SCHED_PREFER_NONE || task_prefer >= SCHED_PREFER_END)
+		return 0;
+
+	return 1;
+}
+
+/*
+ * check if the task or the whole system to prefer to put on big core
+ *
+ */
+int cpu_prefer(struct task_struct *p)
+{
+	if (sched_boost_type == SCHED_ALL_BOOST)
+		return SCHED_PREFER_BIG;
+
+	if (p->cpu_prefer == SCHED_PREFER_LITTLE &&
+		schedtune_task_boost(p))
+		return SCHED_PREFER_NONE;
+
+	return p->cpu_prefer;
+}
+
+int task_prefer_little(struct task_struct *p)
+{
+	if (cpu_prefer(p) == SCHED_PREFER_LITTLE)
+		return 1;
+
+	return 0;
+}
+
+int task_prefer_big(struct task_struct *p)
+{
+	if (cpu_prefer(p) == SCHED_PREFER_BIG)
+		return 1;
+
+	return 0;
+}
+
+int task_prefer_fit(struct task_struct *p, int cpu)
+{
+	if (cpu_prefer(p) == SCHED_PREFER_NONE)
+		return 0;
+
+	if (task_prefer_little(p) && hmp_cpu_is_slowest(cpu))
+		return 1;
+
+	if (task_prefer_big(p) && hmp_cpu_is_fastest(cpu))
+		return 1;
+
+	return 0;
+}
+
+int task_prefer_match(struct task_struct *p, int cpu)
+{
+	if (cpu_prefer(p) == SCHED_PREFER_NONE)
+		return 1;
+
+	if (task_prefer_little(p) && hmp_cpu_is_slowest(cpu))
+		return 1;
+
+	if (task_prefer_big(p) && hmp_cpu_is_fastest(cpu))
+		return 1;
+
+	return 0;
+}
+
+int
+task_prefer_match_on_cpu(struct task_struct *p, int src_cpu, int target_cpu)
+{
+	/* No need to migrate*/
+	if (is_intra_domain(src_cpu, target_cpu))
+		return 1;
+
+	if (cpu_prefer(p) == SCHED_PREFER_NONE)
+		return 1;
+
+	if (task_prefer_little(p) && hmp_cpu_is_slowest(src_cpu))
+		return 1;
+
+	if (task_prefer_big(p) && hmp_cpu_is_fastest(src_cpu))
+		return 1;
+
+	return 0;
+}
+
+int select_task_prefer_cpu(struct task_struct *p, int new_cpu)
+{
+	int task_prefer;
+	struct hmp_domain *domain;
+	struct hmp_domain *tmp_domain[5] = {0, 0, 0, 0, 0};
+	int i, iter_domain, domain_cnt = 0;
+	int iter_cpu;
+	struct cpumask *tsk_cpus_allow = &p->cpus_allowed;
+
+	task_prefer = cpu_prefer(p);
+
+	if (!hinted_cpu_prefer(task_prefer))
+		return new_cpu;
+
+	for_each_hmp_domain_L_first(domain) {
+		tmp_domain[domain_cnt] = domain;
+		domain_cnt++;
+	}
+
+	for (i = 0; i < domain_cnt; i++) {
+		iter_domain = (task_prefer == SCHED_PREFER_BIG) ?
+				domain_cnt-i-1 : i;
+		domain = tmp_domain[iter_domain];
+
+		if (cpumask_test_cpu(new_cpu, &domain->possible_cpus))
+			return new_cpu;
+
+		for_each_cpu(iter_cpu, &domain->possible_cpus) {
+
+			/* tsk with prefer idle to find bigger idle cpu */
+			if (!cpu_online(iter_cpu) ||
+				!cpumask_test_cpu(iter_cpu, tsk_cpus_allow))
+				continue;
+
+			/* favoring tasks that prefer idle cpus
+			 * to improve latency.
+			 */
+			if (idle_cpu(iter_cpu))
+				return iter_cpu;
+
+		}
+	}
+
+	return new_cpu;
+}
 
 void sched_set_boost_fg(void)
 {
@@ -575,45 +567,70 @@ int set_sched_boost(unsigned int val)
 		return 0;
 
 	mutex_lock(&sched_boost_mutex);
-
-	/* bail out if forcing mode */
-	if (val != SCHED_FORCE_STOP && sched_boost_type == SCHED_FORCE_BOOST) {
-		mutex_unlock(&sched_boost_mutex);
-		return 0;
-	}
-
 	/* back to original setting*/
 	if (sched_boost_type == SCHED_ALL_BOOST)
-		sched_scheduler_switch(SCHED_HYBRID_LB);
-	else if (sched_boost_type == SCHED_FORCE_BOOST)
 		sched_scheduler_switch(SCHED_HYBRID_LB);
 	else if (sched_boost_type == SCHED_FG_BOOST)
 		sched_unset_boost_fg();
 
 	sched_boost_type = val;
 
-	if (val == SCHED_NO_BOOST || val == SCHED_FORCE_STOP) {
+	if (val == SCHED_NO_BOOST) {
 		if (sysctl_sched_isolation_hint_enable_backup > 0)
-			sysctl_sched_isolation_hint_enable = sysctl_sched_isolation_hint_enable_backup;
+			sysctl_sched_isolation_hint_enable =
+				sysctl_sched_isolation_hint_enable_backup;
 
 	} else if ((val > SCHED_NO_BOOST) && (val < SCHED_UNKNOWN_BOOST)) {
 
-		sysctl_sched_isolation_hint_enable_backup = sysctl_sched_isolation_hint_enable;
+		sysctl_sched_isolation_hint_enable_backup =
+				sysctl_sched_isolation_hint_enable;
 		sysctl_sched_isolation_hint_enable = 0;
 
-		if (val == SCHED_ALL_BOOST || val == SCHED_FORCE_BOOST)
+		if (val == SCHED_ALL_BOOST)
 			sched_scheduler_switch(SCHED_HMP_LB);
 		else if (val == SCHED_FG_BOOST)
 			sched_set_boost_fg();
 	}
 	printk_deferred("[name:sched_boost&] sched boost: set %d\n",
-		sched_boost_type);
+			sched_boost_type);
 	mutex_unlock(&sched_boost_mutex);
 
 
 	return 0;
 }
 EXPORT_SYMBOL(set_sched_boost);
+
+/* turn on/off sched boost scheduling */
+static ssize_t show_cpu_prefer(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	unsigned int len = 0;
+
+	return len;
+}
+
+static ssize_t store_cpu_prefer(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	pid_t pid;
+	unsigned int prefer_type;
+
+	/*
+	 * 0: NO sched boost
+	 * 1: boost ALL task
+	 * 2: boost foreground task
+	 */
+	if (sscanf(buf, "%d %u", &pid, &prefer_type) != 0)
+		sched_set_cpuprefer(pid, prefer_type);
+	else
+		return -1;
+
+	return count;
+}
+
+static struct kobj_attribute sched_cpu_prefer_attr =
+__ATTR(cpu_prefer, 0600, show_cpu_prefer,
+		store_cpu_prefer);
 
 /* turn on/off sched boost scheduling */
 static ssize_t show_sched_boost(struct kobject *kobj,
@@ -623,14 +640,13 @@ static ssize_t show_sched_boost(struct kobject *kobj,
 	unsigned int max_len = 4096;
 
 	switch (sched_boost_type) {
+
 	case SCHED_ALL_BOOST:
 		len += snprintf(buf, max_len, "sched boost= all boost\n\n");
 		break;
 	case SCHED_FG_BOOST:
-		len += snprintf(buf, max_len, "sched boost= foreground boost\n\n");
-		break;
-	case SCHED_FORCE_BOOST:
-		len += snprintf(buf, max_len, "sched boost= force boost\n\n");
+		len += snprintf(buf, max_len,
+			"sched boost= foreground boost\n\n");
 		break;
 	default:
 		len += snprintf(buf, max_len, "sched boost= no boost\n\n");
@@ -656,12 +672,82 @@ static ssize_t store_sched_boost(struct kobject *kobj,
 	return count;
 }
 
-
 static struct kobj_attribute sched_boost_attr =
-__ATTR(sched_boost, S_IWUSR | S_IRUSR, show_sched_boost,
+__ATTR(sched_boost, 0600, show_sched_boost,
 		store_sched_boost);
+#else
+
+inline int task_prefer_little(struct task_struct *p)
+{
+	return 0;
+}
+
+inline int task_prefer_big(struct task_struct *p)
+{
+	return 0;
+}
+
+inline int task_prefer_fit(struct task_struct *p, int cpu)
+{
+	return 0;
+}
+
+inline int task_prefer_match(struct task_struct *p, int cpu)
+{
+	return 1;
+}
+
+int select_task_prefer_cpu(struct task_struct *p, int new_cpu)
+{
+	return new_cpu;
+}
+
+int sched_set_cpuprefer(pid_t pid, unsigned int prefer_type)
+{
+	return -EINVAL;
+}
+
 #endif
 
+/*
+ * sched_ktime_clock()
+ *  - to get wall time but not to update in suspended.
+ */
+#include <linux/syscore_ops.h>
+
+static ktime_t ktime_last;
+static bool sched_ktime_suspended;
+
+u64 sched_ktime_clock(void)
+{
+	if (unlikely(sched_ktime_suspended))
+		return ktime_to_ns(ktime_last);
+	return ktime_get_ns();
+}
+
+static void sched_resume(void)
+{
+	sched_ktime_suspended = false;
+}
+
+static int sched_suspend(void)
+{
+	ktime_last = ktime_get();
+	sched_ktime_suspended = true;
+	return 0;
+}
+
+static struct syscore_ops sched_syscore_ops = {
+	.resume = sched_resume,
+	.suspend = sched_suspend
+};
+
+static int __init sched_init_ops(void)
+{
+	register_syscore_ops(&sched_syscore_ops);
+	return 0;
+}
+late_initcall(sched_init_ops);
 
 /* schedule loading trackign change
  * 0: default
@@ -723,9 +809,12 @@ static ssize_t show_walt_info(struct kobject *kobj,
 #ifdef CONFIG_SCHED_WALT
 	supported = 1;
 #endif
-	len +=  snprintf(buf+len, max_len - len, "\nWALT support:%d\n", supported);
-	len +=  snprintf(buf+len, max_len - len, "debug mode:%d\n", walt_dbg);
-	len +=  snprintf(buf+len, max_len - len, "format: echo (debug:walt)\n");
+	len +=  snprintf(buf+len, max_len - len,
+			"\nWALT support:%d\n", supported);
+	len +=  snprintf(buf+len, max_len - len,
+			"debug mode:%d\n", walt_dbg);
+	len +=  snprintf(buf+len, max_len - len,
+			"format: echo (debug:walt)\n");
 
 	return len;
 }
@@ -753,3 +842,49 @@ static ssize_t store_walt_info(struct kobject *kobj,
 
 	return count;
 }
+
+
+/* turn on/off sched boost scheduling */
+static ssize_t show_sched_iso(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	unsigned int len = 0;
+	unsigned int max_len = 4096;
+
+	len += snprintf(buf+len, max_len-len, "cpu_isolated_mask=0x%lx\n",
+			cpu_isolated_mask->bits[0]);
+	len += snprintf(buf+len, max_len-len, "iso_prio=%d\n", iso_prio);
+
+	return len;
+}
+
+static ssize_t set_sched_iso(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	unsigned int val = 0;
+
+	if (sscanf(buf, "%iu", &val) < nr_cpu_ids)
+		sched_isolate_cpu(val);
+
+	return count;
+}
+
+static ssize_t set_sched_deiso(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	unsigned int val = 0;
+
+	if (sscanf(buf, "%iu", &val) < nr_cpu_ids)
+		sched_deisolate_cpu(val);
+
+	return count;
+}
+
+static struct kobj_attribute sched_iso_attr =
+__ATTR(sched_isolation, 0400, show_sched_iso, NULL);
+
+static struct kobj_attribute set_sched_iso_attr =
+__ATTR(set_sched_isolation, 0200, NULL, set_sched_iso);
+
+static struct kobj_attribute set_sched_deiso_attr =
+__ATTR(set_sched_deisolation, 0200, NULL, set_sched_deiso);

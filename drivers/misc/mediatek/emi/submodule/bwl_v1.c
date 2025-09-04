@@ -15,6 +15,7 @@
 #include <linux/interrupt.h>
 #include <linux/semaphore.h>
 #include <linux/platform_device.h>
+#include <linux/slab.h>
 #include <linux/device.h>
 #include <mt-plat/mtk_io.h>
 #include <mt-plat/sync_write.h>
@@ -22,7 +23,9 @@
 #include <mt_emi.h>
 #include <bwl_platform.h>
 #include "bwl_v1.h"
-
+#if DBG_INFO_READY
+#include <plat_dbg_info.h>
+#endif
 #ifdef DECS_ON_SSPM
 #include <dramc.h>
 #endif
@@ -153,7 +156,94 @@ int bwl_ctrl(unsigned int scn, unsigned int op)
 	return 0;
 }
 
-static ssize_t scn_show(struct device_driver *driver, char *buf)
+#ifdef ENABLE_BWL_CONFIG
+#define BWL_MAX_CMD_LEN	128
+#define BWL_MAX_TOKEN	4
+
+static ssize_t bwl_config_show(struct device_driver *driver, char *buf)
+{
+	ssize_t ret;
+	unsigned int decs_ctrl;
+
+	ret = 0;
+
+	decs_ctrl = readl(IOMEM(LAST_EMI_DECS_CTRL));
+	if (ret < PAGE_SIZE) {
+		ret += snprintf(buf + ret, PAGE_SIZE - ret,
+				"decs_status: 0x%x\n", decs_ctrl);
+	}
+
+	return ret;
+}
+
+static ssize_t bwl_config_store
+	(struct device_driver *driver, const char *buf, size_t count)
+{
+	char *command;
+	char *ptr;
+	char *token[BWL_MAX_TOKEN];
+	unsigned long scn_index;
+	unsigned long reg_index;
+	unsigned long reg_value;
+	int i, ret;
+
+	if ((strlen(buf) + 1) > BWL_MAX_CMD_LEN) {
+		pr_info("[BWL] store command overflow\n");
+		return count;
+	}
+
+	command = kmalloc((size_t) BWL_MAX_CMD_LEN, GFP_KERNEL);
+	if (!command)
+		return count;
+	strncpy(command, buf, (size_t) BWL_MAX_CMD_LEN);
+
+	for (i = 0; i < BWL_MAX_TOKEN; i++) {
+		ptr = strsep(&command, " ");
+		if (ptr == NULL)
+			break;
+		token[i] = ptr;
+	}
+
+	if (!strncmp(buf, "DECS_CTRL", strlen("DECS_CTRL"))) {
+		if (i < 2)
+			goto bwl_store_end;
+		ret = kstrtoul(token[1], 16, &reg_value);
+		mt_reg_sync_writel(reg_value, LAST_EMI_DECS_CTRL);
+	} else if (!strncmp(buf, "SET_CEN", strlen("SET_CEN"))) {
+		if (i < 4)
+			goto bwl_store_end;
+		ret = kstrtoul(token[1], 10, &scn_index);
+		ret = kstrtoul(token[2], 10, &reg_index);
+		ret = kstrtoul(token[3], 16, &reg_value);
+		if (scn_index >= BWL_SCN_MAX)
+			goto bwl_store_end;
+		if (reg_index >= BWL_CEN_MAX)
+			goto bwl_store_end;
+		env_cen_reg[scn_index][reg_index].value = reg_value;
+	} else if (!strncmp(buf, "SET_CHN", strlen("SET_CHN"))) {
+		if (i < 4)
+			goto bwl_store_end;
+		ret = kstrtoul(token[1], 10, &scn_index);
+		ret = kstrtoul(token[2], 10, &reg_index);
+		ret = kstrtoul(token[3], 16, &reg_value);
+		if (scn_index >= BWL_SCN_MAX)
+			goto bwl_store_end;
+		if (reg_index >= BWL_CHN_MAX)
+			goto bwl_store_end;
+		env_chn_reg[scn_index][reg_index].value = reg_value;
+	}
+
+bwl_store_end:
+	kfree(command);
+
+	return count;
+}
+
+static DRIVER_ATTR_RW(bwl_config);
+#endif
+
+static ssize_t concurrency_scenario_show
+	(struct device_driver *driver, char *buf)
 {
 	ssize_t ret = 0;
 	unsigned int offset;
@@ -162,7 +252,8 @@ static ssize_t scn_show(struct device_driver *driver, char *buf)
 	if (cur_scn >= BWL_SCN_MAX)
 		return sprintf(buf, "none\n");
 
-	ret += snprintf(buf, 64, "current scenario: %s\n", scn_name[cur_scn].name);
+	ret += snprintf(buf, 64, "current scenario: %s\n",
+			scn_name[cur_scn].name);
 	ret += snprintf(buf + ret, 32, "%s\n", scn_name[cur_scn].name);
 
 	for (i = 0; i < BWL_CEN_MAX; i++) {
@@ -199,8 +290,8 @@ static ssize_t scn_show(struct device_driver *driver, char *buf)
 	return strlen(buf);
 }
 
-static ssize_t scn_store(struct device_driver *driver,
-	const char *buf, size_t count)
+static ssize_t concurrency_scenario_store
+	(struct device_driver *driver, const char *buf, size_t count)
 {
 	int i;
 	char *name;
@@ -229,7 +320,7 @@ static ssize_t scn_store(struct device_driver *driver,
 	return count;
 }
 
-DRIVER_ATTR(concurrency_scenario, 0644, scn_show, scn_store);
+static DRIVER_ATTR_RW(concurrency_scenario);
 
 void bwl_init(struct platform_driver *emi_ctrl)
 {
@@ -241,7 +332,7 @@ void bwl_init(struct platform_driver *emi_ctrl)
 	for (i = 0; i < MAX_CH; i++)
 		CHN_EMI_BASE[i] = mt_chn_emi_base_get(i);
 
-#ifdef DECS_ON_SSPM
+#if (defined(DECS_ON_SSPM) && DBG_INFO_READY)
 	LAST_EMI_BASE = get_dbg_info_base(0xE31C);
 #endif
 
@@ -251,7 +342,14 @@ void bwl_init(struct platform_driver *emi_ctrl)
 
 	bwl_ctrl(SCN_DEFAULT, 1);
 
-	ret = driver_create_file(&emi_ctrl->driver, &driver_attr_concurrency_scenario);
+	ret = driver_create_file(&emi_ctrl->driver,
+		&driver_attr_concurrency_scenario);
 	if (ret)
 		pr_err("[BWL] fail to create concurrency_scenario\n");
+
+#ifdef ENABLE_BWL_CONFIG
+	ret = driver_create_file(&emi_ctrl->driver, &driver_attr_bwl_config);
+	if (ret)
+		pr_err("[BWL] fail to bwl_config\n");
+#endif
 }

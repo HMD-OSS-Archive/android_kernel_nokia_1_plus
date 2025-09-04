@@ -19,14 +19,15 @@
 #include <linux/seq_file.h>
 #include <linux/uaccess.h>
 
+#include "mach/mtk_pbm.h"
 #include "mtk_ppm_internal.h"
 #include "mtk_ppm_platform.h"
-#ifndef CONFIG_FPGA_EARLY_PORTING
-#include "mach/mtk_pbm.h"
-#endif
 
-static unsigned int ppm_dlpt_pwr_budget_preprocess(unsigned int budget);
-static unsigned int ppm_dlpt_pwr_budget_postprocess(unsigned int budget, unsigned int pwr_idx);
+
+static unsigned int ppm_dlpt_pwr_budget_preprocess(
+	unsigned int budget);
+static unsigned int ppm_dlpt_pwr_budget_postprocess(
+	unsigned int budget, unsigned int pwr_idx);
 static void ppm_dlpt_update_limit_cb(void);
 static void ppm_dlpt_status_change_cb(bool enable);
 
@@ -42,9 +43,13 @@ static struct ppm_policy_data dlpt_policy = {
 	.status_change_cb	= ppm_dlpt_status_change_cb,
 };
 
-void __attribute__((weak)) kicker_pbm_by_cpu(unsigned int loading, int core, int voltage) { }
+void __attribute__((weak)) kicker_pbm_by_cpu(
+	unsigned int loading, int core, int voltage)
+{
+}
 
-void mt_ppm_dlpt_kick_PBM(struct ppm_cluster_status *cluster_status, unsigned int cluster_num)
+void mt_ppm_dlpt_kick_PBM(struct ppm_cluster_status *cluster_status,
+	unsigned int cluster_num)
 {
 	int power_idx;
 	unsigned int total_core = 0;
@@ -54,7 +59,7 @@ void mt_ppm_dlpt_kick_PBM(struct ppm_cluster_status *cluster_status, unsigned in
 
 	FUNC_ENTER(FUNC_LV_POLICY);
 
-	/* find power budget in table, skip this round if idx not found in table */
+	/* find power bgt in table, skip this round if idx not found */
 	power_idx = ppm_find_pwr_idx(cluster_status);
 	if (power_idx < 0)
 		goto end;
@@ -64,10 +69,12 @@ void mt_ppm_dlpt_kick_PBM(struct ppm_cluster_status *cluster_status, unsigned in
 		max_volt = MAX(max_volt, cluster_status[i].volt);
 	}
 
-	budget = ppm_calc_total_power(cluster_status, cluster_num, DYNAMIC_TABLE2REAL_PERCENTAGE);
+	budget = ppm_calc_total_power(cluster_status, cluster_num,
+		DYNAMIC_TABLE2REAL_PERCENTAGE);
 	if (!budget)
 		goto end;
-	budget = ppm_dlpt_pwr_budget_postprocess(budget, (unsigned int)power_idx);
+	budget = ppm_dlpt_pwr_budget_postprocess(
+		budget, (unsigned int)power_idx);
 
 	ppm_dbg(DLPT, "budget = %d(%d), total_core = %d, max_volt = %d\n",
 		budget, power_idx, total_core, max_volt);
@@ -94,7 +101,8 @@ void mt_ppm_dlpt_set_limit_by_pbm(unsigned int limited_power)
 
 	budget = ppm_dlpt_pwr_budget_preprocess(limited_power);
 
-	ppm_dbg(DLPT, "Get PBM notifier => budget = %d(%d)\n", budget, limited_power);
+	ppm_dbg(DLPT, "Get PBM notifier => budget = %d(%d)\n",
+		budget, limited_power);
 
 	ppm_lock(&dlpt_policy.lock);
 
@@ -125,11 +133,14 @@ static unsigned int ppm_dlpt_pwr_budget_preprocess(unsigned int budget)
 	return (budget * percentage + (100 - 1)) / 100;
 }
 
-static unsigned int ppm_dlpt_pwr_budget_postprocess(unsigned int budget, unsigned int pwr_idx)
+static unsigned int ppm_dlpt_pwr_budget_postprocess(unsigned int budget,
+	unsigned int pwr_idx)
 {
 	/* just calculate new ratio */
-	dlpt_percentage_to_real_power = (pwr_idx * 100 + (budget - 1)) / budget;
-	ppm_dbg(DLPT, "new dlpt ratio = %d (%d/%d)\n", dlpt_percentage_to_real_power, pwr_idx, budget);
+	dlpt_percentage_to_real_power =
+		(pwr_idx * 100 + (budget - 1)) / budget;
+	ppm_dbg(DLPT, "new dlpt ratio = %d (%d/%d)\n",
+		dlpt_percentage_to_real_power, pwr_idx, budget);
 
 	return budget;
 }
@@ -163,10 +174,10 @@ static int ppm_dlpt_limit_proc_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-static ssize_t ppm_dlpt_limit_proc_write(struct file *file, const char __user *buffer,
-					size_t count, loff_t *pos)
+static ssize_t ppm_dlpt_limit_proc_write(struct file *file,
+	const char __user *buffer, size_t count, loff_t *pos)
 {
-	unsigned int limited_power;
+	unsigned int limited_power = 0;
 
 	char *buf = ppm_copy_from_user_for_proc(buffer, count);
 
@@ -182,18 +193,22 @@ static ssize_t ppm_dlpt_limit_proc_write(struct file *file, const char __user *b
 	return count;
 }
 
-static int ppm_dlpt_budget_trans_percentage_proc_show(struct seq_file *m, void *v)
+static int ppm_dlpt_budget_trans_percentage_proc_show(
+	struct seq_file *m, void *v)
 {
-	seq_printf(m, "trans_percentage = %d\n", dlpt_percentage_to_real_power);
-	seq_printf(m, "PPM DLPT activate = %d\n", dlpt_policy.is_activated);
+	seq_printf(m, "trans_percentage = %d\n",
+		dlpt_percentage_to_real_power);
+	seq_printf(m, "PPM DLPT activate = %d\n",
+		dlpt_policy.is_activated);
 
 	return 0;
 }
 
-static ssize_t ppm_dlpt_budget_trans_percentage_proc_write(struct file *file, const char __user *buffer,
-					size_t count, loff_t *pos)
+static ssize_t ppm_dlpt_budget_trans_percentage_proc_write(
+	struct file *file, const char __user *buffer,
+	size_t count, loff_t *pos)
 {
-	unsigned int percentage;
+	unsigned int percentage = 0;
 
 	char *buf = ppm_copy_from_user_for_proc(buffer, count);
 
@@ -202,7 +217,7 @@ static ssize_t ppm_dlpt_budget_trans_percentage_proc_write(struct file *file, co
 
 	if (!kstrtouint(buf, 10, &percentage)) {
 		if (!percentage)
-			ppm_err("@%s: percentage should not be 0!\n", __func__);
+			ppm_err("percentage should not be 0!\n");
 		else
 			dlpt_percentage_to_real_power = percentage;
 	} else
@@ -217,9 +232,7 @@ PROC_FOPS_RW(dlpt_budget_trans_percentage);
 
 static int __init ppm_dlpt_policy_init(void)
 {
-	int ret = 0;
-#ifndef DISABLE_DLPT_FEATURE
-	int i;
+	int i, ret = 0;
 
 	struct pentry {
 		const char *name;
@@ -232,10 +245,17 @@ static int __init ppm_dlpt_policy_init(void)
 	};
 
 	FUNC_ENTER(FUNC_LV_POLICY);
+
+#ifdef DISABLE_DLPT_FEATURE
+	goto out;
+#endif
+
 	/* create procfs */
 	for (i = 0; i < ARRAY_SIZE(entries); i++) {
-		if (!proc_create(entries[i].name, S_IRUGO | S_IWUSR | S_IWGRP, policy_dir, entries[i].fops)) {
-			ppm_err("%s(), create /proc/ppm/policy/%s failed\n", __func__, entries[i].name);
+		if (!proc_create(entries[i].name, 0644,
+			policy_dir, entries[i].fops)) {
+			ppm_err("%s(), create /proc/ppm/policy/%s failed\n",
+				__func__, entries[i].name);
 			ret = -EINVAL;
 			goto out;
 		}
@@ -248,9 +268,9 @@ static int __init ppm_dlpt_policy_init(void)
 	}
 
 	ppm_info("@%s: register %s done!\n", __func__, dlpt_policy.name);
+
 out:
 	FUNC_EXIT(FUNC_LV_POLICY);
-#endif
 
 	return ret;
 }

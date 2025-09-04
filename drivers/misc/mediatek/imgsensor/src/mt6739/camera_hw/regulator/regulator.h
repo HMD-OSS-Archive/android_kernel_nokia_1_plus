@@ -13,13 +13,13 @@
 
 #ifndef __IMGSENSOR_HW_REGULATOR_H__
 #define __IMGSENSOR_HW_REGULATOR_H__
+#include "imgsensor_common.h"
 
 #include <linux/of.h>
 #include <linux/device.h>
 #include <linux/regulator/consumer.h>
 
 #include "imgsensor_hw.h"
-#include "imgsensor_common.h"
 
 extern struct device *gimgsensor_device;
 
@@ -38,19 +38,9 @@ enum REGULATOR_VOLTAGE {
 };
 
 enum REGULATOR_TYPE {
-	REGULATOR_TYPE_MAIN_VCAMA,
-	REGULATOR_TYPE_MAIN_VCAMD,
-	REGULATOR_TYPE_MAIN_VCAMIO,
-	REGULATOR_TYPE_MAIN_VCAMAF,
-	REGULATOR_TYPE_SUB_VCAMA,
-	REGULATOR_TYPE_SUB_VCAMD,
-	REGULATOR_TYPE_SUB_VCAMIO,
-	REGULATOR_TYPE_MAIN2_VCAMA,
-	REGULATOR_TYPE_MAIN2_VCAMD,
-	REGULATOR_TYPE_MAIN2_VCAMIO,
-	REGULATOR_TYPE_SUB2_VCAMA,
-	REGULATOR_TYPE_SUB2_VCAMD,
-	REGULATOR_TYPE_SUB2_VCAMIO,
+	REGULATOR_TYPE_VCAMA,
+	REGULATOR_TYPE_VCAMD,
+	REGULATOR_TYPE_VCAMIO,
 	REGULATOR_TYPE_MAX_NUM
 };
 
@@ -59,8 +49,10 @@ struct REGULATOR_CTRL {
 };
 
 struct REGULATOR {
-	struct regulator *pregulator[REGULATOR_TYPE_MAX_NUM];
-	atomic_t    enable_cnt[REGULATOR_TYPE_MAX_NUM];
+	struct regulator *pregulator[
+		IMGSENSOR_SENSOR_IDX_MAX_NUM][REGULATOR_TYPE_MAX_NUM];
+	atomic_t          enable_cnt[
+		IMGSENSOR_SENSOR_IDX_MAX_NUM][REGULATOR_TYPE_MAX_NUM];
 };
 
 enum IMGSENSOR_RETURN imgsensor_hw_regulator_open(struct IMGSENSOR_HW_DEVICE **pdevice);

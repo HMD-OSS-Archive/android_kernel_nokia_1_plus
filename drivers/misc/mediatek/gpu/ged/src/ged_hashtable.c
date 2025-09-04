@@ -15,8 +15,7 @@
 #include "ged_hashtable.h"
 #include <linux/hashtable.h>
 
-typedef struct GED_HASHTABLE_TAG
-{
+typedef struct GED_HASHTABLE_TAG {
 	unsigned int		version;
 	unsigned int		ui32Bits;
 	unsigned int		ui32Tmp;
@@ -28,8 +27,7 @@ typedef struct GED_HASHTABLE_TAG
 
 #define HT_VERSION sizeof(GED_HASHTABLE)
 
-typedef struct GED_HASHNODE_TAG
-{
+typedef struct GED_HASHNODE_TAG {
 	unsigned long		ulID;
 	void				*pvoid;
 	struct list_head	sList;

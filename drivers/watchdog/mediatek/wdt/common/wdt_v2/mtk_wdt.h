@@ -77,6 +77,7 @@
 #define MTK_WDT_STATUS_HWWDT_RST			(1 << 31)
 
 /*WDT_INTERVAL*/
+#define MTK_WDT_INTERNAL_KEY		(0x66000000)
 #define MTK_WDT_INTERVAL_MASK		(0x0fff)
 
 /*WDT_SWRST*/
@@ -106,9 +107,11 @@
 #define RGU_STAGE_KERNEL    (0x3)
 
 /* WDT_NONRST_REG2 */
-#define MTK_WDT_NONRST2_SSPM_RESET          (1 << 0)
-#define MTK_WDT_NONRST2_STAGE_OFS      (30) /* 31:30: 2-bits for current stage */
-#define MTK_WDT_NONRST2_LAST_STAGE_OFS (28) /* 29:28: 2-bits for last stage */
+#define MTK_WDT_NONRST2_SSPM_RESET     (1 << 0)
+/* 31:30: 2-bits for current stage */
+#define MTK_WDT_NONRST2_STAGE_OFS      (30)
+/* 29:28: 2-bits for last stage */
+#define MTK_WDT_NONRST2_LAST_STAGE_OFS (28)
 
 /*MTK_WDT_REQ_IRQ*/
 #define MTK_WDT_REQ_IRQ_KEY		(0x44000000)
@@ -131,6 +134,8 @@
 /* MTK_WDT_DEBUG_CTL */
 #define MTK_WDT_DEBUG_CTL_KEY           (0x59000000)
 #define MTK_RG_MCU_CACHE_PRESERVE       (0x00000008)
+#define MTK_WDT_DVFSRC_PAUSE_PULSE          (0x00008000)
+#define MTK_WDT_DVFSRC_SUCECESS_ACK         (0x00200000)
 
 /* MTK_WDT_DEBUG_CTL2 */
 #define MTK_WDT_DEBUG_CTL2_KEY           (0x55000000)
@@ -147,7 +152,7 @@
 #define MTK_WDT_DFD_THERMAL1_DIS    (1 << 18)
 #define MTK_WDT_DFD_THERMAL2_DIS    (1 << 19)
 #define MTK_WDT_DFD_TIMEOUT_SHIFT   (0)
-#define MTK_WDT_DFD_TIMEOUT_MASK    (0x1FFF << MTK_WDT_DFD_TIMEOUT_SHIFT)
+#define MTK_WDT_DFD_TIMEOUT_MASK    (0x1FFFF << MTK_WDT_DFD_TIMEOUT_SHIFT)
 
 /*MTK_WDT_RSTDEG_EN*/
 #define MTK_WDT_RSTDEG_EN1_KEY			(0xa357)
@@ -156,6 +161,11 @@
 /*MTK_WDT_SYSDBG_DEG_EN*/
 #define MTK_WDT_SYSDBG_DEG_EN1_KEY		(0x1b2a)
 #define MTK_WDT_SYSDBG_DEG_EN2_KEY		(0x4f59)
+
+enum wdt_rst_modes {
+	WDT_RST_MODE_DEFAULT,
+	WDT_RST_MODE_PMIC,
+};
 
 extern void __inner_flush_dcache_all(void);
 

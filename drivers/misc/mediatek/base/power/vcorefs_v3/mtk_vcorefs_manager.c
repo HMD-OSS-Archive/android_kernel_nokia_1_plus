@@ -20,11 +20,11 @@
 #include "mtk_vcorefs_manager.h"
 #include "mtk_vcorefs_governor.h"
 #include "mtk_spm_vcore_dvfs.h"
-#include "mmdvfs_mgr.h"
+#include "mmdvfs_pmqos.h"
 
-__weak void mmdvfs_notify_prepare_action(struct mmdvfs_prepare_action_event *event)
+__weak char *spm_vcorefs_dump_dvfs_regs(char *p)
 {
-	vcorefs_crit("NOT SUPPORT MM DVFS NOTIFY\n");
+	return NULL;
 }
 
 static DEFINE_MUTEX(vcorefs_mutex);
@@ -73,7 +73,8 @@ static struct vcorefs_profile vcorefs_ctrl = {
 	.dvfs_lock	= 0,
 	.dvfs_request   = 0,
 	.kr_req_mask	= 0,
-	.kr_log_mask	= (1U << KIR_GPU) | (1U << KIR_FBT) | (1U << KIR_PERF) | (1U << KIR_TLC),
+	.kr_log_mask	= (1U << KIR_GPU) | (1U << KIR_FBT) | (1U << KIR_PERF)
+				| (1U << KIR_TLC),
 };
 
 /*
@@ -127,7 +128,6 @@ int spm_msdc_dvfs_setting(int msdc, bool enable)
 {
 #if !defined(CONFIG_MACH_MT6759) && !defined(CONFIG_MACH_MT6759)
 	struct vcorefs_profile *pwrctrl = &vcorefs_ctrl;
-	struct mmdvfs_prepare_action_event evt_from_vcore = {MMDVFS_EVENT_PREPARE_CALIBRATION_END};
 
 	if (msdc != KIR_AUTOK_SDIO)
 		return 0;
@@ -146,7 +146,7 @@ int spm_msdc_dvfs_setting(int msdc, bool enable)
 #endif /* end of CONFIG_MTK_DCS */
 
 	/* notify MM DVFS for msdc autok end */
-	mmdvfs_notify_prepare_action(&evt_from_vcore);
+	mmdvfs_prepare_action(MMDVFS_PREPARE_CALIBRATION_END);
 #endif
 	return 0;
 }
@@ -156,7 +156,8 @@ __weak int spm_vcorefs_get_kicker_group(int kicker)
 	return 1;
 }
 
-static int _get_dvfs_opp(struct vcorefs_profile *pwrctrl, enum dvfs_kicker kicker, enum dvfs_opp opp)
+static int _get_dvfs_opp(struct vcorefs_profile *pwrctrl,
+			enum dvfs_kicker kicker, enum dvfs_opp opp)
 {
 	unsigned int dvfs_opp = UINT_MAX;
 	int i, group;
@@ -167,7 +168,8 @@ static int _get_dvfs_opp(struct vcorefs_profile *pwrctrl, enum dvfs_kicker kicke
 	group = spm_vcorefs_get_kicker_group(kicker);
 
 	for (i = 0; i < NUM_KICKER; i++) {
-		if (kicker_table[i] < 0 || group != spm_vcorefs_get_kicker_group(i))
+		if (kicker_table[i] < 0
+			|| group != spm_vcorefs_get_kicker_group(i))
 			continue;
 
 		if (kicker_table[i] < dvfs_opp)
@@ -187,8 +189,10 @@ static int _get_dvfs_opp(struct vcorefs_profile *pwrctrl, enum dvfs_kicker kicke
 	for (i = 0; i < NUM_KICKER; i++)
 		p += snprintf(p, buff_end-p, "%d, ", kicker_table[i]);
 
-	vcorefs_crit_mask(log_mask(), kicker, "kicker: %s, opp: %d, dvfs_opp: %d, sw_opp: %d, kr opp: %s\n",
-					governor_get_kicker_name(kicker), opp, dvfs_opp, vcorefs_get_sw_opp(), table);
+	vcorefs_crit_mask(log_mask(), kicker,
+		"kicker: %s, opp: %d, dvfs_opp: %d, sw_opp: %d, kr opp: %s\n",
+		governor_get_kicker_name(kicker), opp, dvfs_opp,
+		vcorefs_get_sw_opp(), table);
 
 	return dvfs_opp;
 }
@@ -196,9 +200,11 @@ static int _get_dvfs_opp(struct vcorefs_profile *pwrctrl, enum dvfs_kicker kicke
 static int kicker_request_compare(enum dvfs_kicker kicker, enum dvfs_opp opp)
 {
 	/* compare kicker table opp with request opp (except SYSFS) */
-	if (opp == kicker_table[kicker] && kicker != KIR_SYSFS && kicker != KIR_SYSFSX) {
-		vcorefs_crit_mask(log_mask(), kicker, "opp no change, kr_tb: %d, kr: %d, opp: %d\n",
-			    kicker_table[kicker], kicker, opp);
+	if (opp == kicker_table[kicker] && kicker != KIR_SYSFS
+		&& kicker != KIR_SYSFSX) {
+		vcorefs_crit_mask(log_mask(), kicker,
+				"opp no change, kr_tb: %d, kr: %d, opp: %d\n",
+				kicker_table[kicker], kicker, opp);
 		return -1;
 	}
 
@@ -207,15 +213,16 @@ static int kicker_request_compare(enum dvfs_kicker kicker, enum dvfs_opp opp)
 	return 0;
 }
 
-static int kicker_request_mask(struct vcorefs_profile *pwrctrl, enum dvfs_kicker kicker,
-			       enum dvfs_opp opp)
+static int kicker_request_mask(struct vcorefs_profile *pwrctrl,
+				enum dvfs_kicker kicker, enum dvfs_opp opp)
 {
 	if (pwrctrl->kr_req_mask & (1U << kicker)) {
 		if (opp < 0)
 			kicker_table[kicker] = opp;
 
-		vcorefs_crit_mask(log_mask(), kicker, "mask request, mask: 0x%x, kr: %d, opp: %d\n",
-			    pwrctrl->kr_req_mask, kicker, opp);
+		vcorefs_crit_mask(log_mask(), kicker,
+				"mask request, mask: 0x%x, kr: %d, opp: %d\n",
+				pwrctrl->kr_req_mask, kicker, opp);
 		return -1;
 	}
 
@@ -243,8 +250,9 @@ static int vcorefs_autok_set_vcore(int kicker, enum dvfs_opp opp)
 	int r = 0;
 
 	if (opp >= NUM_OPP || !pwrctrl->autok_lock) {
-		vcorefs_crit_mask(log_mask(), kicker, "[AUTOK] SET VCORE FAIL, opp: %d, autok_lock: %d\n",
-										opp, pwrctrl->autok_lock);
+		vcorefs_crit_mask(log_mask(), kicker,
+			"[AUTOK] SET VCORE FAIL, opp: %d, autok_lock: %d\n",
+			opp, pwrctrl->autok_lock);
 		return -1;
 	}
 
@@ -253,8 +261,10 @@ static int vcorefs_autok_set_vcore(int kicker, enum dvfs_opp opp)
 	krconf.opp = opp;
 	krconf.dvfs_opp = opp;
 
-	vcorefs_crit_mask(log_mask(), kicker, "[AUTOK] kicker: %s, opp: %d, dvfs_opp: %d, sw_opp: %d\n",
-			governor_get_kicker_name(krconf.kicker), krconf.opp, krconf.dvfs_opp, vcorefs_get_sw_opp());
+	vcorefs_crit_mask(log_mask(), kicker,
+		"[AUTOK] kicker: %s, opp: %d, dvfs_opp: %d, sw_opp: %d\n",
+		governor_get_kicker_name(krconf.kicker), krconf.opp,
+		krconf.dvfs_opp, vcorefs_get_sw_opp());
 
 	r = kick_dvfs_by_opp_index(&krconf);
 	mutex_unlock(&vcorefs_mutex);
@@ -287,15 +297,17 @@ int vcorefs_request_dvfs_opp(enum dvfs_kicker kicker, enum dvfs_opp opp)
 	u32 autok_kir_group = AUTOK_KIR_GROUP;
 
 	if (!feature_en || !pwrctrl->init_done) {
-		vcorefs_crit_mask(log_mask(), kicker, "feature_en: %d, init_done: %d, kr: %d, opp: %d\n",
-				feature_en, pwrctrl->init_done, kicker, opp);
+		vcorefs_crit_mask(log_mask(), kicker,
+			"feature_en: %d, init_done: %d, kr: %d, opp: %d\n",
+			feature_en, pwrctrl->init_done, kicker, opp);
 		return -1;
 	}
 
 	/* other kicker need waiting msdc autok finish */
 	if (!((1U << kicker) & autok_kir_group)) {
 		if (pwrctrl->autok_finish == false) {
-			vcorefs_crit_mask(log_mask(), kicker, "MSDC AUTOK NOT FINISH\n");
+			vcorefs_crit_mask(log_mask(), kicker,
+						"MSDC AUTOK NOT FINISH\n");
 			return -1;
 		}
 	}
@@ -312,16 +324,19 @@ int vcorefs_request_dvfs_opp(enum dvfs_kicker kicker, enum dvfs_opp opp)
 			vcorefs_autok_set_vcore(kicker, opp);
 			vcorefs_autok_lock_dvfs(autok_lock);
 #else
-			vcorefs_autok_set_vcore(KIR_SYSFS, _get_dvfs_opp(pwrctrl, kicker, opp));
+			vcorefs_autok_set_vcore(KIR_SYSFS,
+					_get_dvfs_opp(pwrctrl, kicker, opp));
 			vcorefs_autok_lock_dvfs(autok_lock);
 #endif
 		}
 		return 0;
 	}
 
-	if (kicker != KIR_SYSFSX && (pwrctrl->autok_lock || pwrctrl->dvfs_lock)) {
-		vcorefs_crit_mask(log_mask(), kicker, "autok_lock: %d, dvfs_lock: %d, kr: %d, opp: %d\n",
-							pwrctrl->autok_lock, pwrctrl->dvfs_lock, kicker, opp);
+	if (kicker != KIR_SYSFSX && (pwrctrl->autok_lock
+		|| pwrctrl->dvfs_lock)) {
+		vcorefs_crit_mask(log_mask(), kicker,
+			"autok_lock: %d, dvfs_lock: %d, kr: %d, opp: %d\n",
+			pwrctrl->autok_lock, pwrctrl->dvfs_lock, kicker, opp);
 		return -1;
 	}
 
@@ -386,7 +401,8 @@ static char *vcorefs_get_kicker_info(char *p)
 
 	for (i = 0; i < NUM_KICKER; i++)
 		p += snprintf(p, buff_end - p,
-			"[%s] opp: %d\n", governor_get_kicker_name(i), kicker_table[i]);
+			"[%s] opp: %d\n",
+			governor_get_kicker_name(i), kicker_table[i]);
 
 	return p;
 }
@@ -398,7 +414,8 @@ u32 log_mask(void)
 	return pwrctrl->kr_log_mask;
 }
 
-static ssize_t vcore_debug_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+static ssize_t vcore_debug_show(struct kobject *kobj,
+			struct kobj_attribute *attr, char *buf)
 {
 	struct vcorefs_profile *pwrctrl = &vcorefs_ctrl;
 	char *p = buf;
@@ -407,12 +424,17 @@ static ssize_t vcore_debug_show(struct kobject *kobj, struct kobj_attribute *att
 	p += snprintf(p, buff_end - p, "\n");
 
 	p += snprintf(p, buff_end - p, "[feature_en   ]: %d(%d)(%d)\n",
-								feature_en, pwrctrl->autok_lock, pwrctrl->dvfs_lock);
-	p += snprintf(p, buff_end - p, "[plat_init_opp]: %d\n", pwrctrl->plat_init_opp);
-	p += snprintf(p, buff_end - p, "[init_done    ]: %d\n", pwrctrl->init_done);
-	p += snprintf(p, buff_end - p, "[autok_finish ]: %d\n", pwrctrl->autok_finish);
-	p += snprintf(p, buff_end - p, "[kr_req_mask  ]: 0x%x\n", pwrctrl->kr_req_mask);
-	p += snprintf(p, buff_end - p, "[kr_log_mask  ]: 0x%x\n", pwrctrl->kr_log_mask);
+			feature_en, pwrctrl->autok_lock, pwrctrl->dvfs_lock);
+	p += snprintf(p, buff_end - p, "[plat_init_opp]: %d\n",
+			pwrctrl->plat_init_opp);
+	p += snprintf(p, buff_end - p, "[init_done    ]: %d\n",
+			pwrctrl->init_done);
+	p += snprintf(p, buff_end - p, "[autok_finish ]: %d\n",
+			pwrctrl->autok_finish);
+	p += snprintf(p, buff_end - p, "[kr_req_mask  ]: 0x%x\n",
+			pwrctrl->kr_req_mask);
+	p += snprintf(p, buff_end - p, "[kr_log_mask  ]: 0x%x\n",
+			pwrctrl->kr_log_mask);
 	p += snprintf(p, buff_end - p, "\n");
 
 	p = governor_get_dvfs_info(p);
@@ -422,8 +444,10 @@ static ssize_t vcore_debug_show(struct kobject *kobj, struct kobj_attribute *att
 	p += snprintf(p, buff_end - p, "\n");
 
 #ifdef CONFIG_MTK_RAM_CONSOLE
-	p += snprintf(p, buff_end - p, "[aee]vcore_dvfs_opp   : 0x%x\n", aee_rr_curr_vcore_dvfs_opp());
-	p += snprintf(p, buff_end - p, "[aee]vcore_dvfs_status: 0x%x\n", aee_rr_curr_vcore_dvfs_status());
+	p += snprintf(p, buff_end - p, "[aee]vcore_dvfs_opp   : 0x%x\n",
+			aee_rr_curr_vcore_dvfs_opp());
+	p += snprintf(p, buff_end - p, "[aee]vcore_dvfs_status: 0x%x\n",
+			aee_rr_curr_vcore_dvfs_status());
 	p += snprintf(p, buff_end - p, "\n");
 #endif
 
@@ -432,8 +456,9 @@ static ssize_t vcore_debug_show(struct kobject *kobj, struct kobj_attribute *att
 	return p - buf;
 }
 
-static ssize_t vcore_debug_store(struct kobject *kobj, struct kobj_attribute *attr,
-				 const char *buf, size_t count)
+static ssize_t vcore_debug_store(struct kobject *kobj,
+				struct kobj_attribute *attr,
+				const char *buf, size_t count)
 {
 	struct vcorefs_profile *pwrctrl = &vcorefs_ctrl;
 	struct kicker_config krconf;
@@ -447,7 +472,8 @@ static ssize_t vcore_debug_store(struct kobject *kobj, struct kobj_attribute *at
 	if (sscanf(buf, "%31s %d", cmd, &val) != 2)
 		return -EPERM;
 
-	if ((pwrctrl->kr_log_mask & 0xFFFF) != 65535) /* no log when DRAM HQA stress (0xFFFF)*/
+	/* no log when DRAM HQA stress (0xFFFF)*/
+	if ((pwrctrl->kr_log_mask & 0xFFFF) != 65535)
 		vcorefs_crit("vcore_debug: cmd: %s, val: %d\n", cmd, val);
 
 	if (!strcmp(cmd, "feature_en")) {
@@ -494,7 +520,8 @@ static ssize_t vcore_debug_store(struct kobject *kobj, struct kobj_attribute *at
 	return count;
 }
 
-static ssize_t opp_table_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+static ssize_t opp_table_show(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
 {
 	char *p = buf;
 
@@ -504,7 +531,8 @@ static ssize_t opp_table_show(struct kobject *kobj, struct kobj_attribute *attr,
 	return p - buf;
 }
 
-static ssize_t opp_num_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+static ssize_t opp_num_show(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
 {
 	int num = vcorefs_get_num_opp();
 	char *p = buf;

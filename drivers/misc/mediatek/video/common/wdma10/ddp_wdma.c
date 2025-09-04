@@ -39,7 +39,8 @@ unsigned int wdma_index(enum DISP_MODULE_ENUM module)
 		idx = 1;
 		break;
 	default:
-		DDPERR("[DDP] error: invalid wdma module=%d\n", module);	/* invalid module */
+		DDPERR("[DDP] error: invalid wdma module=%d\n",
+			module);	/* invalid module */
 		ASSERT(0);
 	}
 	return idx;
@@ -49,9 +50,12 @@ int wdma_stop(enum DISP_MODULE_ENUM module, void *handle)
 {
 	unsigned int idx = wdma_index(module);
 
-	DISP_REG_SET(handle, idx * DISP_WDMA_INDEX_OFFSET + DISP_REG_WDMA_INTEN, 0x00);
-	DISP_REG_SET(handle, idx * DISP_WDMA_INDEX_OFFSET + DISP_REG_WDMA_EN, 0x00);
-	DISP_REG_SET(handle, idx * DISP_WDMA_INDEX_OFFSET + DISP_REG_WDMA_INTSTA, 0x00);
+	DISP_REG_SET(handle,
+		idx * DISP_WDMA_INDEX_OFFSET + DISP_REG_WDMA_INTEN, 0x00);
+	DISP_REG_SET(handle,
+		idx * DISP_WDMA_INDEX_OFFSET + DISP_REG_WDMA_EN, 0x00);
+	DISP_REG_SET(handle,
+		idx * DISP_WDMA_INDEX_OFFSET + DISP_REG_WDMA_INTSTA, 0x00);
 
 	return 0;
 }
@@ -61,9 +65,11 @@ int wdma_reset(enum DISP_MODULE_ENUM module, void *handle)
 	unsigned int delay_cnt = 0;
 	unsigned int idx = wdma_index(module);
 
-	DISP_REG_SET(handle, idx * DISP_WDMA_INDEX_OFFSET + DISP_REG_WDMA_RST, 0x01);	/* trigger soft reset */
+	DISP_REG_SET(handle, idx * DISP_WDMA_INDEX_OFFSET +
+		DISP_REG_WDMA_RST, 0x01);	/* trigger soft reset */
 	if (!handle) {
-		while ((DISP_REG_GET(idx * DISP_WDMA_INDEX_OFFSET + DISP_REG_WDMA_FLOW_CTRL_DBG) &
+		while ((DISP_REG_GET(idx * DISP_WDMA_INDEX_OFFSET +
+			DISP_REG_WDMA_FLOW_CTRL_DBG) &
 			0x1) == 0) {
 			delay_cnt++;
 			udelay(10);
@@ -75,7 +81,9 @@ int wdma_reset(enum DISP_MODULE_ENUM module, void *handle)
 	} else {
 		/* add comdq polling */
 	}
-	DISP_REG_SET(handle, idx * DISP_WDMA_INDEX_OFFSET + DISP_REG_WDMA_RST, 0x0);	/* trigger soft reset */
+	/* trigger soft reset */
+	DISP_REG_SET(handle,
+		idx * DISP_WDMA_INDEX_OFFSET + DISP_REG_WDMA_RST, 0x0);
 
 	return 0;
 }

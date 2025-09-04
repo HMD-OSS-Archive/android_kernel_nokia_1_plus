@@ -42,17 +42,21 @@ static struct ccci_info *ccci_sys_info;
 
 static void ccci_obj_release(struct kobject *kobj)
 {
-	struct ccci_info *ccci_info_temp = container_of(kobj, struct ccci_info, kobj);
+	struct ccci_info *ccci_info_temp =
+		container_of(kobj, struct ccci_info, kobj);
 
 	kfree(ccci_info_temp);
-	ccci_sys_info = NULL;	/* as ccci_info_temp==ccci_sys_info */
+	/* as ccci_info_temp==ccci_sys_info */
+	ccci_sys_info = NULL;
 }
 
-static ssize_t ccci_attr_show(struct kobject *kobj, struct attribute *attr, char *buf)
+static ssize_t ccci_attr_show(struct kobject *kobj,
+	struct attribute *attr, char *buf)
 {
 	ssize_t len = 0;
 
-	struct ccci_attribute *a = container_of(attr, struct ccci_attribute, attr);
+	struct ccci_attribute *a =
+		container_of(attr, struct ccci_attribute, attr);
 
 	if (a->show)
 		len = a->show(buf);
@@ -60,11 +64,13 @@ static ssize_t ccci_attr_show(struct kobject *kobj, struct attribute *attr, char
 	return len;
 }
 
-static ssize_t ccci_attr_store(struct kobject *kobj, struct attribute *attr, const char *buf, size_t count)
+static ssize_t ccci_attr_store(struct kobject *kobj,
+	struct attribute *attr, const char *buf, size_t count)
 {
 	ssize_t len = 0;
 
-	struct ccci_attribute *a = container_of(attr, struct ccci_attribute, attr);
+	struct ccci_attribute *a =
+		container_of(attr, struct ccci_attribute, attr);
 
 	if (a->store)
 		len = a->store(buf, count);
@@ -85,7 +91,8 @@ static get_status_func_t get_status_func[MAX_MD_NUM];
 static boot_md_func_t boot_md_func[MAX_MD_NUM];
 static int get_md_status(int md_id, char val[], int size)
 {
-	if ((md_id < MAX_MD_NUM) && (get_status_func[md_id] != NULL))
+	if ((md_id < MAX_MD_NUM)
+			&& (get_status_func[md_id] != NULL))
 		(get_status_func[md_id]) (md_id, val, size);
 	else
 		snprintf(val, 32, "md%d:n/a", md_id + 1);
@@ -118,8 +125,10 @@ static ssize_t boot_status_show(char *buf)
 	get_md_status(MD_SYS5, md5_sta_str, 32);
 
 	/* Final string */
-	return snprintf(buf, 32 * 4 + 3 * 4 + 1, "%s | %s | %s | md4:n/a | %s\n", md1_sta_str, md2_sta_str, md3_sta_str,
-			md5_sta_str);
+	return snprintf(buf, 32 * 4 + 3 * 4 + 1,
+			"%s | %s | %s | md4:n/a | %s\n",
+			md1_sta_str, md2_sta_str,
+			md3_sta_str, md5_sta_str);
 }
 
 static ssize_t boot_status_store(const char *buf, size_t count)
@@ -154,7 +163,10 @@ static ssize_t ccci_md_enable_show(char *buf)
 	}
 
 	/* Final string */
-	return snprintf(buf, 32, "%c-%c-%c-%c-%c (1->5)\n", md_en[0], md_en[1], md_en[2], md_en[3], md_en[4]);
+	return snprintf(buf, 32,
+			"%c-%c-%c-%c-%c (1->5)\n",
+			md_en[0], md_en[1], md_en[2],
+			md_en[3], md_en[4]);
 }
 
 CCCI_ATTR(md_en, 0660, &ccci_md_enable_show, NULL);
@@ -222,11 +234,14 @@ static ssize_t ccci_lk_load_md_show(char *buf)
 CCCI_ATTR(lk_md, 0444, &ccci_lk_load_md_show, NULL);
 
 /* Sys -- get ccci private feature info */
-/* If platform has special feature setting, platform code will implemet this function */
+/* If platform has special feature setting,
+ * platform code will implemet this function
+ */
 int __attribute__((weak)) ccci_get_plat_ft_inf(char buf[], int size)
 {
 	return (ssize_t)snprintf(buf, size, "ft_inf_ver:1");
 }
+
 static ssize_t ccci_ft_inf_show(char *buf)
 {
 	if (ccci_get_plat_ft_inf) {
@@ -256,29 +271,40 @@ static ssize_t kcfg_setting_show(char *buf)
 	}
 	/* MD enable setting part */
 	/* Reserve 16 byte to store size info */
-	actual_write = snprintf(&buf[curr], 4096 - 16 - curr, "[modem num]:%d\n", md_num);
+	actual_write = snprintf(&buf[curr],
+					4096 - 16 - curr,
+					"[modem num]:%d\n",
+					md_num);
 	curr += actual_write;
 	/* Reserve 16 byte to store size info */
 	actual_write = snprintf(&buf[curr], 4096 - 16 - curr,
-		"[modem en]:%c-%c-%c-%c-%c\n", md_en[0], md_en[1], md_en[2], md_en[3], md_en[4]);
+		"[modem en]:%c-%c-%c-%c-%c\n",
+		md_en[0], md_en[1], md_en[2],
+		md_en[3], md_en[4]);
 	curr += actual_write;
 
 	if (ccci_get_opt_val("opt_eccci_c2k") > 0) {
-		actual_write = snprintf(&buf[curr], 4096 - curr, "[MTK_ECCCI_C2K]:1\n");
+		actual_write = snprintf(&buf[curr],
+			4096 - curr, "[MTK_ECCCI_C2K]:1\n");
 		curr += actual_write;
 	}
-
-	if (ccci_port_ver == 6) /* ECCCI_FSM */
-		actual_write = snprintf(&buf[curr], 4096 - curr, "[ccci_drv_ver]:V2\n"); /* FSM using v2 */
+	/* ECCCI_FSM */
+	if (ccci_port_ver == 6)
+		/* FSM using v2 */
+		actual_write = snprintf(&buf[curr], 4096 - curr,
+			"[ccci_drv_ver]:V2\n");
 	else
-		actual_write = snprintf(&buf[curr], 4096 - curr, "[ccci_drv_ver]:V1\n");
+		actual_write = snprintf(&buf[curr], 4096 - curr,
+			"[ccci_drv_ver]:V1\n");
 	curr += actual_write;
 
 	/* Add total size to tail */
-	actual_write = snprintf(&buf[curr], 4096 - curr, "total:%d\n", curr);
+	actual_write = snprintf(&buf[curr],
+		4096 - curr, "total:%d\n", curr);
 	curr += actual_write;
 
-	CCCI_UTIL_INF_MSG("cfg_info_buffer size:%d\n", curr);
+	CCCI_UTIL_INF_MSG("cfg_info_buffer size:%d\n",
+		curr);
 	return (ssize_t) curr;
 }
 
@@ -310,7 +336,8 @@ static struct kobj_type ccci_ktype = {
 	.default_attrs = ccci_default_attrs
 };
 
-int ccci_sysfs_add_modem(int md_id, void *kobj, void *ktype, get_status_func_t get_sta_func, boot_md_func_t boot_func)
+int ccci_sysfs_add_modem(int md_id, void *kobj, void *ktype,
+	get_status_func_t get_sta_func, boot_md_func_t boot_func)
 {
 	int ret;
 	static int md_add_flag;
@@ -327,8 +354,9 @@ int ccci_sysfs_add_modem(int md_id, void *kobj, void *ktype, get_status_func_t g
 	}
 
 	ret =
-	    kobject_init_and_add((struct kobject *)kobj, (struct kobj_type *)ktype, &ccci_sys_info->kobj, "mdsys%d",
-				 md_id + 1);
+	    kobject_init_and_add((struct kobject *)kobj,
+		(struct kobj_type *)ktype, &ccci_sys_info->kobj,
+		"mdsys%d", md_id + 1);
 	if (ret < 0) {
 		kobject_put(kobj);
 		CCCI_UTIL_ERR_MSG_WITH_ID(md_id, "fail to add md kobject\n");
@@ -352,7 +380,8 @@ int ccci_common_sysfs_init(void)
 
 	memset(ccci_sys_info, 0, sizeof(struct ccci_info));
 
-	ret = kobject_init_and_add(&ccci_sys_info->kobj, &ccci_ktype, kernel_kobj, CCCI_KOBJ_NAME);
+	ret = kobject_init_and_add(&ccci_sys_info->kobj,
+			&ccci_ktype, kernel_kobj, CCCI_KOBJ_NAME);
 	if (ret < 0) {
 		kobject_put(&ccci_sys_info->kobj);
 		CCCI_UTIL_ERR_MSG("fail to add ccci kobject\n");

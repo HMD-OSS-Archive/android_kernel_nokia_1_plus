@@ -18,7 +18,9 @@
 
 #if defined(CONFIG_ARCH_MT6755) || defined(CONFIG_ARCH_MT6797)
 
-#elif defined(CONFIG_ARCH_MT6735) || defined(CONFIG_ARCH_MT6735M) || defined(CONFIG_ARCH_MT6753)
+#elif defined(CONFIG_ARCH_MT6735) \
+	|| defined(CONFIG_ARCH_MT6735M) \
+	|| defined(CONFIG_ARCH_MT6753)
 
 #elif defined(CONFIG_ARCH_MT6580)
 
@@ -38,6 +40,11 @@
 	|| defined(CONFIG_MACH_MT6771)
 
 #include "spm_v4/mtk_spm_resource_req.h"
+
+#elif defined(CONFIG_MACH_MT6768) \
+	|| defined(CONFIG_MACH_MT6785) \
+	|| defined(CONFIG_MACH_MT6765)
+#include "spm/mtk_spm_resource_req.h"
 
 #endif
 

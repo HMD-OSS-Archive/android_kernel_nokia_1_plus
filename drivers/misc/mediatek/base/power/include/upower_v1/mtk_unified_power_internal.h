@@ -23,19 +23,20 @@
 extern "C" {
 #endif
 
-#include <linux/kernel.h>
-#include <linux/init.h>
-#include <linux/spinlock.h>
-#include <linux/rcupdate.h>
-#include <linux/slab.h>
 #include <linux/errno.h>
 #include <linux/export.h>
-#include <linux/module.h>
+#include <linux/init.h>
+#include <linux/kernel.h>
 #include <linux/ktime.h>
+#include <linux/module.h>
+#include <linux/rcupdate.h>
+#include <linux/slab.h>
+#include <linux/spinlock.h>
 
 #define UPOWER_ENABLE (1)
 
-/* #define EARLY_PORTING_SPOWER */ /* will not get leakage from leakage driver */
+/* #define EARLY_PORTING_SPOWER */
+/* will not get leakage from leakage driver */
 /* #define UPOWER_UT */
 /* #define UPOWER_PROFILE_API_TIME */
 #define UPOWER_RCU_LOCK
@@ -45,18 +46,18 @@ extern "C" {
 #define UPOWER_TAG "[UPOWER]"
 
 #if UPOWER_LOG
-	#define upower_error(fmt, args...) pr_debug(UPOWER_TAG fmt, ##args)
-	#define upower_debug(fmt, args...) pr_debug(UPOWER_TAG fmt, ##args)
+#define upower_error(fmt, args...) pr_debug(UPOWER_TAG fmt, ##args)
+#define upower_debug(fmt, args...) pr_debug(UPOWER_TAG fmt, ##args)
 #else
-	#define upower_error(fmt, args...)
-	#define upower_debug(fmt, args...)
+#define upower_error(fmt, args...)
+#define upower_debug(fmt, args...)
 #endif
 
 /*
  * bit operation
  */
-#undef  BIT
-#define BIT(bit)	(1U << (bit))
+#undef BIT
+#define BIT(bit) (1U << (bit))
 
 #define MSB(range)	(1 ? range)
 #define LSB(range)	(0 ? range)
@@ -64,8 +65,8 @@ extern "C" {
  * Genearte a mask wher MSB to LSB are all 0b1
  * @r:	Range in the form of MSB:LSB
  */
-#define BITMASK(r)	\
-	(((unsigned) -1 >> (31 - MSB(r))) & ~((1U << LSB(r)) - 1))
+#define BITMASK(r) \
+	(((unsigned long)-1 >> (31 - MSB(r))) & ~((1U << LSB(r)) - 1))
 
 /**
  * Set value at MSB:LSB. For example, BITS(7:3, 0x5A)
@@ -73,9 +74,10 @@ extern "C" {
  * @r:	Range in the form of MSB:LSB
  */
 /* BITS(MSB:LSB, value) => Set value at MSB:LSB  */
-#define BITS(r, val)	((val << LSB(r)) & BITMASK(r))
+#define BITS(r, val) ((val << LSB(r)) & BITMASK(r))
 
-#define GET_BITS_VAL(_bits_, _val_)   (((_val_) & (BITMASK(_bits_))) >> ((0) ? _bits_))
+#define GET_BITS_VAL(_bits_, _val_) \
+	(((_val_) & (BITMASK(_bits_))) >> ((0) ? _bits_))
 
 #ifdef UPOWER_RCU_LOCK
 extern void upower_read_lock(void);
@@ -87,7 +89,6 @@ enum {
 	GET_PWR,
 	GET_TBL_PTR,
 	UPDATE_TBL_PTR,
-
 	TEST_NUM
 };
 extern void upower_get_start_time_us(unsigned int type);

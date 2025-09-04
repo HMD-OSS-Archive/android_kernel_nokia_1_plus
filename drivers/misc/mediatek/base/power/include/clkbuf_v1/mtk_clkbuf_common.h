@@ -12,10 +12,10 @@
  */
 
 /**
-* @file    mtk_clk_buf_common.h
-* @brief   Driver for clock buffer control
-*
-*/
+ * @file    mtk_clk_buf_common.h
+ * @brief   Driver for clock buffer control
+ *
+ */
 #ifndef __MTK_CLK_BUF_COMMON_H__
 #define __MTK_CLK_BUF_COMMON_H__
 
@@ -37,16 +37,16 @@
 #include <mt-plat/upmu_common.h>
 
 #define TAG     "[Power/clkbuf]"
+#ifdef pr_fmt
+#undef pr_fmt
+#endif
+#define pr_fmt(fmt) "[Power/clkbuf] " fmt
 
-#define clk_buf_pr_err(fmt, args...)		pr_err(TAG fmt, ##args)
-#define clk_buf_pr_info(fmt, args...)		pr_info(TAG fmt, ##args)
-#define clk_buf_pr_info_limit(fmt, args...)	pr_info_ratelimited(TAG fmt, ##args)
 #define clk_buf_pr_dbg(fmt, args...)			\
 	do {						\
 		if (clkbuf_debug)			\
-			pr_info(TAG fmt, ##args);	\
+			pr_info(fmt, ##args);		\
 	} while (0)
-
 #define clkbuf_readl(addr)			__raw_readl(addr)
 #define clkbuf_writel(addr, val)	mt_reg_sync_writel(val, addr)
 

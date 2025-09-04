@@ -21,6 +21,7 @@
  * level 9: dump log buffer
  */
 extern int g_vpu_log_level;
+extern int g_vpu_internal_log_level;
 extern unsigned int g_func_mask;
 
 enum VpuFuncMask {
@@ -29,10 +30,17 @@ enum VpuFuncMask {
 };
 
 enum VpuLogThre {
-	VpuLogThre_PERFORMANCE    = 1,	/* >1, performance break down check */
-	VpuLogThre_ALGO_OPP_INFO  = 2,	/* >2, algo info, opp info check */
-	VpuLogThre_STATE_MACHINE  = 3,	/* >3, state machine check, while wait vcore/do running */
-	VpuLogThre_DUMP_BUF_MVA   = 4	/* >4, dump buffer mva */
+	/* >1, performance break down check */
+	VpuLogThre_PERFORMANCE    = 1,
+
+	/* >2, algo info, opp info check */
+	Log_ALGO_OPP_INFO  = 2,
+
+	/* >3, state machine check, while wait vcore/do running */
+	Log_STATE_MACHINE  = 3,
+
+	/* >4, dump buffer mva */
+	VpuLogThre_DUMP_BUF_MVA   = 4
 };
 
 #endif

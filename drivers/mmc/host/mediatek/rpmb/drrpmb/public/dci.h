@@ -53,7 +53,8 @@ struct dciCommandHeader_t {
  * DCI response header.
  */
 struct dciResponseHeader_t {
-	dciResponseId_t     responseId; /**< Response ID (must be command ID | RSP_ID_MASK )*/
+	/**< Response ID (must be command ID | RSP_ID_MASK )*/
+	dciResponseId_t     responseId;
 	dciReturnCode_t     returnCode; /**< Return code of command */
 };
 

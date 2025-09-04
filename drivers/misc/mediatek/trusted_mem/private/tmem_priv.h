@@ -25,9 +25,6 @@ int register_trusted_mem_device(enum TRUSTED_MEM_TYPE register_type,
 void trusted_mem_ut_cmd_invoke(u64 cmd, u64 param1, u64 param2, u64 param3);
 struct trusted_mem_device *
 get_trusted_mem_device(enum TRUSTED_MEM_TYPE mem_type);
-struct trusted_mem_device *create_and_register_shared_trusted_mem_device(
-	enum TRUSTED_MEM_TYPE mem_type, struct trusted_mem_device *tmem_device,
-	char *dev_name);
 
 void get_ssmr_ops(struct ssmr_operations **ops);
 struct peer_mgr_desc *create_peer_mgr_desc(void);
@@ -45,6 +42,7 @@ int regmgr_online(struct region_mgr_desc *mgr_desc,
 		  enum TRUSTED_MEM_TYPE try_mem_type);
 int regmgr_offline(struct region_mgr_desc *mgr_desc);
 bool get_device_busy_status(struct trusted_mem_device *mem_device);
+bool is_mtee_mchunks(enum TRUSTED_MEM_TYPE mem_type);
 
 #ifdef TCORE_PROFILING_SUPPORT
 struct profile_mgr_desc *create_profile_mgr_desc(void);

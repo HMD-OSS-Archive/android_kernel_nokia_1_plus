@@ -41,7 +41,8 @@
 #define CMDQ_MAX_READ_SLOT_COUNT        (4)
 #define CMDQ_INIT_FREE_TASK_COUNT       (8)
 
-#define CMDQ_MAX_HIGH_PRIORITY_THREAD_COUNT (7)	/* Thread that are high-priority (display threads) */
+/* Thread that are high-priority (display threads) */
+#define CMDQ_MAX_HIGH_PRIORITY_THREAD_COUNT (7)
 #define CMDQ_MIN_SECURE_THREAD_ID		(12)
 #define CMDQ_MAX_SECURE_THREAD_COUNT	(3)
 
@@ -55,7 +56,8 @@
 #endif
 
 #define CMDQ_INITIAL_CMD_BLOCK_SIZE     (PAGE_SIZE)
-#define CMDQ_INST_SIZE                  (2 * sizeof(uint32_t))	/* instruction is 64-bit */
+/* instruction is 64-bit */
+#define CMDQ_INST_SIZE                  (2 * sizeof(uint32_t))
 #define CMDQ_CMD_BUFFER_SIZE		(PAGE_SIZE - 32 * CMDQ_INST_SIZE)
 
 
@@ -110,7 +112,8 @@ enum CMDQ_HW_THREAD_PRIORITY_ENUM {
 	CMDQ_THR_PRIO_SUPERLOW = 0,	/* low priority monitor loop */
 
 	CMDQ_THR_PRIO_NORMAL = 1,	/* nomral priority */
-	CMDQ_THR_PRIO_DISPLAY_TRIGGER = 2,	/* trigger loop (enables display mutex) */
+	/* trigger loop (enables display mutex) */
+	CMDQ_THR_PRIO_DISPLAY_TRIGGER = 2,
 
 	/* display ESD check (every 2 secs) */
 #ifdef CMDQ_SPECIAL_ESD_PRIORITY
@@ -119,11 +122,14 @@ enum CMDQ_HW_THREAD_PRIORITY_ENUM {
 	CMDQ_THR_PRIO_DISPLAY_ESD = 4,
 #endif
 
-	CMDQ_THR_PRIO_DISPLAY_CONFIG = 4,	/* display config (every frame) */
+	/* display config (every frame) */
+	CMDQ_THR_PRIO_DISPLAY_CONFIG = 4,
 
-	CMDQ_THR_PRIO_SUPERHIGH = 5,	/* High priority monitor loop */
+	/* High priority monitor loop */
+	CMDQ_THR_PRIO_SUPERHIGH = 5,
 
-	CMDQ_THR_PRIO_MAX = 7,	/* maximum possible priority */
+	/* maximum possible priority */
+	CMDQ_THR_PRIO_MAX = 7,
 };
 
 enum CMDQ_SCENARIO_ENUM {
@@ -150,7 +156,8 @@ enum CMDQ_SCENARIO_ENUM {
 
 	/* ESD check */
 	CMDQ_SCENARIO_DISP_ESD_CHECK = 15,
-	/* for screen capture to wait for RDMA-done without blocking config thread */
+	/* for screen capture to wait for */
+	/* RDMA-done without blocking config thread */
 	CMDQ_SCENARIO_DISP_SCREEN_CAPTURE = 16,
 
 	/* notifiy there are some tasks exec done in secure path */
@@ -164,7 +171,8 @@ enum CMDQ_SCENARIO_ENUM {
 	/* color path request from user sapce */
 	CMDQ_SCENARIO_USER_DISP_COLOR = 21,
 
-	/* [phased out]client from user space, so the cmd buffer is in user space. */
+	/* [phased out]client from user space, */
+	/* so the cmd buffer is in user space. */
 	CMDQ_SCENARIO_USER_SPACE = 22,
 
 	CMDQ_SCENARIO_DISP_MIRROR_MODE = 23,
@@ -182,8 +190,10 @@ enum CMDQ_SCENARIO_ENUM {
 
 	CMDQ_SCENARIO_RDMA2_DISP = 34,
 
-	CMDQ_SCENARIO_HIGHP_TRIGGER_LOOP = 35,	/* for primary trigger loop enable pre-fetch usage */
-	CMDQ_SCENARIO_LOWP_TRIGGER_LOOP = 36,	/* for low priority monitor loop to polling bus status */
+	/* for primary trigger loop enable pre-fetch usage */
+	CMDQ_SCENARIO_HIGHP_TRIGGER_LOOP = 35,
+	/* for low priority monitor loop to polling bus status */
+	CMDQ_SCENARIO_LOWP_TRIGGER_LOOP = 36,
 
 	CMDQ_SCENARIO_KERNEL_CONFIG_GENERAL = 37,
 
@@ -260,7 +270,8 @@ struct cmdqDTSDataStruct {
 /* Custom "wide" pointer type for 64-bit job handle (pointer to VA) */
 /* typedef unsigned long long cmdqJobHandle_t; */
 #define cmdqJobHandle_t unsigned long long
-/* Custom "wide" pointer type for 64-bit compatibility. Always cast from uint32_t*. */
+/* Custom "wide" pointer type for 64-bit */
+/* compatibility. Always cast from uint32_t*. */
 /* typedef unsigned long long cmdqU32Ptr_t; */
 #define cmdqU32Ptr_t unsigned long long
 
@@ -268,7 +279,8 @@ struct cmdqDTSDataStruct {
 
 struct cmdqReadRegStruct {
 	uint32_t count;		/* number of entries in regAddresses */
-	cmdqU32Ptr_t regAddresses;	/* an array of 32-bit register addresses (uint32_t) */
+	/* an array of 32-bit register addresses (uint32_t) */
+	cmdqU32Ptr_t regAddresses;
 };
 
 struct cmdqRegValueStruct {
@@ -286,12 +298,14 @@ struct cmdqReadAddressStruct {
 	/* [IN] array of physical addresses to read. */
 	/* these value must allocated by CMDQ_IOCTL_ALLOC_WRITE_ADDRESS ioctl */
 	/*  */
-	/* indeed param dmaAddresses should be UNSIGNED LONG type for 64 bit kernel. */
-	/* Considering our plartform supports max 4GB RAM(upper-32bit don't care for SW) */
+	/* indeed param dmaAddresses should be */
+	/* UNSIGNED LONG type for 64 bit kernel. */
+	/* Considering our plartform supports max */
+	/* 4GB RAM(upper-32bit don't care for SW) */
 	/* and consistent common code interface, remain uint32_t type. */
 	cmdqU32Ptr_t dmaAddresses;
-
-	cmdqU32Ptr_t values;	/* [OUT] uint32_t values that dmaAddresses point into */
+	/* [OUT] uint32_t values that dmaAddresses point into */
+	cmdqU32Ptr_t values;
 };
 
 /*
@@ -306,12 +320,15 @@ struct cmdqReadAddressStruct {
 enum CMDQ_SEC_ADDR_METADATA_TYPE {
 	CMDQ_SAM_H_2_PA = 0,	/* sec handle to sec PA */
 	CMDQ_SAM_H_2_MVA = 1,	/* sec handle to sec MVA */
-	CMDQ_SAM_NMVA_2_MVA = 2,	/* map normal MVA to secure world */
-	CMDQ_SAM_DDP_REG_HDCP = 3,	/* DDP register needs to set opposite value when HDCP fail */
+	/* map normal MVA to secure world */
+	CMDQ_SAM_NMVA_2_MVA = 2,
+	/* DDP register needs to set opposite value when HDCP fail */
+	CMDQ_SAM_DDP_REG_HDCP = 3,
 };
 
 struct cmdqSecAddrMetadataStruct {
-	/* [IN]_d, index of instruction. Update its arg_b value to real PA/MVA in secure world */
+	/* [IN]_d, index of instruction. Update its */
+	/* arg_b value to real PA/MVA in secure world */
 	uint32_t instrIndex;
 
 	/*
@@ -331,7 +348,8 @@ struct cmdqSecAddrMetadataStruct {
 
 	uint32_t type;		/* [IN] addr handle type */
 	uint64_t baseHandle;	/* [IN]_h, secure address handle */
-	uint32_t blockOffset;	/* [IN]_b, block offset from handle(PA) to current block(plane) */
+	/* [IN]_b, block offset from handle(PA) to current block(plane) */
+	uint32_t blockOffset;
 	uint32_t offset;	/* [IN]_b, buffser offset to secure handle */
 	uint32_t size;		/* buffer size */
 	uint32_t port;		/* hw port id (i.e. M4U port id) */
@@ -348,16 +366,19 @@ enum CMDQ_DISP_MODE {
 struct cmdqSecDataStruct {
 	bool is_secure;		/* [IN]true for secure command */
 
-	/* address metadata, used to translate secure buffer PA related instruction in secure world */
+	/* address metadata, used to translate secure */
+	/* buffer PA related instruction in secure world */
 	uint32_t addrMetadataCount;	/* [IN] count of element in addrList */
-	cmdqU32Ptr_t addrMetadatas;	/* [IN] array of cmdqSecAddrMetadataStruct */
+	/* [IN] array of cmdqSecAddrMetadataStruct */
+	cmdqU32Ptr_t addrMetadatas;
 	uint32_t addrMetadataMaxCount;	/*[Reserved] */
 
 	uint64_t enginesNeedDAPC;
 	uint64_t enginesNeedPortSecurity;
 
 	/* [Reserved] This is for CMDQ driver usage itself. Not for client. */
-	int32_t waitCookie;	/* task index in thread's tasklist. -1 for not in tasklist. */
+	/* task index in thread's tasklist. -1 for not in tasklist. */
+	int32_t waitCookie;
 	bool resetExecCnt;	/* reset HW thread in SWd */
 
 #ifdef CONFIG_MTK_CMDQ_TAB
@@ -380,7 +401,8 @@ struct cmdq_v3_replace_struct {
 #ifdef CMDQ_PROFILE_MARKER_SUPPORT
 struct cmdqProfileMarkerStruct {
 	uint32_t count;
-	long long hSlot;	/* i.e. cmdqBackupSlotHandle, physical start address of backup slot */
+	/* i.e. cmdqBackupSlotHandle, physical start address of backup slot */
+	long long hSlot;
 	cmdqU32Ptr_t tag[CMDQ_MAX_PROFILE_MARKER_IN_TASK];
 };
 #endif
@@ -407,7 +429,8 @@ struct cmdqCommandStruct {
 	struct cmdqSecDataStruct secData;
 	/* [IN] set to non-zero to enable register debug dump. */
 	uint32_t debugRegDump;
-	/* [Reserved] This is for CMDQ driver usage itself. Not for client. Do not access this field from User Space */
+	/* [Reserved] This is for CMDQ driver usage itself. */
+	/* Not for client. Do not access this field from User Space */
 	cmdqU32Ptr_t privateData;
 #ifdef CMDQ_PROFILE_MARKER_SUPPORT
 	struct cmdqProfileMarkerStruct profileMarker;
@@ -417,7 +440,8 @@ struct cmdqCommandStruct {
 };
 
 enum CMDQ_CAP_BITS {
-	/* bit 0: TRUE if WFE instruction support is ready. FALSE if we need to POLL instead. */
+	/* bit 0: TRUE if WFE instruction support */
+	/* is ready. FALSE if we need to POLL instead. */
 	CMDQ_CAP_WFE = 0,
 };
 

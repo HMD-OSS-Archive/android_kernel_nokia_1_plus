@@ -33,7 +33,8 @@ unsigned int __attribute__((weak)) enable_4G(void)
 		ret = 0; \
 		if (enable_4G()) {\
 			if (((phys_addr_t)phy_addr < MT_OVERFLOW_ADDR_START)\
-					&& (((phys_addr_t)phy_addr + size) >= MT_OVERFLOW_ADDR_START)) \
+					&& (((phys_addr_t)phy_addr + size) >= \
+					MT_OVERFLOW_ADDR_START)) \
 				ret = MT_OVERFLOW_ADDR_START - phy_addr; \
 		} \
 	}  while (0) \
@@ -42,7 +43,8 @@ unsigned int __attribute__((weak)) enable_4G(void)
 #define MAPPING_DRAM_ACCESS_ADDR(phy_addr) \
 	do { \
 		if (enable_4G()) {\
-			if (phy_addr >= INTERAL_MAPPING_OFFSET && phy_addr < INTERAL_MAPPING_LIMIT) \
+			if (phy_addr >= INTERAL_MAPPING_OFFSET \
+				&& phy_addr < INTERAL_MAPPING_LIMIT) \
 				phy_addr += INTERAL_MAPPING_OFFSET; \
 		} \
 	} while (0)\

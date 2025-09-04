@@ -1,15 +1,18 @@
 /* gamerotvechub motion sensor driver
  *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
+ * Copyright (C) 2016 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
+
+#define pr_fmt(fmt) "[gamerotvechub] " fmt
 
 #include <hwmsensor.h>
 #include "gamerotvechub.h"
@@ -18,14 +21,10 @@
 #include <linux/notifier.h>
 #include "scp_helper.h"
 
-#define GROTVEC_TAG                  "[gamerotvechub] "
-#define GROTVEC_FUN(f)               pr_debug(GROTVEC_TAG"%s\n", __func__)
-#define GROTVEC_PR_ERR(fmt, args...)    pr_err(GROTVEC_TAG"%s %d : "fmt, __func__, __LINE__, ##args)
-#define GROTVEC_LOG(fmt, args...)    pr_debug(GROTVEC_TAG fmt, ##args)
-
 static struct fusion_init_info gamerotvechub_init_info;
 
-static int gamerotvec_get_data(int *x, int *y, int *z, int *scalar, int *status)
+static int gamerotvec_get_data(int *x, int *y, int *z,
+	int *scalar, int *status)
 {
 	int err = 0;
 	struct data_unit_t data;
@@ -33,7 +32,7 @@ static int gamerotvec_get_data(int *x, int *y, int *z, int *scalar, int *status)
 
 	err = sensor_get_data_from_hub(ID_GAME_ROTATION_VECTOR, &data);
 	if (err < 0) {
-		GROTVEC_PR_ERR("sensor_get_data_from_hub fail!!\n");
+		pr_err("sensor_get_data_from_hub fail!!\n");
 		return -1;
 	}
 	time_stamp		= data.time_stamp;
@@ -42,8 +41,6 @@ static int gamerotvec_get_data(int *x, int *y, int *z, int *scalar, int *status)
 	*z				= data.orientation_t.roll;
 	*scalar				= data.orientation_t.scalar;
 	*status			= data.orientation_t.status;
-	GROTVEC_LOG("recv ipi: timestamp: %lld, x: %d, y: %d, z: %d!\n",
-		time_stamp, *x, *y, *z);
 	return 0;
 }
 static int gamerotvec_open_report_data(int open)
@@ -67,12 +64,14 @@ static int gamerotvec_set_delay(u64 delay)
 	return 0;
 #endif
 }
-static int gamerotvec_batch(int flag, int64_t samplingPeriodNs, int64_t maxBatchReportLatencyNs)
+static int gamerotvec_batch(int flag,
+	int64_t samplingPeriodNs, int64_t maxBatchReportLatencyNs)
 {
 #if defined CONFIG_MTK_SCP_SENSORHUB_V1
 	gamerotvec_set_delay(samplingPeriodNs);
 #endif
-	return sensor_batch_to_hub(ID_GAME_ROTATION_VECTOR, flag, samplingPeriodNs, maxBatchReportLatencyNs);
+	return sensor_batch_to_hub(ID_GAME_ROTATION_VECTOR,
+		flag, samplingPeriodNs, maxBatchReportLatencyNs);
 }
 
 static int gamerotvec_flush(void)
@@ -80,14 +79,17 @@ static int gamerotvec_flush(void)
 	return sensor_flush_to_hub(ID_GAME_ROTATION_VECTOR);
 }
 
-static int gamerotvec_recv_data(struct data_unit_t *event, void *reserved)
+static int gamerotvec_recv_data(struct data_unit_t *event,
+	void *reserved)
 {
 	int err = 0;
 
 	if (event->flush_action == DATA_ACTION)
-		err = grv_data_report(event->orientation_t.azimuth, event->orientation_t.pitch,
+		err = grv_data_report(event->orientation_t.azimuth,
+			event->orientation_t.pitch,
 			event->orientation_t.roll, event->orientation_t.scalar,
-			event->orientation_t.status, (int64_t)event->time_stamp);
+			event->orientation_t.status,
+			(int64_t)event->time_stamp);
 	else if (event->flush_action == FLUSH_ACTION)
 		err = grv_flush_report();
 
@@ -114,7 +116,7 @@ static int gamerotvechub_local_init(void)
 #endif
 	err = fusion_register_control_path(&ctl, ID_GAME_ROTATION_VECTOR);
 	if (err) {
-		GROTVEC_PR_ERR("register gamerotvec control path err\n");
+		pr_err("register gamerotvec control path err\n");
 		goto exit;
 	}
 
@@ -122,12 +124,13 @@ static int gamerotvechub_local_init(void)
 	data.vender_div = 1000000;
 	err = fusion_register_data_path(&data, ID_GAME_ROTATION_VECTOR);
 	if (err) {
-		GROTVEC_PR_ERR("register gamerotvec data path err\n");
+		pr_err("register gamerotvec data path err\n");
 		goto exit;
 	}
-	err = scp_sensorHub_data_registration(ID_GAME_ROTATION_VECTOR, gamerotvec_recv_data);
+	err = scp_sensorHub_data_registration(ID_GAME_ROTATION_VECTOR,
+		gamerotvec_recv_data);
 	if (err < 0) {
-		GROTVEC_PR_ERR("SCP_sensorHub_data_registration failed\n");
+		pr_err("SCP_sensorHub_data_registration failed\n");
 		goto exit;
 	}
 	return 0;
@@ -153,7 +156,7 @@ static int __init gamerotvechub_init(void)
 
 static void __exit gamerotvechub_exit(void)
 {
-	GROTVEC_FUN();
+	pr_debug("%s\n", __func__);
 }
 
 module_init(gamerotvechub_init);

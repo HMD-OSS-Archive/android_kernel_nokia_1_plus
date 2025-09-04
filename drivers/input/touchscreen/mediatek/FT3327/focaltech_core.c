@@ -39,7 +39,7 @@
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #endif
-#include <linux/wakelock.h>
+//#include <linux/wakelock.h>
 #include "focaltech_core.h"
 
 /*****************************************************************************

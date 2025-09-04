@@ -1,21 +1,21 @@
  /*
- * Copyright (C) 2010 - 2017 Novatek, Inc.
- *
- * $Revision: 15504 $
- * $Date: 2017-11-16 17:42:51 +0800 (週四, 16 十一月 2017) $
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
- * more details.
- *
- */
-#ifndef 	_LINUX_NVT_TOUCH_H
+  * Copyright (C) 2010 - 2017 Novatek, Inc.
+  *
+  * Revision: 15504
+  * $Date: 2017-11-16 17:42:51 +0800 (週四, 16 十一月 2017) $
+  *
+  * This program is free software; you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License as published by
+  * the Free Software Foundation; either version 2 of the License, or
+  * (at your option) any later version.
+  *
+  * This program is distributed in the hope that it will be useful, but WITHOUT
+  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+  * more details.
+  *
+  */
+#ifndef _LINUX_NVT_TOUCH_H
 #define		_LINUX_NVT_TOUCH_H
 
 #include <linux/i2c.h>
@@ -37,8 +37,12 @@
 #define I2C_FW_Address 0x01
 #define I2C_HW_Address 0x62
 
-#define NVT_LOG(fmt, args...)    pr_info("[%s] %s %d: " fmt, NVT_I2C_NAME, __func__, __LINE__, ##args)
-#define NVT_ERR(fmt, args...)    pr_info("[%s] %s %d: " fmt, NVT_I2C_NAME, __func__, __LINE__, ##args)
+#define NVT_LOG(fmt, args...)    \
+	pr_info("[%s] %s %d: " fmt, NVT_I2C_NAME, \
+	__func__, __LINE__, ##args)
+#define NVT_ERR(fmt, args...)    \
+	pr_info("[%s] %s %d: " fmt, NVT_I2C_NAME, \
+	__func__, __LINE__, ##args)
 
 //---Input device info.---
 #define NVT_TS_NAME "NVTCapacitiveTouchScreen"
@@ -58,7 +62,7 @@ extern const uint16_t touch_key_array[TOUCH_KEY_NUM];
 #define NVT_TOUCH_EXT_PROC 1
 #define NVT_TOUCH_MP 1
 #define MT_PROTOCOL_B 1
-#define WAKEUP_GESTURE 1
+#define WAKEUP_GESTURE 0
 #if WAKEUP_GESTURE
 extern const uint16_t gesture_key_array[];
 #endif
@@ -125,39 +129,53 @@ struct nvt_ts_data {
 };
 
 #if NVT_TOUCH_PROC
-struct nvt_flash_data{
+struct nvt_flash_data {
 	rwlock_t lock;
 	struct i2c_client *client;
 };
 #endif
 
-typedef enum {
+enum RST_COMPLETE_STATE {
 	RESET_STATE_INIT = 0xA0,// IC reset
 	RESET_STATE_REK,		// ReK baseline
 	RESET_STATE_REK_FINISH,	// baseline is ready
 	RESET_STATE_NORMAL_RUN,	// normal run
 	RESET_STATE_MAX  = 0xAF
-} RST_COMPLETE_STATE;
+};
 
-typedef enum {
-    EVENT_MAP_HOST_CMD                      = 0x50,
-    EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE   = 0x51,
-    EVENT_MAP_RESET_COMPLETE                = 0x60,
-    EVENT_MAP_FWINFO                        = 0x78,
-    EVENT_MAP_PROJECTID                     = 0x9A,
-} I2C_EVENT_MAP;
+enum I2C_EVENT_MAP {
+	EVENT_MAP_HOST_CMD                      = 0x50,
+	EVENT_MAP_HANDSHAKING_or_SUB_CMD_BYTE   = 0x51,
+	EVENT_MAP_RESET_COMPLETE                = 0x60,
+	EVENT_MAP_FWINFO                        = 0x78,
+	EVENT_MAP_PROJECTID                     = 0x9A,
+};
 
 //---extern structures---
 extern struct nvt_ts_data *ts;
 
 //---extern functions---
-extern int32_t CTP_I2C_READ(struct i2c_client *client, uint16_t address, uint8_t *buf, uint16_t len);
-extern int32_t CTP_I2C_WRITE(struct i2c_client *client, uint16_t address, uint8_t *buf, uint16_t len);
+extern int32_t CTP_I2C_READ(struct i2c_client *client,
+uint16_t address, uint8_t *buf, uint16_t len);
+extern int32_t CTP_I2C_WRITE(struct i2c_client *client,
+	uint16_t address, uint8_t *buf, uint16_t len);
 extern void nvt_bootloader_reset(void);
 extern void nvt_sw_reset_idle(void);
-extern int32_t nvt_check_fw_reset_state(RST_COMPLETE_STATE check_reset_state);
+extern int32_t nvt_check_fw_reset_state(
+	enum RST_COMPLETE_STATE check_reset_state);
 extern int32_t nvt_get_fw_info(void);
 extern int32_t nvt_clear_fw_status(void);
 extern int32_t nvt_check_fw_status(void);
+#if NVT_TOUCH_EXT_PROC
+extern int32_t nvt_extra_proc_init(void);
+#endif
+
+#if NVT_TOUCH_MP
+extern int32_t nvt_mp_proc_init(void);
+#endif
+#if BOOT_UPDATE_FIRMWARE
+extern void Boot_Update_Firmware(struct work_struct *work);
+#endif
+
 
 #endif /* _LINUX_NVT_TOUCH_H */

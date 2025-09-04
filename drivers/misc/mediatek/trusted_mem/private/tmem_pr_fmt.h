@@ -14,24 +14,12 @@
 #ifndef TMEM_PR_FMT_H
 #define TMEM_PR_FMT_H
 
-#ifndef LOG_TAG
-#define LOG_TAG "[TMEM]"
-#endif
-
 #if defined(TMEM_PROFILE_FMT)
-#define LOG_PROFILE "[PROFILE]"
-#define pr_fmt(fmt) LOG_TAG LOG_PROFILE fmt
-#elif defined(TMEM_MEMMGR_FMT)
-#define LOG_MEMMGR "[MEMMGR]"
-#define pr_fmt(fmt) LOG_TAG LOG_MEMMGR fmt
+#define pr_fmt(fmt) "[TMEM][PROFILE]" fmt
 #elif defined(TMEM_UT_TEST_FMT)
-#define LOG_UT_TEST "[UT_TEST]"
-#define pr_fmt(fmt) LOG_TAG LOG_UT_TEST fmt
-#elif defined(TMEM_MOCK_FMT)
-#define LOG_MOCK "[MOCK]"
-#define pr_fmt(fmt) LOG_TAG LOG_MOCK fmt
+#define pr_fmt(fmt) "[TMEM][UT_TEST]" fmt
 #else
-#define pr_fmt(fmt) LOG_TAG fmt
+#define pr_fmt(fmt) "[TMEM]" fmt
 #endif
 
 #endif /* end of TMEM_PR_FMT_H */

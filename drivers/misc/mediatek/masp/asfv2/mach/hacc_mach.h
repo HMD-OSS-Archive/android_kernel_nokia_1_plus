@@ -12,8 +12,8 @@
  */
 
 /* to avoid disclosing any secret and let customer know we have hacc hardware,
-*   the file name 'hacc' is changed to 'hacc_hw' in kernel driver
-*/
+ *   the file name 'hacc' is changed to 'hacc_hw' in kernel driver
+ */
 
 #ifndef HACC_MACH_H
 #define HACC_MACH_H
@@ -23,16 +23,7 @@
 /******************************************************************************
  * CHIP SELECTION
  ******************************************************************************/
-/*
-* #include <mach/mt_typedefs.h>
-* #include <mach/mt_reg_base.h>
-* #include <mach/mt_clkmgr.h>
-*/
-#ifdef CONFIG_ARM64
-extern unsigned long long hacc_base;
-#else
-extern unsigned int hacc_base;
-#endif
+extern void __iomem *hacc_base;
 
 /******************************************************************************
  * MACROS DEFINITIONS
@@ -120,14 +111,14 @@ extern unsigned int hacc_base;
  ******************************************************************************/
 #define HACC_AES_MAX_KEY_SZ          (32)
 #define AES_CFG_SZ                   (16)
-#define AES_BLK_SZ                  (16)
+#define AES_BLK_SZ                   (16)
 #define HACC_HW_KEY_SZ               (16)
-#define _CRYPTO_SEED_LEN            (16)
+#define _CRYPTO_SEED_LEN             (16)
 
 /* In order to support NAND writer and keep MTK secret,
-*   use MTK HACC seed and custom crypto seed to generate SW key
-*   to encrypt SEC_CFG
-*/
+ * use MTK HACC seed and custom crypto seed to generate SW key
+ * to encrypt SEC_CFG
+ */
 #define MTK_HACC_SEED                (0x1)
 
 /******************************************************************************
@@ -175,7 +166,9 @@ struct hacc_context {
  *  EXPORT FUNCTION
  ******************************************************************************/
 extern unsigned int hacc_set_key(enum aes_key_id id, enum aes_key key);
-extern unsigned int hacc_do_aes(enum aes_ops ops, unsigned char *src, unsigned char *dst,
+extern unsigned int hacc_do_aes(enum aes_ops ops,
+				unsigned char *src,
+				unsigned char *dst,
 				unsigned int size);
 extern unsigned int hacc_init(struct aes_key_seed *keyseed);
 extern unsigned int hacc_deinit(void);

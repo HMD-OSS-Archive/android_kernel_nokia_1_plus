@@ -63,8 +63,8 @@ struct musbfsh_qh {
 	/* struct musbfsh_qh            *next; *//* for periodic tree */
 	u8 mux;			/* qh multiplexed to hw_ep */
 
-	unsigned offset;	/* in urb->transfer_buffer */
-	unsigned segsize;	/* current xfer fragment */
+	unsigned int offset;	/* in urb->transfer_buffer */
+	unsigned int segsize;	/* current xfer fragment */
 
 	u8 type_reg;		/* {rx,tx} type register */
 	u8 intv_reg;		/* {rx,tx} interval register */
@@ -78,7 +78,7 @@ struct musbfsh_qh {
 	u8 hb_mult;		/* high bandwidth pkts per uf */
 	u16 maxpacket;
 	u16 frame;		/* for periodic schedule */
-	unsigned iso_idx;	/* in urb->iso_frame_desc[] */
+	unsigned int iso_idx;	/* in urb->iso_frame_desc[] */
 	struct sg_mapping_iter sg_miter;	/* for highmem in PIO mode */
 #ifdef CONFIG_MTK_MUSBFSH_QMU_SUPPORT
 	u8 is_use_qmu;
@@ -144,7 +144,8 @@ extern int musbfsh_skip_port_resume;
 #endif
 
 #ifdef CONFIG_MTK_MUSBFSH_QMU_SUPPORT
-extern void musbfsh_ep_set_qh(struct musbfsh_hw_ep *ep, int isRx, struct musbfsh_qh *qh);
+extern void musbfsh_ep_set_qh(struct musbfsh_hw_ep *ep,
+	int isRx, struct musbfsh_qh *qh);
 extern struct musbfsh_qh *musbfsh_ep_get_qh(struct musbfsh_hw_ep *ep, int isRx);
 extern void musbfsh_advance_schedule(struct musbfsh *musb, struct urb *urb,
 				  struct musbfsh_hw_ep *hw_ep, int is_in);

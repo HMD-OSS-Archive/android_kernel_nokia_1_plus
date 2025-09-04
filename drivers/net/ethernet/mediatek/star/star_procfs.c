@@ -1,15 +1,15 @@
-/* Mediatek STAR MAC network driver.
+/*
+ * Copyright (c) 2019 MediaTek Inc.
+ * Author: Zhiyong Tao <zhiyong.tao@mediatek.com>
  *
- * Copyright (c) 2016-2017 MediaTek Inc.
- *
- * program is free software; you can redistribute it and/or modify
+ * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #include "star.h"
@@ -182,9 +182,9 @@ static int get_wol_status(struct seq_file *seq, void *v)
 	star_prv = netdev_priv(dev);
 
 	seq_printf(seq, "Wake On Lan (WOL) type is (%d)\n", star_prv->wol);
-	STAR_PR_INFO("Use 'echo 0 > /proc/driver/star/wol' switch to WOL_NONE\n");
-	STAR_PR_INFO("Use 'echo 1 > /proc/driver/star/wol' switch to MAC_WOL\n");
-	STAR_PR_INFO("Use 'echo 2 > /proc/driver/star/wol' switch to PHY_WOL\n");
+	STAR_PR_INFO("'echo 0 > /proc/driver/star/wol'->WOL_NONE\n");
+	STAR_PR_INFO("'echo 1 > /proc/driver/star/wol'->MAC_WOL\n");
+	STAR_PR_INFO("'echo 2 > /proc/driver/star/wol'->PHY_WOL\n");
 
 	return 0;
 }
@@ -404,7 +404,8 @@ int star_init_procfs(void)
 				  sizeof(struct star_proc_file), GFP_KERNEL);
 	for (i = 0 ; i < ARRAY_SIZE(star_file_tbl); i++) {
 		star_proc.entry[i] = proc_create(star_file_tbl[i].name,
-			0755, star_proc.root, star_file_tbl[i].fops);
+						 0755, star_proc.root,
+						 star_file_tbl[i].fops);
 		if (!star_proc.entry[i]) {
 			STAR_PR_ERR(
 				 "%s create failed\n", star_file_tbl[i].name);

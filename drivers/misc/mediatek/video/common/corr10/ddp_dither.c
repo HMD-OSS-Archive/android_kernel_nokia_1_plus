@@ -19,8 +19,12 @@
 	defined(CONFIG_MACH_MT6757) || defined(CONFIG_MACH_KIBOPLUS) || \
 	defined(CONFIG_MACH_ELBRUS) || defined(CONFIG_MACH_MT6799) || \
 	defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6763) || \
-	defined(CONFIG_MACH_MT6758) || defined(CONFIG_MACH_MT6775) || \
-	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT6758) || defined(CONFIG_MACH_MT6739) || \
+	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
+	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT3967) || \
+	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT8168) || \
+	defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6785)
+
 #include <ddp_clkmgr.h>
 #endif
 #endif
@@ -32,14 +36,25 @@
 #include <disp_drv_platform.h>
 #if defined(CONFIG_MACH_MT6755) || defined(CONFIG_MACH_MT6797) || \
 	defined(CONFIG_MACH_MT6757) || defined(CONFIG_MACH_KIBOPLUS) || \
-	defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6739)
+	defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6739) || \
+	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
+	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT3967) || \
+	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT8168) || \
+	defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6785)
+
 #include <disp_helper.h>
 #endif
 #include <primary_display.h>
 
-#if defined(CONFIG_MACH_ELBRUS) || defined(CONFIG_MACH_MT6757) || defined(CONFIG_MACH_KIBOPLUS) || \
-	defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
-	defined(CONFIG_MACH_MT6775) || defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6771)
+#if defined(CONFIG_MACH_ELBRUS) || defined(CONFIG_MACH_MT6757) || \
+	defined(CONFIG_MACH_KIBOPLUS) || defined(CONFIG_MACH_MT6799) || \
+	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) ||  \
+	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
+	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6771) || \
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6768) || \
+	defined(CONFIG_MACH_MT8168) || defined(CONFIG_MACH_MT6885) || \
+	defined(CONFIG_MACH_MT6785)
+
 #define DITHER0_BASE_NAMING (DISPSYS_DITHER0_BASE)
 #define DITHER0_MODULE_NAMING (DISP_MODULE_DITHER0)
 #else
@@ -47,16 +62,27 @@
 #define DITHER0_MODULE_NAMING (DISP_MODULE_DITHER)
 #endif
 
-#if defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
-	defined(CONFIG_MACH_MT6775) || defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6771)
+#if defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6763) || \
+	defined(CONFIG_MACH_MT6758) || defined(CONFIG_MACH_MT6739) || \
+	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
+	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT3967) || \
+	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT8168) || \
+	defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6785)
+
 #define DITHER0_CLK_NAMING (DISP0_DISP_DITHER0)
 #else
 #define DITHER0_CLK_NAMING (DISP0_DISP_DITHER)
 #endif
 
-#if defined(CONFIG_MACH_MT6797) || defined(CONFIG_MACH_MT6757) || defined(CONFIG_MACH_KIBOPLUS) || \
-	defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
-	defined(CONFIG_MACH_MT6775) || defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6771)
+#if defined(CONFIG_MACH_MT6797) || defined(CONFIG_MACH_MT6757) || \
+	defined(CONFIG_MACH_KIBOPLUS) || defined(CONFIG_MACH_MT6799) || \
+	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
+	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
+	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6771) || \
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6768) || \
+	defined(CONFIG_MACH_MT8168) || defined(CONFIG_MACH_MT6885) || \
+	defined(CONFIG_MACH_MT6785)
+
 #define DITHER_SUPPORT_PARTIAL_UPDATE
 #endif
 
@@ -65,7 +91,8 @@
 #define DITHER_TOTAL_MODULE_NUM (2)
 #define DITHER1_OFFSET (DISPSYS_DITHER1_BASE - DISPSYS_DITHER0_BASE)
 
-#define dither_get_offset(module) ((module == DITHER0_MODULE_NAMING) ? DITHER0_OFFSET : DITHER1_OFFSET)
+#define dither_get_offset(module) ((module == DITHER0_MODULE_NAMING) ? \
+	DITHER0_OFFSET : DITHER1_OFFSET)
 #define index_of_dither(module) ((module == DITHER0_MODULE_NAMING) ? 0 : 1)
 #else
 #define DITHER_TOTAL_MODULE_NUM (1)
@@ -75,9 +102,12 @@
 #endif
 
 int dither_dbg_en;
-#define DITHER_ERR(fmt, arg...) pr_err("[DITHER] " fmt "\n", ##arg)
+#define DITHER_ERR(fmt, arg...) \
+	pr_notice("[DITHER] %s: " fmt "\n", __func__, ##arg)
 #define DITHER_DBG(fmt, arg...) \
-	do { if (dither_dbg_en) pr_debug("[DITHER] " fmt "\n", ##arg); } while (0)
+	do { if (dither_dbg_en) \
+		pr_debug("[DITHER] %s: " fmt "\n",  __func__, ##arg); \
+		} while (0)
 
 #define DITHER_REG(reg_base, index) ((reg_base) + 0x100 + (index) * 4)
 
@@ -106,22 +136,19 @@ void disp_dither_init(enum DISP_MODULE_ENUM module, int width, int height,
 	if (dither_bpp == 16) {	/* 565 */
 		DISP_REG_MASK(cmdq, DITHER_REG(reg_base, 15), 0x50500001, ~0);
 		DISP_REG_MASK(cmdq, DITHER_REG(reg_base, 16), 0x50504040, ~0);
-		/* DISP_REG_MASK(cmdq, DITHER_REG(reg_base, 0), 0x00000001, ~0); */
 	} else if (dither_bpp == 18) {	/* 666 */
 		DISP_REG_MASK(cmdq, DITHER_REG(reg_base, 15), 0x40400001, ~0);
 		DISP_REG_MASK(cmdq, DITHER_REG(reg_base, 16), 0x40404040, ~0);
-		/* DISP_REG_MASK(cmdq, DITHER_REG(reg_base, 0), 0x00000001, ~0); */
 	} else if (dither_bpp == 24) {	/* 888 */
 		DISP_REG_MASK(cmdq, DITHER_REG(reg_base, 15), 0x20200001, ~0);
 		DISP_REG_MASK(cmdq, DITHER_REG(reg_base, 16), 0x20202020, ~0);
-		/* DISP_REG_MASK(cmdq, DITHER_REG(reg_base, 0), 0x00000001, ~0); */
 	} else if (dither_bpp > 24) {
-		DITHER_DBG("High depth LCM (bpp = %d), no dither\n", dither_bpp);
+		DITHER_DBG("High depth LCM (bpp = %d), no dither\n",
+			dither_bpp);
 		enable = 1;
 	} else {
 		DITHER_DBG("Invalid dither bpp = %d\n", dither_bpp);
 		/* Bypass dither */
-		/* DISP_REG_MASK(cmdq, DITHER_REG(reg_base, 0), 0x00000000, ~0); */
 		enable = 0;
 	}
 
@@ -134,29 +161,35 @@ void disp_dither_init(enum DISP_MODULE_ENUM module, int width, int height,
 	defined(CONFIG_MACH_MT6799)
 	DISP_REG_MASK(cmdq, DISP_REG_DITHER_CFG + offset, 0 << 8, 1 << 8);
 #endif
-	DISP_REG_SET(cmdq, DISP_REG_DITHER_SIZE + offset, (width << 16) | height);
+	DISP_REG_SET(cmdq, DISP_REG_DITHER_SIZE + offset,
+		(width << 16) | height);
 
 #ifdef DISP_PLATFORM_HAS_SHADOW_REG
 	if (disp_helper_get_option(DISP_OPT_SHADOW_REGISTER)) {
 		if (disp_helper_get_option(DISP_OPT_SHADOW_MODE) == 0) {
 			/* full shadow mode*/
-			DISP_REG_MASK(cmdq, DISP_REG_DITHER_0 + offset, 0x0, 0x7);
+			DISP_REG_MASK(cmdq, DISP_REG_DITHER_0 + offset,
+				0x0, 0x7);
 		} else if (disp_helper_get_option(DISP_OPT_SHADOW_MODE) == 1) {
 			/* force commit */
-			DISP_REG_MASK(cmdq, DISP_REG_DITHER_0 + offset, 0x1 << 1, 0x7);
+			DISP_REG_MASK(cmdq, DISP_REG_DITHER_0 + offset,
+				0x1 << 1, 0x7);
 		} else if (disp_helper_get_option(DISP_OPT_SHADOW_MODE) == 2) {
 			/* bypass shadow */
-			DISP_REG_MASK(cmdq, DISP_REG_DITHER_0 + offset, 0x1, 0x7);
+			DISP_REG_MASK(cmdq, DISP_REG_DITHER_0 + offset,
+				0x1, 0x7);
 		}
 	}
 #endif
 
-	DITHER_DBG("Module(%d) disp_dither_init bpp = %d, width = %d height = %d",
-		module, dither_bpp, width, height);
+	DITHER_DBG("Module(%d) bpp = %d", module, dither_bpp);
+	DITHER_DBG("Module(%d) width = %d height = %d", module, width, height);
+
 }
 
 
-static int disp_dither_config(enum DISP_MODULE_ENUM module, struct disp_ddp_path_config *pConfig, void *cmdq)
+static int disp_dither_config(enum DISP_MODULE_ENUM module,
+	struct disp_ddp_path_config *pConfig, void *cmdq)
 {
 	if (pConfig->dst_dirty) {
 		disp_dither_init(module, pConfig->dst_w, pConfig->dst_h,
@@ -178,9 +211,10 @@ static int disp_dither_bypass(enum DISP_MODULE_ENUM module, int bypass)
 		g_dither_relay_value[index_of_dither(module)] = 0x0;
 	}
 
-	DISP_REG_MASK(NULL, DISP_REG_DITHER_CFG + dither_get_offset(module), relay, 0x1);
+	DISP_REG_MASK(NULL, DISP_REG_DITHER_CFG + dither_get_offset(module),
+		relay, 0x1);
 
-	DITHER_DBG("Module(%d) disp_dither_bypass(bypass = %d)", module, bypass);
+	DITHER_DBG("Module(%d) (bypass = %d)", module, bypass);
 
 	return 0;
 }
@@ -190,8 +224,13 @@ static int disp_dither_power_on(enum DISP_MODULE_ENUM module, void *handle)
 {
 #if defined(CONFIG_MACH_MT6755)
 	/* dither is DCM , do nothing */
-#elif defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || defined(CONFIG_MACH_MT6775) || \
-	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6771)
+#elif defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
+	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || \
+	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
+	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT3967) || \
+	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT8168) || \
+	defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6785)
+
 	ddp_clk_prepare_enable(ddp_get_module_clk_id(module));
 #else
 #ifdef ENABLE_CLK_MGR
@@ -218,8 +257,13 @@ static int disp_dither_power_off(enum DISP_MODULE_ENUM module, void *handle)
 {
 #if defined(CONFIG_MACH_MT6755)
 	/* dither is DCM , do nothing */
-#elif defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || defined(CONFIG_MACH_MT6775) || \
-	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6771)
+#elif defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
+	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || \
+	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
+	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT3967) || \
+	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT8168) || \
+	defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6785)
+
 	ddp_clk_disable_unprepare(ddp_get_module_clk_id(module));
 #else
 #ifdef ENABLE_CLK_MGR
@@ -243,13 +287,15 @@ static int disp_dither_power_off(enum DISP_MODULE_ENUM module, void *handle)
 }
 
 #ifdef DITHER_SUPPORT_PARTIAL_UPDATE
-static int _dither_partial_update(enum DISP_MODULE_ENUM module, void *arg, void *cmdq)
+static int _dither_partial_update(enum DISP_MODULE_ENUM module, void *arg,
+	void *cmdq)
 {
 	struct disp_rect *roi = (struct disp_rect *) arg;
 	int width = roi->width;
 	int height = roi->height;
 
-	DISP_REG_SET(cmdq, DISP_REG_DITHER_SIZE + dither_get_offset(module), (width << 16) | height);
+	DISP_REG_SET(cmdq, DISP_REG_DITHER_SIZE + dither_get_offset(module),
+		(width << 16) | height);
 	return 0;
 }
 
@@ -281,7 +327,8 @@ struct DDP_MODULE_DRIVER ddp_driver_dither = {
 };
 
 
-void disp_dither_select(enum DISP_MODULE_ENUM module, unsigned int dither_bpp, void *cmdq)
+void disp_dither_select(enum DISP_MODULE_ENUM module, unsigned int dither_bpp,
+	void *cmdq)
 {
 	const int offset = dither_get_offset(module);
 	unsigned long reg_base = DITHER0_BASE_NAMING + offset;
@@ -303,23 +350,20 @@ void disp_dither_select(enum DISP_MODULE_ENUM module, unsigned int dither_bpp, v
 	if (dither_bpp == 16) {	/* 565 */
 		DISP_REG_MASK(cmdq, DITHER_REG(reg_base, 15), 0x50500001, ~0);
 		DISP_REG_MASK(cmdq, DITHER_REG(reg_base, 16), 0x50504040, ~0);
-		/* DISP_REG_MASK(cmdq, DITHER_REG(reg_base, 0), 0x00000001, ~0); */
 	} else if (dither_bpp == 18) {	/* 666 */
 		DISP_REG_MASK(cmdq, DITHER_REG(reg_base, 15), 0x40400001, ~0);
 		DISP_REG_MASK(cmdq, DITHER_REG(reg_base, 16), 0x40404040, ~0);
-		/* DISP_REG_MASK(cmdq, DITHER_REG(reg_base, 0), 0x00000001, ~0); */
 	} else if (dither_bpp == 24) {	/* 888 */
 		DISP_REG_MASK(cmdq, DITHER_REG(reg_base, 15), 0x20200001, ~0);
 		DISP_REG_MASK(cmdq, DITHER_REG(reg_base, 16), 0x20202020, ~0);
-		/* DISP_REG_MASK(cmdq, DITHER_REG(reg_base, 0), 0x00000001, ~0); */
 	} else if (dither_bpp > 24) {
-		DITHER_DBG("High depth LCM (bpp = %d), no dither\n", dither_bpp);
+		DITHER_DBG("High depth LCM (bpp = %d), no dither\n",
+			dither_bpp);
 		enable = 1;
 	} else {
 		DITHER_DBG("Invalid dither bpp = %d\n", dither_bpp);
 		/* Bypass dither */
 		DISP_REG_MASK(cmdq, DISP_REG_DITHER_0 + offset, 1 << 4, 1 << 4);
-		/* DISP_REG_MASK(cmdq, DITHER_REG(reg_base, 0), 0x00000000, ~0); */
 		enable = 0;
 	}
 	DISP_REG_MASK(cmdq, DISP_REG_DITHER_EN + offset, enable, 0x1);
@@ -345,7 +389,7 @@ void dither_test(const char *cmd, char *debug_output)
 #endif
 
 	debug_output[0] = '\0';
-	DITHER_DBG("dither_test(%s)", cmd);
+	DITHER_DBG("(%s)", cmd);
 
 	if (strncmp(cmd, "log:", 4) == 0) {
 		dither_dbg_en = (int)cmd[4];

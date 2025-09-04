@@ -13,6 +13,7 @@
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/security.h>
+#include <linux/cred.h>
 #include <linux/eventpoll.h>
 #include <linux/rcupdate.h>
 #include <linux/mount.h>
@@ -142,33 +143,6 @@ struct file *get_empty_filp(void)
 over:
 	/* Ran out of filps - report that */
 	if (get_nr_files() > old_max) {
-#ifdef CONFIG_MTK_FD_LEAK_DETECT
-		static int fd_dump_all_files;
-
-		if (!fd_dump_all_files) {
-			struct task_struct *p;
-			struct files_struct *files;
-			pid_t pid;
-
-			fd_dump_all_files = 0x1;
-
-			for_each_process(p) {
-				if (p->flags & PF_KTHREAD)
-					continue;
-
-				files = p->files;
-				if (files) {
-					struct fdtable *fdt = files_fdtable(files);
-
-					if (fdt) {
-						pid = p->pid;
-						pr_err("[FDLEAK]dump FDs for [%d:%s]\n", pid, p->comm);
-						fd_show_open_files(pid, files, fdt);
-					}
-				}
-			}
-		}
-#endif
 		pr_info("VFS: file-max limit %lu reached\n", get_max_files());
 		old_max = get_nr_files();
 	}
@@ -182,7 +156,7 @@ over:
  * @mode: the mode with which the new file will be opened
  * @fop: the 'struct file_operations' for the new file
  */
-struct file *alloc_file(struct path *path, fmode_t mode,
+struct file *alloc_file(const struct path *path, fmode_t mode,
 		const struct file_operations *fop)
 {
 	struct file *file;
@@ -194,6 +168,7 @@ struct file *alloc_file(struct path *path, fmode_t mode,
 	file->f_path = *path;
 	file->f_inode = path->dentry->d_inode;
 	file->f_mapping = path->dentry->d_inode->i_mapping;
+	file->f_wb_err = filemap_sample_wb_err(file->f_mapping);
 	if ((mode & FMODE_READ) &&
 	     likely(fop->read || fop->read_iter))
 		mode |= FMODE_CAN_READ;
@@ -258,12 +233,10 @@ static LLIST_HEAD(delayed_fput_list);
 static void delayed_fput(struct work_struct *unused)
 {
 	struct llist_node *node = llist_del_all(&delayed_fput_list);
-	struct llist_node *next;
+	struct file *f, *t;
 
-	for (; node; node = next) {
-		next = llist_next(node);
-		__fput(llist_entry(node, struct file, f_u.fu_llist));
-	}
+	llist_for_each_entry_safe(f, t, node, f_u.fu_llist)
+		__fput(f);
 }
 
 static void ____fput(struct callback_head *work)
@@ -337,7 +310,7 @@ void put_filp(struct file *file)
 }
 
 void __init files_init(void)
-{ 
+{
 	filp_cachep = kmem_cache_create("filp", sizeof(struct file), 0,
 			SLAB_HWCACHE_ALIGN | SLAB_PANIC, NULL);
 	percpu_counter_init(&nr_files, 0, GFP_KERNEL);

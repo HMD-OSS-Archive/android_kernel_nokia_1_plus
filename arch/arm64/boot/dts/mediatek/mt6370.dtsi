@@ -32,7 +32,7 @@
 			compatible = "mediatek,mt6370_pmu_charger";
 			interrupt-names = "chg_mivr", "chg_aiclmeasi", "attachi",
 				"ovpctrl_uvp_d_evt", "chg_wdtmri", "chg_vbusov",
-				"chg_tmri", "chg_treg";
+				"chg_tmri", "chg_treg", "dcdti";
 			charger_name = "primary_chg";
 			load_switch_name = "primary_load_switch";
 			ichg = <2000000>;	/* uA */
@@ -46,15 +46,26 @@
 			ircmp_vclamp = <32000>;		/* uV */
 			enable_te;
 			enable_wdt;
+			lbp_hys_sel = <1>;	/* 0: 100mV, 1 : 200mV */
+			/* 0: 10ms, 1: 20ms, 2: 40ms, 3: 500us */
+			lbp_dt = <1>;
+			/* with it: don't check 1.2v while PD/SD during BC12 */
+			disable_vlgc;
+			/* with it: enable fast unknown TA detection */
+			fast_unknown_ta_dect;
 			/* enable_polling; */	/* is this charger needs polling */
+			/* with it: do post aicl measure */
+			post_aicl;
 		};
 		mt6370_pmu_fled1 {
 			compatible = "mediatek,mt6370_pmu_fled1";
 			interrupt-names = "fled_lvf", "fled2_short",
 					  "fled1_short";
 			fled_enable = <1>;
-			torch_cur = <300000>;  /*25000 ~ 400000 uA */
-			strobe_cur = <1200000>; /* 100000 ~ 1500000 uA */
+			torch_cur = <300000>;  /* 25000 ~ 400000 uA */
+			strobe_cur = <1200000>;
+			/* 25000  ~ 750000  uA : 6250  uA/step */
+			/* 750000 ~ 1500000 uA : 12500 uA/step */
 			strobe_timeout = <2400>; /* 64 ~ 2432 ms */
 		};
 		mt6370_pmu_fled2 {
@@ -110,13 +121,39 @@
 			mt,use_pwm;
 			mt,pwm_fsample = <2>; /* 0 1MHz, 1 4MHz, 2 or 3 24mHz */
 			mt,pwm_deglitch = <1>; /* 0 no filter, 1 100ns, 2 160ns, 3 200ns */
+			mt,pwm_hys_en = <1>; /* PWM Input Hysteresis */
+			mt,pwm_hys = <0>;	/* 0: 1 bit, 1: 2 bit */
+						/* 2: 4 bit, 3: 6 bit */
 			mt,pwm_avg_cycle = <0>; /* 0 disable avg, 1 avg 2 cycle, 2 avg 4 cycle */
 						/* 3 avg 8 cycle, 4 avg 16 cycle, 5 avg 32 cycle */
 			mt,bled_ramptime = <3>; /* 0, 500us, 750us, 1ms, 2ms, 5ms, 10ms, 20ms */
 						/* 50ms, 100ms, 250ms, 800ms, 1s, 2s, 4s, 8s */
 			mt,bled_flash_ramp = <1>; /* 0, 500us, 750us, 1ms, 2ms, 5ms */
 			mt,max_bled_brightness = <512>; /* we have 11 bit resolution, quantize in driver */
-							 /* maximum 2047 */
+							/* maximum 2047 */
+			/* 0: 30mA, 1: 22.5mA, 2: 20mA, 3: 17.5mA */
+			mt,bled_curr_scale = <0>;
+			/* If use bled lpf,
+			 * Set	//mt,map_linear;
+			 *	pwm_lpf_coef = <2>;
+			 *	mt,pwm_lpf_en;
+			 *	mt,bled_curr_mode;
+			 * Else
+			 * Set	mt,map_linear;
+			 *	pwm_lpf_coef = <0>;
+			 *	//mt,pwm_lpf_en;
+			 *	//mt,bled_curr_mode;
+			 */
+			/* 0: (1)/(2^15), 1: (2)/(2^15),
+			 * 2: (3)/(2^15), 3: (4)/(2^15)
+			 */
+			mt,pwm_lpf_coef = <0>;
+			/* with it, Alpha-LPF enable */
+			//mt,pwm_lpf_en;
+			/* with it, pwm duty is multiplied after
+			 * linear/expenential mapper
+			 */
+			//mt,bled_curr_mode;
 		};
 		dsv {
 			compatible = "mediatek,mt6370_pmu_dsv";
@@ -132,7 +169,8 @@
 			db_vneg_20ms = <1>; /* 1 = DB VNEG discharge 20ms when shutdown; 0 = disable */
 			db_vneg_disc = <0>; /*  1 = Discharge VNEG when turn off; 0 = disable */
 			db_vpos_20ms = <1>; /* 1 = DB VPOS discharge 20ms when shutdown; 0 = disable */
-			db_vpos_disc = <0>; /*  1 = Discharge VPOS when turn off; 0 = disable */
+			/*  1 = Discharge VPOS when turn off; 0 = disable */
+			db_vpos_disc = <1>;
 			db_delay = <3>; /* 0 = no constraint; 1 = 0 ms; 2 = 1 ms; 3 = 4 ms */
 			db_vbst  = <5700>; /* mV */
 			db_vpos_slew = <1>; /* 0 : 8.46 V/ms; 1 : 5.79 V/ms; 2: 3.87 V/ms; 3: 2.97V/ms */

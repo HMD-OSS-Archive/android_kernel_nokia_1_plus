@@ -16,6 +16,14 @@
 
 #include <linux/notifier.h>
 
+enum {
+	IDLE_TYPE_DP = 0,
+	IDLE_TYPE_SO3,
+	IDLE_TYPE_SO,
+	IDLE_TYPE_RG,
+	NR_TYPES,
+};
+
 enum idle_lock_spm_id {
 	IDLE_SPM_LOCK_VCORE_DVFS = 0,
 };
@@ -36,6 +44,14 @@ enum spm_idle_notify_id {
 
 extern int mtk_idle_notifier_register(struct notifier_block *n);
 extern void mtk_idle_notifier_unregister(struct notifier_block *n);
+
+/* --------------------------------------------------------
+ * For MCDI module
+ **********************************************************/
+struct mtk_idle_info {
+	int cpu;
+	unsigned int predit_us;
+};
 
 extern void idle_lock_by_ufs(unsigned int lock);
 extern void idle_lock_by_gpu(unsigned int lock);

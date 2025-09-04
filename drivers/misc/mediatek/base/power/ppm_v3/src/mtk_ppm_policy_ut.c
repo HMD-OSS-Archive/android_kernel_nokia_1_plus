@@ -52,13 +52,14 @@ static int ppm_ut_fix_core_num_proc_show(struct seq_file *m, void *v)
 	int i;
 
 	for (i = 0; i < ut_policy.req.cluster_num; i++)
-		seq_printf(m, "cluster %d fix core num = %d\n", i, ut_data.limit[i].core_num);
+		seq_printf(m, "cluster %d fix core num = %d\n",
+			i, ut_data.limit[i].core_num);
 
 	return 0;
 }
 
-static ssize_t ppm_ut_fix_core_num_proc_write(struct file *file, const char __user *buffer,
-					size_t count,	loff_t *pos)
+static ssize_t ppm_ut_fix_core_num_proc_write(struct file *file,
+	const char __user *buffer, size_t count, loff_t *pos)
 {
 	int i = 0;
 	int *fix_core;
@@ -81,25 +82,26 @@ static ssize_t ppm_ut_fix_core_num_proc_write(struct file *file, const char __us
 	tmp = buf;
 	while ((tok = strsep(&tmp, " ")) != NULL) {
 		if (i == cluster_num) {
-			ppm_err("@%s: number of arguments > %d!\n", __func__, cluster_num);
+			ppm_err("number of arguments > %d!\n", cluster_num);
 			goto out;
 		}
 
 		if (kstrtoint(tok, 10, &fix_core[i])) {
-			ppm_err("@%s: Invalid input: %s\n", __func__, tok);
+			ppm_err("Invalid input: %s\n", tok);
 			goto out;
 		} else
 			i++;
 	}
 
 	if (i < cluster_num) {
-		ppm_err("@%s: number of arguments < %d!\n", __func__, cluster_num);
+		ppm_err("number of arguments < %d!\n", cluster_num);
 		goto out;
 	}
 
 	for (i = 0; i < cluster_num; i++) {
 		if (fix_core[i] > (int)get_cluster_max_cpu_core(i)) {
-			ppm_err("@%s: Invalid input! fix_core[%d] = %d\n", __func__, i, fix_core[i]);
+			ppm_err("@%s: Invalid input! fix_core[%d] = %d\n",
+				__func__, i, fix_core[i]);
 			goto out;
 		} else if (fix_core[i] != -1)
 			is_clear = false;
@@ -117,8 +119,10 @@ static ssize_t ppm_ut_fix_core_num_proc_write(struct file *file, const char __us
 		ut_data.is_core_num_fixed = false;
 		for (i = 0; i < cluster_num; i++) {
 			ut_data.limit[i].core_num = -1;
-			ut_policy.req.limit[i].min_cpu_core = get_cluster_min_cpu_core(i);
-			ut_policy.req.limit[i].max_cpu_core = get_cluster_max_cpu_core(i);
+			ut_policy.req.limit[i].min_cpu_core =
+				get_cluster_min_cpu_core(i);
+			ut_policy.req.limit[i].max_cpu_core =
+				get_cluster_max_cpu_core(i);
 		}
 	} else {
 		ut_data.is_core_num_fixed = true;
@@ -126,9 +130,13 @@ static ssize_t ppm_ut_fix_core_num_proc_write(struct file *file, const char __us
 		for (i = 0; i < cluster_num; i++) {
 			ut_data.limit[i].core_num = fix_core[i];
 			ut_policy.req.limit[i].min_cpu_core =
-				(fix_core[i] == -1) ? get_cluster_min_cpu_core(i) : fix_core[i];
+				(fix_core[i] == -1)
+					? get_cluster_min_cpu_core(i)
+					: fix_core[i];
 			ut_policy.req.limit[i].max_cpu_core =
-				(fix_core[i] == -1) ? get_cluster_max_cpu_core(i) : fix_core[i];
+				(fix_core[i] == -1)
+					? get_cluster_max_cpu_core(i)
+					: fix_core[i];
 		}
 	}
 
@@ -153,13 +161,14 @@ static int ppm_ut_fix_freq_idx_proc_show(struct seq_file *m, void *v)
 	int i;
 
 	for (i = 0; i < ut_policy.req.cluster_num; i++)
-		seq_printf(m, "cluster %d fix freq idx = %d\n", i, ut_data.limit[i].freq_idx);
+		seq_printf(m, "cluster %d fix freq idx = %d\n",
+			i, ut_data.limit[i].freq_idx);
 
 	return 0;
 }
 
-static ssize_t ppm_ut_fix_freq_idx_proc_write(struct file *file, const char __user *buffer,
-					size_t count, loff_t *pos)
+static ssize_t ppm_ut_fix_freq_idx_proc_write(struct file *file,
+	const char __user *buffer, size_t count, loff_t *pos)
 {
 	int i = 0;
 	int *fix_freq;
@@ -182,25 +191,26 @@ static ssize_t ppm_ut_fix_freq_idx_proc_write(struct file *file, const char __us
 	tmp = buf;
 	while ((tok = strsep(&tmp, " ")) != NULL) {
 		if (i == cluster_num) {
-			ppm_err("@%s: number of arguments > %d!\n", __func__, cluster_num);
+			ppm_err("number of arguments > %d!\n", cluster_num);
 			goto out;
 		}
 
 		if (kstrtoint(tok, 10, &fix_freq[i])) {
-			ppm_err("@%s: Invalid input: %s\n", __func__, tok);
+			ppm_err("Invalid input: %s\n", tok);
 			goto out;
 		} else
 			i++;
 	}
 
 	if (i < cluster_num) {
-		ppm_err("@%s: number of arguments < %d!\n", __func__, cluster_num);
+		ppm_err("number of arguments < %d!\n", cluster_num);
 		goto out;
 	}
 
 	for (i = 0; i < cluster_num; i++) {
 		if (fix_freq[i] > (int)get_cluster_min_cpufreq_idx(i)) {
-			ppm_err("@%s: Invalid input! fix_freq[%d] = %d\n", __func__, i, fix_freq[i]);
+			ppm_err("@%s: Invalid input! fix_freq[%d] = %d\n",
+				__func__, i, fix_freq[i]);
 			goto out;
 		} else if (fix_freq[i] != -1)
 			is_clear = false;
@@ -218,8 +228,10 @@ static ssize_t ppm_ut_fix_freq_idx_proc_write(struct file *file, const char __us
 		ut_data.is_freq_idx_fixed = false;
 		for (i = 0; i < cluster_num; i++) {
 			ut_data.limit[i].freq_idx = -1;
-			ut_policy.req.limit[i].min_cpufreq_idx = get_cluster_min_cpufreq_idx(i);
-			ut_policy.req.limit[i].max_cpufreq_idx = get_cluster_max_cpufreq_idx(i);
+			ut_policy.req.limit[i].min_cpufreq_idx =
+				get_cluster_min_cpufreq_idx(i);
+			ut_policy.req.limit[i].max_cpufreq_idx =
+				get_cluster_max_cpufreq_idx(i);
 		}
 	} else {
 		ut_data.is_freq_idx_fixed = true;
@@ -227,9 +239,13 @@ static ssize_t ppm_ut_fix_freq_idx_proc_write(struct file *file, const char __us
 		for (i = 0; i < cluster_num; i++) {
 			ut_data.limit[i].freq_idx = fix_freq[i];
 			ut_policy.req.limit[i].min_cpufreq_idx =
-				(fix_freq[i] == -1) ? get_cluster_min_cpufreq_idx(i) : fix_freq[i];
+				(fix_freq[i] == -1)
+					? get_cluster_min_cpufreq_idx(i)
+					: fix_freq[i];
 			ut_policy.req.limit[i].max_cpufreq_idx =
-				(fix_freq[i] == -1) ? get_cluster_max_cpufreq_idx(i) : fix_freq[i];
+				(fix_freq[i] == -1)
+					? get_cluster_max_cpufreq_idx(i)
+					: fix_freq[i];
 		}
 	}
 
@@ -270,14 +286,17 @@ static int __init ppm_ut_policy_init(void)
 
 	/* create procfs */
 	for (i = 0; i < ARRAY_SIZE(entries); i++) {
-		if (!proc_create(entries[i].name, S_IRUGO | S_IWUSR | S_IWGRP, policy_dir, entries[i].fops)) {
-			ppm_err("%s(), create /proc/ppm/policy/%s failed\n", __func__, entries[i].name);
+		if (!proc_create(entries[i].name, 0644,
+			policy_dir, entries[i].fops)) {
+			ppm_err("%s(), create /proc/ppm/policy/%s failed\n",
+				__func__, entries[i].name);
 			ret = -EINVAL;
 			goto out;
 		}
 	}
 
-	ut_data.limit = kcalloc(ppm_main_info.cluster_num, sizeof(*ut_data.limit), GFP_KERNEL);
+	ut_data.limit = kcalloc(ppm_main_info.cluster_num,
+		sizeof(*ut_data.limit), GFP_KERNEL);
 	if (!ut_data.limit) {
 		ret = -ENOMEM;
 		goto out;

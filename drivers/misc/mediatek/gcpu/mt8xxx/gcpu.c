@@ -1,14 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * Copyright (c) 2019 MediaTek Inc.
  */
 
 #include <linux/uaccess.h>
@@ -18,7 +10,6 @@
 #include <linux/mm.h>
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
-#include <mt-plat/aee.h>
 #include <linux/printk.h>
 #include <linux/clk.h>
 #include <linux/of_address.h>
@@ -33,25 +24,16 @@
 #endif
 
 #define GCPU_DEV_NAME "MTK_GCPU"
-#define GCPU_TAG "GCPU Kernel"
-#define GCPU_USE_XLOG 0
 
-#if GCPU_USE_XLOG
-#define GCPU_LOG_ERR(log, args...) \
-	xlog_printk(ANDROID_LOG_ERROR, GCPU_TAG, "[%s] [%d] *** ERROR: "log, __func__, __LINE__, ##args)
-#define GCPU_LOG_INFO(log, args...) \
-	xlog_printk(ANDROID_LOG_INFO, GCPU_TAG, "[%s] [%d] "log, __func__, __LINE__, ##args)
-#else
-#define GCPU_LOG_ERR(log, args...) \
-	pr_err("[GCPU Kernel] [%s] [%d] *** ERROR: "log, __func__, __LINE__, ##args)
-#define GCPU_LOG_INFO(log, args...) \
-	pr_debug("[GCPU Kernel] [%s] [%d] "log, __func__, __LINE__, ##args)
-#endif
+#define GCPU_INFO(log, args...) \
+	pr_info("[%s] [%d] INFO: "log, __func__, __LINE__, ##args)
+#define GCPU_DEBUG(log, args...) \
+	pr_debug("[%s] [%d] "log, __func__, __LINE__, ##args)
 
 #if GCPU_TEE_ENABLE
 static int gcpu_tee_call(uint32_t cmd)
 {
-	TZ_RESULT l_ret = TZ_RESULT_SUCCESS;
+	int l_ret = TZ_RESULT_SUCCESS;
 	int ret = 0;
 	KREE_SESSION_HANDLE test_session;
 	/* MTEEC_PARAM param[4]; */
@@ -60,23 +42,24 @@ static int gcpu_tee_call(uint32_t cmd)
 
 	l_ret = KREE_CreateSession(TZ_TA_GCPU_UUID, &test_session);
 	if (l_ret != TZ_RESULT_SUCCESS) {
-		GCPU_LOG_ERR("KREE_CreateSession error, ret = %x\n", l_ret);
+		GCPU_INFO("KREE_CreateSession error, ret = %x\n", l_ret);
 		return 1;
 	}
 
 	getnstimeofday(&start);
 	l_ret = KREE_TeeServiceCall(test_session, cmd, 0, NULL);
 	if (l_ret != TZ_RESULT_SUCCESS) {
-		GCPU_LOG_ERR("KREE_TeeServiceCall error, ret = %x\n", l_ret);
+		GCPU_INFO("KREE_TeeServiceCall error, ret = %x\n", l_ret);
 		ret = 1;
 	}
 	getnstimeofday(&end);
-	ns = ((long long)end.tv_sec - start.tv_sec) * 1000000000 + (end.tv_nsec - start.tv_nsec);
-	GCPU_LOG_INFO("gcpu_tee_call, cmd: %d, time: %lld ns\n", cmd, ns);
+	ns = ((long long)end.tv_sec - start.tv_sec) * 1000000000 +
+		(end.tv_nsec - start.tv_nsec);
+	GCPU_DEBUG("cmd: %d, time: %lld ns\n", cmd, ns);
 
 	l_ret = KREE_CloseSession(test_session);
 	if (l_ret != TZ_RESULT_SUCCESS) {
-		GCPU_LOG_ERR("KREE_CloseSession error, ret = %x\n", l_ret);
+		GCPU_INFO("KREE_CloseSession error, ret = %x\n", l_ret);
 		ret = 1;
 	}
 
@@ -85,14 +68,14 @@ static int gcpu_tee_call(uint32_t cmd)
 
 static int gcpu_probe(struct platform_device *pdev)
 {
-	GCPU_LOG_INFO("gcpu_probe\n");
+	GCPU_DEBUG("probe\n");
 
 	return 0;
 }
 
 static int gcpu_remove(struct platform_device *pdev)
 {
-	GCPU_LOG_INFO("gcpu_remove\n");
+	GCPU_DEBUG("remove\n");
 
 	return 0;
 }
@@ -101,12 +84,12 @@ static int gcpu_suspend(struct platform_device *pdev, pm_message_t mesg)
 {
 	int ret = 0;
 
-	GCPU_LOG_INFO("gcpu_suspend\n");
+	GCPU_DEBUG("enter suspend\n");
 	if (gcpu_tee_call(TZCMD_GCPU_SUSPEND)) {
-		GCPU_LOG_ERR("Suspend fail\n");
+		GCPU_INFO("Suspend fail\n");
 		ret = 1;
 	} else {
-		GCPU_LOG_INFO("Suspend ok\n");
+		GCPU_DEBUG("Suspend ok\n");
 		ret = 0;
 	}
 	return ret;
@@ -116,12 +99,12 @@ static int gcpu_resume(struct platform_device *pdev)
 {
 	int ret = 0;
 
-	GCPU_LOG_INFO("gcpu_resume\n");
+	GCPU_DEBUG("enter resume\n");
 	if (gcpu_tee_call(TZCMD_GCPU_RESUME)) {
-		GCPU_LOG_ERR("gcpu_resume fail\n");
+		GCPU_INFO("resume fail\n");
 		ret = 1;
 	} else {
-		GCPU_LOG_INFO("gcpu_resume ok\n");
+		GCPU_DEBUG("resume ok\n");
 		ret = 0;
 	}
 	return ret;
@@ -138,9 +121,9 @@ static struct platform_driver gcpu_driver = {
 	.suspend = gcpu_suspend,
 	.resume = gcpu_resume,
 	.driver = {
-		   .name = GCPU_DEV_NAME,
-		   .owner = THIS_MODULE,
-		   }
+		.name = GCPU_DEV_NAME,
+		.owner = THIS_MODULE,
+		}
 };
 #endif
 
@@ -149,11 +132,11 @@ static int __init gcpu_init(void)
 #if GCPU_TEE_ENABLE
 	int ret = 0;
 
-	GCPU_LOG_INFO("module init\n");
+	GCPU_DEBUG("module init\n");
 
 	ret = platform_driver_register(&gcpu_driver);
 	if (ret) {
-		GCPU_LOG_ERR("Unable to register driver, ret = %d\n", ret);
+		GCPU_INFO("Unable to register driver, ret = %d\n", ret);
 		return ret;
 	}
 	gcpu_tee_call(TZCMD_GCPU_KERNEL_INIT_DONE);
@@ -164,12 +147,12 @@ static int __init gcpu_init(void)
 static void __exit gcpu_exit(void)
 {
 #if GCPU_TEE_ENABLE
-	GCPU_LOG_INFO("module exit\n");
+	GCPU_DEBUG("module exit\n");
 #endif
 }
 module_init(gcpu_init);
 module_exit(gcpu_exit);
 
-MODULE_DESCRIPTION("MTK GCPU driver");
-MODULE_AUTHOR("Yi Zheng <yi.zheng@mediatek.com>");
 MODULE_LICENSE("GPL");
+MODULE_AUTHOR("MediaTek Inc.");
+MODULE_DESCRIPTION("Mediatek GCPU Module");

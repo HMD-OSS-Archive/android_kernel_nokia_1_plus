@@ -43,6 +43,7 @@ enum {
 	SPMFW_LP4X_2CH_3733 = 0,
 	SPMFW_LP4X_2CH_3200,
 	SPMFW_LP3_1CH_1866,
+	SPMFW_LP4_2CH_2400,
 };
 #else
 enum {
@@ -95,14 +96,16 @@ extern int spm_module_init(void);
 
 /* for TWAM in MET */
 extern void spm_twam_register_handler(twam_handler_t handler);
-extern void spm_twam_enable_monitor(const struct twam_sig *twamsig, bool speed_mode);
+extern void spm_twam_enable_monitor(
+	const struct twam_sig *twamsig, bool speed_mode);
 extern void spm_twam_disable_monitor(void);
 extern void spm_twam_set_idle_select(unsigned int sel);
 extern void spm_twam_set_window_length(unsigned int len);
 extern void spm_twam_set_mon_type(struct twam_sig *mon);
 
 /* for Vcore DVFS in MET */
-extern void spm_vcorefs_register_handler(vcorefs_handler_t handler, vcorefs_start_handler_t start_handler);
+extern void spm_vcorefs_register_handler(
+	vcorefs_handler_t handler, vcorefs_start_handler_t start_handler);
 
 #if !defined(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
 /* for PMIC power settings */
@@ -130,7 +133,8 @@ extern void unmask_edge_trig_irqs_for_cirq(void);
 
 #ifdef CONFIG_MTK_TINYSYS_SSPM_SUPPORT
 extern bool is_sspm_ipi_lock_spm(void);
-extern void sspm_ipi_lock_spm_scenario(int start, int id, int opt, const char *name);
+extern void sspm_ipi_lock_spm_scenario(
+	int start, int id, int opt, const char *name);
 #endif /* CONFIG_MTK_TINYSYS_SSPM_SUPPORT */
 
 extern void spm_pm_stay_awake(int sec);

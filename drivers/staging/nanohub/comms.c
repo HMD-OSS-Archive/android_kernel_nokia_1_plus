@@ -81,6 +81,7 @@ static struct nanohub_packet_pad *packet_alloc(int flags)
 	    sizeof(struct nanohub_packet_pad) + MAX_UINT8 +
 	    sizeof(struct nanohub_packet_crc);
 	u8 *packet = kmalloc(len, flags);
+
 	if (packet)
 		memset(packet, 0xFF, len);
 	return (struct nanohub_packet_pad *)packet;
@@ -133,17 +134,9 @@ static int packet_verify(struct nanohub_packet *packet)
 	    memcmp(&crc.crc, &packet->data[packet->len],
 		   sizeof(struct nanohub_packet_crc));
 
-	if (cmp != 0) {
-		u8 *ptr = (u8 *)packet;
-
+	if (cmp != 0)
 		pr_debug("nanohub: gen crc: %08x, got crc: %08x\n", crc.crc,
 			 *(u32 *)&packet->data[packet->len]);
-		pr_debug(
-		    "nanohub: %02x [%02x %02x %02x %02x] [%02x %02x %02x %02x] [%02x] [%02x %02x %02x %02x\n",
-		    ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], ptr[6],
-		    ptr[7], ptr[8], ptr[9], ptr[10], ptr[11], ptr[12],
-		    ptr[13]);
-	}
 
 	return cmp;
 }
@@ -153,8 +146,8 @@ static void packet_free(struct nanohub_packet_pad *packet)
 	kfree(packet);
 }
 
-static int read_ack(struct nanohub_data *data, struct nanohub_packet *response,
-		    int timeout)
+static int read_ack(struct nanohub_data *data,
+		    struct nanohub_packet *response, int timeout)
 {
 	int ret, i;
 	const int max_size = sizeof(struct nanohub_packet) + MAX_UINT8 +
@@ -167,28 +160,30 @@ static int read_ack(struct nanohub_data *data, struct nanohub_packet *response,
 				     timeout);
 
 		if (ret == 0) {
-			pr_debug("nanohub: read_ack: %d: empty packet\n", i);
+			pr_debug("nanohub: %s: %d: empty packet\n", __func__,
+				 i);
 			ret = ERROR_NACK;
 			continue;
 		} else if (ret < sizeof(struct nanohub_packet)) {
-			pr_debug("nanohub: read_ack: %d: too small\n", i);
+			pr_debug("nanohub %s: %d: too small\n", __func__, i);
 			ret = ERROR_NACK;
 			continue;
 		} else if (ret <
 			   sizeof(struct nanohub_packet) + response->len +
 			   sizeof(struct nanohub_packet_crc)) {
-			pr_debug("nanohub: read_ack: %d: too small length\n",
-				 i);
+			pr_debug("nanohub %s: %d: too small length\n",
+				 __func__, i);
 			ret = ERROR_NACK;
 			continue;
 		} else if (ret !=
 			   sizeof(struct nanohub_packet) + response->len +
 			   sizeof(struct nanohub_packet_crc)) {
-			pr_debug("nanohub: read_ack: %d: wrong length\n", i);
+			pr_debug("nanohub %s: %d: wrong length\n", __func__,
+				 i);
 			ret = ERROR_NACK;
 			break;
 		} else if (packet_verify(response) != 0) {
-			pr_debug("nanohub: read_ack: %d: invalid crc\n", i);
+			pr_debug("nanohub %s: %d: invalid crc\n", __func__, i);
 			ret = ERROR_NACK;
 			break;
 		}
@@ -198,8 +193,8 @@ static int read_ack(struct nanohub_data *data, struct nanohub_packet *response,
 	return ret;
 }
 
-static int read_msg(struct nanohub_data *data, struct nanohub_packet *response,
-		    int timeout)
+static int read_msg(struct nanohub_data *data,
+		    struct nanohub_packet *response, int timeout)
 {
 	int ret, i;
 	const int max_size = sizeof(struct nanohub_packet) + MAX_UINT8 +
@@ -212,28 +207,31 @@ static int read_msg(struct nanohub_data *data, struct nanohub_packet *response,
 				     timeout);
 
 		if (ret == 0) {
-			pr_debug("nanohub: read_msg: %d: empty packet\n", i);
+			pr_debug("nanohub: %s: %d: empty packet\n", __func__,
+				 i);
 			ret = ERROR_NACK;
 			continue;
 		} else if (ret < sizeof(struct nanohub_packet)) {
-			pr_debug("nanohub: read_msg: %d: too small\n", i);
+			pr_debug("nanohub: %s: %d: too small\n", __func__, i);
 			ret = ERROR_NACK;
 			continue;
 		} else if (ret <
 			   sizeof(struct nanohub_packet) + response->len +
 			   sizeof(struct nanohub_packet_crc)) {
-			pr_debug("nanohub: read_msg: %d: too small length\n",
-				 i);
+			pr_debug("nanohub: %s: %d: too small length\n",
+				 __func__, i);
 			ret = ERROR_NACK;
 			continue;
 		} else if (ret !=
 			   sizeof(struct nanohub_packet) + response->len +
 			   sizeof(struct nanohub_packet_crc)) {
-			pr_debug("nanohub: read_msg: %d: wrong length\n", i);
+			pr_debug("nanohub: %s: %d: wrong length\n", __func__,
+				 i);
 			ret = ERROR_NACK;
 			break;
 		} else if (packet_verify(response) != 0) {
-			pr_debug("nanohub: read_msg: %d: invalid crc\n", i);
+			pr_debug("nanohub: %s: %d: invalid crc\n", __func__,
+				 i);
 			ret = ERROR_NACK;
 			break;
 		}
@@ -243,8 +241,8 @@ static int read_msg(struct nanohub_data *data, struct nanohub_packet *response,
 	return ret;
 }
 
-static int get_reply(struct nanohub_data *data, struct nanohub_packet *response,
-		     u32 seq)
+static int get_reply(struct nanohub_data *data,
+		     struct nanohub_packet *response, u32 seq)
 {
 	int ret;
 
@@ -260,19 +258,6 @@ static int get_reply(struct nanohub_data *data, struct nanohub_packet *response,
 			if (ret < 0)
 				ret = ERROR_NACK;
 		} else {
-			int i;
-			u8 *b = (u8 *)response;
-
-			for (i = 0; i < ret; i += 25)
-				pr_debug(
-				    "nanohub: %d: %d: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
-				    ret, i, b[i], b[i + 1], b[i + 2], b[i + 3],
-				    b[i + 4], b[i + 5], b[i + 6], b[i + 7],
-				    b[i + 8], b[i + 9], b[i + 10], b[i + 11],
-				    b[i + 12], b[i + 13], b[i + 14], b[i + 15],
-				    b[i + 16], b[i + 17], b[i + 18], b[i + 19],
-				    b[i + 20], b[i + 21], b[i + 22], b[i + 23],
-				    b[i + 24]);
 			if (response->reason == CMD_COMMS_NACK)
 				ret = ERROR_NACK;
 			else if (response->reason == CMD_COMMS_BUSY)
@@ -282,24 +267,8 @@ static int get_reply(struct nanohub_data *data, struct nanohub_packet *response,
 		if (response->seq != seq)
 			ret = ERROR_NACK;
 	} else {
-		if (ret >= 0) {
-			int i;
-			u8 *b = (u8 *)response;
-
-			for (i = 0; i < ret; i += 25)
-				pr_debug(
-				    "nanohub: %d: %d: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
-				    ret, i, b[i], b[i + 1], b[i + 2], b[i + 3],
-				    b[i + 4], b[i + 5], b[i + 6], b[i + 7],
-				    b[i + 8], b[i + 9], b[i + 10], b[i + 11],
-				    b[i + 12], b[i + 13], b[i + 14], b[i + 15],
-				    b[i + 16], b[i + 17], b[i + 18], b[i + 19],
-				    b[i + 20], b[i + 21], b[i + 22], b[i + 23],
-				    b[i + 24]);
-		}
 		ret = ERROR_NACK;
 	}
-
 	return ret;
 }
 
@@ -338,7 +307,8 @@ static int nanohub_comms_tx_rx(struct nanohub_data *data,
 
 int nanohub_comms_rx_retrans_boottime(struct nanohub_data *data, u32 cmd,
 				      u8 *rx, size_t rx_len,
-				      int retrans_cnt, int retrans_delay)
+				      int retrans_cnt,
+				      int retrans_delay)
 {
 	int packet_size = 0;
 	struct nanohub_packet_pad *pad = packet_alloc(GFP_KERNEL);
@@ -366,7 +336,7 @@ int nanohub_comms_rx_retrans_boottime(struct nanohub_data *data, u32 cmd,
 					rx_len);
 
 		if (nanohub_wakeup_eom(data,
-				       (ret == ERROR_BUSY) ||
+				       ret == ERROR_BUSY ||
 				       (ret == ERROR_NACK && retrans_cnt >= 0)))
 			ret = -EFAULT;
 
@@ -413,7 +383,7 @@ int nanohub_comms_tx_rx_retrans(struct nanohub_data *data, u32 cmd,
 					rx_len);
 
 		if (nanohub_wakeup_eom(data,
-				       (ret == ERROR_BUSY) ||
+				       ret == ERROR_BUSY ||
 				       (ret == ERROR_NACK && retrans_cnt >= 0)))
 			ret = -EFAULT;
 
@@ -457,7 +427,7 @@ static int nanohub_comms_download(struct nanohub_data *data,
 	int chunk_size;
 	u32 offset = 0;
 	int ret;
-	u8 chunk_reply, upload_reply = 0;
+	u8 chunk_reply = 0, upload_reply = 0;
 	u32 clear_interrupts[8] = { 0x00000008 };
 
 	header.type = type;
@@ -505,19 +475,20 @@ static int nanohub_comms_download(struct nanohub_data *data,
 						release_wakeup(data);
 						continue;
 					}
-					nanohub_comms_tx_rx_retrans(data,
-								    CMD_COMMS_CLR_GET_INTR,
-								    (u8 *)clear_interrupts,
-								    sizeof(clear_interrupts),
-								    (u8 *)data->interrupts,
-								    sizeof(data->interrupts),
-								    false, 10, 0);
+					nanohub_comms_tx_rx_retrans
+						(data, CMD_COMMS_CLR_GET_INTR,
+						 (u8 *)clear_interrupts,
+						 sizeof(clear_interrupts),
+						 (u8 *)data->interrupts,
+						 sizeof(data->interrupts),
+						 false, 10, 0);
 				} else if (chunk_reply == CHUNK_REPLY_RESEND) {
 					;
 				} else if (chunk_reply == CHUNK_REPLY_RESTART) {
 					offset = 0;
 				} else if (chunk_reply == CHUNK_REPLY_CANCEL ||
-					   chunk_reply == CHUNK_REPLY_CANCEL_NO_RETRY) {
+					(chunk_reply ==
+					CHUNK_REPLY_CANCEL_NO_RETRY)) {
 					release_wakeup(data);
 					break;
 				}
@@ -535,16 +506,15 @@ static int nanohub_comms_download(struct nanohub_data *data,
 			upload_reply = UPLOAD_REPLY_PROCESSING;
 			continue;
 		}
-		ret = nanohub_comms_tx_rx_retrans(data,
-						  CMD_COMMS_FINISH_KERNEL_UPLOAD,
-						  NULL, 0,
-						  &upload_reply, sizeof(upload_reply),
-						  false, 10, 10);
+		ret = nanohub_comms_tx_rx_retrans
+			(data,
+			 CMD_COMMS_FINISH_KERNEL_UPLOAD, NULL, 0,
+			 &upload_reply, sizeof(upload_reply), false, 10, 10);
 		release_wakeup(data);
 	} while (ret == sizeof(upload_reply) &&
 		 upload_reply == UPLOAD_REPLY_PROCESSING);
 
-	pr_info("nanohub: nanohub_comms_download: ret=%d, upload_reply=%d\n",
+	pr_info("nanohub: %s: ret=%d, upload_reply=%d\n", __func__,
 		ret, upload_reply);
 
 	return 0;

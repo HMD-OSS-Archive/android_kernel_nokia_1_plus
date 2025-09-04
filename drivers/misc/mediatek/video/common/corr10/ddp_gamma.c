@@ -22,8 +22,12 @@
 	defined(CONFIG_MACH_MT6757) || defined(CONFIG_MACH_KIBOPLUS) || \
 	defined(CONFIG_MACH_ELBRUS) || defined(CONFIG_MACH_MT6799) || \
 	defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6763) || \
-	defined(CONFIG_MACH_MT6758) || defined(CONFIG_MACH_MT6775) || \
-	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT6758) || defined(CONFIG_MACH_MT6739) || \
+	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
+	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT3967) || \
+	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT8168) || \
+	defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6785)
+
 #include <ddp_clkmgr.h>
 #endif
 #endif
@@ -31,11 +35,17 @@
 #include <ddp_drv.h>
 #include <ddp_reg.h>
 #include <ddp_path.h>
+#include <ddp_pq.h>
 #include <ddp_gamma.h>
 #include <disp_drv_platform.h>
 #if defined(CONFIG_MACH_MT6755) || defined(CONFIG_MACH_MT6797) || \
 	defined(CONFIG_MACH_MT6757) || defined(CONFIG_MACH_KIBOPLUS) || \
-	defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6739)
+	defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6739) || \
+	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
+	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT3967) || \
+	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT8168) || \
+	defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6785)
+
 #include <disp_helper.h>
 #endif
 #include <primary_display.h>
@@ -44,39 +54,66 @@
 /* # echo corr_dbg:1 > /sys/kernel/debug/dispsys */
 int corr_dbg_en;
 int ccorr_scenario;
-#define GAMMA_ERR(fmt, arg...) pr_err("[GAMMA] " fmt "\n", ##arg)
-#define GAMMA_NOTICE(fmt, arg...) do { if (corr_dbg_en) pr_debug("[GAMMA] " fmt "\n", ##arg); } while (0)
-#define GAMMA_DBG(fmt, arg...) do { if (corr_dbg_en) pr_debug("[GAMMA] " fmt "\n", ##arg); } while (0)
-#define CCORR_ERR(fmt, arg...) pr_err("[CCORR] " fmt "\n", ##arg)
-#define CCORR_NOTICE(fmt, arg...) do { if (corr_dbg_en) pr_debug("[CCORR] " fmt "\n", ##arg); } while (0)
-#define CCORR_DBG(fmt, arg...) do { if (corr_dbg_en) pr_debug("[CCORR] " fmt "\n", ##arg); } while (0)
+#define GAMMA_ERR(fmt, arg...) \
+	pr_notice("[GAMMA] %s: " fmt "\n", __func__, ##arg)
+#define GAMMA_NOTICE(fmt, arg...) \
+	do { if (corr_dbg_en) \
+		pr_debug("[GAMMA] %s: " fmt "\n", __func__, ##arg); } while (0)
+#define GAMMA_DBG(fmt, arg...) \
+	do { if (corr_dbg_en) \
+		pr_debug("[GAMMA] %s: " fmt "\n", __func__, ##arg); } while (0)
+#define CCORR_ERR(fmt, arg...) \
+	pr_notice("[CCORR] %s: " fmt "\n", __func__, ##arg)
+#define CCORR_NOTICE(fmt, arg...) \
+	do { if (corr_dbg_en) \
+		pr_debug("[CCORR] %s: " fmt "\n", __func__, ##arg); } while (0)
+#define CCORR_DBG(fmt, arg...) \
+	do { if (corr_dbg_en) \
+		pr_debug("[CCORR] %s: " fmt "\n", __func__, ##arg); } while (0)
 
 static DEFINE_MUTEX(g_gamma_global_lock);
 
 
 /* ======================================================================== */
-/*  GAMMA                                                                   */
+/*  GAMMA								    */
 /* ======================================================================== */
 
-#if defined(CONFIG_MACH_ELBRUS) || defined(CONFIG_MACH_MT6757) || defined(CONFIG_MACH_KIBOPLUS) || \
-	defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
-	defined(CONFIG_MACH_MT6775) || defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6771)
+#if defined(CONFIG_MACH_ELBRUS) || defined(CONFIG_MACH_MT6757) || \
+	defined(CONFIG_MACH_KIBOPLUS) || defined(CONFIG_MACH_MT6799) || \
+	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
+	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
+	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6771) || \
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6768) || \
+	defined(CONFIG_MACH_MT8168) || defined(CONFIG_MACH_MT6885) || \
+	defined(CONFIG_MACH_MT6785)
+
 #define GAMMA0_MODULE_NAMING (DISP_MODULE_GAMMA0)
 #else
 #define GAMMA0_MODULE_NAMING (DISP_MODULE_GAMMA)
 #endif
 
-#if defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
-	defined(CONFIG_MACH_MT6775) || defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6771)
+#if defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6763) || \
+	defined(CONFIG_MACH_MT6758) || defined(CONFIG_MACH_MT6739) || \
+	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
+	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT3967) || \
+	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT8168) || \
+	defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6785)
+
 #define GAMMA0_CLK_NAMING (DISP0_DISP_GAMMA0)
 #else
 #define GAMMA0_CLK_NAMING (DISP0_DISP_GAMMA)
 #endif
 
 
-#if defined(CONFIG_MACH_MT6797) || defined(CONFIG_MACH_MT6757) || defined(CONFIG_MACH_KIBOPLUS) || \
-	defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
-	defined(CONFIG_MACH_MT6775) || defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6771)
+#if defined(CONFIG_MACH_MT6797) || defined(CONFIG_MACH_MT6757) || \
+	defined(CONFIG_MACH_KIBOPLUS) || defined(CONFIG_MACH_MT6799) || \
+	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
+	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
+	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6771) || \
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6768) || \
+	defined(CONFIG_MACH_MT8168) || defined(CONFIG_MACH_MT6885) || \
+	defined(CONFIG_MACH_MT6785)
+
 #define GAMMA_SUPPORT_PARTIAL_UPDATE
 #endif
 
@@ -85,7 +122,8 @@ static DEFINE_MUTEX(g_gamma_global_lock);
 #define GAMMA_TOTAL_MODULE_NUM (2)
 #define GAMMA1_OFFSET (DISPSYS_GAMMA1_BASE - DISPSYS_GAMMA0_BASE)
 
-#define gamma_get_offset(module) ((module == GAMMA0_MODULE_NAMING) ? GAMMA0_OFFSET : GAMMA1_OFFSET)
+#define gamma_get_offset(module) ((module == GAMMA0_MODULE_NAMING) ? \
+	GAMMA0_OFFSET : GAMMA1_OFFSET)
 #define index_of_gamma(module) ((module == GAMMA0_MODULE_NAMING) ? 0 : 1)
 #else
 #define GAMMA_TOTAL_MODULE_NUM (1)
@@ -101,8 +139,9 @@ static struct DISP_GAMMA_LUT_T *g_disp_gamma_lut[DISP_GAMMA_TOTAL] = { NULL };
 static ddp_module_notify g_gamma_ddp_notify;
 
 
-static int disp_gamma_write_lut_reg(struct cmdqRecStruct *cmdq, enum DISP_MODULE_ENUM module,
-		enum disp_gamma_id_t id, int lock);
+static int disp_gamma_write_lut_reg(struct cmdqRecStruct *cmdq,
+	enum DISP_MODULE_ENUM module,
+	enum disp_gamma_id_t id, int lock);
 
 static int disp_gamma_start(enum DISP_MODULE_ENUM module, void *cmdq)
 {
@@ -111,12 +150,15 @@ static int disp_gamma_start(enum DISP_MODULE_ENUM module, void *cmdq)
 	return 0;
 }
 
-static void disp_gamma_init(enum DISP_MODULE_ENUM module, unsigned int width, unsigned int height, void *cmdq)
+static void disp_gamma_init(enum DISP_MODULE_ENUM module, unsigned int width,
+	unsigned int height, void *cmdq)
 {
 	const int offset = gamma_get_offset(module);
 
-	DISP_REG_SET(cmdq, DISP_REG_GAMMA_SIZE + offset, (width << 16) | height);
-#if defined(CONFIG_MACH_MT6797) || defined(CONFIG_MACH_MT6757) || defined(CONFIG_MACH_KIBOPLUS)
+	DISP_REG_SET(cmdq, DISP_REG_GAMMA_SIZE + offset,
+		(width << 16) | height);
+#if defined(CONFIG_MACH_MT6797) || defined(CONFIG_MACH_MT6757) || \
+	defined(CONFIG_MACH_KIBOPLUS)
 	/* disable stall cg for avoid display path hang */
 	DISP_REG_MASK(cmdq, DISP_REG_GAMMA_CFG + offset, 0x0 << 8, 0x1 << 8);
 #endif
@@ -125,22 +167,31 @@ static void disp_gamma_init(enum DISP_MODULE_ENUM module, unsigned int width, un
 	if (disp_helper_get_option(DISP_OPT_SHADOW_REGISTER)) {
 		if (disp_helper_get_option(DISP_OPT_SHADOW_MODE) == 0) {
 			/* full shadow mode*/
-			DISP_REG_MASK(cmdq, DISP_REG_GAMMA_DEBUG + offset, 0x0, 0x7);
+			DISP_REG_MASK(cmdq, DISP_REG_GAMMA_DEBUG + offset,
+			0x0, 0x7);
 		} else if (disp_helper_get_option(DISP_OPT_SHADOW_MODE) == 1) {
 			/* force commit */
-			DISP_REG_MASK(cmdq, DISP_REG_GAMMA_DEBUG + offset, 0x1, 0x7);
+			DISP_REG_MASK(cmdq, DISP_REG_GAMMA_DEBUG + offset,
+			0x1, 0x7);
 		} else if (disp_helper_get_option(DISP_OPT_SHADOW_MODE) == 2) {
 			/* bypass shadow */
-			DISP_REG_MASK(cmdq, DISP_REG_GAMMA_DEBUG + offset, 0x1 << 1, 0x7);
+			DISP_REG_MASK(cmdq, DISP_REG_GAMMA_DEBUG + offset,
+			0x1 << 1, 0x7);
 		}
 	}
+#endif
+
+#ifdef GAMMA_ROUND_CORNER
+	/* disable mask config */
+	DISP_REG_SET(cmdq, DISP_REG_GAMMA_DEBUG + offset, 0x0);
 #endif
 
 	/* enable with relay bit set for bypass gamma engine */
 	DISP_REG_MASK(cmdq, DISP_REG_GAMMA_EN + offset, 0x1, 0x1);
 }
 
-static int disp_gamma_config(enum DISP_MODULE_ENUM module, struct disp_ddp_path_config *pConfig, void *cmdq)
+static int disp_gamma_config(enum DISP_MODULE_ENUM module,
+	struct disp_ddp_path_config *pConfig, void *cmdq)
 {
 	if (pConfig->dst_dirty)
 		disp_gamma_init(module, pConfig->dst_w, pConfig->dst_h, cmdq);
@@ -151,12 +202,14 @@ static int disp_gamma_config(enum DISP_MODULE_ENUM module, struct disp_ddp_path_
 static void disp_gamma_trigger_refresh(enum disp_gamma_id_t id)
 {
 	if (g_gamma_ddp_notify != NULL)
-		g_gamma_ddp_notify(GAMMA0_MODULE_NAMING, DISP_PATH_EVENT_TRIGGER);
+		g_gamma_ddp_notify(GAMMA0_MODULE_NAMING,
+		DISP_PATH_EVENT_TRIGGER);
 }
 
 
-static int disp_gamma_write_lut_reg(struct cmdqRecStruct *cmdq, enum DISP_MODULE_ENUM module,
-		enum disp_gamma_id_t id, int lock)
+static int disp_gamma_write_lut_reg(struct cmdqRecStruct *cmdq,
+	enum DISP_MODULE_ENUM module,
+	enum disp_gamma_id_t id, int lock)
 {
 	const int offset = gamma_get_offset(module);
 	unsigned long lut_base = 0;
@@ -164,8 +217,9 @@ static int disp_gamma_write_lut_reg(struct cmdqRecStruct *cmdq, enum DISP_MODULE
 	int i;
 	int ret = 0;
 
-	if (module < GAMMA0_MODULE_NAMING || module >= GAMMA0_MODULE_NAMING + GAMMA_TOTAL_MODULE_NUM) {
-		GAMMA_ERR("disp_gamma_write_lut_reg: invalid module = %d\n", module);
+	if (module < GAMMA0_MODULE_NAMING ||
+		module >= GAMMA0_MODULE_NAMING + GAMMA_TOTAL_MODULE_NUM) {
+		GAMMA_ERR("invalid module = %d\n", module);
 		return -EFAULT;
 	}
 
@@ -174,29 +228,30 @@ static int disp_gamma_write_lut_reg(struct cmdqRecStruct *cmdq, enum DISP_MODULE
 
 	gamma_lut = g_disp_gamma_lut[id];
 	if (gamma_lut == NULL) {
-		GAMMA_ERR(
-		       "disp_gamma_write_lut_reg: gamma table [%d] not initialized\n", id);
+		GAMMA_ERR("table [%d] not initialized\n", id);
 		ret = -EFAULT;
 		goto gamma_write_lut_unlock;
 	}
 
 	DISP_REG_MASK(cmdq, DISP_REG_GAMMA_EN + offset, 0x1, 0x1);
-	DISP_REG_MASK(cmdq, DISP_REG_GAMMA_CFG + offset, 0x2|g_gamma_relay_value[index_of_gamma(module)], 0x3);
+	DISP_REG_MASK(cmdq, DISP_REG_GAMMA_CFG + offset,
+		0x2|g_gamma_relay_value[index_of_gamma(module)], 0x3);
 	lut_base = DISP_REG_GAMMA_LUT + offset;
 
 	for (i = 0; i < DISP_GAMMA_LUT_SIZE; i++) {
 		DISP_REG_MASK(cmdq, (lut_base + i * 4), gamma_lut->lut[i], ~0);
 
 		if ((i & 0x3f) == 0) {
-			GAMMA_DBG("[0x%08lx](%d) = 0x%x\n", (lut_base + i * 4), i,
-			       gamma_lut->lut[i]);
+			GAMMA_DBG("[0x%08lx](%d) = 0x%x\n",
+				(lut_base + i * 4), i, gamma_lut->lut[i]);
 		}
 	}
 	i--;
 	GAMMA_DBG("[0x%08lx](%d) = 0x%x\n", (lut_base + i * 4), i,
 	       gamma_lut->lut[i]);
 #ifdef GAMMA_LIGHT
-	if ((int)(gamma_lut->lut[0] & 0x3FF) - (int)(gamma_lut->lut[510] & 0x3FF) > 0) {
+	if ((int)(gamma_lut->lut[0] & 0x3FF) -
+		(int)(gamma_lut->lut[510] & 0x3FF) > 0) {
 		DISP_REG_MASK(cmdq, DISP_REG_GAMMA_CFG + offset, 0x1, 0x4);
 		GAMMA_DBG("decreasing LUT\n");
 	} else {
@@ -213,22 +268,24 @@ gamma_write_lut_unlock:
 }
 
 
-static int disp_gamma_set_lut(const struct DISP_GAMMA_LUT_T __user *user_gamma_lut,
+static int disp_gamma_set_lut
+	(const struct DISP_GAMMA_LUT_T __user *user_gamma_lut,
 		enum DISP_MODULE_ENUM module, void *cmdq)
 {
 	int ret = 0;
 	enum disp_gamma_id_t id;
 	struct DISP_GAMMA_LUT_T *gamma_lut, *old_lut;
 
-	GAMMA_DBG("disp_gamma_set_lut(cmdq = %d)", (cmdq != NULL ? 1 : 0));
+	GAMMA_DBG("(cmdq = %d)", (cmdq != NULL ? 1 : 0));
 
 	gamma_lut = kmalloc(sizeof(struct DISP_GAMMA_LUT_T), GFP_KERNEL);
 	if (gamma_lut == NULL) {
-		GAMMA_ERR("disp_gamma_set_lut: no memory\n");
+		GAMMA_ERR("no memory\n");
 		return -EFAULT;
 	}
 
-	if (copy_from_user(gamma_lut, user_gamma_lut, sizeof(struct DISP_GAMMA_LUT_T)) != 0) {
+	if (copy_from_user(gamma_lut, user_gamma_lut,
+		sizeof(struct DISP_GAMMA_LUT_T)) != 0) {
 		ret = -EFAULT;
 		kfree(gamma_lut);
 	} else {
@@ -249,7 +306,7 @@ static int disp_gamma_set_lut(const struct DISP_GAMMA_LUT_T __user *user_gamma_l
 
 			disp_gamma_trigger_refresh(id);
 		} else {
-			GAMMA_ERR("disp_gamma_set_lut: invalid ID = %d\n", id);
+			GAMMA_ERR("invalid ID = %d\n", id);
 			ret = -EFAULT;
 		}
 	}
@@ -258,13 +315,15 @@ static int disp_gamma_set_lut(const struct DISP_GAMMA_LUT_T __user *user_gamma_l
 }
 
 #ifdef GAMMA_SUPPORT_PARTIAL_UPDATE
-static int _gamma_partial_update(enum DISP_MODULE_ENUM module, void *arg, void *cmdq)
+static int _gamma_partial_update(enum DISP_MODULE_ENUM module, void *arg,
+void *cmdq)
 {
 	struct disp_rect *roi = (struct disp_rect *) arg;
 	int width = roi->width;
 	int height = roi->height;
 
-	DISP_REG_SET(cmdq, DISP_REG_GAMMA_SIZE + gamma_get_offset(module), (width << 16) | height);
+	DISP_REG_SET(cmdq, DISP_REG_GAMMA_SIZE + gamma_get_offset(module),
+		(width << 16) | height);
 	return 0;
 }
 
@@ -281,11 +340,13 @@ static int gamma_ioctl(enum DISP_MODULE_ENUM module, void *handle,
 }
 #endif
 
-static int disp_gamma_io(enum DISP_MODULE_ENUM module, unsigned int msg, unsigned long arg, void *cmdq)
+static int disp_gamma_io(enum DISP_MODULE_ENUM module, unsigned int msg,
+	unsigned long arg, void *cmdq)
 {
 	switch (msg) {
 	case DISP_IOCTL_SET_GAMMALUT:
-		if (disp_gamma_set_lut((struct DISP_GAMMA_LUT_T *) arg, module, cmdq) < 0) {
+		if (disp_gamma_set_lut((struct DISP_GAMMA_LUT_T *) arg,
+			module, cmdq) < 0) {
 			GAMMA_ERR("DISP_IOCTL_SET_GAMMALUT: failed\n");
 			return -EFAULT;
 		}
@@ -296,7 +357,8 @@ static int disp_gamma_io(enum DISP_MODULE_ENUM module, unsigned int msg, unsigne
 }
 
 
-static int disp_gamma_set_listener(enum DISP_MODULE_ENUM module, ddp_module_notify notify)
+static int disp_gamma_set_listener(enum DISP_MODULE_ENUM module,
+	ddp_module_notify notify)
 {
 	g_gamma_ddp_notify = notify;
 	return 0;
@@ -314,9 +376,10 @@ static int disp_gamma_bypass(enum DISP_MODULE_ENUM module, int bypass)
 		g_gamma_relay_value[index_of_gamma(module)] = 0x0;
 	}
 
-	DISP_REG_MASK(NULL, DISP_REG_GAMMA_CFG + gamma_get_offset(module), relay, 0x1);
+	DISP_REG_MASK(NULL, DISP_REG_GAMMA_CFG + gamma_get_offset(module),
+		relay, 0x1);
 
-	GAMMA_DBG("Module(%d) disp_gamma_bypass(bypass = %d)\n", module, bypass);
+	GAMMA_DBG("Module(%d) (bypass = %d)\n", module, bypass);
 
 	return 0;
 }
@@ -328,8 +391,11 @@ static int disp_gamma_power_on(enum DISP_MODULE_ENUM module, void *handle)
 	defined(CONFIG_MACH_MT6757) || defined(CONFIG_MACH_KIBOPLUS)
 	/* gamma is DCM , do nothing */
 #elif defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
-	defined(CONFIG_MACH_MT6775) || defined(CONFIG_MACH_MT6763) || \
-	  defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || \
+	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
+	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT3967) || \
+	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT8168) || \
+	defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6785)
 
 	ddp_clk_prepare_enable(ddp_get_module_clk_id(module));
 #else
@@ -359,8 +425,12 @@ static int disp_gamma_power_off(enum DISP_MODULE_ENUM module, void *handle)
 	defined(CONFIG_MACH_MT6757) || defined(CONFIG_MACH_KIBOPLUS)
 	/* gamma is DCM , do nothing */
 #elif defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
-	defined(CONFIG_MACH_MT6775) || defined(CONFIG_MACH_MT6763) \
-	|| defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6771)
+	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || \
+	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
+	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT3967) || \
+	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT8168) || \
+	defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6785)
+
 	ddp_clk_disable_unprepare(ddp_get_module_clk_id(module));
 #else
 #ifdef ENABLE_CLK_MGR
@@ -404,12 +474,18 @@ struct DDP_MODULE_DRIVER ddp_driver_gamma = {
 
 
 /* ======================================================================== */
-/*  COLOR CORRECTION                                                        */
+/*  COLOR CORRECTION							    */
 /* ======================================================================== */
 
-#if defined(CONFIG_MACH_ELBRUS) || defined(CONFIG_MACH_MT6757) || defined(CONFIG_MACH_KIBOPLUS) || \
-	defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
-	defined(CONFIG_MACH_MT6775) || defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6771)
+#if defined(CONFIG_MACH_ELBRUS) || defined(CONFIG_MACH_MT6757) || \
+	defined(CONFIG_MACH_KIBOPLUS) || defined(CONFIG_MACH_MT6799) || \
+	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
+	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
+	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6771) || \
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6768) || \
+	defined(CONFIG_MACH_MT8168) || defined(CONFIG_MACH_MT6885) || \
+	defined(CONFIG_MACH_MT6785)
+
 #define CCORR0_BASE_NAMING (DISPSYS_CCORR0_BASE)
 #define CCORR0_MODULE_NAMING (DISP_MODULE_CCORR0)
 #else
@@ -417,16 +493,29 @@ struct DDP_MODULE_DRIVER ddp_driver_gamma = {
 #define CCORR0_MODULE_NAMING (DISP_MODULE_CCORR)
 #endif
 
-#if defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739)
+#if defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6763) || \
+	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
+	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6771) || \
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6768) || \
+	defined(CONFIG_MACH_MT8168) || defined(CONFIG_MACH_MT6885) || \
+	defined(CONFIG_MACH_MT6785)
+
+
 #define CCORR0_CLK_NAMING (DISP0_DISP_CCORR0)
 #else
 #define CCORR0_CLK_NAMING (DISP0_DISP_CCORR)
 #endif
 
 
-#if defined(CONFIG_MACH_MT6797) || defined(CONFIG_MACH_MT6757) || defined(CONFIG_MACH_KIBOPLUS) || \
-	defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
-	defined(CONFIG_MACH_MT6775) || defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6771)
+#if defined(CONFIG_MACH_MT6797) || defined(CONFIG_MACH_MT6757) || \
+	defined(CONFIG_MACH_KIBOPLUS) || defined(CONFIG_MACH_MT6799) || \
+	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) || \
+	defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6765) || \
+	defined(CONFIG_MACH_MT6761) || defined(CONFIG_MACH_MT6771) || \
+	defined(CONFIG_MACH_MT3967) || defined(CONFIG_MACH_MT6768) || \
+	defined(CONFIG_MACH_MT8168) || defined(CONFIG_MACH_MT6885) || \
+	defined(CONFIG_MACH_MT6785)
+
 #define CCORR_SUPPORT_PARTIAL_UPDATE
 #endif
 
@@ -435,20 +524,24 @@ struct DDP_MODULE_DRIVER ddp_driver_gamma = {
 #define CCORR_TOTAL_MODULE_NUM (2)
 #define CCORR1_OFFSET (DISPSYS_CCORR1_BASE - DISPSYS_CCORR0_BASE)
 
-#define ccorr_get_offset(module) ((module == CCORR0_MODULE_NAMING) ? CCORR0_OFFSET : CCORR1_OFFSET)
+#define ccorr_get_offset(module) ((module == CCORR0_MODULE_NAMING) ? \
+	CCORR0_OFFSET : CCORR1_OFFSET)
 #define index_of_ccorr(module) ((module == CCORR0_MODULE_NAMING) ? 0 : 1)
 
-static atomic_t g_ccorr_is_clock_on[CCORR_TOTAL_MODULE_NUM] = { ATOMIC_INIT(0), ATOMIC_INIT(0) };
+static atomic_t g_ccorr_is_clock_on[CCORR_TOTAL_MODULE_NUM] = {
+	ATOMIC_INIT(0), ATOMIC_INIT(0) };
 #else
 #define CCORR_TOTAL_MODULE_NUM (1)
 
 #define ccorr_get_offset(module) (CCORR0_OFFSET)
 #define index_of_ccorr(module) (0)
 
-static atomic_t g_ccorr_is_clock_on[CCORR_TOTAL_MODULE_NUM] = { ATOMIC_INIT(0) };
+static atomic_t g_ccorr_is_clock_on[CCORR_TOTAL_MODULE_NUM] = {
+	ATOMIC_INIT(0) };
 #endif
 
-#define CCORR_CLIP(val, min, max) ((val >= max) ? max : ((val <= min) ? min : val))
+#define CCORR_CLIP(val, min, max) ((val >= max) ? \
+	max : ((val <= min) ? min : val))
 
 static unsigned int g_ccorr_relay_value[CCORR_TOTAL_MODULE_NUM];
 
@@ -461,6 +554,10 @@ static int g_ccorr_prev_matrix[3][3] = {
 	{1024, 0, 0},
 	{0, 1024, 0},
 	{0, 0, 1024} };
+static int g_rgb_matrix[3][3] = {
+	{1024, 0, 0},
+	{0, 1024, 0},
+	{0, 0, 1024} };
 static struct DISP_CCORR_COEF_T g_multiply_matrix_coef;
 static int g_disp_ccorr_without_gamma;
 
@@ -470,31 +567,39 @@ static atomic_t g_ccorr_get_irq = ATOMIC_INIT(0);
 
 static ddp_module_notify g_ccorr_ddp_notify;
 
-static int disp_ccorr_write_coef_reg(struct cmdqRecStruct *cmdq, enum DISP_MODULE_ENUM module,
+static int disp_ccorr_write_coef_reg(struct cmdqRecStruct *cmdq,
+	enum DISP_MODULE_ENUM module,
 		enum disp_ccorr_id_t id, int lock);
 static void ccorr_dump_reg(void);
 
-static void disp_ccorr_init(enum DISP_MODULE_ENUM module, unsigned int width, unsigned int height, void *cmdq)
+static void disp_ccorr_init(enum DISP_MODULE_ENUM module, unsigned int width,
+	unsigned int height, void *cmdq)
 {
 	const int base_offset = ccorr_get_offset(module);
 
-	DISP_REG_SET(cmdq, DISP_REG_CCORR_SIZE + base_offset, (width << 16) | height);
-#if defined(CONFIG_MACH_MT6797) || defined(CONFIG_MACH_MT6757) || defined(CONFIG_MACH_KIBOPLUS)
+	DISP_REG_SET(cmdq, DISP_REG_CCORR_SIZE + base_offset,
+		(width << 16) | height);
+#if defined(CONFIG_MACH_MT6797) || defined(CONFIG_MACH_MT6757) || \
+	defined(CONFIG_MACH_KIBOPLUS)
 	/* disable stall cg for avoid display path hang */
-	DISP_REG_MASK(cmdq, DISP_REG_CCORR_CFG + base_offset, 0x0 << 8, 0x1 << 8);
+	DISP_REG_MASK(cmdq, DISP_REG_CCORR_CFG + base_offset,
+	0x0 << 8, 0x1 << 8);
 #endif
 
 #ifdef DISP_PLATFORM_HAS_SHADOW_REG
 	if (disp_helper_get_option(DISP_OPT_SHADOW_REGISTER)) {
 		if (disp_helper_get_option(DISP_OPT_SHADOW_MODE) == 0) {
 			/* full shadow mode*/
-			DISP_REG_MASK(cmdq, DISP_REG_CCORR_SHADOW + base_offset, 0x0, 0x7);
+			DISP_REG_MASK(cmdq, DISP_REG_CCORR_SHADOW + base_offset,
+			0x0, 0x7);
 		} else if (disp_helper_get_option(DISP_OPT_SHADOW_MODE) == 1) {
 			/* force commit */
-			DISP_REG_MASK(cmdq, DISP_REG_CCORR_SHADOW + base_offset, 0x1 << 1, 0x7);
+			DISP_REG_MASK(cmdq, DISP_REG_CCORR_SHADOW + base_offset,
+			0x1 << 1, 0x7);
 		} else if (disp_helper_get_option(DISP_OPT_SHADOW_MODE) == 2) {
 			/* bypass shadow */
-			DISP_REG_MASK(cmdq, DISP_REG_CCORR_SHADOW + base_offset, 0x1 << 2, 0x7);
+			DISP_REG_MASK(cmdq, DISP_REG_CCORR_SHADOW + base_offset,
+			0x1 << 2, 0x7);
 		}
 	}
 #endif
@@ -508,103 +613,110 @@ static int disp_ccorr_start(enum DISP_MODULE_ENUM module, void *cmdq)
 #ifndef CONFIG_FPGA_EARLY_PORTING
 		disp_ccorr_write_coef_reg(cmdq, module, DISP_CCORR0, 1);
 #else
-		DISP_REG_SET(cmdq, DISP_REG_CCORR_EN + ccorr_get_offset(module), 1);
+		DISP_REG_SET(cmdq,
+		DISP_REG_CCORR_EN + ccorr_get_offset(module), 1);
 		CCORR_DBG("FPGA_EARLY_PORTING");
 #endif
 	return 0;
 }
 
-static void disp_ccorr_multiply_3x3(unsigned int ccorrCoef[3][3], int color_matrix[3][3],
-		unsigned int resultCoef[3][3])
+static void disp_ccorr_multiply_3x3(unsigned int ccorrCoef[3][3],
+		int color_matrix[3][3], unsigned int resultCoef[3][3])
 {
 	int temp_Result;
-	int i, j;
-
 	int signedCcorrCoef[3][3];
+	int i, j;
 
 	/* convert unsigned 12 bit ccorr coefficient to signed 12 bit format */
 	for (i = 0; i < 3; i += 1) {
 		for (j = 0; j < 3; j += 1) {
-			if (ccorrCoef[i][j] > 2047)
-				signedCcorrCoef[i][j] = (int)ccorrCoef[i][j] - 4096;
-			else
-				signedCcorrCoef[i][j] = (int)ccorrCoef[i][j];
+			if (ccorrCoef[i][j] > 2047) {
+				signedCcorrCoef[i][j] =
+					(int)ccorrCoef[i][j] - 4096;
+			} else {
+				signedCcorrCoef[i][j] =
+					(int)ccorrCoef[i][j];
+			}
 		}
 	}
 
 	for (i = 0; i < 3; i += 1) {
-		CCORR_DBG("%6d %6d %6d\n", signedCcorrCoef[i][0], signedCcorrCoef[i][1], signedCcorrCoef[i][2]);
-		CCORR_DBG("%6d %6d %6d\n", signedCcorrCoef[i][0], signedCcorrCoef[i][1], signedCcorrCoef[i][2]);
-		CCORR_DBG("%6d %6d %6d\n", signedCcorrCoef[i][0], signedCcorrCoef[i][1], signedCcorrCoef[i][2]);
+		CCORR_DBG("signedCcorrCoef[%d][0-2] = {%d, %d, %d}\n", i,
+			signedCcorrCoef[i][0],
+			signedCcorrCoef[i][1],
+			signedCcorrCoef[i][2]);
 	}
 
-	temp_Result = (int)(((int)signedCcorrCoef[0][0]*color_matrix[0][0] +
-		(int)signedCcorrCoef[0][1]*color_matrix[1][0] +
-		(int)signedCcorrCoef[0][2]*color_matrix[2][0]) / 1024);
+	temp_Result = (int)((signedCcorrCoef[0][0]*color_matrix[0][0] +
+		signedCcorrCoef[0][1]*color_matrix[1][0] +
+		signedCcorrCoef[0][2]*color_matrix[2][0]) / 1024);
 	resultCoef[0][0] = CCORR_CLIP(temp_Result, -2048, 2047) & 0xFFF;
 
-	temp_Result = (int)(((int)signedCcorrCoef[0][0]*color_matrix[0][1] +
-		(int)signedCcorrCoef[0][1]*color_matrix[1][1] +
-		(int)signedCcorrCoef[0][2]*color_matrix[2][1]) / 1024);
+	temp_Result = (int)((signedCcorrCoef[0][0]*color_matrix[0][1] +
+		signedCcorrCoef[0][1]*color_matrix[1][1] +
+		signedCcorrCoef[0][2]*color_matrix[2][1]) / 1024);
 	resultCoef[0][1] = CCORR_CLIP(temp_Result, -2048, 2047) & 0xFFF;
 
-	temp_Result = (int)(((int)signedCcorrCoef[0][0]*color_matrix[0][2] +
-		(int)signedCcorrCoef[0][1]*color_matrix[1][2] +
-		(int)signedCcorrCoef[0][2]*color_matrix[2][2]) / 1024);
+	temp_Result = (int)((signedCcorrCoef[0][0]*color_matrix[0][2] +
+		signedCcorrCoef[0][1]*color_matrix[1][2] +
+		signedCcorrCoef[0][2]*color_matrix[2][2]) / 1024);
 	resultCoef[0][2] = CCORR_CLIP(temp_Result, -2048, 2047) & 0xFFF;
 
 
-	temp_Result = (int)(((int)signedCcorrCoef[1][0]*color_matrix[0][0] +
-		(int)signedCcorrCoef[1][1]*color_matrix[1][0] +
-		(int)signedCcorrCoef[1][2]*color_matrix[2][0]) / 1024);
+	temp_Result = (int)((signedCcorrCoef[1][0]*color_matrix[0][0] +
+		signedCcorrCoef[1][1]*color_matrix[1][0] +
+		signedCcorrCoef[1][2]*color_matrix[2][0]) / 1024);
 	resultCoef[1][0] = CCORR_CLIP(temp_Result, -2048, 2047) & 0xFFF;
 
-	temp_Result = (int)(((int)signedCcorrCoef[1][0]*color_matrix[0][1] +
-		(int)signedCcorrCoef[1][1]*color_matrix[1][1] +
-		(int)signedCcorrCoef[1][2]*color_matrix[2][1]) / 1024);
+	temp_Result = (int)((signedCcorrCoef[1][0]*color_matrix[0][1] +
+		signedCcorrCoef[1][1]*color_matrix[1][1] +
+		signedCcorrCoef[1][2]*color_matrix[2][1]) / 1024);
 	resultCoef[1][1] = CCORR_CLIP(temp_Result, -2048, 2047) & 0xFFF;
 
-	temp_Result = (int)(((int)signedCcorrCoef[1][0]*color_matrix[0][2] +
-		(int)signedCcorrCoef[1][1]*color_matrix[1][2] +
-		(int)signedCcorrCoef[1][2]*color_matrix[2][2]) / 1024);
+	temp_Result = (int)((signedCcorrCoef[1][0]*color_matrix[0][2] +
+		signedCcorrCoef[1][1]*color_matrix[1][2] +
+		signedCcorrCoef[1][2]*color_matrix[2][2]) / 1024);
 	resultCoef[1][2] = CCORR_CLIP(temp_Result, -2048, 2047) & 0xFFF;
 
 
-	temp_Result = (int)(((int)signedCcorrCoef[2][0]*color_matrix[0][0] +
-		(int)signedCcorrCoef[2][1]*color_matrix[1][0] +
-		(int)signedCcorrCoef[2][2]*color_matrix[2][0]) / 1024);
+	temp_Result = (int)((signedCcorrCoef[2][0]*color_matrix[0][0] +
+		signedCcorrCoef[2][1]*color_matrix[1][0] +
+		signedCcorrCoef[2][2]*color_matrix[2][0]) / 1024);
 	resultCoef[2][0] = CCORR_CLIP(temp_Result, -2048, 2047) & 0xFFF;
 
-	temp_Result = (int)(((int)signedCcorrCoef[2][0]*color_matrix[0][1] +
-		(int)signedCcorrCoef[2][1]*color_matrix[1][1] +
-		(int)signedCcorrCoef[2][2]*color_matrix[2][1]) / 1024);
+	temp_Result = (int)((signedCcorrCoef[2][0]*color_matrix[0][1] +
+		signedCcorrCoef[2][1]*color_matrix[1][1] +
+		signedCcorrCoef[2][2]*color_matrix[2][1]) / 1024);
 	resultCoef[2][1] = CCORR_CLIP(temp_Result, -2048, 2047) & 0xFFF;
 
-	temp_Result = (int)(((int)signedCcorrCoef[2][0]*color_matrix[0][2] +
-		(int)signedCcorrCoef[2][1]*color_matrix[1][2] +
-		(int)signedCcorrCoef[2][2]*color_matrix[2][2]) / 1024);
+	temp_Result = (int)((signedCcorrCoef[2][0]*color_matrix[0][2] +
+		signedCcorrCoef[2][1]*color_matrix[1][2] +
+		signedCcorrCoef[2][2]*color_matrix[2][2]) / 1024);
 	resultCoef[2][2] = CCORR_CLIP(temp_Result, -2048, 2047) & 0xFFF;
 
 	for (i = 0; i < 3; i += 1) {
-		CCORR_DBG("%6d %6d %6d\n", resultCoef[i][0], resultCoef[i][1], resultCoef[i][2]);
-		CCORR_DBG("%6d %6d %6d\n", resultCoef[i][0], resultCoef[i][1], resultCoef[i][2]);
-		CCORR_DBG("%6d %6d %6d\n", resultCoef[i][0], resultCoef[i][1], resultCoef[i][2]);
+		CCORR_DBG("resultCoef[%d][0-2] = {0x%x, 0x%x, 0x%x}\n", i,
+			resultCoef[i][0],
+			resultCoef[i][1],
+			resultCoef[i][2]);
 	}
 }
 
 #define CCORR_REG(base, idx) (base + (idx) * 4 + 0x80)
 
-static int disp_ccorr_write_coef_reg(struct cmdqRecStruct *cmdq, enum DISP_MODULE_ENUM module,
-		enum disp_ccorr_id_t id, int lock)
+static int disp_ccorr_write_coef_reg(struct cmdqRecStruct *cmdq,
+	enum DISP_MODULE_ENUM module, enum disp_ccorr_id_t id, int lock)
 {
 	const int base_offset = ccorr_get_offset(module);
 	const unsigned long ccorr_base = CCORR0_BASE_NAMING + base_offset;
 	int ret = 0;
 	struct DISP_CCORR_COEF_T *ccorr, *multiply_matrix;
 	unsigned int cfg_val;
+	unsigned int temp_matrix[3][3];
 
-	 if (module < CCORR0_MODULE_NAMING || module >= CCORR0_MODULE_NAMING + CCORR_TOTAL_MODULE_NUM) {
-		CCORR_ERR("disp_ccorr_write_coef_reg: invalid module = %d\n", module);
+	if (module < CCORR0_MODULE_NAMING ||
+		module >= CCORR0_MODULE_NAMING + CCORR_TOTAL_MODULE_NUM) {
+		CCORR_ERR("invalid module = %d\n", module);
 		return -EFAULT;
 	}
 
@@ -613,20 +725,24 @@ static int disp_ccorr_write_coef_reg(struct cmdqRecStruct *cmdq, enum DISP_MODUL
 
 	ccorr = g_disp_ccorr_coef[id];
 	if (ccorr == NULL) {
-		CCORR_DBG("disp_ccorr_write_coef_reg: [%d] not initialized\n", id);
+		CCORR_DBG("[%d] not initialized\n", id);
 		ret = -EFAULT;
 		goto ccorr_write_coef_unlock;
 	}
 
 	if (id == 0) {
 		multiply_matrix = &g_multiply_matrix_coef;
-		disp_ccorr_multiply_3x3(ccorr->coef, g_ccorr_color_matrix, multiply_matrix->coef);
+		disp_ccorr_multiply_3x3(ccorr->coef, g_ccorr_color_matrix,
+			temp_matrix);
+		disp_ccorr_multiply_3x3(temp_matrix, g_rgb_matrix,
+			multiply_matrix->coef);
 		ccorr = multiply_matrix;
 	}
 
 	DISP_REG_SET(cmdq, DISP_REG_CCORR_EN + base_offset, 1);
 
-	cfg_val = 0x2 | g_ccorr_relay_value[index_of_ccorr(module)] | (g_disp_ccorr_without_gamma << 2);
+	cfg_val = 0x2 | g_ccorr_relay_value[index_of_ccorr(module)] |
+		     (g_disp_ccorr_without_gamma << 2);
 	DISP_REG_MASK(cmdq, DISP_REG_CCORR_CFG + base_offset, cfg_val, 0x7);
 
 	DISP_REG_SET(cmdq, CCORR_REG(ccorr_base, 0),
@@ -639,7 +755,7 @@ static int disp_ccorr_write_coef_reg(struct cmdqRecStruct *cmdq, enum DISP_MODUL
 		     ((ccorr->coef[2][0] << 16) | (ccorr->coef[2][1])));
 	DISP_REG_SET(cmdq, CCORR_REG(ccorr_base, 4), (ccorr->coef[2][2] << 16));
 
-	CCORR_DBG("disp_ccorr_write_coef_reg");
+	CCORR_DBG("write coef register finish");
 ccorr_write_coef_unlock:
 
 	if (lock)
@@ -651,7 +767,8 @@ ccorr_write_coef_unlock:
 static void disp_ccorr_trigger_refresh(enum disp_ccorr_id_t id)
 {
 	if (g_ccorr_ddp_notify != NULL)
-		g_ccorr_ddp_notify(CCORR0_MODULE_NAMING, DISP_PATH_EVENT_TRIGGER);
+		g_ccorr_ddp_notify(CCORR0_MODULE_NAMING,
+		DISP_PATH_EVENT_TRIGGER);
 }
 
 void disp_ccorr_on_end_of_frame(void)
@@ -661,10 +778,11 @@ void disp_ccorr_on_end_of_frame(void)
 
 	intsta = DISP_REG_GET(DISP_REG_CCORR_INTSTA);
 
-	CCORR_DBG("disp_ccorr_on_end_of_frame: intsta: 0x%x", intsta);
+	CCORR_DBG("intsta: 0x%x", intsta);
 	if (intsta & 0x2) {	/* End of frame */
 		if (spin_trylock_irqsave(&g_ccorr_get_irq_lock, flags)) {
-			DISP_CPU_REG_SET(DISP_REG_CCORR_INTSTA, (intsta & ~0x3));
+			DISP_CPU_REG_SET(DISP_REG_CCORR_INTSTA,
+				(intsta & ~0x3));
 
 			atomic_set(&g_ccorr_get_irq, 1);
 
@@ -684,8 +802,10 @@ static atomic_t g_ccorr_is_init_valid = ATOMIC_INIT(0);
 
 static void disp_ccorr_set_interrupt(int enabled)
 {
-	if (atomic_read(&g_ccorr_is_clock_on[index_of_ccorr(CCORR0_MODULE_NAMING)]) != 1) {
-		CCORR_DBG("disp_ccorr_set_interrupt: clock is off");
+	unsigned int index = index_of_ccorr(CCORR0_MODULE_NAMING);
+
+	if (atomic_read(&g_ccorr_is_clock_on[index]) != 1) {
+		CCORR_DBG("clock is off");
 		return;
 	}
 
@@ -712,10 +832,11 @@ static void disp_ccorr_clear_irq_only(void)
 
 	intsta = DISP_REG_GET(DISP_REG_CCORR_INTSTA);
 
-	CCORR_DBG("disp_ccorr_clear_irq_only: intsta: 0x%x", intsta);
+	CCORR_DBG("intsta: 0x%x", intsta);
 	if (intsta & 0x2) { /* End of frame */
 		if (spin_trylock_irqsave(&g_ccorr_get_irq_lock, flags)) {
-			DISP_CPU_REG_SET(DISP_REG_CCORR_INTSTA, (intsta & ~0x3));
+			DISP_CPU_REG_SET(DISP_REG_CCORR_INTSTA,
+				(intsta & ~0x3));
 
 			spin_unlock_irqrestore(&g_ccorr_get_irq_lock, flags);
 		}
@@ -730,11 +851,14 @@ static int disp_ccorr_wait_irq(unsigned long timeout)
 	int ret = 0;
 
 	if (atomic_read(&g_ccorr_get_irq) == 0) {
-		ret = wait_event_interruptible(g_ccorr_get_irq_wq, atomic_read(&g_ccorr_get_irq) == 1);
-		CCORR_DBG("disp_ccorr_wait_irq: get_irq = 1, waken up, ret = %d", ret);
+		ret = wait_event_interruptible(g_ccorr_get_irq_wq,
+			atomic_read(&g_ccorr_get_irq) == 1);
+		CCORR_DBG("get_irq = 1, waken up");
+		CCORR_DBG("get_irq = 1, ret = %d", ret);
 	} else {
-		/* If g_ccorr_get_irq is already set, means PQService was delayed */
-		CCORR_DBG("disp_ccorr_wait_irq: get_irq = 0");
+		/* If g_ccorr_get_irq is already set, */
+		/* means PQService was delayed */
+		CCORR_DBG("get_irq = 0");
 	}
 
 	spin_lock_irqsave(&g_ccorr_get_irq_lock, flags);
@@ -770,7 +894,7 @@ static int disp_pq_copy_backlight_to_user(int __user *backlight)
 	if (copy_to_user(backlight, &g_pq_backlight_db, sizeof(int)) == 0)
 		ret = 0;
 
-	CCORR_DBG("disp_pq_copy_backlight_to_user: %d", ret);
+	CCORR_DBG("%d", ret);
 
 	return ret;
 }
@@ -790,7 +914,7 @@ void disp_pq_notify_backlight_changed(int bl_1024)
 	if (atomic_read(&g_ccorr_is_init_valid) != 1)
 		return;
 
-	CCORR_DBG("disp_pq_notify_backlight_changed %d", bl_1024);
+	CCORR_DBG("%d", bl_1024);
 
 	if (old_bl == 0 || bl_1024 == 0) {
 		disp_ccorr_set_interrupt(1);
@@ -800,7 +924,8 @@ void disp_pq_notify_backlight_changed(int bl_1024)
 #endif
 }
 
-static int disp_ccorr_set_coef(const struct DISP_CCORR_COEF_T __user *user_color_corr,
+static int disp_ccorr_set_coef
+	(const struct DISP_CCORR_COEF_T __user *user_color_corr,
 		enum DISP_MODULE_ENUM module, void *cmdq)
 {
 	int ret = 0;
@@ -809,11 +934,12 @@ static int disp_ccorr_set_coef(const struct DISP_CCORR_COEF_T __user *user_color
 
 	ccorr = kmalloc(sizeof(struct DISP_CCORR_COEF_T), GFP_KERNEL);
 	if (ccorr == NULL) {
-		CCORR_ERR("disp_ccorr_set_coef: no memory\n");
+		CCORR_ERR("no memory\n");
 		return -EFAULT;
 	}
 
-	if (copy_from_user(ccorr, user_color_corr, sizeof(struct DISP_CCORR_COEF_T)) != 0) {
+	if (copy_from_user(ccorr, user_color_corr,
+		sizeof(struct DISP_CCORR_COEF_T)) != 0) {
 		ret = -EFAULT;
 		kfree(ccorr);
 	} else {
@@ -834,7 +960,7 @@ static int disp_ccorr_set_coef(const struct DISP_CCORR_COEF_T __user *user_color
 
 			disp_ccorr_trigger_refresh(id);
 		} else {
-			CCORR_ERR("disp_ccorr_set_coef: invalid ID = %d\n", id);
+			CCORR_ERR("invalid ID = %d\n", id);
 			ret = -EFAULT;
 			kfree(ccorr);
 		}
@@ -843,7 +969,8 @@ static int disp_ccorr_set_coef(const struct DISP_CCORR_COEF_T __user *user_color
 	return ret;
 }
 
-static int disp_ccorr_config(enum DISP_MODULE_ENUM module, struct disp_ddp_path_config *pConfig, void *cmdq)
+static int disp_ccorr_config(enum DISP_MODULE_ENUM module,
+	struct disp_ddp_path_config *pConfig, void *cmdq)
 {
 	if (pConfig->dst_dirty)
 		disp_ccorr_init(module, pConfig->dst_w, pConfig->dst_h, cmdq);
@@ -859,7 +986,7 @@ int disp_ccorr_set_color_matrix(void *cmdq, int32_t matrix[16], int32_t hint)
 	bool need_refresh = false;
 
 	if (cmdq == NULL) {
-		CCORR_ERR("disp_ccorr_set_color_matrix: cmdq can not be NULL\n");
+		CCORR_ERR("cmdq can not be NULL\n");
 		return -EFAULT;
 	}
 
@@ -887,12 +1014,26 @@ int disp_ccorr_set_color_matrix(void *cmdq, int32_t matrix[16], int32_t hint)
 
 	for (i = 0; i < 3; i++) {
 		for (j = 0; j < 3; j++) {
-			if (g_ccorr_prev_matrix[i][j] != g_ccorr_color_matrix[i][j])
+			if (g_ccorr_prev_matrix[i][j]
+				!= g_ccorr_color_matrix[i][j]) {
+				/* refresh when matrix changed */
 				need_refresh = true;
+			}
 			/* Copy Color Matrix */
 			g_ccorr_prev_matrix[i][j] = g_ccorr_color_matrix[i][j];
 		}
 	}
+
+	for (i = 0; i < 3; i += 1) {
+		CCORR_DBG("g_ccorr_color_matrix[%d][0-2] = {%d, %d, %d}\n",
+				i,
+				g_ccorr_color_matrix[i][0],
+				g_ccorr_color_matrix[i][1],
+				g_ccorr_color_matrix[i][2]);
+	}
+
+	CCORR_DBG("g_disp_ccorr_without_gamma: [%d], need_refresh: [%d]\n",
+		g_disp_ccorr_without_gamma, need_refresh);
 
 	mutex_unlock(&g_gamma_global_lock);
 
@@ -902,14 +1043,32 @@ int disp_ccorr_set_color_matrix(void *cmdq, int32_t matrix[16], int32_t hint)
 	return ret;
 }
 
+int disp_ccorr_set_RGB_Gain(int r, int g, int b)
+{
+	int ret;
+
+	mutex_lock(&g_gamma_global_lock);
+	g_rgb_matrix[0][0] = r;
+	g_rgb_matrix[1][1] = g;
+	g_rgb_matrix[2][2] = b;
+
+	CCORR_DBG("r[%d], g[%d], b[%d]", r, g, b);
+	ret = disp_ccorr_write_coef_reg(NULL, CCORR0_MODULE_NAMING, 0, 0);
+	mutex_unlock(&g_gamma_global_lock);
+	return ret;
+}
+
+
 #ifdef CCORR_SUPPORT_PARTIAL_UPDATE
-static int _ccorr_partial_update(enum DISP_MODULE_ENUM module, void *arg, void *cmdq)
+static int _ccorr_partial_update(enum DISP_MODULE_ENUM module,
+	void *arg, void *cmdq)
 {
 	struct disp_rect *roi = (struct disp_rect *) arg;
 	int width = roi->width;
 	int height = roi->height;
 
-	DISP_REG_SET(cmdq, DISP_REG_CCORR_SIZE + ccorr_get_offset(module), (width << 16) | height);
+	DISP_REG_SET(cmdq, DISP_REG_CCORR_SIZE + ccorr_get_offset(module),
+		(width << 16) | height);
 	return 0;
 }
 
@@ -926,51 +1085,70 @@ static int ccorr_ioctl(enum DISP_MODULE_ENUM module, void *handle,
 }
 #endif
 
-static int disp_ccorr_io(enum DISP_MODULE_ENUM module, unsigned int msg, unsigned long arg, void *cmdq)
+static int disp_ccorr_io(enum DISP_MODULE_ENUM module, unsigned int msg,
+	unsigned long arg, void *cmdq)
 {
+	struct DISP_COLOR_TRANSFORM color_transform;
+	unsigned int i;
+#ifdef CCORR_TRANSITION
+	int enabled;
+#endif
+
 	switch (msg) {
 	case DISP_IOCTL_SET_CCORR:
-		if (disp_ccorr_set_coef((struct DISP_CCORR_COEF_T *) arg, module, cmdq) < 0) {
+		if (disp_ccorr_set_coef((struct DISP_CCORR_COEF_T *) arg,
+			module, cmdq) < 0) {
 			CCORR_ERR("DISP_IOCTL_SET_CCORR: failed\n");
 			return -EFAULT;
 		}
 		break;
 #ifdef CCORR_TRANSITION
 	case DISP_IOCTL_CCORR_EVENTCTL:
-		{
-			int enabled;
-
-			if (copy_from_user(&enabled, (void *)arg, sizeof(enabled))) {
-				CCORR_ERR("DISP_IOCTL_CCORR_EVENTCTL: copy_from_user() failed");
-				return -EFAULT;
-			}
-
-			disp_ccorr_set_interrupt(enabled);
-
-			if (enabled)
-				disp_ccorr_trigger_refresh(DISP_CCORR0);
-
-			break;
+		if (copy_from_user(&enabled, (void *)arg,
+			sizeof(enabled))) {
+			CCORR_ERR("DISP_IOCTL_CCORR_EVENTCTL: failed");
+			return -EFAULT;
 		}
+
+		disp_ccorr_set_interrupt(enabled);
+
+		if (enabled)
+			disp_ccorr_trigger_refresh(DISP_CCORR0);
+
 		break;
 	case DISP_IOCTL_CCORR_GET_IRQ:
-		{
-			atomic_set(&g_ccorr_is_init_valid, 1);
-			disp_ccorr_wait_irq(60);
-			if (disp_pq_copy_backlight_to_user((int *) arg) < 0) {
-				CCORR_ERR("DISP_IOCTL_CCORR_GET_IRQ: copy_to_user() failed");
+		atomic_set(&g_ccorr_is_init_valid, 1);
+		disp_ccorr_wait_irq(60);
+		if (disp_pq_copy_backlight_to_user((int *) arg) < 0) {
+			CCORR_ERR("DISP_IOCTL_CCORR_GET_IRQ: failed");
+			return -EFAULT;
+		}
+
+		break;
+#endif
+	case DISP_IOCTL_SUPPORT_COLOR_TRANSFORM:
+		if (copy_from_user(&color_transform, (void *)arg,
+			sizeof(struct DISP_COLOR_TRANSFORM))) {
+			CCORR_ERR("DISP_IOCTL_SUPPORT_COLOR_TRANSFORM: failed");
+			return -EFAULT;
+		}
+
+		for (i = 0 ; i < 3; i++) {
+			if (color_transform.matrix[3][i] != 0 ||
+				color_transform.matrix[i][3] != 0) {
+				CCORR_DBG("unsupported matrix");
 				return -EFAULT;
 			}
 		}
 		break;
-#endif
 	}
 
 	return 0;
 }
 
 
-static int disp_ccorr_set_listener(enum DISP_MODULE_ENUM module, ddp_module_notify notify)
+static int disp_ccorr_set_listener(enum DISP_MODULE_ENUM module,
+	ddp_module_notify notify)
 {
 	g_ccorr_ddp_notify = notify;
 	return 0;
@@ -991,15 +1169,20 @@ static int disp_ccorr_bypass(enum DISP_MODULE_ENUM module, int bypass)
 
 	DISP_REG_MASK(NULL, DISP_REG_CCORR_CFG + base_offset, 1, 1);
 
-	CCORR_DBG("Module(%d) disp_ccorr_bypass(bypass = %d)", module, bypass);
+	CCORR_DBG("Module(%d) (bypass = %d)", module, bypass);
 
 	return 0;
 }
 
 static int disp_ccorr_power_on(enum DISP_MODULE_ENUM module, void *handle)
 {
-#if defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || defined(CONFIG_MACH_MT6775) || \
-	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6771)
+#if defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
+	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || \
+	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
+	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT3967) || \
+	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT8168) || \
+	defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6785)
+
 	ddp_clk_prepare_enable(ddp_get_module_clk_id(module));
 #else
 #ifdef ENABLE_CLK_MGR
@@ -1029,8 +1212,13 @@ static int disp_ccorr_power_on(enum DISP_MODULE_ENUM module, void *handle)
 
 static int disp_ccorr_power_off(enum DISP_MODULE_ENUM module, void *handle)
 {
-#if defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || defined(CONFIG_MACH_MT6775) || \
-	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || defined(CONFIG_MACH_MT6771)
+#if defined(CONFIG_MACH_MT6759) || defined(CONFIG_MACH_MT6758) || \
+	defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6739) || \
+	defined(CONFIG_MACH_MT6765) || defined(CONFIG_MACH_MT6761) || \
+	defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT3967) || \
+	defined(CONFIG_MACH_MT6768) || defined(CONFIG_MACH_MT8168) || \
+	defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6785)
+
 	ddp_clk_disable_unprepare(ddp_get_module_clk_id(module));
 #else
 
@@ -1084,14 +1272,16 @@ struct DDP_MODULE_DRIVER ddp_driver_ccorr = {
 #endif
 };
 
-int ccorr_coef_interface(enum DISP_MODULE_ENUM module, unsigned int ccorr_coef_ref[3][3], void *handle)
+int ccorr_coef_interface(enum DISP_MODULE_ENUM module,
+	unsigned int ccorr_coef_ref[3][3], void *handle)
 {
 	const enum disp_ccorr_id_t id = DISP_CCORR0;
 	int y, x;
 	struct DISP_CCORR_COEF_T *ccorr;
 
 	if (g_disp_ccorr_coef[id] == NULL) {
-		g_disp_ccorr_coef[id] = kmalloc(sizeof(struct DISP_CCORR_COEF_T), GFP_KERNEL);
+		g_disp_ccorr_coef[id] =
+			kmalloc(sizeof(struct DISP_CCORR_COEF_T), GFP_KERNEL);
 		if (g_disp_ccorr_coef[id] == NULL) {
 			CCORR_ERR("disp_ccorr_set_coef: no memory\n");
 			return -EFAULT;
@@ -1107,9 +1297,12 @@ int ccorr_coef_interface(enum DISP_MODULE_ENUM module, unsigned int ccorr_coef_r
 			ccorr->coef[y][x] = ccorr_coef_ref[y][x];
 
 	CCORR_DBG("== CCORR[%d] Coefficient ==", id);
-	CCORR_DBG("%4d %4d %4d", ccorr->coef[0][0], ccorr->coef[0][1], ccorr->coef[0][2]);
-	CCORR_DBG("%4d %4d %4d", ccorr->coef[1][0], ccorr->coef[1][1], ccorr->coef[1][2]);
-	CCORR_DBG("%4d %4d %4d", ccorr->coef[2][0], ccorr->coef[2][1], ccorr->coef[2][2]);
+	CCORR_DBG("%4d %4d %4d", ccorr->coef[0][0], ccorr->coef[0][1],
+		ccorr->coef[0][2]);
+	CCORR_DBG("%4d %4d %4d", ccorr->coef[1][0], ccorr->coef[1][1],
+		ccorr->coef[1][2]);
+	CCORR_DBG("%4d %4d %4d", ccorr->coef[2][0], ccorr->coef[2][1],
+		ccorr->coef[2][2]);
 
 	disp_ccorr_write_coef_reg(handle, module, id, 1);
 
@@ -1141,7 +1334,8 @@ static int ddp_simple_strtoul(char *ptr, unsigned long *res)
 
 }
 
-static int ccorr_parse_coef(const char *cmd, enum DISP_MODULE_ENUM module, void *handle)
+static int ccorr_parse_coef(const char *cmd, enum DISP_MODULE_ENUM module,
+	void *handle)
 {
 	int i, j, end;
 	bool stop = false;
@@ -1152,13 +1346,15 @@ static int ccorr_parse_coef(const char *cmd, enum DISP_MODULE_ENUM module, void 
 
 	for (i = 0; i < 3; i++) {
 		for (j = 0; j < 3; j++) {
-			end = ddp_simple_strtoul(next, (unsigned long *)(&temp));
+			end = ddp_simple_strtoul(next,
+				(unsigned long *)(&temp));
 			next += end;
 
 			ccorr_coef[i][j] = (unsigned int)temp;
 			count++;
 
-			CCORR_DBG("ccorr coef(%3d,%3d)=%d\n", i, j, ccorr_coef[i][j]);
+			CCORR_DBG("ccorr coef(%3d,%3d)=%d\n",
+				i, j, ccorr_coef[i][j]);
 
 			if (*next == ',')
 				next++;
@@ -1181,7 +1377,8 @@ static int ccorr_parse_coef(const char *cmd, enum DISP_MODULE_ENUM module, void 
 	return 0;
 }
 
-static int ccorr_parse_triple(const char *cmd, unsigned long *offset, unsigned long *value, unsigned long *mask)
+static int ccorr_parse_triple(const char *cmd, unsigned long *offset,
+	unsigned long *value, unsigned long *mask)
 {
 	int count = 0;
 	char *next = (char *)cmd;
@@ -1248,7 +1445,7 @@ void ccorr_test(const char *cmd, char *debug_output)
 		config_module_num = CCORR_TOTAL_MODULE_NUM;
 #endif
 
-	CCORR_DBG("ccorr_test(%s)", cmd);
+	CCORR_DBG("(%s)", cmd);
 
 	debug_output[0] = '\0';
 
@@ -1258,10 +1455,12 @@ void ccorr_test(const char *cmd, char *debug_output)
 		for (i = 0; i < config_module_num; i++) {
 			module += i;
 			if (count == 3) {
-				DISP_REG_MASK(NULL, CCORR0_BASE_NAMING + ccorr_get_offset(module) + offset,
+				DISP_REG_MASK(NULL, CCORR0_BASE_NAMING +
+					ccorr_get_offset(module) + offset,
 					value, mask);
 			} else if (count == 2) {
-				DISP_REG_SET(NULL, CCORR0_BASE_NAMING + ccorr_get_offset(module) + offset,
+				DISP_REG_SET(NULL, CCORR0_BASE_NAMING +
+					ccorr_get_offset(module) + offset,
 					value);
 				mask = 0xffffffff;
 			}

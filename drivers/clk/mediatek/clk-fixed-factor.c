@@ -39,7 +39,8 @@ struct mtk_clk_fixed_factor {
 	void __iomem	*base;
 };
 
-static inline struct mtk_clk_fixed_factor *to_mtk_fixed_factor_data(struct clk_hw *hw)
+static inline struct mtk_clk_fixed_factor *to_mtk_fixed_factor_data(
+	struct clk_hw *hw)
 {
 	return container_of(hw, struct mtk_clk_fixed_factor, hw);
 }
@@ -137,9 +138,11 @@ const struct clk_ops clk_fixed_factor_npdn_ops = {
 };
 /*EXPORT_SYMBOL_GPL(clk_fixed_factor_pdn_ops);*/
 
-struct clk *mtk_clk_register_fixed_factor_pdn(struct device *dev, const char *name,
-		const char *parent_name, unsigned long flags,
-		unsigned int mult, unsigned int div, unsigned int shift, unsigned int pd_reg, void __iomem *base)
+struct clk *mtk_clk_register_fixed_factor_pdn(struct device *dev,
+	const char *name,
+	const char *parent_name, unsigned long flags,
+	unsigned int mult, unsigned int div, unsigned int shift,
+	unsigned int pd_reg, void __iomem *base)
 {
 	struct mtk_clk_fixed_factor *fix;
 	struct clk_init_data init;

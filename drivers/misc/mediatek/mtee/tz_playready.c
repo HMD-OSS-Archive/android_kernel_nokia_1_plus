@@ -19,7 +19,7 @@ uint32_t TEE_update_pr_time_intee(KREE_SESSION_HANDLE session)
 {
 	union MTEEC_PARAM param[4];
 	uint32_t paramTypes;
-	TZ_RESULT ret = TZ_RESULT_SUCCESS;
+	int ret = TZ_RESULT_SUCCESS;
 	uint32_t file_result = PR_TIME_FILE_OK_SIGN;
 	struct file *file = NULL;
 	UINT64 u8Offset = 0;
@@ -47,7 +47,7 @@ uint32_t TEE_update_pr_time_intee(KREE_SESSION_HANDLE session)
 	param[1].mem.buffer = (void *) &cur_counter;
 	param[1].mem.size = sizeof(DRM_UINT64);
 
-	file = FILE_Open(PR_TIME_FILE_SAVE_PATH, O_RDWR, S_IRWXU);
+	file = FILE_Open(PR_TIME_FILE_SAVE_PATH, O_RDWR, 0700);
 	if (file) {
 		FILE_Read(file, (void *) &secure_time,
 			sizeof(struct TZ_JG_SECURECLOCK_INFO), &u8Offset);
@@ -105,7 +105,7 @@ uint32_t TEE_update_pr_time_infile(KREE_SESSION_HANDLE session)
 {
 	union MTEEC_PARAM param[4];
 	uint32_t paramTypes;
-	TZ_RESULT ret = TZ_RESULT_SUCCESS;
+	int ret = TZ_RESULT_SUCCESS;
 	struct file *file = NULL;
 	UINT64 u8Offset = 0;
 	struct TZ_JG_SECURECLOCK_INFO secure_time;
@@ -123,7 +123,7 @@ uint32_t TEE_update_pr_time_infile(KREE_SESSION_HANDLE session)
 		goto tz_error;
 	}
 
-	file = FILE_Open(PR_TIME_FILE_SAVE_PATH, O_RDWR|O_CREAT, S_IRWXU);
+	file = FILE_Open(PR_TIME_FILE_SAVE_PATH, O_RDWR|O_CREAT, 0700);
 	if (file) {
 		FILE_Write(file, (void *) &secure_time,
 			sizeof(struct TZ_JG_SECURECLOCK_INFO), &u8Offset);
@@ -142,7 +142,7 @@ uint32_t TEE_Icnt_pr_time(KREE_SESSION_HANDLE session)
 {
 	union MTEEC_PARAM param[4];
 	uint32_t paramTypes;
-	TZ_RESULT ret = TZ_RESULT_SUCCESS;
+	int ret = TZ_RESULT_SUCCESS;
 	unsigned long time_count = 1392967151;
 	struct rtc_device *rtc = NULL;
 	struct rtc_time tm;
@@ -210,7 +210,7 @@ static KREE_SESSION_HANDLE icnt_session;
 
 int update_securetime_thread(void *data)
 {
-	TZ_RESULT ret;
+	int ret;
 	unsigned int update_ret = 0;
 	uint32_t nsec = THREAD_COUNT_FREQ;
 

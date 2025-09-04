@@ -1,19 +1,19 @@
 /*
-* Copyright (C) 2015 MediaTek Inc.
-*
-* This program is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.
-* If not, see <http://www.gnu.org/licenses/>.
-*/
+ * Copyright (C) 2015 MediaTek Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.
+ * If not, see <http://www.gnu.org/licenses/>.
+ */
 
 /*******************************************************************************
  *
@@ -36,31 +36,29 @@
  *------------------------------------------------------------------------------
  *
  *
- *******************************************************************************/
-
+ ******************************************************************************
+ */
 
 /*****************************************************************************
  *                     C O M P I L E R   F L A G S
  *****************************************************************************/
 
-
 /*****************************************************************************
  *                E X T E R N A L   R E F E R E N C E S
  *****************************************************************************/
 
-#include <linux/dma-mapping.h>
-#include "mtk-auddrv-common.h"
-#include "mtk-soc-pcm-common.h"
-#include "mtk-auddrv-def.h"
 #include "mtk-auddrv-afe.h"
 #include "mtk-auddrv-ana.h"
 #include "mtk-auddrv-clk.h"
+#include "mtk-auddrv-common.h"
+#include "mtk-auddrv-def.h"
 #include "mtk-auddrv-kernel.h"
 #include "mtk-soc-afe-control.h"
-#include "mtk-soc-pcm-platform.h"
 #include "mtk-soc-analog-type.h"
 #include "mtk-soc-digital-type.h"
-
+#include "mtk-soc-pcm-common.h"
+#include "mtk-soc-pcm-platform.h"
+#include <linux/dma-mapping.h>
 
 /*
  *    function implementation
@@ -69,7 +67,7 @@
 static int mtk_voice_bt_probe(struct platform_device *pdev);
 static int mtk_voice_bt_close(struct snd_pcm_substream *substream);
 static int mtk_voice_bt_platform_probe(struct snd_soc_platform *platform);
-static bool  SetModemSpeechDAIBTAttribute(int sample_rate);
+static bool SetModemSpeechDAIBTAttribute(int sample_rate);
 
 static bool voice_bt_Status;
 
@@ -79,9 +77,9 @@ bool get_voice_bt_status(void)
 }
 EXPORT_SYMBOL(get_voice_bt_status);
 
-static struct audio_digital_pcm  voice_bt1Pcm = {
+static struct audio_digital_pcm voice_bt1Pcm = {
 	.mTxLchRepeatSel = Soc_Aud_TX_LCH_RPT_TX_LCH_NO_REPEAT,
-	.mVbt16kModeSel  = Soc_Aud_VBT_16K_MODE_VBT_16K_MODE_DISABLE,
+	.mVbt16kModeSel = Soc_Aud_VBT_16K_MODE_VBT_16K_MODE_DISABLE,
 	.mExtModemSel = Soc_Aud_EXT_MODEM_MODEM_2_USE_INTERNAL_MODEM,
 	.mExtendBckSyncLength = 0,
 	.mExtendBckSyncTypeSel = Soc_Aud_PCM_SYNC_TYPE_BCK_CYCLE_SYNC,
@@ -101,21 +99,19 @@ static struct snd_pcm_hw_constraint_list constraints_sample_rates = {
 };
 
 static struct snd_pcm_hardware mtk_pcm_hardware = {
-	.info = (SNDRV_PCM_INFO_MMAP |
-	SNDRV_PCM_INFO_INTERLEAVED |
-	SNDRV_PCM_INFO_RESUME |
-	SNDRV_PCM_INFO_MMAP_VALID),
-	.formats =      SND_SOC_STD_MT_FMTS,
-	.rates =        SOC_NORMAL_USE_RATE,
-	.rate_min =     SOC_NORMAL_USE_RATE_MIN,
-	.rate_max =     SOC_NORMAL_USE_RATE_MAX,
-	.channels_min =     SOC_NORMAL_USE_CHANNELS_MIN,
-	.channels_max =     SOC_NORMAL_USE_CHANNELS_MAX,
+	.info = (SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_INTERLEAVED |
+		 SNDRV_PCM_INFO_RESUME | SNDRV_PCM_INFO_MMAP_VALID),
+	.formats = SND_SOC_STD_MT_FMTS,
+	.rates = SOC_NORMAL_USE_RATE,
+	.rate_min = SOC_NORMAL_USE_RATE_MIN,
+	.rate_max = SOC_NORMAL_USE_RATE_MAX,
+	.channels_min = SOC_NORMAL_USE_CHANNELS_MIN,
+	.channels_max = SOC_NORMAL_USE_CHANNELS_MAX,
 	.buffer_bytes_max = MAX_BUFFER_SIZE,
 	.period_bytes_max = MAX_PERIOD_SIZE,
-	.periods_min =      1,
-	.periods_max =      4096,
-	.fifo_size =        0,
+	.periods_min = 1,
+	.periods_max = 4096,
+	.fifo_size = 0,
 };
 
 static int mtk_voice_bt_pcm_open(struct snd_pcm_substream *substream)
@@ -125,22 +121,24 @@ static int mtk_voice_bt_pcm_open(struct snd_pcm_substream *substream)
 
 	AudDrv_Clk_On();
 
-	pr_warn("%s(), stream(%d)\n", __func__, substream->stream);
+	pr_debug("%s(), stream(%d)\n", __func__, substream->stream);
 
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
 		runtime->rate = 16000;
 		return 0;
 	}
 	runtime->hw = mtk_pcm_hardware;
-	memcpy((void *)(&(runtime->hw)), (void *)&mtk_pcm_hardware, sizeof(struct snd_pcm_hardware));
+	memcpy((void *)(&(runtime->hw)), (void *)&mtk_pcm_hardware,
+	       sizeof(struct snd_pcm_hardware));
 
 	ret = snd_pcm_hw_constraint_list(runtime, 0, SNDRV_PCM_HW_PARAM_RATE,
 					 &constraints_sample_rates);
-	ret = snd_pcm_hw_constraint_integer(runtime, SNDRV_PCM_HW_PARAM_PERIODS);
+	ret = snd_pcm_hw_constraint_integer(runtime,
+					    SNDRV_PCM_HW_PARAM_PERIODS);
 
 	if (ret < 0) {
 		pr_err("%s(), stream(%d) snd_pcm_hw_constraint_integer failed, ret(%d)\n",
-			__func__, substream->stream, ret);
+		       __func__, substream->stream, ret);
 	}
 
 	runtime->hw.info |= SNDRV_PCM_INFO_INTERLEAVED;
@@ -155,7 +153,7 @@ static int mtk_voice_bt_pcm_open(struct snd_pcm_substream *substream)
 
 static int mtk_voice_bt_close(struct snd_pcm_substream *substream)
 {
-	pr_warn("%s(), stream(%d)\n", __func__, substream->stream);
+	pr_debug("%s(), stream(%d)\n", __func__, substream->stream);
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
 		AudDrv_Clk_Off();
 		return 0;
@@ -163,9 +161,11 @@ static int mtk_voice_bt_close(struct snd_pcm_substream *substream)
 
 	/* interconnection setting */
 	SetIntfConnection(Soc_Aud_InterCon_DisConnect,
-			Soc_Aud_AFE_IO_Block_DAI_BT_IN, Soc_Aud_AFE_IO_Block_MODEM_PCM_2_O);
+			  Soc_Aud_AFE_IO_Block_DAI_BT_IN,
+			  Soc_Aud_AFE_IO_Block_MODEM_PCM_2_O);
 	SetIntfConnection(Soc_Aud_InterCon_DisConnect,
-			Soc_Aud_AFE_IO_Block_MODEM_PCM_2_I_CH1, Soc_Aud_AFE_IO_Block_DAI_BT_OUT);
+			  Soc_Aud_AFE_IO_Block_MODEM_PCM_2_I_CH1,
+			  Soc_Aud_AFE_IO_Block_DAI_BT_OUT);
 
 	/* here start digital part */
 	SetMemoryPathEnable(Soc_Aud_Digital_Block_DAI_BT, false);
@@ -195,20 +195,6 @@ static int mtk_voice_bt_trigger(struct snd_pcm_substream *substream, int cmd)
 	return 0;
 }
 
-static int mtk_voice_bt_pcm_copy(struct snd_pcm_substream *substream,
-				 int channel, snd_pcm_uframes_t pos,
-				 void __user *dst, snd_pcm_uframes_t count)
-{
-	return 0;
-}
-
-static int mtk_voice_bt_pcm_silence(struct snd_pcm_substream *substream,
-				    int channel, snd_pcm_uframes_t pos,
-				    snd_pcm_uframes_t count)
-{
-	return 0; /* do nothing */
-}
-
 static void *dummy_page[2];
 static struct page *mtk_pcm_page(struct snd_pcm_substream *substream,
 				 unsigned long offset)
@@ -216,7 +202,7 @@ static struct page *mtk_pcm_page(struct snd_pcm_substream *substream,
 	return virt_to_page(dummy_page[substream->stream]); /* the same page */
 }
 
-static bool  SetModemSpeechDAIBTAttribute(int sample_rate)
+static bool SetModemSpeechDAIBTAttribute(int sample_rate)
 {
 	struct audio_digital_dai_bt daibt_attribute;
 
@@ -227,9 +213,12 @@ static bool  SetModemSpeechDAIBTAttribute(int sample_rate)
 #else
 	daibt_attribute.mUSE_MRGIF_INPUT = Soc_Aud_BT_DAI_INPUT_FROM_MGRIF;
 #endif
-	daibt_attribute.mDAI_BT_MODE = (sample_rate == 8000) ? Soc_Aud_DATBT_MODE_Mode8K : Soc_Aud_DATBT_MODE_Mode16K;
-	daibt_attribute.mDAI_DEL = Soc_Aud_DAI_DEL_HighWord; /* suggest always HighWord */
-	daibt_attribute.mBT_LEN  = 0;
+	daibt_attribute.mDAI_BT_MODE = (sample_rate == 8000)
+					       ? Soc_Aud_DATBT_MODE_Mode8K
+					       : Soc_Aud_DATBT_MODE_Mode16K;
+	daibt_attribute.mDAI_DEL =
+		Soc_Aud_DAI_DEL_HighWord; /* suggest always HighWord */
+	daibt_attribute.mBT_LEN = 0;
 	daibt_attribute.mDATA_RDY = true;
 	daibt_attribute.mBT_SYNC = Soc_Aud_BTSYNC_Short_Sync;
 	daibt_attribute.mBT_ON = true;
@@ -242,17 +231,20 @@ static int mtk_voice_bt1_prepare(struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtimeStream = substream->runtime;
 
-	pr_warn("%s(), stream(%d), rate = %d  channels = %d period_size = %lu\n",
-	       __func__, substream->stream, runtimeStream->rate, runtimeStream->channels, runtimeStream->period_size);
+	pr_debug("%s(), stream(%d), rate = %d ch = %d size = %lu\n",
+		__func__, substream->stream, runtimeStream->rate,
+		runtimeStream->channels, runtimeStream->period_size);
 
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
 		return 0;
 
 	/* here start digital part */
 	SetIntfConnection(Soc_Aud_InterCon_Connection,
-			Soc_Aud_AFE_IO_Block_DAI_BT_IN, Soc_Aud_AFE_IO_Block_MODEM_PCM_2_O);
+			  Soc_Aud_AFE_IO_Block_DAI_BT_IN,
+			  Soc_Aud_AFE_IO_Block_MODEM_PCM_2_O);
 	SetIntfConnection(Soc_Aud_InterCon_Connection,
-			Soc_Aud_AFE_IO_Block_MODEM_PCM_2_I_CH1, Soc_Aud_AFE_IO_Block_DAI_BT_OUT);
+			  Soc_Aud_AFE_IO_Block_MODEM_PCM_2_I_CH1,
+			  Soc_Aud_AFE_IO_Block_DAI_BT_OUT);
 
 	if (GetMemoryPathEnable(Soc_Aud_Digital_Block_DAI_BT) == false) {
 		/* set merge interface */
@@ -265,10 +257,11 @@ static int mtk_voice_bt1_prepare(struct snd_pcm_substream *substream)
 	SetModemSpeechDAIBTAttribute(runtimeStream->rate);
 	SetDaiBtEnable(true);
 
-	voice_bt1Pcm.mPcmModeWidebandSel = SampleRateTransform(runtimeStream->rate,
-							       Soc_Aud_Digital_Block_MODEM_PCM_2_O);
+	voice_bt1Pcm.mPcmModeWidebandSel = SampleRateTransform(
+		runtimeStream->rate, Soc_Aud_Digital_Block_MODEM_PCM_2_O);
 
-	/* voice_bt1Pcm.mAsyncFifoSel = Soc_Aud_BYPASS_SRC_SLAVE_USE_ASYNC_FIFO; */
+	/* voice_bt1Pcm.mAsyncFifoSel = Soc_Aud_BYPASS_SRC_SLAVE_USE_ASYNC_FIFO;
+	 */
 	SetModemPcmConfig(MODEM_1, voice_bt1Pcm);
 	SetModemPcmEnable(MODEM_1, true);
 	EnableAfe(true);
@@ -291,30 +284,22 @@ static int mtk_voice_bt_hw_free(struct snd_pcm_substream *substream)
 }
 
 static struct snd_pcm_ops mtk_voice_bt_ops = {
-	.open =     mtk_voice_bt_pcm_open,
-	.close =    mtk_voice_bt_close,
-	.ioctl =    snd_pcm_lib_ioctl,
-	.hw_params =    mtk_pcm_hw_params,
-	.hw_free =  mtk_voice_bt_hw_free,
-	.prepare =  mtk_voice_bt1_prepare,
-	.trigger =  mtk_voice_bt_trigger,
-	.copy =     mtk_voice_bt_pcm_copy,
-	.silence =  mtk_voice_bt_pcm_silence,
-	.page =     mtk_pcm_page,
+	.open = mtk_voice_bt_pcm_open,
+	.close = mtk_voice_bt_close,
+	.ioctl = snd_pcm_lib_ioctl,
+	.hw_params = mtk_pcm_hw_params,
+	.hw_free = mtk_voice_bt_hw_free,
+	.prepare = mtk_voice_bt1_prepare,
+	.trigger = mtk_voice_bt_trigger,
+	.page = mtk_pcm_page,
 };
 
 static struct snd_soc_platform_driver mtk_soc_voice_bt_platform = {
-	.ops        = &mtk_voice_bt_ops,
-	.probe      = mtk_voice_bt_platform_probe,
+	.ops = &mtk_voice_bt_ops, .probe = mtk_voice_bt_platform_probe,
 };
 
 static int mtk_voice_bt_probe(struct platform_device *pdev)
 {
-	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(64);
-
-	if (!pdev->dev.dma_mask)
-		pdev->dev.dma_mask = &pdev->dev.coherent_dma_mask;
-
 	if (pdev->dev.of_node)
 		dev_set_name(&pdev->dev, "%s", MT_SOC_VOICE_MD1_BT);
 
@@ -331,26 +316,27 @@ static int mtk_voice_bt_platform_probe(struct snd_soc_platform *platform)
 
 static int mtk_voice_bt_remove(struct platform_device *pdev)
 {
-	pr_debug("%s()\n", __func__);
 	snd_soc_unregister_platform(&pdev->dev);
 	return 0;
 }
 
 #ifdef CONFIG_OF
 static const struct of_device_id mt_soc_pcm_voice_md1_bt_of_ids[] = {
-	{ .compatible = "mediatek,mt_soc_pcm_voice_md1_bt", },
-	{}
-};
+	{
+		.compatible = "mediatek,mt_soc_pcm_voice_md1_bt",
+	},
+	{} };
 #endif
 
 static struct platform_driver mtk_voice_bt_driver = {
 	.driver = {
-		.name = MT_SOC_VOICE_MD1_BT,
-		.owner = THIS_MODULE,
+
+			.name = MT_SOC_VOICE_MD1_BT,
+			.owner = THIS_MODULE,
 #ifdef CONFIG_OF
-		.of_match_table = mt_soc_pcm_voice_md1_bt_of_ids,
+			.of_match_table = mt_soc_pcm_voice_md1_bt_of_ids,
 #endif
-	},
+		},
 	.probe = mtk_voice_bt_probe,
 	.remove = mtk_voice_bt_remove,
 };
@@ -379,14 +365,12 @@ static int __init mtk_soc_voice_bt_platform_init(void)
 	ret = platform_driver_register(&mtk_voice_bt_driver);
 
 	return ret;
-
 }
 module_init(mtk_soc_voice_bt_platform_init);
 
 static void __exit mtk_soc_voice_bt_platform_exit(void)
 {
 
-	pr_debug("%s()\n", __func__);
 	platform_driver_unregister(&mtk_voice_bt_driver);
 }
 module_exit(mtk_soc_voice_bt_platform_exit);

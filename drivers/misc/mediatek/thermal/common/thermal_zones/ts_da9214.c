@@ -1,15 +1,15 @@
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ * Copyright (C) 2017 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ */
 #include <linux/version.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -33,7 +33,9 @@ static kgid_t gid = KGIDT_INIT(1000);
 static DEFINE_SEMAPHORE(sem_mutex);
 
 static unsigned int interval;	/* seconds, 0 : no auto polling */
-static int trip_temp[10] = { 125000, 110000, 100000, 90000, 80000, 70000, 65000, 60000, 55000, 50000 };
+static int trip_temp[10] = { 125000, 110000, 100000, 90000, 80000,
+				70000, 65000, 60000, 55000, 50000 };
+
 static int pre_temp = 60000;
 static unsigned int cl_dev_sysrst_state;
 static struct thermal_zone_device *thz_dev;
@@ -66,11 +68,12 @@ do {								\
 		pr_debug("[Thermal/TZ/DA9214]" fmt, ##args);	\
 } while (0)
 
-static int tsda9214_get_temp(struct thermal_zone_device *thermal, unsigned long *t)
+static int tsda9214_get_temp(
+struct thermal_zone_device *thermal, unsigned long *t)
 {
 	unsigned char val = 0;
 
-	tsda9214_dprintk("[tsda9214_get_temp]\n");
+	tsda9214_dprintk("[%s]\n", __func__);
 	if (da9214_read_interface(0x51, &val, 3, 2) == 1) {
 		switch (val) {
 		case 0:
@@ -87,7 +90,8 @@ static int tsda9214_get_temp(struct thermal_zone_device *thermal, unsigned long 
 			*t = 140000;
 			break;
 		default:
-			tsda9214_dprintk("Error, use the previous temperature\n");
+			tsda9214_dprintk(
+				"Error, use the previous temperature\n");
 			*t = pre_temp;
 		}
 	} else {
@@ -100,7 +104,8 @@ static int tsda9214_get_temp(struct thermal_zone_device *thermal, unsigned long 
 	return 0;
 }
 
-static int tsda9214_bind(struct thermal_zone_device *thermal, struct thermal_cooling_device *cdev)
+static int tsda9214_bind(
+struct thermal_zone_device *thermal, struct thermal_cooling_device *cdev)
 {
 	int table_val = 0;
 
@@ -128,11 +133,11 @@ static int tsda9214_bind(struct thermal_zone_device *thermal, struct thermal_coo
 		return 0;
 
 	if (mtk_thermal_zone_bind_cooling_device(thermal, table_val, cdev)) {
-		tsda9214_dprintk("[tsda9214_bind] error binding cooling dev\n");
+		tsda9214_dprintk("[%s] error binding cooling dev\n", __func__);
 		return -EINVAL;
 	}
 
-	tsda9214_dprintk("[tsda9214_bind] binding OK, %d\n", table_val);
+	tsda9214_dprintk("[%s] binding OK, %d\n", __func__, table_val);
 	return 0;
 }
 
@@ -165,28 +170,31 @@ static int tsda9214_unbind(struct thermal_zone_device *thermal,
 		return 0;
 
 	if (thermal_zone_unbind_cooling_device(thermal, table_val, cdev)) {
-		tsda9214_dprintk("[tsda9214_unbind] error unbinding cooling dev\n");
+		tsda9214_dprintk(
+			"[%s] error unbinding cooling dev\n", __func__);
 		return -EINVAL;
 	}
 
-	tsda9214_dprintk("[tsda9214_unbind] unbinding OK\n");
+	tsda9214_dprintk("[%s] unbinding OK\n", __func__);
 	return 0;
 }
 
-static int tsda9214_get_mode(struct thermal_zone_device *thermal, enum thermal_device_mode *mode)
+static int tsda9214_get_mode(
+struct thermal_zone_device *thermal, enum thermal_device_mode *mode)
 {
 	*mode = (kernelmode) ? THERMAL_DEVICE_ENABLED : THERMAL_DEVICE_DISABLED;
 	return 0;
 }
 
-static int tsda9214_set_mode(struct thermal_zone_device *thermal, enum thermal_device_mode mode)
+static int tsda9214_set_mode(
+struct thermal_zone_device *thermal, enum thermal_device_mode mode)
 {
 	kernelmode = mode;
 	return 0;
 }
 
-static int tsda9214_get_trip_type(struct thermal_zone_device *thermal, int trip,
-				   enum thermal_trip_type *type)
+static int tsda9214_get_trip_type(
+struct thermal_zone_device *thermal, int trip, enum thermal_trip_type *type)
 {
 	*type = g_THERMAL_TRIP[trip];
 	return 0;
@@ -199,7 +207,8 @@ static int tsda9214_get_trip_temp(struct thermal_zone_device *thermal, int trip,
 	return 0;
 }
 
-static int tsda9214_get_crit_temp(struct thermal_zone_device *thermal, unsigned long *temperature)
+static int tsda9214_get_crit_temp(
+struct thermal_zone_device *thermal, unsigned long *temperature)
 {
 	*temperature = tsda9214_TEMP_CRIT;
 	return 0;
@@ -217,23 +226,28 @@ static struct thermal_zone_device_ops tsda9214_dev_ops = {
 	.get_crit_temp = tsda9214_get_crit_temp,
 };
 
-static int tsda9214_sysrst_get_max_state(struct thermal_cooling_device *cdev, unsigned long *state)
+static int tsda9214_sysrst_get_max_state(
+struct thermal_cooling_device *cdev, unsigned long *state)
 {
-	tsda9214_dprintk("tsda9214_sysrst_get_max_state!!!\n");
+	tsda9214_dprintk("%s!!!\n", __func__);
 	*state = 1;
 	return 0;
 }
 
-static int tsda9214_sysrst_get_cur_state(struct thermal_cooling_device *cdev, unsigned long *state)
+static int tsda9214_sysrst_get_cur_state(
+struct thermal_cooling_device *cdev, unsigned long *state)
 {
-	tsda9214_dprintk("tsda9214_sysrst_get_cur_state = %d\n", cl_dev_sysrst_state);
+	tsda9214_dprintk("%s = %d\n", __func__,
+						cl_dev_sysrst_state);
 	*state = cl_dev_sysrst_state;
 	return 0;
 }
 
-static int tsda9214_sysrst_set_cur_state(struct thermal_cooling_device *cdev, unsigned long state)
+static int tsda9214_sysrst_set_cur_state(
+struct thermal_cooling_device *cdev, unsigned long state)
 {
-	tsda9214_dprintk("tsda9214_sysrst_set_cur_state = %d\n", cl_dev_sysrst_state);
+	tsda9214_dprintk("%s = %d\n", __func__,
+						cl_dev_sysrst_state);
 	cl_dev_sysrst_state = state;
 	if (cl_dev_sysrst_state == 1) {
 		pr_debug("Power/da9214_Thermal: reset, reset, reset!!!");
@@ -241,7 +255,9 @@ static int tsda9214_sysrst_set_cur_state(struct thermal_cooling_device *cdev, un
 		pr_debug("*****************************************");
 		pr_debug("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
 
-
+		/* To trigger data abort to reset the system
+		 * for thermal protection.
+		 */
 		BUG();
 
 	}
@@ -256,27 +272,45 @@ static struct thermal_cooling_device_ops tsda9214_cooling_sysrst_ops = {
 
 int tsda9214_register_cooler(void)
 {
-	cl_dev_sysrst = mtk_thermal_cooling_device_register("tsda9214-sysrst", NULL,
-							    &tsda9214_cooling_sysrst_ops);
+	cl_dev_sysrst = mtk_thermal_cooling_device_register("tsda9214-sysrst",
+						NULL,
+						&tsda9214_cooling_sysrst_ops);
 	return 0;
 }
 
 static int tsda9214_read(struct seq_file *m, void *v)
 {
 
-	seq_printf(m, "[tsda9214_read] trip_0_temp=%d,trip_1_temp=%d,trip_2_temp=%d,trip_3_temp=%d,trip_4_temp=%d,\n",
-		trip_temp[0], trip_temp[1], trip_temp[2], trip_temp[3], trip_temp[4]);
-	seq_printf(m, "trip_5_temp=%d,trip_6_temp=%d,trip_7_temp=%d,trip_8_temp=%d,trip_9_temp=%d,\n",
-		trip_temp[5], trip_temp[6], trip_temp[7], trip_temp[8], trip_temp[9]);
-	seq_printf(m, "g_THERMAL_TRIP_0=%d,g_THERMAL_TRIP_1=%d,g_THERMAL_TRIP_2=%d,g_THERMAL_TRIP_3=%d\n",
-		g_THERMAL_TRIP[0], g_THERMAL_TRIP[1], g_THERMAL_TRIP[2], g_THERMAL_TRIP[3]);
-	seq_printf(m, "g_THERMAL_TRIP_4=%d, g_THERMAL_TRIP_5=%d,g_THERMAL_TRIP_6=%d,g_THERMAL_TRIP_7=%d\n",
-		g_THERMAL_TRIP[4], g_THERMAL_TRIP[5], g_THERMAL_TRIP[6], g_THERMAL_TRIP[7]);
+	seq_printf(m,
+		"[%s] trip_0_temp=%d,trip_1_temp=%d,trip_2_temp=%d,trip_3_temp=%d,trip_4_temp=%d,\n",
+		__func__,
+		trip_temp[0], trip_temp[1], trip_temp[2],
+		trip_temp[3], trip_temp[4]);
+
+	seq_printf(m,
+		"trip_5_temp=%d,trip_6_temp=%d,trip_7_temp=%d,trip_8_temp=%d,trip_9_temp=%d,\n",
+		trip_temp[5], trip_temp[6], trip_temp[7],
+		trip_temp[8], trip_temp[9]);
+
+	seq_printf(m,
+		"g_THERMAL_TRIP_0=%d,g_THERMAL_TRIP_1=%d,g_THERMAL_TRIP_2=%d,g_THERMAL_TRIP_3=%d\n",
+		g_THERMAL_TRIP[0], g_THERMAL_TRIP[1],
+		g_THERMAL_TRIP[2], g_THERMAL_TRIP[3]);
+
+	seq_printf(m,
+		"g_THERMAL_TRIP_4=%d, g_THERMAL_TRIP_5=%d,g_THERMAL_TRIP_6=%d,g_THERMAL_TRIP_7=%d\n",
+		g_THERMAL_TRIP[4], g_THERMAL_TRIP[5],
+		g_THERMAL_TRIP[6], g_THERMAL_TRIP[7]);
+
 	seq_printf(m, "g_THERMAL_TRIP_8=%d,g_THERMAL_TRIP_9=%d,\n",
-		g_THERMAL_TRIP[8], g_THERMAL_TRIP[9]);
-	seq_printf(m, "cooldev0=%s,cooldev1=%s,cooldev2=%s,cooldev3=%s,cooldev4=%s,\n",
+					g_THERMAL_TRIP[8], g_THERMAL_TRIP[9]);
+
+	seq_printf(m,
+		"cooldev0=%s,cooldev1=%s,cooldev2=%s,cooldev3=%s,cooldev4=%s,\n",
 		g_bind0, g_bind1, g_bind2, g_bind3, g_bind4);
-	seq_printf(m, "cooldev5=%s,cooldev6=%s,cooldev7=%s,cooldev8=%s,cooldev9=%s,time_ms=%d\n",
+
+	seq_printf(m,
+		"cooldev5=%s,cooldev6=%s,cooldev7=%s,cooldev8=%s,cooldev9=%s,time_ms=%d\n",
 		g_bind5, g_bind6, g_bind7, g_bind8, g_bind9, interval * 1000);
 
 	return 0;
@@ -285,8 +319,8 @@ static int tsda9214_read(struct seq_file *m, void *v)
 static int tsda9214_register_thermal(void);
 static void tsda9214_unregister_thermal(void);
 
-static ssize_t tsda9214_write(struct file *file, const char __user *buffer, size_t count,
-			       loff_t *data)
+static ssize_t tsda9214_write(
+struct file *file, const char __user *buffer, size_t count, loff_t *data)
 {
 	int len = 0, i;
 	struct tsda9214_data {
@@ -298,12 +332,15 @@ static ssize_t tsda9214_write(struct file *file, const char __user *buffer, size
 		char desc[512];
 	};
 
-	struct tsda9214_data *ptr_tsda9214_data = kmalloc(sizeof(*ptr_tsda9214_data), GFP_KERNEL);
+	struct tsda9214_data *ptr_tsda9214_data = kmalloc(
+					sizeof(*ptr_tsda9214_data), GFP_KERNEL);
 
 	if (ptr_tsda9214_data == NULL)
 		return -ENOMEM;
 
-	len = (count < (sizeof(ptr_tsda9214_data->desc) - 1)) ? count : (sizeof(ptr_tsda9214_data->desc) - 1);
+	len = (count < (sizeof(ptr_tsda9214_data->desc) - 1)) ?
+				count : (sizeof(ptr_tsda9214_data->desc) - 1);
+
 	if (copy_from_user(ptr_tsda9214_data->desc, buffer, len)) {
 		kfree(ptr_tsda9214_data);
 		return 0;
@@ -311,30 +348,42 @@ static ssize_t tsda9214_write(struct file *file, const char __user *buffer, size
 
 	ptr_tsda9214_data->desc[len] = '\0';
 
-	if (sscanf
-	    (ptr_tsda9214_data->desc,
-	     "%d %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d",
+	if (sscanf(ptr_tsda9214_data->desc,
+		"%d %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d",
 		&num_trip,
-		&ptr_tsda9214_data->trip[0], &ptr_tsda9214_data->t_type[0], ptr_tsda9214_data->bind0,
-		&ptr_tsda9214_data->trip[1], &ptr_tsda9214_data->t_type[1], ptr_tsda9214_data->bind1,
-		&ptr_tsda9214_data->trip[2], &ptr_tsda9214_data->t_type[2], ptr_tsda9214_data->bind2,
-		&ptr_tsda9214_data->trip[3], &ptr_tsda9214_data->t_type[3], ptr_tsda9214_data->bind3,
-		&ptr_tsda9214_data->trip[4], &ptr_tsda9214_data->t_type[4], ptr_tsda9214_data->bind4,
-		&ptr_tsda9214_data->trip[5], &ptr_tsda9214_data->t_type[5], ptr_tsda9214_data->bind5,
-		&ptr_tsda9214_data->trip[6], &ptr_tsda9214_data->t_type[6], ptr_tsda9214_data->bind6,
-		&ptr_tsda9214_data->trip[7], &ptr_tsda9214_data->t_type[7], ptr_tsda9214_data->bind7,
-		&ptr_tsda9214_data->trip[8], &ptr_tsda9214_data->t_type[8], ptr_tsda9214_data->bind8,
-		&ptr_tsda9214_data->trip[9], &ptr_tsda9214_data->t_type[9], ptr_tsda9214_data->bind9,
+		&ptr_tsda9214_data->trip[0], &ptr_tsda9214_data->t_type[0],
+		ptr_tsda9214_data->bind0,
+		&ptr_tsda9214_data->trip[1], &ptr_tsda9214_data->t_type[1],
+		ptr_tsda9214_data->bind1,
+		&ptr_tsda9214_data->trip[2], &ptr_tsda9214_data->t_type[2],
+		ptr_tsda9214_data->bind2,
+		&ptr_tsda9214_data->trip[3], &ptr_tsda9214_data->t_type[3],
+		ptr_tsda9214_data->bind3,
+		&ptr_tsda9214_data->trip[4], &ptr_tsda9214_data->t_type[4],
+		ptr_tsda9214_data->bind4,
+		&ptr_tsda9214_data->trip[5], &ptr_tsda9214_data->t_type[5],
+		ptr_tsda9214_data->bind5,
+		&ptr_tsda9214_data->trip[6], &ptr_tsda9214_data->t_type[6],
+		ptr_tsda9214_data->bind6,
+		&ptr_tsda9214_data->trip[7], &ptr_tsda9214_data->t_type[7],
+		ptr_tsda9214_data->bind7,
+		&ptr_tsda9214_data->trip[8], &ptr_tsda9214_data->t_type[8],
+		ptr_tsda9214_data->bind8,
+		&ptr_tsda9214_data->trip[9], &ptr_tsda9214_data->t_type[9],
+		ptr_tsda9214_data->bind9,
 		&ptr_tsda9214_data->time_msec) == 32) {
 		down(&sem_mutex);
-		tsda9214_dprintk("[tsda9214_write] tsda9214_unregister_thermal\n");
+		tsda9214_dprintk(
+			"[%s] tsda9214_unregister_thermal\n", __func__);
+
 		tsda9214_unregister_thermal();
 
 		for (i = 0; i < num_trip; i++)
 			g_THERMAL_TRIP[i] = ptr_tsda9214_data->t_type[i];
 
-		g_bind0[0] = g_bind1[0] = g_bind2[0] = g_bind3[0] = g_bind4[0] = g_bind5[0] =
-		    g_bind6[0] = g_bind7[0] = g_bind8[0] = g_bind9[0] = '\0';
+		g_bind0[0] = g_bind1[0] = g_bind2[0] = g_bind3[0]
+			= g_bind4[0] = g_bind5[0] = g_bind6[0]
+			= g_bind7[0] = g_bind8[0] = g_bind9[0] = '\0';
 
 		for (i = 0; i < 20; i++) {
 			g_bind0[i] = ptr_tsda9214_data->bind0[i];
@@ -349,15 +398,29 @@ static ssize_t tsda9214_write(struct file *file, const char __user *buffer, size
 			g_bind9[i] = ptr_tsda9214_data->bind9[i];
 		}
 
-		tsda9214_dprintk("[tsda9214_write] g_THERMAL_TRIP_0=%d,g_THERMAL_TRIP_1=%d,g_THERMAL_TRIP_2=%d,",
-			g_THERMAL_TRIP[0], g_THERMAL_TRIP[1], g_THERMAL_TRIP[2]);
-		tsda9214_dprintk("g_THERMAL_TRIP_3=%d,g_THERMAL_TRIP_4=%d,g_THERMAL_TRIP_5=%d,g_THERMAL_TRIP_6=%d",
-			g_THERMAL_TRIP[3], g_THERMAL_TRIP[4], g_THERMAL_TRIP[5], g_THERMAL_TRIP[6]);
-		tsda9214_dprintk("g_THERMAL_TRIP_7=%d,g_THERMAL_TRIP_8=%d,g_THERMAL_TRIP_9=%d,\n",
-			g_THERMAL_TRIP[7], g_THERMAL_TRIP[8], g_THERMAL_TRIP[9]);
-		tsda9214_dprintk("[tsda9214_write] cooldev0=%s,cooldev1=%s,cooldev2=%s,cooldev3=%s,cooldev4=%s,",
+		tsda9214_dprintk(
+			"[%s] g_THERMAL_TRIP_0=%d,g_THERMAL_TRIP_1=%d,g_THERMAL_TRIP_2=%d,",
+			__func__,
+			g_THERMAL_TRIP[0], g_THERMAL_TRIP[1],
+			g_THERMAL_TRIP[2]);
+
+		tsda9214_dprintk(
+			"g_THERMAL_TRIP_3=%d,g_THERMAL_TRIP_4=%d,g_THERMAL_TRIP_5=%d,g_THERMAL_TRIP_6=%d",
+			g_THERMAL_TRIP[3], g_THERMAL_TRIP[4],
+			g_THERMAL_TRIP[5], g_THERMAL_TRIP[6]);
+
+		tsda9214_dprintk(
+			"g_THERMAL_TRIP_7=%d,g_THERMAL_TRIP_8=%d,g_THERMAL_TRIP_9=%d,\n",
+			g_THERMAL_TRIP[7], g_THERMAL_TRIP[8],
+			g_THERMAL_TRIP[9]);
+
+		tsda9214_dprintk(
+			"[%s] cooldev0=%s,cooldev1=%s,cooldev2=%s,cooldev3=%s,cooldev4=%s,",
+			__func__,
 			g_bind0, g_bind1, g_bind2, g_bind3, g_bind4);
-		tsda9214_dprintk("cooldev5=%s,cooldev6=%s,cooldev7=%s,cooldev8=%s,cooldev9=%s\n",
+
+		tsda9214_dprintk(
+			"cooldev5=%s,cooldev6=%s,cooldev7=%s,cooldev8=%s,cooldev9=%s\n",
 			g_bind5, g_bind6, g_bind7, g_bind8, g_bind9);
 
 		for (i = 0; i < num_trip; i++)
@@ -365,13 +428,22 @@ static ssize_t tsda9214_write(struct file *file, const char __user *buffer, size
 
 		interval = ptr_tsda9214_data->time_msec / 1000;
 
-		tsda9214_dprintk("[tsda9214_write] trip_0_temp=%d,trip_1_temp=%d,trip_2_temp=%d,trip_3_temp=%d,",
+		tsda9214_dprintk(
+			"[%s] trip_0_temp=%d,trip_1_temp=%d,trip_2_temp=%d,trip_3_temp=%d,",
+			__func__,
 			trip_temp[0], trip_temp[1], trip_temp[2], trip_temp[3]);
-		tsda9214_dprintk("trip_4_temp=%d,trip_5_temp=%d,trip_6_temp=%d,trip_7_temp=%d,trip_8_temp=%d,",
-			trip_temp[4], trip_temp[5], trip_temp[6], trip_temp[7], trip_temp[8]);
-		tsda9214_dprintk("trip_9_temp=%d,time_ms=%d\n", trip_temp[9], interval * 1000);
 
-		tsda9214_dprintk("[tsda9214_write] tsda9214_register_thermal\n");
+		tsda9214_dprintk(
+			"trip_4_temp=%d,trip_5_temp=%d,trip_6_temp=%d,trip_7_temp=%d,trip_8_temp=%d,",
+			trip_temp[4], trip_temp[5], trip_temp[6],
+			trip_temp[7], trip_temp[8]);
+
+		tsda9214_dprintk("trip_9_temp=%d,time_ms=%d\n",
+						trip_temp[9], interval * 1000);
+
+		tsda9214_dprintk(
+			"[%s] tsda9214_register_thermal\n", __func__);
+
 		tsda9214_register_thermal();
 		up(&sem_mutex);
 
@@ -379,18 +451,19 @@ static ssize_t tsda9214_write(struct file *file, const char __user *buffer, size
 		return count;
 	}
 
-	tsda9214_dprintk("[tsda9214_write] bad argument\n");
+	tsda9214_dprintk("[%s] bad argument\n", __func__);
 	kfree(ptr_tsda9214_data);
 	return -EINVAL;
 }
 
 static int tsda9214_register_thermal(void)
 {
-	tsda9214_dprintk("[tsda9214_register_thermal]\n");
+	tsda9214_dprintk("[%s]\n", __func__);
 
 	/* trips : trip 0~2 */
 	thz_dev = mtk_thermal_zone_device_register("tsda9214", num_trip, NULL,
-						   &tsda9214_dev_ops, 0, 0, 0, interval * 1000);
+						&tsda9214_dev_ops, 0, 0, 0,
+						interval * 1000);
 
 	return 0;
 }
@@ -405,7 +478,7 @@ void tsda9214_unregister_cooler(void)
 
 static void tsda9214_unregister_thermal(void)
 {
-	tsda9214_dprintk("[tsda9214_unregister_thermal]\n");
+	tsda9214_dprintk("[%s]\n", __func__);
 
 	if (thz_dev) {
 		mtk_thermal_zone_device_unregister(thz_dev);
@@ -433,11 +506,11 @@ static int __init tsda9214_init(void)
 	struct proc_dir_entry *entry = NULL;
 	struct proc_dir_entry *tsda9214_dir = NULL;
 
-	tsda9214_dprintk("tsda9214_init: Start\n");
+	tsda9214_dprintk("%s: Start\n", __func__);
 
 	/* return 1 means with 6311, else return 0 */
 	if (is_da9214_exist() == 0) {
-		tsda9214_dprintk("tsda9214_init: Buck is not exist\n");
+		tsda9214_dprintk("%s: Buck is not exist\n", __func__);
 		return err;
 	}
 
@@ -451,11 +524,11 @@ static int __init tsda9214_init(void)
 
 	tsda9214_dir = mtk_thermal_get_proc_drv_therm_dir_entry();
 	if (!tsda9214_dir) {
-		tsda9214_dprintk("[%s]: mkdir /proc/driver/thermal failed\n", __func__);
+		tsda9214_dprintk("[%s]: mkdir /proc/driver/thermal failed\n",
+								__func__);
 	} else {
 		entry =
-		    proc_create("tzda9214", S_IRUGO | S_IWUSR | S_IWGRP, tsda9214_dir,
-				&tsda9214_fops);
+		    proc_create("tzda9214", 0664, tsda9214_dir, &tsda9214_fops);
 		if (entry)
 			proc_set_user(entry, uid, gid);
 	}
@@ -471,7 +544,7 @@ err_unreg:
 
 static void __exit tsda9214_exit(void)
 {
-	tsda9214_dprintk("[tsda9214_exit]\n");
+	tsda9214_dprintk("[%s]\n", __func__);
 	tsda9214_unregister_thermal();
 	tsda9214_unregister_cooler();
 }

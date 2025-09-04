@@ -9,7 +9,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ */
 
 #ifndef __MTK_CLK_ID_MT6763_H__
 #define __MTK_CLK_ID_MT6763_H__

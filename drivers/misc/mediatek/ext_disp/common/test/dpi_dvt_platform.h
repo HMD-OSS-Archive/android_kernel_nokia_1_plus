@@ -30,7 +30,6 @@
 /* #define RDMA_MODE_DIRECT_LINK 0 */
 /* #define RDMA_MODE_MEMORY	  1 */
 
-/* K2 */
 /* RDMA1 -> DPI0 */
 /* OVL1 -> RDMA1 -> DPI0 */
 /* OVL0 -> COLOR0 -> CCORR0 -> ALL0 -> GAMMA0 -> DITHER0 -> RDMA0 -> DPI0 */
@@ -55,14 +54,6 @@
 #define DISP_DSC_MOD_FOR_MUTEX 31
 #define RDMA_MOD_FOR_MUTEX_SHORT RDMA1_MOD_FOR_MUTEX
 #define DSI1_MOD_FOR_MUTEX 4
-
-/* DPI Related */
-/*
-*
-#ifndef DISP_REG_CONFIG_DPI_SEL_IN
-#define DISP_REG_CONFIG_DPI_SEL_IN DISP_REG_CONFIG_DPI0_SEL_IN
-#endif
-*/
 
 /* RDMA Related */
 #define DISP_MODULE_RDMA_SHORT DISP_MODULE_RDMA1
@@ -116,17 +107,5 @@ int ovl_dsi_dsc_dvt_connect_path(void *handle);
 int ovl_dsi_dsc_dvt_mutex_set(unsigned int mutex_id, void *handle);
 
 
-
-
-/*
-*
-void _test_cmdq_build_trigger_loop(void);
-void _test_cmdq_change_buffer(unsigned int addr);
-void _test_cmdq_get_checkSum();
-void _test_cmdq_for_interlace(unsigned int lodd_address, unsigned int leven_address);
-void _test_cmdq_3D_and_interlace(unsigned int lodd_address, unsigned int leven_address,
-	unsigned int rodd_address, unsigned int reven_address);
-*/
-
-#endif    /*#if defined(RDMA_DPI_PATH_SUPPORT) || defined(DPI_DVT_TEST_SUPPORT)*/
+#endif
 #endif

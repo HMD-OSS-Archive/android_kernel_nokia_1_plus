@@ -77,7 +77,8 @@ extern u32 mt_irq_get_en_hw(unsigned int hwirq);
 #endif
 
 #if defined(CONFIG_FIQ_GLUE)
-int request_fiq(int irq, fiq_isr_handler handler, unsigned long irq_flags, void *arg);
+int request_fiq(int irq, fiq_isr_handler handler,
+		unsigned long irq_flags, void *arg);
 void irq_raise_softirq(const struct cpumask *mask, unsigned int irq);
 #endif
 /* set the priority mask to 0x10 for masking all irqs to this cpu */

@@ -39,6 +39,9 @@
 	#if defined(CONFIG_MTK_FPGA) || defined(CONFIG_FPGA_EARLY_PORTING)
 		#define PMIC_WRAP_NO_PMIC
 	#else
+		#if defined CONFIG_MTK_PMIC_WRAP
+			#define PMIC_WRAP_NO_PMIC
+		#endif
 		/* #define PWRAP_TIMEOUT */
 	#endif
 #elif (PMIC_WRAP_CTP)
@@ -163,7 +166,7 @@ extern signed int pwrap_init(void);
 /**********************************************************/
 
 /***********  platform info, PMIC info ********************/
-#define PMIC_WRAP_REG_RANGE     (354)
+#define PMIC_WRAP_REG_RANGE     (250)
 
 #define DEFAULT_VALUE_READ_TEST                 (0x5aa5)
 #define DEFAULT_VALUE_WRITE_TEST                (0xa55a)

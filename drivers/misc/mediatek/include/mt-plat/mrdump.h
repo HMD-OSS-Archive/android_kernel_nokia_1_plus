@@ -109,12 +109,12 @@ struct mrdump_machdesc {
 	uint64_t high_memory;
 
 	uint64_t kimage_vaddr;
-	uint64_t kimage_init_begin;
-	uint64_t kimage_init_end;
+	uint64_t dram_start;
+	uint64_t dram_end;
 	uint64_t kimage_stext;
 	uint64_t kimage_etext;
-	uint64_t kimage_srodata;
-	uint64_t kimage_erodata;
+	uint64_t kimage_stext_real;
+	uint64_t kimage_voffset;
 	uint64_t kimage_sdata;
 	uint64_t kimage_edata;
 
@@ -209,52 +209,30 @@ struct mrdump_rsvmem_block {
 };
 
 
-#define MRDUMP_MINI_HEADER_SIZE ALIGN(sizeof(struct mrdump_mini_elf_header), PAGE_SIZE)
-#define MRDUMP_MINI_DATA_SIZE (MRDUMP_MINI_NR_SECTION * MRDUMP_MINI_SECTION_SIZE)
+#define MRDUMP_MINI_HEADER_SIZE	\
+	ALIGN(sizeof(struct mrdump_mini_elf_header), PAGE_SIZE)
+#define MRDUMP_MINI_DATA_SIZE	\
+	(MRDUMP_MINI_NR_SECTION * MRDUMP_MINI_SECTION_SIZE)
 #define MRDUMP_MINI_BUF_SIZE (MRDUMP_MINI_HEADER_SIZE + MRDUMP_MINI_DATA_SIZE)
 
-#ifdef CONFIG_MTK_RAM_CONSOLE_DRAM_ADDR
-#define MRDUMP_MINI_BUF_PADDR (CONFIG_MTK_RAM_CONSOLE_DRAM_ADDR + 0xf0000)
-#else
-#define MRDUMP_MINI_BUF_PADDR 0
-#endif
-
 int mrdump_init(void);
-void __mrdump_create_oops_dump(enum AEE_REBOOT_MODE reboot_mode, struct pt_regs *regs, const char *msg,
-			       ...);
-void mrdump_save_ctrlreg(void);
+void __mrdump_create_oops_dump(enum AEE_REBOOT_MODE reboot_mode,
+		struct pt_regs *regs, const char *msg, ...);
+void mrdump_save_ctrlreg(int cpu);
 void mrdump_save_per_cpu_reg(int cpu, struct pt_regs *regs);
-#if defined(CONFIG_MTK_AEE_IPANIC) || defined(CONFIG_MTK_AEE_MRDUMP)
-void mrdump_rsvmem(void);
-#else
-static inline void mrdump_rsvmem(void)
-{
-}
-#endif
 
-#if defined(CONFIG_MTK_AEE_MRDUMP)
-void aee_kdump_reboot(enum AEE_REBOOT_MODE, const char *msg, ...);
-#else
-static inline void aee_kdump_reboot(enum AEE_REBOOT_MODE reboot_mode, const char *msg, ...)
-{
-}
-#endif
+int mrdump_common_die(int fiq_step, int reboot_reason, const char *msg,
+		      struct pt_regs *regs);
 
-typedef int (*mrdump_write)(void *buf, int off, int len, int encrypt);
-#if defined(CONFIG_MTK_AEE_IPANIC)
-int mrdump_mini_create_oops_dump(enum AEE_REBOOT_MODE reboot_mode, mrdump_write write,
-				 loff_t sd_offset, const char *msg, va_list ap);
-void mrdump_mini_reserve_memory(void);
-#else
-static inline int mrdump_mini_create_oops_dump(enum AEE_REBOOT_MODE reboot_mode, mrdump_write write,
-					       loff_t sd_offset, const char *msg, va_list ap)
+
+__weak void dis_D_inner_flush_all(void)
 {
-	return 0;
+	pr_notice("%s:weak function.\n", __func__);
 }
 
-static inline void mrdump_mini_reserve_memory(void)
+__weak void __inner_flush_dcache_all(void)
 {
+	pr_notice("%s:weak function.\n", __func__);
 }
-#endif
 
 #endif

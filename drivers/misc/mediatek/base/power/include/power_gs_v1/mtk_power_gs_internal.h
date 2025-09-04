@@ -24,7 +24,7 @@ extern void mt_power_gs_f_dump_suspend(unsigned int dump_flag);
 extern void mt_power_gs_f_dump_dpidle(unsigned int dump_flag);
 extern void mt_power_gs_f_dump_sodi3(unsigned int dump_flag);
 
-enum {
+enum gs_flag {
 	GS_PMIC = (0x1 << 0),
 	GS_CG   = (0x1 << 1),
 	GS_DCM  = (0x1 << 2),

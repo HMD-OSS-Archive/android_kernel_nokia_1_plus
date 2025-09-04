@@ -20,10 +20,14 @@
 #define DCM_ON (1)
 
 #define TAG	"[Power/dcm] "
-#define dcm_pr_err(fmt, args...)		pr_err(TAG fmt, ##args)
-#define dcm_pr_warn(fmt, args...)		pr_warn(TAG fmt, ##args)
-#define dcm_pr_info_limit(fmt, args...)		pr_info_ratelimited(TAG fmt, ##args)
-#define dcm_pr_info(fmt, args...)		pr_info(TAG fmt, ##args)
+#define dcm_pr_err(fmt, args...)			\
+	pr_err(TAG fmt, ##args)
+#define dcm_pr_warn(fmt, args...)			\
+	pr_warn(TAG fmt, ##args)
+#define dcm_pr_info_limit(fmt, args...)			\
+	pr_info_ratelimited(TAG fmt, ##args)
+#define dcm_pr_info(fmt, args...)			\
+	pr_info(TAG fmt, ##args)
 #define dcm_pr_dbg(fmt, args...)			\
 	do {						\
 		if (dcm_debug)				\
@@ -57,8 +61,8 @@ extern unsigned int init_dcm_type;
 extern struct mutex dcm_lock;
 
 void dcm_dump_regs(void);
-int dcm_smc_get_cnt(int);
-void dcm_smc_msg_send(unsigned int);
+int dcm_smc_get_cnt(int type_id);
+void dcm_smc_msg_send(unsigned int msg);
 short is_dcm_bringup(void);
 
 #endif /* #ifndef __MTK_DCM_COMMON_H__ */

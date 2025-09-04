@@ -1,28 +1,28 @@
 /*
- * Copyright (C) 2016 Richtek Technology Corp.
+ * Copyright (C) 2016 MediaTek Inc.
  *
- * drivers/misc/mediatek/power/mt6757/rt_pd_manager.c
- *
- * Author: Sakya <jeff_chang@richtek.com>
- * This program is free software: you can redistribute it and/or modify
+ * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/kthread.h>
 #include <linux/workqueue.h>
-#include <linux/wakelock.h>
 #include <linux/platform_device.h>
 #include <linux/of_gpio.h>
 #include <linux/gpio.h>
+#include <linux/pm_wakeup.h>
 #include <linux/reboot.h>
+#include <linux/pm.h>
+#include <linux/cpumask.h>
+
 #include "tcpm.h"
 
 #include <mt-plat/upmu_common.h>
@@ -30,20 +30,15 @@
 #include <mt-plat/charger_class.h>
 #include <mt-plat/mtk_battery.h>
 #include <mt-plat/mtk_charger.h>
-#include <charger/mtk_charger_intf.h>
+#include <mtk_charger_intf.h>
 #else
 #include <mt-plat/battery_meter.h>
 #include <mt-plat/charging.h>
 #endif /* CONFIG_MTK_GAUGE_VERSION */
 
 #include <mt-plat/mtk_boot.h>
-#include "musb_core.h"
-#define RT_PD_MANAGER_VERSION	"1.0.5_MTK"
 
-#ifdef CONFIG_USB_C_SWITCH_U3_MUX
-#include "usb_switch.h"
-#include "typec.h"
-#endif
+#define RT_PD_MANAGER_VERSION	"1.0.5_MTK"
 
 static DEFINE_MUTEX(param_lock);
 
@@ -67,13 +62,6 @@ static struct charger_device *primary_charger;
 static struct charger_consumer *chg_consumer;
 #endif
 
-static void tcpc_mt_power_off(void)
-{
-#ifdef CONFIG_MTK_KERNEL_POWER_OFF_CHARGING
-	kernel_power_off();
-#endif /* CONFIG_MTK_KERNEL_POWER_OFF_CHARGING */
-}
-
 #if CONFIG_MTK_GAUGE_VERSION == 20
 #ifdef CONFIG_MTK_PUMP_EXPRESS_PLUS_30_SUPPORT
 
@@ -83,36 +71,23 @@ struct task_struct *pd_thread_handle;
 static bool isCableIn;
 static bool updatechrdet;
 
-#if !defined CONFIG_HAS_WAKELOCKS
 struct wakeup_source chrdet_Thread_lock;
-#else
-struct wake_lock chrdet_Thread_lock;
-#endif
 
 void pd_wake_lock(void)
 {
-#if !defined CONFIG_HAS_WAKELOCKS
 	__pm_stay_awake(&chrdet_Thread_lock);
-#else
-	wake_lock(&chrdet_Thread_lock);
-#endif
 }
 
 void pd_wake_unlock(void)
 {
-#if !defined CONFIG_HAS_WAKELOCKS
 	__pm_relax(&chrdet_Thread_lock);
-#else
-	wake_unlock(&chrdet_Thread_lock);
-#endif
 }
 
 void pd_chrdet_int_handler(void)
 {
-	pr_notice("[pd_chrdet_int_handler]CHRDET status = %d....\n",
+	pr_notice("[%s] CHRDET status = %d....\n", __func__,
 		pmic_get_register_value(PMIC_RGS_CHRDET));
 
-#ifdef CONFIG_MTK_KERNEL_POWER_OFF_CHARGING
 	if (!upmu_get_rgs_chrdet()) {
 		int boot_mode = 0;
 
@@ -120,11 +95,10 @@ void pd_chrdet_int_handler(void)
 
 		if (boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT
 			|| boot_mode == LOW_POWER_OFF_CHARGING_BOOT) {
-			pr_notice("[pd_chrdet_int_handler] Unplug Charger/USB\n");
+			pr_notice("[%s] Unplug Charger/USB\n", __func__);
 			kernel_power_off();
 		}
 	}
-#endif
 
 	pmic_set_register_value(PMIC_RG_USBDL_RST, 1);
 	do_chrdet_int_task();
@@ -137,7 +111,7 @@ int chrdet_thread_kthread(void *x)
 	sched_setscheduler(current, SCHED_FIFO, &param);
 	set_current_state(TASK_INTERRUPTIBLE);
 
-	pr_notice("[chrdet_thread_kthread] enter\n");
+	pr_notice("[%s] enter\n", __func__);
 	pmic_enable_interrupt(CHRDET_INT_NO, 0, "pd_manager");
 
 	/* Run on a process content */
@@ -147,7 +121,7 @@ int chrdet_thread_kthread(void *x)
 			pr_notice("chrdet_work_handler\n");
 			pd_chrdet_int_handler();
 		} else
-			pr_err("chrdet_work_handler no update\n");
+			pr_notice("chrdet_work_handler no update\n");
 		mutex_unlock(&pd_chr_mutex);
 		set_current_state(TASK_INTERRUPTIBLE);
 		pd_wake_unlock();
@@ -159,7 +133,7 @@ int chrdet_thread_kthread(void *x)
 
 void wake_up_pd_chrdet(void)
 {
-	pr_notice("[wake_up_pd_chrdet]\r\n");
+	pr_notice("[%s]\n", __func__);
 	pd_wake_lock();
 	if (pd_thread_handle != NULL)
 		wake_up_process(pd_thread_handle);
@@ -175,6 +149,11 @@ enum {
 	SINK_TYPE_REQUEST,
 };
 
+void __attribute__((weak)) usb_dpdm_pulldown(bool enable)
+{
+	pr_notice("%s is not defined\n", __func__);
+}
+
 bool mtk_is_pep30_en_unlock(void)
 {
 	return false;
@@ -184,11 +163,6 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 					unsigned long event, void *data)
 {
 	struct tcp_notify *noti = data;
-	u32 vbus = 0;
-	int ret = 0;
-#ifdef CONFIG_MTK_KERNEL_POWER_OFF_CHARGING
-	int boot_mode = 0;
-#endif /* CONFIG_MTK_KERNEL_POWER_OFF_CHARGING */
 
 	switch (event) {
 	case TCP_NOTIFY_SOURCE_VCONN:
@@ -232,7 +206,8 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 			if (pd_sink_voltage_new) {
 				/* enable charger */
 #if CONFIG_MTK_GAUGE_VERSION == 30
-				charger_manager_enable_power_path(chg_consumer, MAIN_CHARGER, true);
+				charger_manager_enable_power_path(chg_consumer,
+					MAIN_CHARGER, true);
 #else
 				mtk_chr_pd_enable_power_path(1);
 #endif
@@ -242,7 +217,8 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 				if (tcpc_kpoc)
 					break;
 #if CONFIG_MTK_GAUGE_VERSION == 30
-				charger_manager_enable_power_path(chg_consumer, MAIN_CHARGER, false);
+				charger_manager_enable_power_path(chg_consumer,
+					MAIN_CHARGER, false);
 #else
 				mtk_chr_pd_enable_power_path(0);
 #endif
@@ -257,7 +233,8 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 					break;
 				/* disable charge */
 #if CONFIG_MTK_GAUGE_VERSION == 30
-				charger_manager_enable_power_path(chg_consumer, MAIN_CHARGER, false);
+				charger_manager_enable_power_path(chg_consumer,
+					MAIN_CHARGER, false);
 #else
 				mtk_chr_pd_enable_power_path(0);
 #endif
@@ -267,72 +244,15 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 		}
 		break;
 	case TCP_NOTIFY_TYPEC_STATE:
-		if (noti->typec_state.new_state == TYPEC_ATTACHED_SNK ||
-		    noti->typec_state.new_state == TYPEC_ATTACHED_NORP_SRC) {
-#if CONFIG_MTK_GAUGE_VERSION == 30
-			charger_dev_enable_chg_type_det(primary_charger, true);
-#else
-			mtk_chr_enable_chr_type_det(true);
-#endif
-			pr_info("%s USB Plug in, pol = %d\n", __func__,
-					noti->typec_state.polarity);
-#ifdef CONFIG_USB_C_SWITCH_U3_MUX
-			usb3_switch_dps_en(false);
-			if (noti->typec_state.polarity == 0)
-				usb3_switch_ctrl_sel(CC1_SIDE);
-			else
-				usb3_switch_ctrl_sel(CC2_SIDE);
-#endif
-#if CONFIG_MTK_GAUGE_VERSION == 20
-#ifdef CONFIG_MTK_PUMP_EXPRESS_PLUS_30_SUPPORT
-			mutex_lock(&pd_chr_mutex);
-			isCableIn = true;
-			updatechrdet = true;
-			wake_up_pd_chrdet();
-			mutex_unlock(&pd_chr_mutex);
-			pr_notice("TCP_NOTIFY_SINK_VBUS=> plug in");
-#endif
-#endif
-		} else if ((noti->typec_state.old_state == TYPEC_ATTACHED_SNK ||
-			noti->typec_state.old_state == TYPEC_ATTACHED_NORP_SRC) &&
-			noti->typec_state.new_state == TYPEC_UNATTACHED) {
-			if (tcpc_kpoc) {
-				vbus = battery_meter_get_charger_voltage();
-				pr_info("%s KPOC Plug out, vbus = %d\n",
-					__func__, vbus);
-				tcpc_mt_power_off();
-				break;
-			}
-			pr_info("%s USB Plug out\n", __func__);
-#if CONFIG_MTK_GAUGE_VERSION == 20
-#ifdef CONFIG_MTK_PUMP_EXPRESS_PLUS_30_SUPPORT
-			mutex_lock(&pd_chr_mutex);
-			isCableIn = false;
-			updatechrdet = true;
-			wake_up_pd_chrdet();
-			mutex_unlock(&pd_chr_mutex);
-			pr_notice("TCP_NOTIFY_SINK_VBUS=> plug out");
-#endif
-#endif
-#ifdef CONFIG_USB_C_SWITCH_U3_MUX
-			usb3_switch_dps_en(true);
-#endif
-#if CONFIG_MTK_GAUGE_VERSION == 30
-			ret = charger_dev_enable_chg_type_det(primary_charger, false);
-#else
-			ret = mtk_chr_enable_chr_type_det(false);
-#endif
+		if (noti->typec_state.old_state == TYPEC_UNATTACHED &&
+			noti->typec_state.new_state == TYPEC_ATTACHED_AUDIO) {
+			/* AUDIO plug in */
+			pr_info("%s audio plug in\n", __func__);
 
-#ifdef CONFIG_MTK_KERNEL_POWER_OFF_CHARGING
-			boot_mode = get_boot_mode();
-			if (ret < 0) {
-				if (boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT
-					|| boot_mode == LOW_POWER_OFF_CHARGING_BOOT) {
-					pr_err("%s: notify chg detach fail, power off\n", __func__);
-					kernel_power_off();
-				}
-			}
-#endif /* CONFIG_MTK_KERNEL_POWER_OFF_CHARGING */
+		} else if (noti->typec_state.old_state == TYPEC_ATTACHED_AUDIO
+			&& noti->typec_state.new_state == TYPEC_UNATTACHED) {
+			/* AUDIO plug out */
+			pr_info("%s audio plug out\n", __func__);
 		}
 		break;
 	case TCP_NOTIFY_PD_STATE:
@@ -352,13 +272,38 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 #endif
 		break;
 
-	case TCP_NOTIFY_HARD_RESET_STATE:
-		if (noti->hreset_state.state == TCP_HRESET_RESULT_DONE ||
-			noti->hreset_state.state == TCP_HRESET_RESULT_FAIL)
-			charger_manager_enable_kpoc_shutdown(chg_consumer, true);
-		else if (noti->hreset_state.state == TCP_HRESET_SIGNAL_SEND ||
-			noti->hreset_state.state == TCP_HRESET_SIGNAL_RECV)
-			charger_manager_enable_kpoc_shutdown(chg_consumer, false);
+	case TCP_NOTIFY_WD_STATUS:
+		pr_info("%s wd status = %d\n",
+			__func__, noti->wd_status.water_detected);
+
+		if (noti->wd_status.water_detected) {
+			usb_dpdm_pulldown(false);
+			if (tcpc_kpoc) {
+				pr_info("Water is detected in KPOC, disable HV charging\n");
+				charger_manager_enable_high_voltage_charging(
+					chg_consumer, false);
+			}
+		} else {
+			usb_dpdm_pulldown(true);
+			if (tcpc_kpoc) {
+				pr_info("Water is removed in KPOC, enable HV charging\n");
+				charger_manager_enable_high_voltage_charging(
+					chg_consumer, true);
+			}
+		}
+		break;
+	case TCP_NOTIFY_CABLE_TYPE:
+		pr_info("%s cable type = %d\n", __func__,
+			noti->cable_type.type);
+		break;
+	case TCP_NOTIFY_PLUG_OUT:
+		pr_info("%s typec plug out\n", __func__);
+
+		if (tcpc_kpoc) {
+			pr_info("[%s] typec cable plug out, power off\n",
+				__func__);
+			kernel_power_off();
+		}
 		break;
 	default:
 		break;
@@ -377,12 +322,10 @@ static int rt_pd_manager_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-#ifdef CONFIG_MTK_KERNEL_POWER_OFF_CHARGING
 	ret = get_boot_mode();
 	if (ret == KERNEL_POWER_OFF_CHARGING_BOOT ||
 	    ret == LOW_POWER_OFF_CHARGING_BOOT)
 		tcpc_kpoc = true;
-#endif /* CONFIG_MTK_KERNEL_POWER_OFF_CHARGING */
 	pr_info("%s KPOC(%d)\n", __func__, tcpc_kpoc);
 
 
@@ -416,7 +359,8 @@ static int rt_pd_manager_probe(struct platform_device *pdev)
 	}
 #endif
 	pr_info("%s Vconn gpio = %d\n", __func__, vconn_gpio);
-	ret = gpio_request_one(vconn_gpio, GPIOF_OUT_INIT_LOW, "pd,vconn_source");
+	ret = gpio_request_one(vconn_gpio, GPIOF_OUT_INIT_LOW,
+		"pd,vconn_source");
 	if (ret < 0) {
 		pr_err("%s gpio request fail\n", __func__);
 		return ret;
@@ -439,11 +383,7 @@ static int rt_pd_manager_probe(struct platform_device *pdev)
 
 #if CONFIG_MTK_GAUGE_VERSION == 20
 #ifdef CONFIG_MTK_PUMP_EXPRESS_PLUS_30_SUPPORT
-#if !defined CONFIG_HAS_WAKELOCKS
 	wakeup_source_init(&chrdet_Thread_lock, "pd chrdet wakelock");
-#else
-	wake_lock_init(&chrdet_Thread_lock, WAKE_LOCK_SUSPEND, "pd chrdet wakelock");
-#endif
 	pd_thread_handle = kthread_create(chrdet_thread_kthread, (void *)NULL,
 		"pd_chrdet_thread");
 	if (IS_ERR(pd_thread_handle)) {
@@ -489,7 +429,7 @@ static void __exit rt_pd_manager_exit(void)
 	platform_driver_unregister(&rt_pd_manager_driver);
 }
 
-late_initcall_sync(rt_pd_manager_init);
+late_initcall(rt_pd_manager_init);
 module_exit(rt_pd_manager_exit);
 
 MODULE_AUTHOR("Jeff Chang");

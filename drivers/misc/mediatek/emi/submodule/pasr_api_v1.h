@@ -17,14 +17,14 @@
 #define MAX_RANKS	MAX_RK
 
 struct basic_dram_setting {
-	unsigned channel_nr;
+	unsigned int channel_nr;
 	/* per-channel information */
 	struct {
 		/* per-rank information */
 		struct {
 			bool valid_rank;
-			unsigned rank_size; /* unit: 1 Gb*/
-			unsigned segment_nr;
+			unsigned int rank_size; /* unit: 1 Gb*/
+			unsigned int segment_nr;
 		} rank[MAX_RK];
 	} channel[MAX_CH];
 };

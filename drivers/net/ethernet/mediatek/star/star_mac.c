@@ -1,15 +1,15 @@
-/* Mediatek STAR MAC network driver.
+/*
+ * Copyright (c) 2019 MediaTek Inc.
+ * Author: Zhiyong Tao <zhiyong.tao@mediatek.com>
  *
- * Copyright (c) 2016-2017 MediaTek Inc.
- *
- * program is free software; you can redistribute it and/or modify
+ * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #include "star.h"
@@ -81,6 +81,22 @@ static void desc_rx_init(rx_desc *rx_desc, u32 is_eor)
 	rx_desc->ctrl_len = RX_COWN | (is_eor ? RX_EOR : 0);
 	rx_desc->vtag = 0;
 	rx_desc->reserve = 0;
+}
+
+u32 desc_tx_empty(tx_desc *tx_desc)
+{
+	return (((tx_desc)->buffer == 0) &&
+		(((tx_desc)->ctrl_len & ~TX_EOR) == TX_COWN) &&
+		((tx_desc)->vtag == 0) &&
+		((tx_desc)->reserve == 0));
+}
+
+u32 desc_rx_empty(rx_desc *rx_desc)
+{
+	return (((rx_desc)->buffer == 0) &&
+		(((rx_desc)->ctrl_len & ~RX_EOR) == RX_COWN) &&
+		((rx_desc)->vtag == 0) &&
+		((rx_desc)->reserve == 0));
 }
 
 static void desc_tx_take(tx_desc *tx_desc)
@@ -441,7 +457,7 @@ void star_link_status_change(star_dev *dev)
 		dev->link_up = (val & STAR_PHY_CTRL1_STA_LINK) ? 1UL : 0UL;
 		STAR_PR_INFO("Link status: %s\n",
 			     dev->link_up ? "Up" : "Down");
-		if (dev->link_up) {
+		if (dev->link_up == 1UL) {
 			speed = ((val >> STAR_PHY_CTRL1_STA_SPD_OFFSET) &
 				STAR_PHY_CTRL1_STA_SPD_MASK);
 			STAR_PR_INFO("%s Duplex - %s Mbps mode\n",
@@ -453,7 +469,7 @@ void star_link_status_change(star_dev *dev)
 				 "TX flow control:%s, RX flow control:%s\n",
 				(val & STAR_PHY_CTRL1_STA_TXFC) ? "On" : "Off",
 				(val & STAR_PHY_CTRL1_STA_RXFC) ? "On" : "Off");
-	} else {
+		} else if (dev->link_up == 0UL) {
 			netif_carrier_off(((star_private *)dev->star_prv)->dev);
 		}
 	}
@@ -514,18 +530,18 @@ void star_switch_to_rmii_mode(star_dev *star_dev)
 {
 	u32 reg_val;
 
-	reg_val = star_get_reg(star_dev->pericfg_base + 0x14);
+	reg_val = star_get_reg(star_dev->pericfg_base + 0x10);
 	reg_val &= ~(0xf << 0);
 	/* select RMII mode */
 	reg_val |= (0x1 << 0);
-	star_set_reg(star_dev->pericfg_base + 0x14, reg_val);
+	star_set_reg(star_dev->pericfg_base + 0x10, reg_val);
 
 #ifdef STAR_USE_TX_CLOCK
-	reg_val = star_get_reg(star_dev->pericfg_base + 0x18);
-	reg_val &= ~(0x1 << 0);
+	reg_val = star_get_reg(star_dev->pericfg_base + 0x10);
+	reg_val &= ~(0x1 << 8);
 	/* select tx clock */
-	reg_val |= (0x1 << 0);
-	star_set_reg(star_dev->pericfg_base + 0x18, reg_val);
+	reg_val |= (0x1 << 8);
+	star_set_reg(star_dev->pericfg_base + 0x10, reg_val);
 #endif
 }
 

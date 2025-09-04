@@ -38,7 +38,7 @@
 #include <linux/input.h>
 #include <linux/slab.h>
 #include <linux/gpio.h>
-#include <linux/sched.h>
+#include <uapi/linux/sched/types.h>
 #include <linux/kthread.h>
 #include <linux/bitops.h>
 #include <linux/kernel.h>
@@ -51,7 +51,8 @@
 #include <linux/uaccess.h>
 
 #ifdef CONFIG_MTK_I2C_EXTENSION
-#define TPD_SUPPORT_I2C_DMA         1	/* if gt9l, better enable it if hardware platform supported*/
+/* if gt9l, better enable it if hardware platform supported*/
+#define TPD_SUPPORT_I2C_DMA         1
 #else
 #define TPD_SUPPORT_I2C_DMA         0
 #endif
@@ -104,7 +105,7 @@ extern int tpd_em_log;
 #endif
 
 
-/****************************PART3:OTHER define*********************************/
+/****************************PART3:OTHER define*******************************/
 #define GTP_DRIVER_VERSION          "V1.0<2014/09/28>"
 #define GTP_I2C_NAME                "Goodix-TS"
 #define GT1X_DEBUG_PROC_FILE        "gt1x_debug"
@@ -176,9 +177,12 @@ extern int tpd_em_log;
 #define GTP_CMD_HN_EXIT_SLAVE       0x28
 
 /* define offset in the config*/
-#define RESOLUTION_LOC              (GTP_REG_CONFIG_RESOLUTION - GTP_REG_CONFIG_DATA)
-#define TRIGGER_LOC                 (GTP_REG_CONFIG_TRIGGER - GTP_REG_CONFIG_DATA)
-#define MODULE_SWITCH3_LOC			(GTP_REG_MODULE_SWITCH3 - GTP_REG_CONFIG_DATA)
+#define RESOLUTION_LOC              \
+	(GTP_REG_CONFIG_RESOLUTION - GTP_REG_CONFIG_DATA)
+#define TRIGGER_LOC                 \
+	(GTP_REG_CONFIG_TRIGGER - GTP_REG_CONFIG_DATA)
+#define MODULE_SWITCH3_LOC	    \
+	(GTP_REG_MODULE_SWITCH3 - GTP_REG_CONFIG_DATA)
 
 #define GTP_I2C_ADDRESS				0xBA
 
@@ -194,35 +198,40 @@ extern int tpd_em_log;
 #define GTP_WARP_Y(y_max, y) y
 #endif
 
-#define IS_NUM_OR_CHAR(x)    (((x) > 'A' && (x) < 'Z') || ((x) > '0' && (x) < '9'))
+#define IS_NUM_OR_CHAR(x)    \
+	(((x) > 'A' && (x) < 'Z') || ((x) > '0' && (x) < '9'))
 
 /*Log define*/
-#define GTP_INFO(fmt, arg...)           pr_info("<<GTP-INF>>[%s:%d] "fmt"\n", __func__, __LINE__, ##arg)
-#define GTP_ERROR(fmt, arg...)          pr_info("<<GTP-ERR>>[%s:%d] "fmt"\n", __func__, __LINE__, ##arg)
+#define GTP_INFO(fmt, arg...)           \
+	pr_info("<<GTP-INF>>[%s:%d] "fmt"\n", __func__, __LINE__, ##arg)
+#define GTP_ERROR(fmt, arg...)          \
+	pr_info("<<GTP-ERR>>[%s:%d] "fmt"\n", __func__, __LINE__, ##arg)
 #define GTP_DEBUG(fmt, arg...)				\
-	do {									\
+	do {								\
 		if (tpd_em_log)						\
-			pr_debug("<<GTP-DBG>>[%s:%d]"fmt"\n", __func__, __LINE__, ##arg);\
+			pr_debug("<<GTP-DBG>>[%s:%d]"fmt"\n", \
+			__func__, __LINE__, ##arg);\
 	} while (0)
 #ifdef CONFIG_GTP_DEBUG_ARRAY_ON
 #define GTP_DEBUG_ARRAY(array, num)			\
-	do {									\
-		s32 i;								\
+	do {								\
+		s32 i;							\
 		u8 *a = array;						\
 		pr_debug("<<GTP-DBG>>");		\
 		for (i = 0; i < (num); i++) {	\
 			pr_debug("%02x ", (a)[i]);	\
 			if ((i + 1) % 10 == 0) {	\
 				pr_debug("\n<<GTP-DBG>>");\
-			}							\
-		}								\
+			}						\
+		}							\
 		pr_debug("\n");						\
 	} while (0)
 #else
 #define GTP_DEBUG_ARRAY(array, num)	do {} while (0)
 #endif
 #ifdef CONFIG_GTP_DEBUG_FUNC_ON
-#define GTP_DEBUG_FUNC()	pr_debug("<<GTP-FUNC>> Func:%s@Line:%d\n", __func__, __LINE__)
+#define GTP_DEBUG_FUNC()	\
+	pr_debug("<<GTP-FUNC>> Func:%s@Line:%d\n", __func__, __LINE__)
 #else
 #define GTP_DEBUG_FUNC()	do {} while (0)
 #endif
@@ -346,7 +355,8 @@ extern int gt1x_update_firmware(char *filename);
 extern void gt1x_enter_update_mode(void);
 extern void gt1x_leave_update_mode(void);
 extern int gt1x_hold_ss51_dsp_no_reset(void);
-extern int gt1x_load_patch(u8 *patch, u32 patch_size, int offset, int bank_size);
+extern int gt1x_load_patch(
+	u8 *patch, u32 patch_size, int offset, int bank_size);
 extern int gt1x_startup_patch(void);
 extern void gt1x_auto_update_done(void);
 extern int gt1x_is_tpd_halt(void);
@@ -399,7 +409,8 @@ extern s32 gt1x_reset_guitar(void);
 extern void gt1x_power_reset(void);
 extern void gt1x_power_reset2(void);
 extern int gt1x_parse_config(char *filename, u8 *gt1x_config);
-extern s32 gt1x_touch_event_handler(u8 *data, struct input_dev *dev, struct input_dev *pen_dev);
+extern s32 gt1x_touch_event_handler(
+	u8 *data, struct input_dev *dev, struct input_dev *pen_dev);
 
 
 #ifdef CONFIG_GTP_WITH_STYLUS

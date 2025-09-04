@@ -1,46 +1,38 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ * Copyright (c) 2019 MediaTek Inc.
+ */
 
-#include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/sched.h>
-#include <linux/init.h>
-#include <linux/delay.h>
 #include <linux/clk.h>
-#include <linux/platform_device.h>
+#include <linux/delay.h>
+#include <linux/init.h>
+#include <linux/io.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
-#include <linux/io.h>
+#include <linux/platform_device.h>
+#include <linux/sched.h>
 #include <linux/suspend.h>
 #include <linux/mfd/mt6397/rtc_misc.h>
 
-#define BSI_BASE          (xo_inst->base)
-#define BSI_CON	          0x0000
-#define BSI_WRDAT_CON     0x0004
-#define BSI_WRDAT         0x0008
-#define BSI_RDCON         0x0c40
-#define BSI_RDADDR_CON    0x0c44
-#define BSI_RDADDR        0x0c48
-#define BSI_RDCS_CON      0x0c4c
-#define BSI_RDDAT         0x0c50
+#define BSI_BASE	(xo_inst->base)
+#define BSI_CON		0x0000
+#define BSI_WRDAT_CON	0x0004
+#define BSI_WRDAT	0x0008
+#define BSI_RDCON	0x0c40
+#define BSI_RDADDR_CON	0x0c44
+#define BSI_RDADDR	0x0c48
+#define BSI_RDCS_CON	0x0c4c
+#define BSI_RDDAT	0x0c50
 
-#define BSI_WRITE_READY (1 << 31)
-#define BSI_READ_READY (1 << 31)
-#define BSI_READ_BIT (1 << 8)
-#define BITS(m, n) (~(BIT(m)-1) & ((BIT(n) - 1) | BIT(n)))
+#define BSI_WRITE_READY	(1 << 31)
+#define BSI_READ_READY	(1 << 31)
+#define BSI_READ_BIT	(1 << 8)
+#define BITS(m, n)	(~(BIT(m)-1) & ((BIT(n) - 1) | BIT(n)))
 
-#define READ_REGISTER_UINT32(reg)          readl((void __iomem *)reg)
-#define WRITE_REGISTER_UINT32(reg, val)     writel((val), (void __iomem *)(reg))
+#define READ_REGISTER_UINT32(reg)	readl((void __iomem *)reg)
+#define WRITE_REGISTER_UINT32(reg, val)	writel((val), (void __iomem *)(reg))
 
 #define KEEP_LDOH
 
@@ -90,13 +82,24 @@ static void BSI_write(uint32_t wraddr, uint32_t wrdata)
 	WRITE_REGISTER_UINT32(BSI_BASE + BSI_WRDAT_CON, 0x1d00);
 	wrdat = (wraddr << 20) + wrdata;
 
-	pr_debug("BSI_write: wrdat = 0x%x\n", wrdat);
+	pr_debug("%s: wrdat = 0x%x\n", __func__, wrdat);
 	WRITE_REGISTER_UINT32(BSI_BASE + BSI_WRDAT, wrdat);
 	WRITE_REGISTER_UINT32(BSI_BASE + BSI_CON, 0x80401);
 	while (!(READ_REGISTER_UINT32(BSI_BASE + BSI_CON) & BSI_WRITE_READY))
 		pr_debug("wait bsi write done!\n");
 
 	pr_debug("BSI Write Done\n");
+}
+
+static void bsi_clock_enable(bool en)
+{
+	if (en) {
+		clk_prepare_enable(xo_inst->bsi_clk);
+		clk_prepare_enable(xo_inst->rg_bsi_clk);
+	} else {
+		clk_disable_unprepare(xo_inst->rg_bsi_clk);
+		clk_disable_unprepare(xo_inst->bsi_clk);
+	}
 }
 
 static void XO_trim_write(uint32_t cap_code)
@@ -304,6 +307,8 @@ void enable_26M_clock_to_pmic(void)
 {
 	uint32_t value = 0;
 
+	bsi_clock_enable(true);
+
 	/* Set DIG_CR_XO_02[2]=1 */
 	value = BSI_read(0x04) | 0x4;
 	BSI_write(0x04, value);
@@ -316,11 +321,15 @@ void enable_26M_clock_to_pmic(void)
 	/* Set DIG_CR_XO_03[28]=1 */
 	value = BSI_read(0x7) | (1<<12);
 	BSI_write(0x07, value);
+
+	bsi_clock_enable(false);
 }
 
 void disable_26M_clock_to_pmic(void)
 {
 	uint32_t value = 0;
+
+	bsi_clock_enable(true);
 
 	/* Set DIG_CR_XO_02[2]=1 */
 	value = BSI_read(0x04) | 0x4;
@@ -334,6 +343,8 @@ void disable_26M_clock_to_pmic(void)
 	/* Set DIG_CR_XO_03[28]=0 */
 	value = BSI_read(0x7) & 0xEFFF;
 	BSI_write(0x07, value);
+
+	bsi_clock_enable(false);
 }
 
 void disable_26M_clock_to_conn_rf(void)
@@ -391,18 +402,8 @@ void disable_26M_clock_to_audio(void)
 	get_xo_status();
 }
 
-static void bsi_clock_enable(bool en)
-{
-	if (en) {
-		clk_prepare_enable(xo_inst->bsi_clk);
-		clk_prepare_enable(xo_inst->rg_bsi_clk);
-	} else {
-		clk_disable_unprepare(xo_inst->rg_bsi_clk);
-		clk_disable_unprepare(xo_inst->bsi_clk);
-	}
-}
-
-static ssize_t show_xo_capid(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t show_xo_capid(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	uint32_t capid;
 
@@ -412,8 +413,8 @@ static ssize_t show_xo_capid(struct device *dev, struct device_attribute *attr, 
 	return sprintf(buf, "xo capid: 0x%x\n", capid);
 }
 
-static ssize_t store_xo_capid(struct device *dev, struct device_attribute *attr,
-				     const char *buf, size_t size)
+static ssize_t store_xo_capid(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
 	uint32_t capid;
 	int ret;
@@ -422,11 +423,11 @@ static ssize_t store_xo_capid(struct device *dev, struct device_attribute *attr,
 		ret = kstrtouint(buf, 0, &capid);
 		if (ret) {
 			pr_err("wrong format!\n");
-			return size;
+			return ret;
 		}
 		if (capid > 0x7f) {
 			pr_err("cap code should be 7bit!\n");
-			return size;
+			return -EINVAL;
 		}
 
 		bsi_clock_enable(true);
@@ -435,7 +436,8 @@ static ssize_t store_xo_capid(struct device *dev, struct device_attribute *attr,
 		XO_trim_write(capid);
 		mdelay(10);
 		xo_inst->cur_xo_capid = XO_trim_read();
-		pr_notice("write cap code 0x%x done. current cap code:0x%x\n", capid, xo_inst->cur_xo_capid);
+		pr_notice("write cap code 0x%x done. current cap code:0x%x\n",
+			  capid, xo_inst->cur_xo_capid);
 
 		bsi_clock_enable(false);
 	}
@@ -445,23 +447,74 @@ static ssize_t store_xo_capid(struct device *dev, struct device_attribute *attr,
 
 static DEVICE_ATTR(xo_capid, 0664, show_xo_capid, store_xo_capid);
 
-static ssize_t show_xo_board_offset(struct device *dev, struct device_attribute *attr, char *buf)
+static uint32_t xo_capid_add_offset(uint32_t capid, uint32_t offset)
+{
+	uint32_t capid_value;
+	uint32_t offset_sign, offset_value;
+	int32_t tmp_value;
+	uint32_t final_capid;
+
+	/* capid don't have sign bit, value from 0x00 to 0x7F */
+	capid_value = capid & 0x7F;
+	/* offset bit 7 is sign bit. bit7=1 means minus */
+	offset_sign = !!(offset & 0x40);
+	offset_value = offset & 0x3F;
+
+	/* process plus/minus overflow */
+	if (offset_sign) { /* negetive offset sign, minus */
+		tmp_value = (int32_t)capid_value - (int32_t)offset_value;
+		if (tmp_value < 0)
+			tmp_value = 0;
+		final_capid = (uint32_t)tmp_value;
+	} else { /* positive offset sign, plus */
+		tmp_value = (int32_t)capid_value + (int32_t)offset_value;
+		if (tmp_value > 0x7F) /* value overflow */
+			tmp_value = 0x7F;
+		final_capid = (uint32_t)tmp_value;
+	}
+	return final_capid;
+}
+
+static uint32_t xo_capid_sub_offset(uint32_t cur_capid, uint32_t ori_capid)
+{
+	uint32_t cur_capid_value;
+	uint32_t ori_capid_value;
+	int32_t tmp_value;
+	uint32_t final_offset;
+
+	cur_capid_value = cur_capid & 0x7F;
+	ori_capid_value = ori_capid & 0x7F;
+
+	/* process plus/minus error */
+	if (cur_capid_value >= ori_capid_value) {
+		/* offset sign bit is positive */
+		tmp_value = (int32_t)cur_capid_value - (int32_t)ori_capid_value;
+		if (tmp_value > 0x3F) /* value overflow */
+			tmp_value = 0x3F;
+		final_offset = (uint32_t)tmp_value;
+	} else {
+		/* offset sign bit is negative */
+		tmp_value = (int32_t)ori_capid_value - (int32_t)cur_capid_value;
+		if (tmp_value > 0x3F) /* value overflow */
+			tmp_value = 0x3F;
+		final_offset = (0x1 << 6) | (uint32_t)tmp_value;
+	}
+	return final_offset;
+}
+
+static ssize_t show_xo_board_offset(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	uint32_t offset;
 
-	if (xo_inst->cur_xo_capid > xo_inst->ori_xo_capid)
-		offset = xo_inst->cur_xo_capid - xo_inst->ori_xo_capid;
-	else{
-		offset = xo_inst->ori_xo_capid - xo_inst->cur_xo_capid;
-		offset |= 0x40;
-	}
+	offset = xo_capid_sub_offset(xo_inst->cur_xo_capid,
+				     xo_inst->ori_xo_capid);
 
 	return sprintf(buf, "xo capid offset: 0x%x\n", offset);
-
 }
 
-static ssize_t store_xo_board_offset(struct device *dev, struct device_attribute *attr,
-				     const char *buf, size_t size)
+static ssize_t store_xo_board_offset(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
 	uint32_t offset, capid;
 	int ret;
@@ -470,11 +523,11 @@ static ssize_t store_xo_board_offset(struct device *dev, struct device_attribute
 		ret = kstrtouint(buf, 0, &offset);
 		if (ret) {
 			pr_err("wrong format!\n");
-			return size;
+			return ret;
 		}
 		if (offset > 0x7f) {
 			pr_err("offset should be within 7bit!\n");
-			return size;
+			return -EINVAL;
 		}
 
 		bsi_clock_enable(true);
@@ -482,16 +535,12 @@ static ssize_t store_xo_board_offset(struct device *dev, struct device_attribute
 		capid = xo_inst->ori_xo_capid;
 		pr_notice("original cap code: 0x%x\n", capid);
 
-		/* check sign bit */
-		if (offset & 0x40)
-			capid -= (offset & 0x3F);
-		else
-			capid += (offset & 0x3F);
-
+		capid = xo_capid_add_offset(capid, offset);
 		XO_trim_write(capid);
 		mdelay(10);
 		xo_inst->cur_xo_capid = XO_trim_read();
-		pr_notice("write cap code offset 0x%x done. current cap code:0x%x\n", offset, xo_inst->cur_xo_capid);
+		pr_notice("write cap code offset 0x%x done.", offset);
+		pr_notice("current cap code:0x%x\n", xo_inst->cur_xo_capid);
 
 		bsi_clock_enable(false);
 	}
@@ -499,15 +548,18 @@ static ssize_t store_xo_board_offset(struct device *dev, struct device_attribute
 	return size;
 }
 
-static DEVICE_ATTR(xo_board_offset, 0664, show_xo_board_offset, store_xo_board_offset);
+static DEVICE_ATTR(xo_board_offset, 0664, show_xo_board_offset,
+			  store_xo_board_offset);
 
-static ssize_t show_xo_cmd(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t show_xo_cmd(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "1: status 2/3: in/out LPM 4/5: dis/en 26M 6/7: dis/en 32K 8/9: dis/en rf\n");
+	return sprintf(buf,
+	  "1:sta 2/3:in/out LPM 4/5:dis/en 26M 6/7:dis/en 32K 8/9:dis/en rf\n");
 }
 
-static ssize_t store_xo_cmd(struct device *dev, struct device_attribute *attr,
-				     const char *buf, size_t size)
+static ssize_t store_xo_cmd(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
 	uint32_t cmd;
 	int ret;
@@ -516,7 +568,7 @@ static ssize_t store_xo_cmd(struct device *dev, struct device_attribute *attr,
 		ret = kstrtouint(buf, 0, &cmd);
 		if (ret) {
 			pr_err("wrong format!\n");
-			return size;
+			return ret;
 		}
 
 		bsi_clock_enable(true);
@@ -573,13 +625,14 @@ static ssize_t store_xo_cmd(struct device *dev, struct device_attribute *attr,
 
 static DEVICE_ATTR(xo_cmd, 0664, show_xo_cmd, store_xo_cmd);
 
-static ssize_t show_bsi_read(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t show_bsi_read(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	return sprintf(buf, "not support!\n");
 }
 
-static ssize_t store_bsi_read(struct device *dev, struct device_attribute *attr,
-				     const char *buf, size_t size)
+static ssize_t store_bsi_read(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
 	uint32_t addr, value;
 	int ret;
@@ -588,7 +641,7 @@ static ssize_t store_bsi_read(struct device *dev, struct device_attribute *attr,
 		ret = kstrtouint(buf, 0, &addr);
 		if (ret) {
 			pr_err("wrong format!\n");
-			return size;
+			return ret;
 		}
 
 		bsi_clock_enable(true);
@@ -602,13 +655,14 @@ static ssize_t store_bsi_read(struct device *dev, struct device_attribute *attr,
 
 static DEVICE_ATTR(bsi_read, 0664, show_bsi_read, store_bsi_read);
 
-static ssize_t show_bsi_write(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t show_bsi_write(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
 	return sprintf(buf, "not support!\n");
 }
 
-static ssize_t store_bsi_write(struct device *dev, struct device_attribute *attr,
-				     const char *buf, size_t size)
+static ssize_t store_bsi_write(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
 {
 	char temp_buf[32];
 	char *pvalue;
@@ -659,6 +713,7 @@ static int mt_xo_dts_probe(struct platform_device *pdev)
 {
 	int retval = 0;
 	struct resource *res;
+	uint32_t default_capid = 0;
 
 	xo_inst = devm_kzalloc(&pdev->dev, sizeof(*xo_inst), GFP_KERNEL);
 	if (!xo_inst)
@@ -699,20 +754,42 @@ static int mt_xo_dts_probe(struct platform_device *pdev)
 
 	xo_inst->bsi_clk = devm_clk_get(&pdev->dev, "bsi");
 	if (IS_ERR(xo_inst->bsi_clk)) {
-		dev_err(&pdev->dev, "fail to get bsi clock: %ld\n", PTR_ERR(xo_inst->bsi_clk));
+		dev_err(&pdev->dev, "fail to get bsi clock: %ld\n",
+			PTR_ERR(xo_inst->bsi_clk));
 		return PTR_ERR(xo_inst->bsi_clk);
 	}
 
 	xo_inst->rg_bsi_clk = devm_clk_get(&pdev->dev, "rgbsi");
 	if (IS_ERR(xo_inst->rg_bsi_clk)) {
-		dev_err(&pdev->dev, "fail to get rgbsi clock: %ld\n", PTR_ERR(xo_inst->rg_bsi_clk));
+		dev_err(&pdev->dev, "fail to get rgbsi clock: %ld\n",
+			PTR_ERR(xo_inst->rg_bsi_clk));
 		return PTR_ERR(xo_inst->rg_bsi_clk);
 	}
 
 	bsi_clock_enable(true);
 
-	xo_inst->cur_xo_capid = XO_trim_read();
+	/* get origin cap code */
 	xo_inst->ori_xo_capid = XO_trim_read();
+	pr_notice("[xo] origin cap code: 0x%x\n", xo_inst->ori_xo_capid);
+
+	retval = of_property_read_u32(xo_inst->dev->of_node, "default_capid",
+					&default_capid);
+	if (retval != 0) {
+		dev_err(&pdev->dev, "fail to get default_capid from dts: %d\n",
+			retval);
+		default_capid = 0;
+		retval = 0;
+	}
+	default_capid &= 0x7f;
+	pr_notice("[xo] dts default cap code: 0x%x\n", default_capid);
+
+	xo_inst->cur_xo_capid = xo_capid_add_offset(xo_inst->ori_xo_capid,
+						    default_capid);
+	XO_trim_write(xo_inst->cur_xo_capid);
+	mdelay(1);
+
+	xo_inst->cur_xo_capid = XO_trim_read();
+	pr_notice("[xo] current cap code: 0x%x\n", xo_inst->cur_xo_capid);
 
 	bsi_clock_enable(false);
 
@@ -733,7 +810,9 @@ static int xo_pm_suspend(struct device *device)
 
 		/* let XO use external RTC32K */
 		if (xo_inst->has_ext_crystal)
-			WRITE_REGISTER_UINT32(xo_inst->top_rtc32k, READ_REGISTER_UINT32(xo_inst->top_rtc32k) | (1<<10));
+			WRITE_REGISTER_UINT32(xo_inst->top_rtc32k,
+				 READ_REGISTER_UINT32(xo_inst->top_rtc32k)
+				  | (1<<10));
 	}
 
 	return 0;
@@ -773,8 +852,8 @@ static struct platform_driver mt_xo_driver = {
 	.probe		= mt_xo_dts_probe,
 	.driver		= {
 		.name	= "mt_dts_xo",
-		.of_match_table = apxo_of_ids,
-		.pm = &xo_pm_ops,
+		.of_match_table	= apxo_of_ids,
+		.pm	= &xo_pm_ops,
 	},
 };
 

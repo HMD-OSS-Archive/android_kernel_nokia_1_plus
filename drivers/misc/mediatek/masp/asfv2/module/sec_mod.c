@@ -1,16 +1,20 @@
 /*
-* Copyright (C) 2011-2014 MediaTek Inc.
-*
-* This program is free software: you can redistribute it and/or modify it under the terms of the
-* GNU General Public License version 2 as published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
-* without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See the GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License along with this program.
-* If not, see <http://www.gnu.org/licenses/>.
-*/
+ * Copyright (C) 2011-2014 MediaTek Inc.
+ *
+ * This program is free software: you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY;
+ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+ * A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.
+ * If not, see <http://www.gnu.org/licenses/>.
+ */
 
 /******************************************************************************
  *  INCLUDE LINUX HEADER
@@ -70,8 +74,6 @@
 
 #define TRACE_FUNC()                MSG_FUNC(SEC_DEV_NAME)
 
-
-
 /*************************************************************************
  *  GLOBAL VARIABLE
  **************************************************************************/
@@ -80,58 +82,12 @@ static struct cdev sec_dev;
 static struct class *sec_class;
 static struct device *sec_device;
 
-#ifdef CONFIG_ARM64
-unsigned long long hacc_base;
-/*unsigned long long es_base;*/
-#else
-unsigned int hacc_base;
-/*unsigned int es_base;*/
-#endif
-
+void __iomem *hacc_base;
 static const struct of_device_id masp_of_ids[] = {
 	{.compatible = "mediatek,hacc",},
 	{}
 };
-#if 0
-/* ****************************
- * FOR ES_BASE ONLY
- ******************************/
-int es_probe(struct platform_device *dev)
-{
 
-#ifdef CONFIG_ARM64
-	es_base = (unsigned long long)of_iomap(dev->dev.of_node, 0);
-#else
-	es_base = (unsigned int)of_iomap(dev->dev.of_node, 0);
-#endif
-	if (!es_base) {
-		pr_err("[%s] ES register remapping failed\n", SEC_DEV_NAME);
-		return -ENXIO;
-	}
-	return 0;
-}
-
-int es_remove(struct platform_device *dev)
-{
-	es_base = 0;
-	return 0;
-}
-
-static const struct of_device_id es_of_ids[] = {
-	{.compatible = "mediatek,efusec",},
-	{}
-};
-
-static struct platform_driver es_driver = {
-	.driver = {
-		   .name = "es",
-		   .owner = THIS_MODULE,
-		   .of_match_table = es_of_ids,
-		   },
-	.probe = es_probe,
-	.remove = es_remove,
-};
-#endif
 /**************************************************************************
  *  SEC DRIVER OPEN
  **************************************************************************/
@@ -202,33 +158,29 @@ static const struct file_operations sec_proc_rid_fops = {
  *  SEC MODULE PARAMETER
  **************************************************************************/
 static uint recovery_done;
-module_param(recovery_done, uint, S_IRUSR | S_IWUSR /*|S_IWGRP */  | S_IRGRP | S_IROTH);	/* rw-r--r-- */
-MODULE_PARM_DESC(recovery_done,
-		 "A recovery sync parameter under sysfs (0=complete, 1=on-going, 2=error)");
+module_param(recovery_done, uint, 0644); /* rw-r--r-- */
 
-/**************************************************************************
- *  SEC DRIVER INIT
- **************************************************************************/
+MODULE_PARM_DESC(recovery_done,
+		 "recovery_done status(0 = complete, 1 = on-going, 2 = error)");
+
+/* SEC DRIVER INIT */
 static int sec_init(struct platform_device *dev)
 {
 	int ret = 0;
 	dev_t id;
 
-	pr_debug("[%s] sec_init (%d)\n", SEC_DEV_NAME, ret);
+	pr_debug("[%s] %s (%d)\n", SEC_DEV_NAME, __func__, ret);
 
-	#ifdef CONFIG_ARM64
-	hacc_base = (unsigned long long)of_iomap(dev->dev.of_node, 0);
-	#else
-	hacc_base = (unsigned int)of_iomap(dev->dev.of_node, 0);
-	#endif
+	hacc_base = of_iomap(dev->dev.of_node, 0);
 	if (!hacc_base) {
-		pr_err("[%s] HACC register remapping failed\n", SEC_DEV_NAME);
+		pr_notice("[%s] hacc register remapping failed\n",
+			  SEC_DEV_NAME);
 		return -ENXIO;
 	}
 
 	ret = sec_clk_enable(dev);
 	if (ret) {
-		pr_err("[%s] Cannot get hacc clock\n", SEC_DEV_NAME);
+		pr_notice("[%s] Cannot get hacc clock\n", SEC_DEV_NAME);
 		return ret;
 	}
 
@@ -236,13 +188,15 @@ static int sec_init(struct platform_device *dev)
 	ret = register_chrdev_region(id, 1, SEC_DEV_NAME);
 
 	if (ret) {
-		pr_err("[%s] Regist Failed (%d)\n", SEC_DEV_NAME, ret);
+		pr_notice("[%s] Regist Failed (%d)\n", SEC_DEV_NAME, ret);
 		return ret;
 	}
 
 	sec_class = class_create(THIS_MODULE, SEC_DEV_NAME);
 	if (sec_class == NULL) {
-		pr_err("[%s] Create class failed(0x%x)\n", SEC_DEV_NAME, ret);
+		pr_notice("[%s] Create class failed(0x%x)\n",
+			  SEC_DEV_NAME,
+			  ret);
 		ret = -1;
 		return ret;
 	}
@@ -256,7 +210,9 @@ static int sec_init(struct platform_device *dev)
 
 	sec_device = device_create(sec_class, NULL, id, NULL, SEC_DEV_NAME);
 	if (sec_class == NULL) {
-		pr_err("[%s] Create device failed(0x%x)\n", SEC_DEV_NAME, ret);
+		pr_notice("[%s] Create device failed(0x%x)\n",
+			  SEC_DEV_NAME,
+			  ret);
 		class_destroy(sec_class);
 		ret = -1;
 		return ret;
@@ -266,10 +222,12 @@ static int sec_init(struct platform_device *dev)
 	sec.init = 1;
 	spin_lock_init(&sec.lock);
 
-	proc_create("rid", 0, NULL, &sec_proc_rid_fops);
+	proc_create("rid", 0444, NULL, &sec_proc_rid_fops);
 
 #ifdef MTK_SECURITY_MODULE_LITE
-	pr_debug("[MASP Lite] version '%s%s', enter.\n", BUILD_TIME, BUILD_BRANCH);
+	pr_debug("[MASP Lite] version '%s%s', enter.\n",
+		 BUILD_TIME,
+		 BUILD_BRANCH);
 #endif
 
 exit:
@@ -295,7 +253,9 @@ static void sec_exit(void)
 	memset(&sec, 0, sizeof(sec));
 
 #ifdef MTK_SECURITY_MODULE_LITE
-	pr_debug("[MASP Lite] version '%s%s', exit.\n", BUILD_TIME, BUILD_BRANCH);
+	pr_debug("[MASP Lite] version '%s%s', exit.\n",
+		 BUILD_TIME,
+		 BUILD_BRANCH);
 #else
 	sec_core_exit();
 #endif
@@ -312,19 +272,19 @@ int masp_probe(struct platform_device *dev)
 	return ret;
 }
 
+
 int masp_remove(struct platform_device *dev)
 {
 	sec_exit();
 	return 0;
 }
 
-
 static struct platform_driver masp_driver = {
 	.driver = {
-		   .name = "masp",
-		   .owner = THIS_MODULE,
-		   .of_match_table = masp_of_ids,
-		   },
+		.name = "masp",
+		.owner = THIS_MODULE,
+		.of_match_table = masp_of_ids,
+	},
 	.probe = masp_probe,
 	.remove = masp_remove,
 };
@@ -332,16 +292,12 @@ static struct platform_driver masp_driver = {
 static int __init masp_init(void)
 {
 	int ret;
-	#if 0
-	ret = platform_driver_register(&es_driver);
-	if (ret) {
-		pr_err("[ES] Reg platform driver failed (%d)\n", ret);
-		return ret;
-	}
-	#endif
+
 	ret = platform_driver_register(&masp_driver);
 	if (ret) {
-		pr_err("[%s] Reg platform driver failed (%d)\n", SEC_DEV_NAME, ret);
+		pr_notice("[%s] Reg platform driver failed (%d)\n",
+			  SEC_DEV_NAME,
+			  ret);
 		return ret;
 	}
 
@@ -349,12 +305,16 @@ static int __init masp_init(void)
 }
 
 #ifdef CONFIG_OF
-static int __init masp_parse_dt(unsigned long node, const char *uname, int depth, void *data)
+static int __init masp_parse_dt(unsigned long node,
+				const char *uname,
+				int depth,
+				void *data)
 {
 	struct masp_tag *tags;
 	int i;
 
-	if (depth != 1 || (strcmp(uname, "chosen") != 0 && strcmp(uname, "chosen@0") != 0))
+	if (depth != 1 || (strcmp(uname, "chosen") != 0 &&
+			   strcmp(uname, "chosen@0") != 0))
 		return 0;
 
 	tags = (struct masp_tag *)of_get_flat_dt_prop(node, "atag,masp", NULL);

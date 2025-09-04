@@ -52,15 +52,6 @@ static DEFINE_MUTEX(memory_lowpower_mutex);
 static phys_addr_t grab_lastsize;
 #endif
 
-phys_addr_t memory_lowpower_get_grab_lastsize(void)
-{
-#ifdef MEMORY_LOWPOWER_FULLNESS
-	return grab_lastsize;
-#else
-	return 0;
-#endif
-}
-
 /*
  * Check whether memory_lowpower is initialized
  */
@@ -99,20 +90,23 @@ static phys_addr_t memory_lowpower_real_size(void)
 }
 
 /*
- * get_memory_lowpwer_cma_aligned - allocate aligned cma memory belongs to lowpower cma
+ * get_memory_lowpwer_cma_aligned - allocate aligned cma
+ * memory belongs to lowpower cma
  * @count: Requested number of pages.
  * @align: Requested alignment of pages (in PAGE_SIZE order).
  * @pages: Pointer indicates allocated cma buffer.
  * It returns 0 in success, otherwise returns -1
  */
-int get_memory_lowpower_cma_aligned(int count, unsigned int align, struct page **pages, bool last)
+int get_memory_lowpower_cma_aligned(int count, unsigned int align,
+					struct page **pages, bool last)
 {
 #ifdef MEMORY_LOWPOWER_FULLNESS
 	if (last)
 		count -= grab_lastsize >> PAGE_SHIFT;
 #endif
 
-	*pages = zmc_cma_alloc(cma, count, align, &memory_lowpower_registration);
+	*pages = zmc_cma_alloc(cma, count, align,
+			&memory_lowpower_registration);
 	if (*pages == NULL) {
 		pr_alert("lowpower cma allocation failed\n");
 		return -1;
@@ -126,7 +120,8 @@ int get_memory_lowpower_cma_aligned(int count, unsigned int align, struct page *
 }
 
 /*
- * put_memory_lowpwer_cma_aligned - free aligned cma memory belongs to lowpower cma
+ * put_memory_lowpwer_cma_aligned - free aligned cma memory belongs
+ * to lowpower cma
  * @count: Requested number of pages.
  * @pages: Pointer indicates allocated cma buffer.
  * It returns 0 in success, otherwise returns -1
@@ -218,19 +213,17 @@ int put_memory_lowpower_cma(void)
 	return 0;
 }
 #ifdef MEMORY_LOWPOWER_FULLNESS
-#define TEST_AND_RESERVE_MEMBLOCK(base, size) (!memblock_is_region_reserved(base, size) && \
-						memblock_reserve(base, size) == 0)
+#define TEST_AND_RESERVE_MEMBLOCK(base, size) \
+	(!memblock_is_region_reserved(base, size) && \
+	memblock_reserve(base, size) == 0)
 /* Grab the last page block for fullness */
 static void memory_lowpower_fullness(phys_addr_t base, phys_addr_t size)
 {
 	phys_addr_t pageblock_size = 1 << (pageblock_order + PAGE_SHIFT);
 	phys_addr_t expected_lastaddr, got_lastaddr = (phys_addr_t)ULLONG_MAX;
-	phys_addr_t expected_hole_size;
 
-	expected_hole_size = memblock_end_of_DRAM() - (base + size);
 	/* If the hole is not the size of 1 pageblock, just return */
-	if (expected_hole_size != pageblock_size &&
-			expected_hole_size != (pageblock_size - PAGE_SIZE)) {
+	if (memblock_end_of_DRAM() - (base + size) != pageblock_size) {
 		pr_alert("%s, no need to do fullness\n", __func__);
 		return;
 	}
@@ -238,11 +231,13 @@ static void memory_lowpower_fullness(phys_addr_t base, phys_addr_t size)
 	expected_lastaddr = base + size;
 
 	if (TEST_AND_RESERVE_MEMBLOCK(expected_lastaddr, pageblock_size) ||
-		TEST_AND_RESERVE_MEMBLOCK(expected_lastaddr, pageblock_size - PAGE_SIZE))
+		TEST_AND_RESERVE_MEMBLOCK(expected_lastaddr,
+			pageblock_size - PAGE_SIZE))
 		got_lastaddr = expected_lastaddr;
 
 	if (expected_lastaddr == got_lastaddr) {
-		pr_alert("%s, success to grab the \"last pageblock\"\n", __func__);
+		pr_alert("%s, success to grab the \"last pageblock\"\n",
+				__func__);
 		grab_lastsize = pageblock_size;
 	} else
 		pr_alert("%s, failed to grab the last pageblock\n", __func__);
@@ -257,7 +252,8 @@ static void zmc_memory_lowpower_init(struct cma *zmc_cma)
 	/* try to grab the last pageblock */
 	pr_info("%s: memory-lowpower-fullness\n", __func__);
 	if (cma != NULL)
-		memory_lowpower_fullness(memory_lowpower_base(), memory_lowpower_size());
+		memory_lowpower_fullness(memory_lowpower_base(),
+					memory_lowpower_size());
 #endif
 }
 
@@ -279,7 +275,8 @@ static int __init memory_lowpower_init(struct reserved_mem *rmem)
 		 &rmem->base, &rmem->size);
 
 	/* init cma area */
-	ret = cma_init_reserved_mem(rmem->base, rmem->size, 0, &cma);
+	ret = cma_init_reserved_mem(rmem->base, rmem->size, 0, rmem->name,
+									&cma);
 
 	if (ret) {
 		pr_err("%s cma failed, ret: %d\n", __func__, ret);
@@ -348,7 +345,8 @@ static int memory_lowpower_open(struct inode *inode, struct file *file)
 	return single_open(file, &memory_lowpower_show, NULL);
 }
 
-static ssize_t memory_lowpower_write(struct file *file, const char __user *buffer,
+static ssize_t memory_lowpower_write(struct file *file,
+		const char __user *buffer,
 		size_t count, loff_t *ppos)
 {
 	static char state;
@@ -386,10 +384,10 @@ static int __init memory_lowpower_debug_init(void)
 		return 1;
 	}
 
-	dentry = debugfs_create_file("memory-lowpower", S_IRUGO, NULL, NULL,
+	dentry = debugfs_create_file("memory-lowpower", 0444, NULL, NULL,
 			&memory_lowpower_fops);
 	if (!dentry)
-		pr_warn("Failed to create debugfs memory_lowpower_debug_init file\n");
+		pr_warn("Failed to create debugfs %s file\n", __func__);
 
 	return 0;
 }

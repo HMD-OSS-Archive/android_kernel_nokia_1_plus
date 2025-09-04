@@ -1,8 +1,15 @@
 /*
-* Copyright(C)2014 MediaTek Inc.
-* Modification based on code covered by the below mentioned copyright
-* and/or permission notice(S).
-*/
+ * Copyright (C) 2017 MediaTek Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ */
 
 /* akm09918.h - akm09918 compass driver
  *
@@ -23,20 +30,21 @@
 
 #include <linux/ioctl.h>
 
-#define AKM09918_BUFSIZE		0x50
+#define AKM09918_BUFSIZE	0x50
 
-#define SENSOR_DATA_SIZE		9	/* Rx buffer size, i.e from ST1 to ST2 */
-#define RWBUF_SIZE				16	/* Read/Write buffer size. */
+#define SENSOR_DATA_SIZE	9	/* Rx buffer size */
+#define RWBUF_SIZE		16	/* Read/Write buffer size. */
 #define CALIBRATION_DATA_SIZE	26
 
 /*! \name AK0991X register address
-*\anchor AK0991X_REG
-*Defines a register address of the AK09911, AK09912, AK09915, AK09916, AK09918.
-*/
+ * \anchor AK0991X_REG
+ * Defines a register address of the AK09911,
+ * AK09912, AK09915, AK09916, AK09918.
+ */
 /*! @{*/
-/* The following register definition is the same 
-   among 9911, 9912, 9915, 9916, 9918 
-*/
+/* The following register definition is the same
+ * among 9911, 9912, 9915, 9916, 9918
+ */
 #define AK0991X_REG_WIA1			0x00
 #define AK0991X_REG_WIA2			0x01
 #define AK0991X_REG_INFO1			0x02
@@ -55,17 +63,17 @@
 #define AK0991X_REG_CNTL3			0x32
 
 /*! \name AK09911, AK09912 fuse-rom address
-*\anchor AK0991X_FUSE
-*Defines a read-only address of the fuse ROM of the AK09911, AK09912.
-*/
+ *\anchor AK0991X_FUSE
+ *Defines a read-only address of the fuse ROM of the AK09911, AK09912.
+ */
 #define AK0991X_FUSE_ASAX			0x60
 #define AK0991X_FUSE_ASAY			0x61
 #define AK0991X_FUSE_ASAZ			0x62
 
 /*! \name AK09911 operation mode
-* \anchor AK09911_Mode
-* Defines an operation mode of the AK09911.
-*/
+ * \anchor AK09911_Mode
+ * Defines an operation mode of the AK09911.
+ */
 
 /* To avoid device dependency, convert to general name */
 #define AKM_REG_MODE			AK0991X_REG_CNTL2
@@ -84,9 +92,9 @@
 #define AKM_FUSE_1ST_ADDR		AK0991X_FUSE_ASAX
 
 /*! \name AKM operation mode
-* \anchor AKM_Mode
-* Defines an operation mode of the AK09911.
-*/
+ * \anchor AKM_Mode
+ * Defines an operation mode of the AK09911.
+ */
 #define AKM_MODE_SNG_MEASURE	0x01
 #define AKM_MODE_SELF_TEST		0x10
 #define AKM_MODE_FUSE_ACCESS	0x1F
@@ -117,8 +125,8 @@
 /* /#define CONVERT_O                    1 */
 /* #define CONVERT_O_DIV                (64*6)           1/(64*6) = CONVERT_O */
 
-/* /#define CONVERT_Q16                  1 */
-/* #define CONVERT_Q16_DIV              65536                    1/64 = CONVERT_O */
+/* /#define CONVERT_Q16                 1 */
+/* #define CONVERT_Q16_DIV              65536           1/64 = CONVERT_O */
 
 #define CSPEC_SPI_USE			0
 #define DBG_LEVEL0   0x0001	/* Critical */

@@ -11,7 +11,6 @@
  * GNU General Public License for more details.
  */
 
-/* --------------------------------------------------------------------------- */
 
 #ifndef _MTK_EXT_DISP_MGR_H
 #define     _MTK_EXT_DISP_MGR_H
@@ -34,7 +33,7 @@
 #define MTK_HDMI_AUDIO_ENABLE                   HDMI_IO(2)
 #define MTK_HDMI_VIDEO_ENABLE                   HDMI_IO(3)
 #define MTK_HDMI_GET_CAPABILITY                 HDMI_IOWR(4, int)
-#define MTK_HDMI_GET_DEVICE_STATUS              HDMI_IOWR(5, struct hdmi_device_status)
+#define MTK_HDMI_GET_DEVICE_STATUS	HDMI_IOWR(5, struct hdmi_device_status)
 #define MTK_HDMI_VIDEO_CONFIG                   HDMI_IOWR(6, int)
 #ifdef CONFIG_COMPAT
 #define MTK_HDMI_AUDIO_CONFIG                   HDMI_IOWR(7, compat_int_t)
@@ -51,8 +50,8 @@
 #define MTK_HDMI_FORCE_CLOSE                    HDMI_IOWR(15, int)
 #define MTK_HDMI_IS_FORCE_AWAKE                 HDMI_IOWR(16, int)
 
-#define MTK_HDMI_POST_VIDEO_BUFFER              HDMI_IOW(20,  struct fb_overlay_layer)
-#define MTK_HDMI_AUDIO_SETTING                  HDMI_IOWR(21, struct HDMITX_AUDIO_PARA)
+#define MTK_HDMI_POST_VIDEO_BUFFER	HDMI_IOW(20,  struct fb_overlay_layer)
+#define MTK_HDMI_AUDIO_SETTING	HDMI_IOWR(21, struct HDMITX_AUDIO_PARA)
 
 
 #define MTK_HDMI_FACTORY_MODE_ENABLE            HDMI_IOW(30, int)
@@ -62,28 +61,28 @@
 #define MTK_HDMI_USBOTG_STATUS                  HDMI_IOWR(33, int)
 #define MTK_HDMI_GET_DRM_ENABLE                 HDMI_IOWR(34, int)
 
-#define MTK_HDMI_GET_DEV_INFO                   HDMI_IOWR(35, struct mtk_dispif_info)
-#define MTK_HDMI_PREPARE_BUFFER                 HDMI_IOW(36, struct fb_overlay_buffer)
+#define MTK_HDMI_GET_DEV_INFO	HDMI_IOWR(35, struct mtk_dispif_info)
+#define MTK_HDMI_PREPARE_BUFFER	HDMI_IOW(36, struct fb_overlay_buffer)
 #define MTK_HDMI_SCREEN_CAPTURE                 HDMI_IOW(37, unsigned long)
 
-#define MTK_HDMI_WRITE_DEV                      HDMI_IOWR(52, struct hdmi_device_write)
+#define MTK_HDMI_WRITE_DEV	HDMI_IOWR(52, struct hdmi_device_write)
 #define MTK_HDMI_READ_DEV                       HDMI_IOWR(53, unsigned int)
 #define MTK_HDMI_ENABLE_LOG                     HDMI_IOWR(54, unsigned int)
 #define MTK_HDMI_CHECK_EDID                     HDMI_IOWR(55, unsigned int)
-#define MTK_HDMI_INFOFRAME_SETTING              HDMI_IOWR(56, struct hdmi_para_setting)
-#define MTK_HDMI_COLOR_DEEP                     HDMI_IOWR(57, struct hdmi_para_setting)
+#define MTK_HDMI_INFOFRAME_SETTING	HDMI_IOWR(56, struct hdmi_para_setting)
+#define MTK_HDMI_COLOR_DEEP		HDMI_IOWR(57, struct hdmi_para_setting)
 #define MTK_HDMI_ENABLE_HDCP                    HDMI_IOWR(58, unsigned int)
 #define MTK_HDMI_STATUS                         HDMI_IOWR(59, unsigned int)
-#define MTK_HDMI_HDCP_KEY                       HDMI_IOWR(60, struct hdmi_hdcp_key)
-#define MTK_HDMI_GET_EDID                       HDMI_IOWR(61, struct _HDMI_EDID_T)
-#define MTK_HDMI_SETLA                          HDMI_IOWR(62, struct CEC_DRV_ADDR_CFG)
-#define MTK_HDMI_GET_CECCMD                     HDMI_IOWR(63, struct CEC_FRAME_DESCRIPTION_IO)
-#define MTK_HDMI_SET_CECCMD                     HDMI_IOWR(64, struct CEC_SEND_MSG)
+#define MTK_HDMI_HDCP_KEY	HDMI_IOWR(60, struct hdmi_hdcp_key)
+#define MTK_HDMI_GET_EDID	HDMI_IOWR(61, struct _HDMI_EDID_T)
+#define MTK_HDMI_SETLA	HDMI_IOWR(62, struct CEC_DRV_ADDR_CFG)
+#define MTK_HDMI_GET_CECCMD	HDMI_IOWR(63, struct CEC_FRAME_DESCRIPTION_IO)
+#define MTK_HDMI_SET_CECCMD		HDMI_IOWR(64, struct CEC_SEND_MSG)
 #define MTK_HDMI_CEC_ENABLE                     HDMI_IOWR(65, unsigned int)
-#define MTK_HDMI_GET_CECADDR                    HDMI_IOWR(66, struct CEC_ADDRESS_IO)
+#define MTK_HDMI_GET_CECADDR	HDMI_IOWR(66, struct CEC_ADDRESS_IO)
 #define MTK_HDMI_CECRX_MODE                     HDMI_IOWR(67, unsigned int)
-#define MTK_HDMI_SENDSLTDATA                    HDMI_IOWR(68, struct send_slt_data)
-#define MTK_HDMI_GET_SLTDATA                    HDMI_IOWR(69, struct CEC_GETSLT_DATA)
+#define MTK_HDMI_SENDSLTDATA	HDMI_IOWR(68, struct send_slt_data)
+#define MTK_HDMI_GET_SLTDATA	HDMI_IOWR(69, struct CEC_GETSLT_DATA)
 #define MTK_HDMI_VIDEO_MUTE                     HDMI_IOWR(70, int)
 
 #define MTK_HDMI_READ                           HDMI_IOWR(81, unsigned int)

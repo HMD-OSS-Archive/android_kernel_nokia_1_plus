@@ -15,7 +15,8 @@
 #include "mtk_cpufreq_hybrid.h"
 #include "mtk_cpufreq_platform.h"
 
-int mt_cpufreq_set_by_wfi_load_cluster(unsigned int cluster_id, unsigned int freq)
+int mt_cpufreq_set_by_wfi_load_cluster(unsigned int cluster_id,
+	unsigned int freq)
 {
 #ifdef CONFIG_HYBRID_CPU_DVFS
 	enum mt_cpu_dvfs_id id = (enum mt_cpu_dvfs_id) cluster_id;
@@ -33,7 +34,8 @@ int mt_cpufreq_set_by_wfi_load_cluster(unsigned int cluster_id, unsigned int fre
 }
 EXPORT_SYMBOL(mt_cpufreq_set_by_wfi_load_cluster);
 
-int mt_cpufreq_set_by_schedule_load_cluster(unsigned int cluster_id, unsigned int freq)
+int mt_cpufreq_set_by_schedule_load_cluster(unsigned int cluster_id,
+	unsigned int freq)
 {
 #ifdef CONFIG_HYBRID_CPU_DVFS
 	enum mt_cpu_dvfs_id id = (enum mt_cpu_dvfs_id) cluster_id;
@@ -51,7 +53,8 @@ int mt_cpufreq_set_by_schedule_load_cluster(unsigned int cluster_id, unsigned in
 }
 EXPORT_SYMBOL(mt_cpufreq_set_by_schedule_load_cluster);
 
-unsigned int mt_cpufreq_find_close_freq(unsigned int cluster_id, unsigned int freq)
+unsigned int mt_cpufreq_find_close_freq(unsigned int cluster_id,
+	unsigned int freq)
 {
 	enum mt_cpu_dvfs_id id;
 	struct mt_cpu_dvfs *p;
@@ -70,7 +73,8 @@ unsigned int mt_cpufreq_find_close_freq(unsigned int cluster_id, unsigned int fr
 	return mt_cpufreq_get_freq_by_idx(id, idx);
 }
 
-int mt_cpufreq_set_iccs_frequency_by_cluster(int en, unsigned int cluster_id, unsigned int freq)
+int mt_cpufreq_set_iccs_frequency_by_cluster(int en,
+	unsigned int cluster_id, unsigned int freq)
 {
 #ifdef CONFIG_HYBRID_CPU_DVFS
 	enum mt_cpu_dvfs_id id = (enum mt_cpu_dvfs_id) cluster_id;
@@ -99,7 +103,8 @@ int is_in_suspend(void)
 }
 EXPORT_SYMBOL(is_in_suspend);
 
-int mt_cpufreq_update_volt(enum mt_cpu_dvfs_id id, unsigned int *volt_tbl, int nr_volt_tbl)
+int mt_cpufreq_update_volt(enum mt_cpu_dvfs_id id,
+	unsigned int *volt_tbl, int nr_volt_tbl)
 {
 	struct mt_cpu_dvfs *p;
 
@@ -110,7 +115,8 @@ int mt_cpufreq_update_volt(enum mt_cpu_dvfs_id id, unsigned int *volt_tbl, int n
 
 	p = id_to_cpu_dvfs(id);
 
-	_mt_cpufreq_dvfs_request_wrapper(p, p->idx_opp_tbl, MT_CPU_DVFS_EEM_UPDATE,
+	_mt_cpufreq_dvfs_request_wrapper(p, p->idx_opp_tbl,
+		MT_CPU_DVFS_EEM_UPDATE,
 		(void *)&volt_tbl);
 
 #ifdef CONFIG_HYBRID_CPU_DVFS
@@ -125,7 +131,8 @@ EXPORT_SYMBOL(mt_cpufreq_update_volt);
 
 cpuVoltsampler_func g_pCpuVoltSampler_met;
 cpuVoltsampler_func g_pCpuVoltSampler_ocp;
-void notify_cpu_volt_sampler(enum mt_cpu_dvfs_id id, unsigned int volt, int up, int event)
+void notify_cpu_volt_sampler(enum mt_cpu_dvfs_id id,
+	unsigned int volt, int up, int event)
 {
 	unsigned int mv = volt / 100;
 

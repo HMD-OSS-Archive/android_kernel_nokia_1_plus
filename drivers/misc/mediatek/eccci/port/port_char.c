@@ -1,15 +1,15 @@
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ * Copyright (C) 2016 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ */
 #include <linux/cdev.h>
 #include <linux/device.h>
 #include <linux/fs.h>
@@ -30,7 +30,8 @@
 
 #define MAX_QUEUE_LENGTH 32
 
-unsigned int port_char_dev_poll(struct file *fp, struct poll_table_struct *poll)
+unsigned int port_char_dev_poll(struct file *fp,
+	struct poll_table_struct *poll)
 {
 	struct port_t *port = fp->private_data;
 	unsigned int mask = 0;
@@ -47,9 +48,13 @@ unsigned int port_char_dev_poll(struct file *fp, struct poll_table_struct *poll)
 	if (port->rx_ch == CCCI_UART1_RX &&
 	    md_state != READY &&
 		md_state != EXCEPTION) {
-		mask |= POLLERR;	/* notify MD logger to save its log before md_init kills it */
-		CCCI_NORMAL_LOG(md_id, CHAR, "poll error for MD logger at state %d,mask=%d\n",
-			     md_state, mask);
+		/* notify MD logger to save its log
+		 * before md_init kills it
+		 */
+		mask |= POLLERR;
+		CCCI_NORMAL_LOG(md_id, CHAR,
+			"poll error for MD logger at state %d,mask=%d\n",
+			md_state, mask);
 	}
 
 	return mask;
@@ -73,23 +78,27 @@ static int port_char_init(struct port_t *port)
 	int ret = 0;
 	int md_id = port->md_id;
 
-	CCCI_DEBUG_LOG(md_id, CHAR, "char port %s is initializing\n", port->name);
+	CCCI_DEBUG_LOG(md_id, CHAR,
+		"char port %s is initializing\n", port->name);
 	port->rx_length_th = MAX_QUEUE_LENGTH;
 	port->skb_from_pool = 1;
 	port->interception = 0;
 	if (port->flags & PORT_F_WITH_CHAR_NODE) {
 		dev = kmalloc(sizeof(struct cdev), GFP_KERNEL);
 		if (unlikely(!dev)) {
-			CCCI_ERROR_LOG(port->md_id, CHAR, "alloc char dev fail!!\n");
+			CCCI_ERROR_LOG(port->md_id, CHAR,
+				"alloc char dev fail!!\n");
 			return -1;
 		}
 		cdev_init(dev, &char_dev_fops);
 		dev->owner = THIS_MODULE;
-		ret = cdev_add(dev, MKDEV(port->major, port->minor_base + port->minor), 1);
-		ret = ccci_register_dev_node(port->name, port->major, port->minor_base + port->minor);
+		ret = cdev_add(dev, MKDEV(port->major,
+				port->minor_base + port->minor), 1);
+		ret = ccci_register_dev_node(port->name, port->major,
+				port->minor_base + port->minor);
 		port->flags |= PORT_F_ADJUST_HEADER;
 	}
-
+#ifndef DPMAIF_DEBUG_LOG
 	if (port->rx_ch == CCCI_UART2_RX ||
 		port->rx_ch == CCCI_C2K_AT ||
 		port->rx_ch == CCCI_C2K_AT2 ||
@@ -102,7 +111,7 @@ static int port_char_init(struct port_t *port)
 		port->flags |= PORT_F_CH_TRAFFIC;
 	else if (port->rx_ch == CCCI_FS_RX)
 		port->flags |= (PORT_F_CH_TRAFFIC | PORT_F_DUMP_RAW_DATA);
-
+#endif
 	return ret;
 }
 
@@ -125,7 +134,8 @@ static int c2k_req_push_to_usb(struct port_t *port, struct sk_buff *skb)
 		c2k_ch_id = MDLOG_CH_C2K-2;
 	else {
 		ret = -ENODEV;
-		CCCI_ERROR_LOG(md_id, CHAR, "Err: wrong ch_id(%d) from usb bypass\n", port->rx_ch);
+		CCCI_ERROR_LOG(md_id, CHAR,
+			"Err: wrong ch_id(%d) from usb bypass\n", port->rx_ch);
 		return ret;
 	}
 
@@ -137,8 +147,11 @@ static int c2k_req_push_to_usb(struct port_t *port, struct sk_buff *skb)
 
 retry_push:
 	/* push to usb */
-	read_count = rawbulk_push_upstream_buffer(c2k_ch_id, skb->data, read_len);
-	CCCI_DEBUG_LOG(md_id, CHAR, "data push to usb bypass (ch%d)(%d)\n", port->rx_ch, read_count);
+	read_count = rawbulk_push_upstream_buffer(c2k_ch_id,
+		skb->data, read_len);
+	CCCI_DEBUG_LOG(md_id, CHAR,
+		"data push to usb bypass (ch%d)(%d)\n",
+		port->rx_ch, read_count);
 
 	if (read_count > 0) {
 		skb_pull(skb, read_count);
@@ -148,7 +161,8 @@ retry_push:
 		else if (read_len == 0)
 			ccci_free_skb(skb);
 		else if (read_len < 0)
-			CCCI_ERROR_LOG(md_id, CHAR, "read_len error, check why come here\n");
+			CCCI_ERROR_LOG(md_id, CHAR,
+				"read_len error, check why come here\n");
 	} else {
 		CCCI_NORMAL_LOG(md_id, CHAR, "usb buf full\n");
 		msleep(20);
@@ -165,9 +179,15 @@ static int port_char_recv_skb(struct port_t *port, struct sk_buff *skb)
 	int md_id = port->md_id;
 
 	if (!atomic_read(&port->usage_cnt) &&
-		(port->rx_ch != CCCI_UART2_RX && port->rx_ch != CCCI_C2K_AT && port->rx_ch != CCCI_PCM_RX &&
-			port->rx_ch != CCCI_FS_RX && port->rx_ch != CCCI_RPC_RX &&
-			!(port->rx_ch == CCCI_IPC_RX && port->minor == AP_IPC_LWAPROXY + CCCI_IPC_MINOR_BASE)))
+		(port->rx_ch != CCCI_UART2_RX &&
+		port->rx_ch != CCCI_C2K_AT &&
+		port->rx_ch != CCCI_PCM_RX &&
+		port->rx_ch != CCCI_FS_RX &&
+		port->rx_ch != CCCI_RPC_RX &&
+		port->rx_ch != CCCI_UDC_RX &&
+		!(port->rx_ch == CCCI_IPC_RX &&
+		port->minor ==
+		AP_IPC_LWAPROXY + CCCI_IPC_MINOR_BASE)))
 		return -CCCI_ERR_DROP_PACKET;
 
 #ifdef CONFIG_MTK_ECCCI_C2K
@@ -176,7 +196,8 @@ static int port_char_recv_skb(struct port_t *port, struct sk_buff *skb)
 		return 0;
 	}
 #endif
-	CCCI_DEBUG_LOG(md_id, CHAR, "recv on %s, len=%d\n", port->name, port->rx_skb_list.qlen);
+	CCCI_DEBUG_LOG(md_id, CHAR, "recv on %s, len=%d\n",
+		port->name, port->rx_skb_list.qlen);
 	return port_recv_skb(port, skb);
 }
 
@@ -189,9 +210,11 @@ void port_char_dump_info(struct port_t *port, unsigned int flag)
 	if (atomic_read(&port->usage_cnt) == 0)
 		return;
 	if (port->flags & PORT_F_CH_TRAFFIC)
-		CCCI_REPEAT_LOG(port->md_id, CHAR, "CHR:(%d):%dR(%d,%d,%d):%dT(%d)\n",
-			port->flags,
-			port->rx_ch, port->rx_skb_list.qlen, port->rx_pkg_cnt, port->rx_drop_cnt,
+		CCCI_REPEAT_LOG(port->md_id, CHAR,
+			"CHR:(%d):%dR(%d,%d,%d):%dT(%d)\n",
+			port->flags, port->rx_ch,
+			port->rx_skb_list.qlen,
+			port->rx_pkg_cnt, port->rx_drop_cnt,
 			port->tx_ch, port->tx_pkg_cnt);
 }
 struct port_ops char_port_ops = {

@@ -1,10 +1,10 @@
 /*
- * Copyright (C) 2017 MediaTek Inc.
-
+ * Copyright (C) 2018 MediaTek Inc.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
-
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -64,10 +64,10 @@ extern unsigned int gPMICREGDbgLvl;
 } while (0)
 
 /* MT6358 Export API */
-extern unsigned int pmic_scp_set_vcore(unsigned int);
-extern unsigned int pmic_scp_set_vcore_sleep(unsigned int);
-extern unsigned int pmic_scp_set_vsram_vcore(unsigned int);
-extern unsigned int pmic_scp_set_vsram_vcore_sleep(unsigned int);
+extern unsigned int pmic_scp_set_vcore(unsigned int voltage);
+extern unsigned int pmic_scp_set_vcore_sleep(unsigned int voltage);
+extern unsigned int pmic_scp_set_vsram_vcore(unsigned int voltage);
+extern unsigned int pmic_scp_set_vsram_vcore_sleep(unsigned int voltage);
 extern void wk_pmic_enable_sdn_delay(void);
 
 #endif				/* _MT_PMIC_INFO_H_ */

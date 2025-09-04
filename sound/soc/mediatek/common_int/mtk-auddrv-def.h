@@ -12,7 +12,7 @@
  */
 
 /******************************************************************************
-*
+ *
  *
  * Filename:
  * ---------
@@ -20,7 +20,7 @@
  *
  * Project:
  * --------
- *   MT6797 FPGA LDVT Audio Driver
+ *   Audio Driver
  *
  * Description:
  * ------------
@@ -31,191 +31,70 @@
  *   Chipeng Chang (MTK02308)
  *
  *---------------------------------------------------------------------------
----
  *
-
-*******************************************************************************/
+ *****************************************************************************
+ */
 
 #ifndef AUDIO_DEF_H
 #define AUDIO_DEF_H
 
 #include "mtk-auddrv-type-def.h"
+#ifdef CONFIG_MTK_AEE_FEATURE
 #include <mt-plat/aee.h>
+#endif
 
 #define PM_MANAGER_API
 #define AUDIO_MEMORY_SRAM
 #define AUDIO_MEM_IOREMAP
 #define AUDIO_DL2_ISR_COPY_SUPPORT
 
-/* below for audio debugging */
-/* #define DEBUG_AUDDRV */
-/* #define DEBUG_AFE_REG */
-/* #define DEBUG_ANA_REG */
-/* #define DEBUG_AUD_CLK */
-/* #define DEBUG_AUD_HDMI*/
-/* #define DEBUG_AUD_FMTX */
-/* #define DEBUG_AUD_UL2 */
-/* #define DEBUG_AUD_UL1 */
-/* #define DEBUG_AUD_DL1 */
-/* #define DEBUG_AUD_DL2 */
-/* #define DEBUG_AUD_DAI */
-/* #define DEBUG_AUD_OFFLOAD */
-
-#ifdef DEBUG_AUDDRV
-#define PRINTK_AUDDRV(format, args...) pr_debug(format, ##args)
-#define pr_aud(format, args...) pr_debug(format, ##args)
-#else
-#define PRINTK_AUDDRV(format, args...)
-#define pr_aud(format, args...)
-#endif
-
-#ifdef DEBUG_AFE_REG
-#define PRINTK_AFE_REG(format, args...) pr_debug(format, ##args)
-#else
-#define PRINTK_AFE_REG(format, args...)
-#endif
-
-#ifdef DEBUG_ANA_REG
-#define PRINTK_ANA_REG(format, args...) pr_debug(format, ##args)
-#else
-#define PRINTK_ANA_REG(format, args...)
-#endif
-
-#ifdef DEBUG_AUD_CLK
-#define PRINTK_AUD_CLK(format, args...)  pr_debug(format, ##args)
-#else
-#define PRINTK_AUD_CLK(format, args...)
-#endif
-
-#ifdef DEBUG_AUD_DL1
-#define PRINTK_AUD_DL1(format, args...)  pr_debug(format, ##args)
-#else
-#define PRINTK_AUD_DL1(format, args...)
-#endif
-
-#ifdef DEBUG_AUD_DL2
-#define PRINTK_AUD_DL2(format, args...)  pr_debug(format, ##args)
-#else
-#define PRINTK_AUD_DL2(format, args...)
-#endif
-
-#ifdef DEBUG_AUD_FMTX
-#define PRINTK_AUD_FMTX(format, args...)  pr_debug(format, ##args)
-#else
-#define PRINTK_AUD_FMTX(format, args...)
-#endif
-
-#ifdef DEBUG_AUD_HDMI
-#define PRINTK_AUD_HDMI(format, args...)  pr_debug(format, ##args)
-#else
-#define PRINTK_AUD_HDMI(format, args...)
-#endif
-
-#ifdef DEBUG_AUD_HDMI2
-#define PRINTK_AUD_HDMI2(format, args...)  pr_debug(format, ##args)
-#else
-#define PRINTK_AUD_HDMI2(format, args...)
-#endif
-
-
-#ifdef DEBUG_AUD_UL1
-#define PRINTK_AUD_UL1(format, args...)  pr_debug(format, ##args)
-#else
-#define PRINTK_AUD_UL1(format, args...)
-#endif
-
-#ifdef DEBUG_AUD_UL2
-#define PRINTK_AUD_UL2(format, args...)  pr_debug(format, ##args)
-#else
-#define PRINTK_AUD_UL2(format, args...)
-#endif
-
-#ifdef DEBUG_AUD_UL3
-#define PRINTK_AUD_UL3(format, args...)  pr_debug(format, ##args)
-#else
-#define PRINTK_AUD_UL3(format, args...)
-#endif
-
-#ifdef DEBUG_AUD_AWB
-#define PRINTK_AUD_AWB(format, args...)  pr_debug(format, ##args)
-#else
-#define PRINTK_AUD_AWB(format, args...)
-#endif
-
-#ifdef DEBUG_AUD_DAI
-#define PRINTK_AUD_DAI(format, args...)  pr_debug(format, ##args)
-#else
-#define PRINTK_AUD_DAI(format, args...)
-#endif
-
-#ifdef DEBUG_AUD_MODDAI
-#define PRINTK_AUD_MODDAI(format, args...)  pr_debug(format, ##args)
-#else
-#define PRINTK_AUD_MODDAI(format, args...)
-#endif
-
-#ifdef DEBUG_AUD_OFFLOAD
-#define PRINTK_AUD_OFFLOAD(format, args...)  pr_debug(format, ##args)
-#else
-#define PRINTK_AUD_OFFLOAD(format, args...)
-#endif
-
-#define MTK_SND_LOG(fmt, args...) pr_info("<%s(), %d> " fmt, __func__, __LINE__, ## args)
-#define MTK_SND_LOG_LIMIT(FREQ, fmt, args...) do {\
-	static DEFINE_RATELIMIT_STATE(ratelimit, HZ, FREQ);\
-	static int skip_cnt;\
-	\
-	if (__ratelimit(&ratelimit)) {\
-		MTK_SND_LOG(fmt ", skip_cnt<%d>\n", ## args, skip_cnt);\
-		skip_cnt = 0;\
-	} else\
-		skip_cnt++;\
-} while (0)\
-
 /* if need assert , use AUDIO_ASSERT(true) */
 #define AUDIO_ASSERT(value) WARN_ON(value)
 
-#define AUDIO_AEE(message) \
-	(aee_kernel_exception_api(__FILE__, __LINE__, DB_OPT_FTRACE, message, "audio dump ftrace"))
-
-
+#ifdef CONFIG_MTK_AEE_FEATURE
+#define AUDIO_AEE(message)                                                     \
+	(aee_kernel_exception_api(__FILE__, __LINE__, DB_OPT_FTRACE, message,  \
+				  "audio dump ftrace"))
+#else
+#define AUDIO_AEE(message)
+#endif
 
 /**********************************
  *  Other Definitions             *
  **********************************/
-#define BIT_00	0x00000001        /* ---- ---- ---- ---- ---- ---- ---- ---1 */
-#define BIT_01	0x00000002        /* ---- ---- ---- ---- ---- ---- ---- --1- */
-#define BIT_02	0x00000004        /* ---- ---- ---- ---- ---- ---- ---- -1-- */
-#define BIT_03	0x00000008        /* ---- ---- ---- ---- ---- ---- ---- 1--- */
-#define BIT_04	0x00000010        /* ---- ---- ---- ---- ---- ---- ---1 ---- */
-#define BIT_05	0x00000020        /* ---- ---- ---- ---- ---- ---- --1- ---- */
-#define BIT_06	0x00000040        /* ---- ---- ---- ---- ---- ---- -1-- ---- */
-#define BIT_07	0x00000080        /* ---- ---- ---- ---- ---- ---- 1--- ---- */
-#define BIT_08	0x00000100        /* ---- ---- ---- ---- ---- ---1 ---- ---- */
-#define BIT_09	0x00000200        /* ---- ---- ---- ---- ---- --1- ---- ---- */
-#define BIT_10	0x00000400        /* ---- ---- ---- ---- ---- -1-- ---- ---- */
-#define BIT_11	0x00000800        /* ---- ---- ---- ---- ---- 1--- ---- ---- */
-#define BIT_12	0x00001000        /* ---- ---- ---- ---- ---1 ---- ---- ---- */
-#define BIT_13	0x00002000        /* ---- ---- ---- ---- --1- ---- ---- ---- */
-#define BIT_14	0x00004000        /* ---- ---- ---- ---- -1-- ---- ---- ---- */
-#define BIT_15	0x00008000        /* ---- ---- ---- ---- 1--- ---- ---- ---- */
-#define BIT_16	0x00010000        /* ---- ---- ---- ---1 ---- ---- ---- ---- */
-#define BIT_17	0x00020000        /* ---- ---- ---- --1- ---- ---- ---- ---- */
-#define BIT_18	0x00040000        /* ---- ---- ---- -1-- ---- ---- ---- ---- */
-#define BIT_19	0x00080000        /* ---- ---- ---- 1--- ---- ---- ---- ---- */
-#define BIT_20	0x00100000        /* ---- ---- ---1 ---- ---- ---- ---- ---- */
-#define BIT_21	0x00200000        /* ---- ---- --1- ---- ---- ---- ---- ---- */
-#define BIT_22	0x00400000        /* ---- ---- -1-- ---- ---- ---- ---- ---- */
-#define BIT_23	0x00800000        /* ---- ---- 1--- ---- ---- ---- ---- ---- */
-#define BIT_24	0x01000000        /* ---- ---1 ---- ---- ---- ---- ---- ---- */
-#define BIT_25	0x02000000        /* ---- --1- ---- ---- ---- ---- ---- ---- */
-#define BIT_26	0x04000000        /* ---- -1-- ---- ---- ---- ---- ---- ---- */
-#define BIT_27	0x08000000        /* ---- 1--- ---- ---- ---- ---- ---- ---- */
-#define BIT_28	0x10000000        /* ---1 ---- ---- ---- ---- ---- ---- ---- */
-#define BIT_29	0x20000000        /* --1- ---- ---- ---- ---- ---- ---- ---- */
-#define BIT_30	0x40000000        /* -1-- ---- ---- ---- ---- ---- ---- ---- */
-#define BIT_31	0x80000000        /* 1--- ---- ---- ---- ---- ---- ---- ---- */
-#define MASK_ALL          (0xFFFFFFFF)
+#define BIT_00 0x00000001 /* ---- ---- ---- ---- ---- ---- ---- ---1 */
+#define BIT_01 0x00000002 /* ---- ---- ---- ---- ---- ---- ---- --1- */
+#define BIT_02 0x00000004 /* ---- ---- ---- ---- ---- ---- ---- -1-- */
+#define BIT_03 0x00000008 /* ---- ---- ---- ---- ---- ---- ---- 1--- */
+#define BIT_04 0x00000010 /* ---- ---- ---- ---- ---- ---- ---1 ---- */
+#define BIT_05 0x00000020 /* ---- ---- ---- ---- ---- ---- --1- ---- */
+#define BIT_06 0x00000040 /* ---- ---- ---- ---- ---- ---- -1-- ---- */
+#define BIT_07 0x00000080 /* ---- ---- ---- ---- ---- ---- 1--- ---- */
+#define BIT_08 0x00000100 /* ---- ---- ---- ---- ---- ---1 ---- ---- */
+#define BIT_09 0x00000200 /* ---- ---- ---- ---- ---- --1- ---- ---- */
+#define BIT_10 0x00000400 /* ---- ---- ---- ---- ---- -1-- ---- ---- */
+#define BIT_11 0x00000800 /* ---- ---- ---- ---- ---- 1--- ---- ---- */
+#define BIT_12 0x00001000 /* ---- ---- ---- ---- ---1 ---- ---- ---- */
+#define BIT_13 0x00002000 /* ---- ---- ---- ---- --1- ---- ---- ---- */
+#define BIT_14 0x00004000 /* ---- ---- ---- ---- -1-- ---- ---- ---- */
+#define BIT_15 0x00008000 /* ---- ---- ---- ---- 1--- ---- ---- ---- */
+#define BIT_16 0x00010000 /* ---- ---- ---- ---1 ---- ---- ---- ---- */
+#define BIT_17 0x00020000 /* ---- ---- ---- --1- ---- ---- ---- ---- */
+#define BIT_18 0x00040000 /* ---- ---- ---- -1-- ---- ---- ---- ---- */
+#define BIT_19 0x00080000 /* ---- ---- ---- 1--- ---- ---- ---- ---- */
+#define BIT_20 0x00100000 /* ---- ---- ---1 ---- ---- ---- ---- ---- */
+#define BIT_21 0x00200000 /* ---- ---- --1- ---- ---- ---- ---- ---- */
+#define BIT_22 0x00400000 /* ---- ---- -1-- ---- ---- ---- ---- ---- */
+#define BIT_23 0x00800000 /* ---- ---- 1--- ---- ---- ---- ---- ---- */
+#define BIT_24 0x01000000 /* ---- ---1 ---- ---- ---- ---- ---- ---- */
+#define BIT_25 0x02000000 /* ---- --1- ---- ---- ---- ---- ---- ---- */
+#define BIT_26 0x04000000 /* ---- -1-- ---- ---- ---- ---- ---- ---- */
+#define BIT_27 0x08000000 /* ---- 1--- ---- ---- ---- ---- ---- ---- */
+#define BIT_28 0x10000000 /* ---1 ---- ---- ---- ---- ---- ---- ---- */
+#define BIT_29 0x20000000 /* --1- ---- ---- ---- ---- ---- ---- ---- */
+#define BIT_30 0x40000000 /* -1-- ---- ---- ---- ---- ---- ---- ---- */
+#define BIT_31 0x80000000 /* 1--- ---- ---- ---- ---- ---- ---- ---- */
+#define MASK_ALL (0xFFFFFFFF)
 
 /* cpu dai name */
 #define MT_SOC_DAI_NAME "mt-soc-dai-driver"
@@ -243,62 +122,63 @@
 #define MT_SOC_MRGRX_NAME "mt-soc-mrgrxdai-driver"
 #define MT_SOC_MRGRXCAPTURE_NAME "mt-soc-mrgrxcapturedai-driver"
 #define MT_SOC_DL1AWB_NAME "mt-soc-dl1awbdai-driver"
-#define MT_SOC_FM_MRGTX_NAME  "mt-soc-fmmrgtxdai-driver"
+#define MT_SOC_FM_MRGTX_NAME "mt-soc-fmmrgtxdai-driver"
 #define MT_SOC_TDMRX_NAME "mt-soc-tdmrxdai-driver"
 #define MT_SOC_HP_IMPEDANCE_NAME "mt-soc-hpimpedancedai-driver"
 #define MT_SOC_FM_I2S_NAME "mt-soc-fmi2S-driver"
 #define MT_SOC_FM_I2S_CAPTURE_NAME "mt-soc-fmi2Scapturedai-driver"
 #define MT_SOC_BTCVSD_RX_DAI_NAME "mt-soc-btcvsd-rx-dai-driver"
 #define MT_SOC_BTCVSD_TX_DAI_NAME "mt-soc-btcvsd-tx-dai-driver"
+#define MT_SOC_BTCVSD_DAI_NAME "mt-soc-btcvsd-dai-driver"
 #define MT_SOC_MOD_DAI_NAME "mt-soc-moddai-driver"
 #define MT_SOC_ANC_NAME "mt-soc-anc-driver"
 #define MT_SOC_ANC_RECORD_DAI_NAME "mt-soc-anc-record-dai-driver"
 #define MT_SOC_OFFLOAD_PLAYBACK_DAI_NAME "mt-soc-offload-playback-dai-driver"
 
 /* platform name */
-#define MT_SOC_DL1_PCM   "mt-soc-dl1-pcm"
-#define MT_SOC_HP_IMPEDANCE_PCM   "mt-soc-hp-impedence-pcm"
-#define MT_SOC_DEEP_BUFFER_DL_PCM   "mt-soc-deep-buffer-dl-pcm"
-#define MT_SOC_DL2_PCM   "mt-soc-dl2-pcm"
-#define MT_SOC_UL1_PCM   "mt-soc-ul1-pcm"
-#define MT_SOC_UL2_PCM   "mt-soc-ul2-pcm"
-#define MT_SOC_I2S0_AWB_PCM   "mt-soc-i2s0awb-pcm"
-#define MT_SOC_AWB_PCM   "mt-soc-awb-pcm"
-#define MT_SOC_MRGRX_AWB_PCM   "mt-soc-mrgrx-awb-pcm"
-#define MT_SOC_DL1_AWB_PCM   "mt-soc-dl1-awb-pcm"
-#define MT_SOC_DAI_PCM   "mt-soc-DAI-pcm"
-#define MT_SOC_HDMI_PCM  "mt-soc-hdmi-pcm"
-#define MT_SOC_I2S0_PCM  "mt-soc-i2s0-pcm"
-#define MT_SOC_MRGRX_PCM  "mt-soc-mrgrx-pcm"
-#define MT_SOC_SCP_VOICE_PCM  "mt-soc-scp-voice-pcm"
-#define MT_SOC_I2S0DL1_PCM  "mt-soc-i2s0dl1-pcm"
-#define MT_SOC_DL1SCPSPK_PCM  "mt-soc-dl1scpspk-pcm"
-#define MT_SOC_MODDAI_PCM   "mt-soc-MODDAI-pcm"
-#define MT_SOC_VOICE_MD1  "mt-soc-voicemd1"
-#define MT_SOC_VOICE_MD2  "mt-soc-voicemd2"
+#define MT_SOC_DL1_PCM "mt-soc-dl1-pcm"
+#define MT_SOC_HP_IMPEDANCE_PCM "mt-soc-hp-impedence-pcm"
+#define MT_SOC_DEEP_BUFFER_DL_PCM "mt-soc-deep-buffer-dl-pcm"
+#define MT_SOC_DL2_PCM "mt-soc-dl2-pcm"
+#define MT_SOC_UL1_PCM "mt-soc-ul1-pcm"
+#define MT_SOC_UL2_PCM "mt-soc-ul2-pcm"
+#define MT_SOC_I2S0_AWB_PCM "mt-soc-i2s0awb-pcm"
+#define MT_SOC_AWB_PCM "mt-soc-awb-pcm"
+#define MT_SOC_MRGRX_AWB_PCM "mt-soc-mrgrx-awb-pcm"
+#define MT_SOC_DL1_AWB_PCM "mt-soc-dl1-awb-pcm"
+#define MT_SOC_DAI_PCM "mt-soc-DAI-pcm"
+#define MT_SOC_HDMI_PCM "mt-soc-hdmi-pcm"
+#define MT_SOC_I2S0_PCM "mt-soc-i2s0-pcm"
+#define MT_SOC_MRGRX_PCM "mt-soc-mrgrx-pcm"
+#define MT_SOC_SCP_VOICE_PCM "mt-soc-scp-voice-pcm"
+#define MT_SOC_I2S0DL1_PCM "mt-soc-i2s0dl1-pcm"
+#define MT_SOC_DL1SCPSPK_PCM "mt-soc-dl1scpspk-pcm"
+#define MT_SOC_MODDAI_PCM "mt-soc-MODDAI-pcm"
+#define MT_SOC_VOICE_MD1 "mt-soc-voicemd1"
+#define MT_SOC_VOICE_MD2 "mt-soc-voicemd2"
 #define MT_SOC_VOICE_MD1_BT "mt-soc-voicemd1-bt"
 #define MT_SOC_VOICE_MD2_BT "mt-soc-voicemd2-bt"
-#define MT_SOC_VOICE_ULTRA  "mt-soc-voice-ultra"
+#define MT_SOC_VOICE_ULTRA "mt-soc-voice-ultra"
 #define MT_SOC_VOICE_USB "mt-soc-voice-usb"
 #define MT_SOC_VOICE_USB_ECHOREF "mt-soc-voice-usb-echoref"
 #define MT_SOC_VOIP_BT_OUT "mt-soc-voip-bt-out"
 #define MT_SOC_VOIP_BT_IN "mt-soc-voip-bt-in"
-#define MT_SOC_IFMI2S2  "mt-soc-fm-i2s2"
-#define MT_SOC_DUMMY_PCM  "mt-soc-dummy-pcm"
-#define MT_SOC_ULDLLOOPBACK_PCM  "mt-soc-uldlloopback-pcm"
-#define MT_SOC_ROUTING_PCM  "mt-soc-routing-pcm"
+#define MT_SOC_IFMI2S2 "mt-soc-fm-i2s2"
+#define MT_SOC_DUMMY_PCM "mt-soc-dummy-pcm"
+#define MT_SOC_ULDLLOOPBACK_PCM "mt-soc-uldlloopback-pcm"
+#define MT_SOC_ROUTING_PCM "mt-soc-routing-pcm"
 #define MT_SOC_FM_MRGTX_PCM "mt-soc-fmmrgtx-pcm"
 #define MT_SOC_TDMRX_PCM "mt-soc-tdmrx-pcm"
 #define MT_SOC_MOD_ADCI2S_PCM "mt-soc-mod2adci2s-pcm"
 #define MT_SOC_I2S2_ADC2_PCM "mt-soc-i2s2_adc2-pcm"
 #define MT_SOC_IO2_DAI_PCM "mt-soc-io2dai-pcm"
-#define MT_SOC_FM_I2S_PCM  "mt-soc-fm-i2s-pcm"
-#define MT_SOC_FM_I2S_AWB_PCM  "mt-soc-fm-i2s-awb-pcm"
-#define MT_SOC_BTCVSD_RX_PCM   "mt-soc-btcvsd-rx-pcm"
-#define MT_SOC_BTCVSD_TX_PCM   "mt-soc-btcvsd-tx-pcm"
-#define MT_SOC_MOD_DAI_PCM   "mt-soc-MODDAI-pcm"
-#define MT_SOC_ANC_PCM   "mt-soc-anc-pcm"
-#define MT_SOC_PLAYBACK_OFFLOAD  "mt-soc-playback-offload"
+#define MT_SOC_FM_I2S_PCM "mt-soc-fm-i2s-pcm"
+#define MT_SOC_FM_I2S_AWB_PCM "mt-soc-fm-i2s-awb-pcm"
+#define MT_SOC_BTCVSD_RX_PCM "mt-soc-btcvsd-rx-pcm"
+#define MT_SOC_BTCVSD_TX_PCM "mt-soc-btcvsd-tx-pcm"
+#define MT_SOC_MOD_DAI_PCM "mt-soc-MODDAI-pcm"
+#define MT_SOC_ANC_PCM "mt-soc-anc-pcm"
+#define MT_SOC_PLAYBACK_OFFLOAD "mt-soc-playback-offload"
 
 /* codec dai name */
 #define MT_SOC_CODEC_TXDAI_NAME "mt-soc-codec-tx-dai"
@@ -316,7 +196,8 @@
 #define MT_SOC_CODEC_VOICE_MD2_BTDAI_NAME "mt-soc-codec-voicemd2-bt-dai"
 #define MT_SOC_CODEC_VOICE_ULTRADAI_NAME "mt-soc-codec-voiceultra-dai"
 #define MT_SOC_CODEC_VOICE_USBDAI_NAME "mt-soc-codec-voiceusb-dai"
-#define MT_SOC_CODEC_VOICE_USB_ECHOREF_DAI_NAME "mt-soc-codec-voiceusb-echoref-dai"
+#define MT_SOC_CODEC_VOICE_USB_ECHOREF_DAI_NAME                                \
+	"mt-soc-codec-voiceusb-echoref-dai"
 #define MT_SOC_CODEC_VOIPCALLBTOUTDAI_NAME "mt-soc-codec-voipcall-btout-dai"
 #define MT_SOC_CODEC_VOIPCALLBTINDAI_NAME "mt-soc-codec-voipcall-btin-dai"
 #define MT_SOC_CODEC_TDMRX_DAI_NAME "mt-soc-tdmrx-dai-codec"
@@ -341,6 +222,7 @@
 #define MT_SOC_CODEC_FM_I2S_DAI_NAME "mt-soc-fm-i2s-dai-codec"
 #define MT_SOC_CODEC_BTCVSD_RX_DAI_NAME "mt-soc-codec-btcvsd-rx-dai"
 #define MT_SOC_CODEC_BTCVSD_TX_DAI_NAME "mt-soc-codec-btcvsd-tx-dai"
+#define MT_SOC_CODEC_BTCVSD_DAI_NAME "mt-soc-codec-btcvsd-dai"
 #define MT_SOC_CODEC_MOD_DAI_NAME "mt-soc-mod-dai-codec"
 
 /* stream name */

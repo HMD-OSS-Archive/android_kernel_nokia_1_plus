@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 MediaTek Inc.
+ * Copyright (C) 2017 MediaTek Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -40,10 +40,12 @@
 #define mt6311_proc_id		(0)
 #define mt6311_proc_mode_reg	(MT6311_PMIC_RG_VDVFS11_MODESET_ADDR)
 #define mt6311_proc_mode_bit	(MT6311_mode_bit)
-#define mt6311_n_voltages	((MT6311_MAX_VOLTAGE - MT6311_MIN_VOLTAGE) / MT6311_step_uV + 1)
+#define mt6311_n_voltages	\
+	((MT6311_MAX_VOLTAGE - MT6311_MIN_VOLTAGE) / MT6311_step_uV + 1)
 
 static int mt6311_list_voltage(
-		struct mtk_simple_regulator_desc *mreg_desc, unsigned selector)
+		struct mtk_simple_regulator_desc *mreg_desc,
+		unsigned int selector)
 {
 	return (selector >= mreg_desc->rdesc.n_voltages) ?
 		-EINVAL : (mreg_desc->min_uV + selector * MT6311_step_uV);
@@ -54,18 +56,22 @@ static struct mtk_simple_regulator_desc mt6311_desc_table[] = {
 };
 
 static int mt6311_set_voltage_sel(
-		struct mtk_simple_regulator_desc *mreg_desc, unsigned selector)
+		struct mtk_simple_regulator_desc *mreg_desc,
+		unsigned int selector)
 {
 	int ret;
 
-	MT6311LOG("[%s] (%s) selector = %d\n", __func__, mreg_desc->rdesc.name, selector);
+	MT6311LOG("[%s] (%s) selector = %d\n"
+		  , __func__, mreg_desc->rdesc.name, selector);
 
 	if (selector > mreg_desc->rdesc.n_voltages)
 		return -EINVAL;
 
-	MT6311LOG("[%s] (%s) Vout = %d\n", __func__, mreg_desc->rdesc.name,
-		mt6311_list_voltage(mreg_desc, selector));
-	ret = mt6311_assign_bit(mreg_desc->vol_reg, mreg_desc->vol_mask, selector);
+	MT6311LOG("[%s] (%s) Vout = %d\n"
+		  , __func__, mreg_desc->rdesc.name
+		  , mt6311_list_voltage(mreg_desc, selector));
+	ret = mt6311_assign_bit(mreg_desc->vol_reg
+				, mreg_desc->vol_mask, selector);
 
 	MT6311LOG("[%s] (%s) ret = %d\n", __func__, mreg_desc->rdesc.name, ret);
 
@@ -83,7 +89,8 @@ static int mt6311_get_voltage_sel(
 		return ret;
 
 	data = (data & mreg_desc->vol_mask) >> mreg_desc->vol_shift;
-	MT6311LOG("[%s] (%s) selector = %d\n", __func__, mreg_desc->rdesc.name, data);
+	MT6311LOG("[%s] (%s) selector = %d\n"
+		  , __func__, mreg_desc->rdesc.name, data);
 
 	return data;
 }
@@ -93,9 +100,10 @@ static int mt6311_enable(struct mtk_simple_regulator_desc *mreg_desc)
 	int ret = 0;
 
 	MT6311LOG("[%s] enable (%s)\n", __func__, mreg_desc->rdesc.name);
-	ret = mt6311_config_interface(mreg_desc->enable_reg, 1, MT6311_enable_mask, mreg_desc->enable_bit);
+	ret = mt6311_config_interface(mreg_desc->enable_reg
+				, 1, MT6311_enable_mask, mreg_desc->enable_bit);
 	if (ret < 0)
-		pr_err(MT6311TAG "[%s] enable (%s) fail, ret = %d\n",
+		pr_notice(MT6311TAG "[%s] enable (%s) fail, ret = %d\n",
 			__func__, mreg_desc->rdesc.name, ret);
 
 	return ret;
@@ -107,12 +115,14 @@ static int mt6311_disable(struct mtk_simple_regulator_desc *mreg_desc)
 
 	MT6311LOG("[%s] disable (%s)\n", __func__, mreg_desc->rdesc.name);
 	if (mreg_desc->rdev->use_count == 0) {
-		pr_err(MT6311TAG "MT6311 should not be disable (use_count=%d)\n", mreg_desc->rdev->use_count);
+		pr_notice(MT6311TAG "MT6311 should not be disable (use_count=%d)\n"
+			  , mreg_desc->rdev->use_count);
 		return -1;
 	}
-	ret = mt6311_config_interface(mreg_desc->enable_reg, 0, MT6311_enable_mask, mreg_desc->enable_bit);
+	ret = mt6311_config_interface(mreg_desc->enable_reg
+				, 0, MT6311_enable_mask, mreg_desc->enable_bit);
 	if (ret < 0)
-		pr_err(MT6311TAG "[%s] disable (%s) fail, ret = %d\n",
+		pr_notice(MT6311TAG "[%s] disable (%s) fail, ret = %d\n",
 			__func__, mreg_desc->rdesc.name, ret);
 
 	return ret;
@@ -123,9 +133,10 @@ static int mt6311_is_enabled(struct mtk_simple_regulator_desc *mreg_desc)
 	unsigned char en = 0;
 	int ret = 0;
 
-	ret = mt6311_read_interface(mreg_desc->enable_reg, &en, MT6311_enable_mask, mreg_desc->enable_bit);
+	ret = mt6311_read_interface(mreg_desc->enable_reg
+			, &en, MT6311_enable_mask, mreg_desc->enable_bit);
 	if (ret < 0) {
-		pr_err(MT6311TAG "[%s] Check (%s) status fail, ret = %d\n",
+		pr_notice(MT6311TAG "[%s] Check (%s) status fail, ret = %d\n",
 			__func__, mreg_desc->rdesc.name, ret);
 		return ret;
 	}
@@ -140,13 +151,16 @@ static int mt6311_set_mode(
 
 	switch (mode) {
 	case 1: /* force pwm mode */
-		ret = mt6311_config_interface(mt6311_proc_mode_reg, mode, MT6311_mode_mask, MT6311_mode_bit);
+		ret = mt6311_config_interface(mt6311_proc_mode_reg
+				, mode, MT6311_mode_mask, MT6311_mode_bit);
 		break;
 	case 0: /* auto mode */
-		ret = mt6311_config_interface(mt6311_proc_mode_reg, mode, MT6311_mode_mask, MT6311_mode_bit);
+		ret = mt6311_config_interface(mt6311_proc_mode_reg
+				, mode, MT6311_mode_mask, MT6311_mode_bit);
 		break;
 	default:
-		pr_err(MT6311TAG "[%s] Set Wrong mode = %d\n", __func__, mode);
+		pr_notice(MT6311TAG "[%s] Set Wrong mode = %d\n"
+			  , __func__, mode);
 		return -1;
 	}
 	return ret;
@@ -158,9 +172,11 @@ static unsigned int mt6311_get_mode(
 	unsigned char mode = 0;
 	int ret;
 
-	ret = mt6311_read_interface(mt6311_proc_mode_reg, &mode, MT6311_mode_mask, MT6311_mode_bit);
+	ret = mt6311_read_interface(mt6311_proc_mode_reg
+				, &mode, MT6311_mode_mask, MT6311_mode_bit);
 	if (ret < 0) {
-		pr_err(MT6311TAG "[%s] read mode fail, ret = %d\n", __func__, ret);
+		pr_notice(MT6311TAG "[%s] read mode fail, ret = %d\n"
+				, __func__, ret);
 		return 2;
 	}
 
@@ -200,7 +216,8 @@ int mt6311_vdvfs11_set_mode(unsigned char mode)
 	ret = mt6311_ipi_set_mode(mode);
 #else
 	ret = mt6311_config_interface(MT6311_PMIC_RG_VDVFS11_MODESET_ADDR, mode,
-		MT6311_PMIC_RG_VDVFS11_MODESET_MASK, MT6311_PMIC_RG_VDVFS11_MODESET_SHIFT);
+		MT6311_PMIC_RG_VDVFS11_MODESET_MASK,
+		MT6311_PMIC_RG_VDVFS11_MODESET_SHIFT);
 #endif
 
 	return ret;
@@ -216,8 +233,8 @@ int mt6311_regulator_init(struct device *dev)
 		ret = mtk_simple_regulator_register(&mt6311_desc_table[i],
 				dev, &mt6311_regulator_ext_ops, NULL);
 		if (ret < 0)
-			pr_err(MT6311TAG "%s register mtk simple regulator fail\n",
-				__func__);
+			pr_notice(MT6311TAG "%s register mtk simple regulator fail\n"
+				  , __func__);
 	}
 	return 0;
 }

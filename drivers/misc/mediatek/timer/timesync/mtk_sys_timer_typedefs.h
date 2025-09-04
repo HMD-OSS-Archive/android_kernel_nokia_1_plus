@@ -46,7 +46,7 @@
 #define SYS_TIMER_CNTCV_H          (0x0C)
 
 struct sys_timer_timesync_context_t {
-	void __iomem *sysram_base;
+	void __iomem *ram_base;
 	spinlock_t lock;
 	u32 mult;
 	u32 shift;
@@ -70,6 +70,9 @@ struct sys_timer_timesync_context_t {
 	/* support on-chip sysram update */
 	u8 support_sysram;
 };
+
+void sys_timer_timesync_sync_adsp(unsigned int flag);
+
 
 #endif
 

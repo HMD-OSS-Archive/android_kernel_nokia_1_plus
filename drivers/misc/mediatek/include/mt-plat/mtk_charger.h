@@ -20,9 +20,8 @@
 #include <linux/timer.h>
 #include <linux/wait.h>
 #include <linux/hrtimer.h>
-#include <linux/wakelock.h>
 #include <linux/spinlock.h>
-#include <mach/mtk_charger_init.h>
+//#include <mach/mtk_charger_init.h>
 
 #include <mt-plat/charger_type.h>
 #include <mt-plat/charger_class.h>
@@ -39,6 +38,7 @@ enum {
 enum {
 	MAIN_CHARGER = 0,
 	SLAVE_CHARGER = 1,
+	TOTAL_CHARGER = 2,
 	DIRECT_CHARGER = 10,
 };
 
@@ -58,30 +58,61 @@ struct charger_consumer {
  * use charger_port1, charger_port2, ...
  * for most cases, use charging_port1
  */
-extern struct charger_consumer *charger_manager_get_by_name(struct device *dev,
+extern struct charger_consumer *charger_manager_get_by_name(
+	struct device *dev,
 	const char *supply_name);
-extern int charger_manager_set_input_current_limit(struct charger_consumer *consumer,
-	int idx, int input_current_uA);
-extern int charger_manager_set_charging_current_limit(struct charger_consumer *consumer,
-	int idx, int charging_current_uA);
-extern int charger_manager_set_pe30_input_current_limit(struct charger_consumer *consumer,
-	int idx, int input_current_uA);
-extern int charger_manager_get_pe30_input_current_limit(struct charger_consumer *consumer,
-	int idx, int *input_current_uA, int *min_current_uA, int *max_current_uA);
-extern int charger_manager_get_current_charging_type(struct charger_consumer *consumer);
-extern int register_charger_manager_notifier(struct charger_consumer *consumer,
+extern int charger_manager_set_input_current_limit(
+	struct charger_consumer *consumer,
+	int idx,
+	int input_current_uA);
+extern int charger_manager_set_charging_current_limit(
+	struct charger_consumer *consumer,
+	int idx,
+	int charging_current_uA);
+extern int charger_manager_set_pe30_input_current_limit(
+	struct charger_consumer *consumer,
+	int idx,
+	int input_current_uA);
+extern int charger_manager_get_pe30_input_current_limit(
+	struct charger_consumer *consumer,
+	int idx,
+	int *input_current_uA,
+	int *min_current_uA,
+	int *max_current_uA);
+extern int charger_manager_get_current_charging_type(
+	struct charger_consumer *consumer);
+extern int register_charger_manager_notifier(
+	struct charger_consumer *consumer,
 	struct notifier_block *nb);
-extern int charger_manager_get_charger_temperature(struct charger_consumer *consumer,
-	int idx, int *tchg_min,	int *tchg_max);
-extern int unregister_charger_manager_notifier(struct charger_consumer *consumer,
-				struct notifier_block *nb);
-extern int charger_manager_enable_high_voltage_charging(struct charger_consumer *consumer,
+extern int charger_manager_get_charger_temperature(
+	struct charger_consumer *consumer,
+	int idx,
+	int *tchg_min,
+	int *tchg_max);
+extern int unregister_charger_manager_notifier(
+	struct charger_consumer *consumer,
+	struct notifier_block *nb);
+extern int charger_manager_enable_high_voltage_charging(
+	struct charger_consumer *consumer,
 	bool en);
-extern int charger_manager_enable_power_path(struct charger_consumer *consumer,
-	int idx, bool en);
-extern int charger_manager_get_zcv(struct charger_consumer *consumer, int idx, u32 *uV);
-extern int charger_manager_enable_kpoc_shutdown(struct charger_consumer *consumer,
+extern int charger_manager_enable_power_path(
+	struct charger_consumer *consumer,
+	int idx,
 	bool en);
+extern int charger_manager_enable_charging(
+	struct charger_consumer *consumer,
+	int idx,
+	bool en);
+extern int charger_manager_get_zcv(
+	struct charger_consumer *consumer,
+	int idx,
+	u32 *uV);
+extern int charger_manager_enable_chg_type_det(
+	struct charger_consumer *consumer,
+	bool en);
+extern int mtk_chr_is_charger_exist(unsigned char *exist);
 extern bool is_power_path_supported(void);
+extern int charger_get_vbus(void);
+extern bool mt_charger_plugin(void);
 
 #endif /* __MTK_CHARGER_H__ */

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef USB_F_MASS_STORAGE_H
 #define USB_F_MASS_STORAGE_H
 
@@ -89,6 +90,7 @@ struct fsg_lun_config {
 	char removable;
 	char cdrom;
 	char nofua;
+	char inquiry_string[INQUIRY_STRING_LEN];
 };
 
 struct fsg_config {
@@ -144,10 +146,10 @@ void fsg_config_from_params(struct fsg_config *cfg,
 			    unsigned int fsg_num_buffers);
 
 int fsg_sysfs_update(struct fsg_common *common, struct device *dev,
-				bool create);
-
+		bool create);
 ssize_t fsg_inquiry_show(struct fsg_common *common, char *buf);
-ssize_t fsg_inquiry_store(struct fsg_common *common, const char *buf, size_t size);
+ssize_t fsg_inquiry_store(struct fsg_common *common,
+		const char *buf, size_t size);
 ssize_t fsg_bicr_show(struct fsg_common *common, char *buf);
 ssize_t fsg_bicr_store(struct fsg_common *common, const char *buf, size_t size);
 

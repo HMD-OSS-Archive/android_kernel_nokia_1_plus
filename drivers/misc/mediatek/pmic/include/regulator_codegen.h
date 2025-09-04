@@ -1,10 +1,10 @@
 /*
- * Copyright (C) 2016 MediaTek Inc.
-
+ * Copyright (C) 2018 MediaTek Inc.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
-
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -52,14 +52,24 @@
 #include "mt6358/mtk_regulator_codegen.h"
 #endif
 
+#ifdef CONFIG_MTK_PMIC_CHIP_MT6359
+#include "mt6359/mtk_regulator_codegen.h"
+#endif
+
+#ifdef CONFIG_MTK_PMIC_CHIP_MT6359P
+#include "mt6359p/mtk_regulator_codegen.h"
+#endif
+
 /*****************************************************************************
  * PMIC extern function
  ******************************************************************************/
 extern int mtk_regulator_enable(struct regulator_dev *rdev);
 extern int mtk_regulator_disable(struct regulator_dev *rdev);
 extern int mtk_regulator_is_enabled(struct regulator_dev *rdev);
-extern int mtk_regulator_set_voltage_sel(struct regulator_dev *rdev, unsigned selector);
+extern int mtk_regulator_set_voltage_sel(
+			struct regulator_dev *rdev, unsigned int selector);
 extern int mtk_regulator_get_voltage_sel(struct regulator_dev *rdev);
-extern int mtk_regulator_list_voltage(struct regulator_dev *rdev, unsigned selector);
+extern int mtk_regulator_list_voltage(
+			struct regulator_dev *rdev, unsigned int selector);
 
 #endif				/* _REGULATOR_CODEGEN_H_ */

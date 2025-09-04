@@ -17,10 +17,11 @@
 #include <linux/types.h>
 #include <linux/ioctl.h>
 #include "ccu_mailbox_extif.h"
+#include <linux/fs.h>
 
 #ifdef CONFIG_COMPAT
 /*64 bit*/
-#include <linux/fs.h>
+
 #include <linux/compat.h>
 #endif
 
@@ -51,17 +52,17 @@ enum CCU_ST_ENUM {
 
 struct CCU_IRQ_TIME_STRUCT {
 	unsigned int tLastSig_sec;
-	/* time stamp of the latest occurring signal */
+/* time stamp of the latest occurring signal */
 	unsigned int tLastSig_usec;
-	/* time stamp of the latest occurring signal */
+/* time stamp of the latest occurring signal */
 	unsigned int tMark2WaitSig_sec;
-	/* time period from marking a signal to user try to wait and get the signal */
+/* time period from marking a signal to user try to wait and get the signal */
 	unsigned int tMark2WaitSig_usec;
-	/* time period from marking a signal to user try to wait and get the signal */
+/* time period from marking a signal to user try to wait and get the signal */
 	unsigned int tLastSig2GetSig_sec;
-	/* time period from latest signal to user try to wait and get the signal */
+/* time period from latest signal to user try to wait and get the signal */
 	unsigned int tLastSig2GetSig_usec;
-	/* time period from latest signal to user try to wait and get the signal */
+/* time period from latest signal to user try to wait and get the signal */
 	int passedbySigcnt;	/* the count for the signal passed by  */
 };
 
@@ -108,13 +109,15 @@ struct CCU_REG_IO_STRUCT {
 };
 
 struct CCU_IRQ_INFO_STRUCT {
-	/* Add an extra index for status type in Everest -> signal or dma */
-	unsigned int Status[CCU_IRQ_TYPE_AMOUNT][CCU_IRQ_ST_AMOUNT][IRQ_USER_NUM_MAX];
+	/* Add an extra index for status type in ever -> signal or dma */
+	unsigned int Status[CCU_IRQ_TYPE_AMOUNT][CCU_IRQ_ST_AMOUNT]
+		[IRQ_USER_NUM_MAX];
 	unsigned int Mask[CCU_IRQ_TYPE_AMOUNT][CCU_IRQ_ST_AMOUNT];
 	unsigned int ErrMask[CCU_IRQ_TYPE_AMOUNT][CCU_IRQ_ST_AMOUNT];
 	signed int WarnMask[CCU_IRQ_TYPE_AMOUNT][CCU_IRQ_ST_AMOUNT];
 	/* flag for indicating that user do mark for a interrupt or not */
-	unsigned int MarkedFlag[CCU_IRQ_TYPE_AMOUNT][CCU_IRQ_ST_AMOUNT][IRQ_USER_NUM_MAX];
+	unsigned int MarkedFlag[CCU_IRQ_TYPE_AMOUNT][CCU_IRQ_ST_AMOUNT]
+		[IRQ_USER_NUM_MAX];
 	/* time for marking a specific interrupt */
 	unsigned int MarkedTime_sec[CCU_IRQ_TYPE_AMOUNT][32][IRQ_USER_NUM_MAX];
 	/* time for marking a specific interrupt */
@@ -132,10 +135,14 @@ struct CCU_IRQ_INFO_STRUCT {
 #define INT_ERR_WARN_TIMER_THREAS 1000
 #define INT_ERR_WARN_MAX_TIME 3
 struct CCU_IRQ_ERR_WAN_CNT_STRUCT {
-	unsigned int m_err_int_cnt[CCU_IRQ_TYPE_AMOUNT][CCU_ISR_MAX_NUM];	/* cnt for each err int # */
-	unsigned int m_warn_int_cnt[CCU_IRQ_TYPE_AMOUNT][CCU_ISR_MAX_NUM];	/* cnt for each warning int # */
-	unsigned int m_err_int_mark[CCU_IRQ_TYPE_AMOUNT];	/* mark for err int, where its cnt > threshold */
-	unsigned int m_warn_int_mark[CCU_IRQ_TYPE_AMOUNT];	/* mark for warn int, where its cnt > threshold */
+	/* cnt for each err int # */
+	unsigned int m_err_int_cnt[CCU_IRQ_TYPE_AMOUNT][CCU_ISR_MAX_NUM];
+	/* cnt for each warning int # */
+	unsigned int m_warn_int_cnt[CCU_IRQ_TYPE_AMOUNT][CCU_ISR_MAX_NUM];
+	/* mark for err int, where its cnt > threshold */
+	unsigned int m_err_int_mark[CCU_IRQ_TYPE_AMOUNT];
+	/* mark for warn int, where its cnt > threshold */
+	unsigned int m_warn_int_mark[CCU_IRQ_TYPE_AMOUNT];
 	unsigned long m_int_usec[CCU_IRQ_TYPE_AMOUNT];
 };
 
@@ -280,14 +287,15 @@ enum ccu_eng_status_e {
 };
 
 /*---------------------------------------------------------------------------*/
-/*  CCU Command                                                                */
+/*  CCU Command                                                              */
 /*---------------------------------------------------------------------------*/
 struct ccu_cmd_s {
 	struct ccu_msg task;
 	enum ccu_eng_status_e status;
 };
 
-#define CCU_IMPORT_BUF_NUM	14
+#define CCU_IMPORT_BUF_NUM 200
+#define CCU_IMPORT_BUF_UNDEF 0xFFFFFFFF
 struct import_mem_s {
 	uint32_t memID[CCU_IMPORT_BUF_NUM];
 };

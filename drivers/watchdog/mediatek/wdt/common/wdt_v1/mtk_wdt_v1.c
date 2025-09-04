@@ -83,7 +83,8 @@ static int toprgu_reset_assert(struct reset_controller_dev *rcdev,
 {
 	unsigned int tmp;
 	unsigned long flags;
-	struct toprgu_reset *data = container_of(rcdev, struct toprgu_reset, rcdev);
+	struct toprgu_reset *data = container_of(rcdev, struct toprgu_reset,
+						      rcdev);
 
 	spin_lock_irqsave(&data->lock, flags);
 
@@ -102,7 +103,8 @@ static int toprgu_reset_deassert(struct reset_controller_dev *rcdev,
 {
 	unsigned int tmp;
 	unsigned long flags;
-	struct toprgu_reset *data = container_of(rcdev, struct toprgu_reset, rcdev);
+	struct toprgu_reset *data = container_of(rcdev, struct toprgu_reset,
+						      rcdev);
 
 	spin_lock_irqsave(&data->lock, flags);
 
@@ -155,7 +157,8 @@ static void toprgu_register_reset_controller(struct device_node *np,
 
 	ret = reset_controller_register(&data->rcdev);
 	if (ret) {
-		pr_info("could not register toprgu reset controller: %d\n", ret);
+		pr_info("could not register toprgu reset controller: %d\n",
+			 ret);
 		kfree(data);
 		return;
 	}
@@ -165,7 +168,7 @@ static void toprgu_register_reset_controller(struct device_node *np,
 /*
  *   this function set the timeout value.
  *   value: second
-*/
+ */
 void mtk_wdt_set_time_out_value(unsigned int value)
 {
 	/*
@@ -190,14 +193,16 @@ void mtk_wdt_set_time_out_value(unsigned int value)
  *   ext_en:     output reset signal to outside
  *   ext_pol:    polarity of external reset signal
  *   wdt_en:     enable watch dog timer
-*/
-void mtk_wdt_mode_config(bool dual_mode_en, bool irq, bool ext_en, bool ext_pol, bool wdt_en)
+ */
+void mtk_wdt_mode_config(bool dual_mode_en, bool irq, bool ext_en,
+			    bool ext_pol, bool wdt_en)
 {
 	unsigned int tmp;
 
 	spin_lock(&rgu_reg_operation_spinlock);
 
-	/* pr_debug(" mtk_wdt_mode_config  mode value=%x,pid=%d\n",DRV_Reg32(MTK_WDT_MODE),current->pid); */
+	/* pr_debug(" mtk_wdt_mode_config  mode value=%x, */
+	/* pid=%d\n",DRV_Reg32(MTK_WDT_MODE),current->pid); */
 	tmp = __raw_readl(MTK_WDT_MODE);
 	tmp |= MTK_WDT_MODE_KEY;
 
@@ -231,14 +236,17 @@ void mtk_wdt_mode_config(bool dual_mode_en, bool irq, bool ext_en, bool ext_pol,
 	else
 		tmp &= ~MTK_WDT_MODE_DUAL_MODE;
 
-	/* Bit 4: WDT_Auto_restart, this is a reserved bit, we use it as bypass powerkey flag. */
-	/* Because HW reboot always need reboot to kernel, we set it always. */
+	/* Bit 4: WDT_Auto_restart, this is a reserved bit,
+	 * we use it as bypass powerkey flag.
+	 * Because HW reboot always need reboot to kernel, we set it always.
+	 */
 	tmp |= MTK_WDT_MODE_AUTO_RESTART;
 
 	writel(tmp, MTK_WDT_MODE);
 	/* dual_mode(1); //always dual mode */
 	/* mdelay(100); */
-	pr_debug(" mtk_wdt_mode_config  mode value=%x, tmp:%x,pid=%d\n", __raw_readl(MTK_WDT_MODE), tmp, current->pid);
+	pr_debug("%s  mode value=%x, tmp:%x,pid=%d\n",
+		  __func__, __raw_readl(MTK_WDT_MODE), tmp, current->pid);
 
 	spin_unlock(&rgu_reg_operation_spinlock);
 }
@@ -261,7 +269,7 @@ int mtk_wdt_enable(enum wk_wdt_en en)
 		tmp &= ~MTK_WDT_MODE_ENABLE;
 		g_wdt_enable = 0;
 	}
-	pr_debug("mtk_wdt_enable value=%x,pid=%d\n", tmp, current->pid);
+	pr_debug("%s value=%x,pid=%d\n", __func__, mp, current->pid);
 	writel(tmp, MTK_WDT_MODE);
 	spin_unlock(&rgu_reg_operation_spinlock);
 	return 0;
@@ -278,7 +286,8 @@ int mtk_wdt_confirm_hwreboot(void)
 
 void mtk_wdt_restart(enum wd_restart_type type)
 {
-	/* pr_debug("WDT:[mtk_wdt_restart] type  =%d, pid=%d\n",type,current->pid); */
+	/* pr_debug("WDT:[mtk_wdt_restart] type  =%d, */
+	/* pid=%d\n",type,current->pid); */
 
 	if (type == WD_TYPE_NORMAL) {
 		spin_lock(&rgu_reg_operation_spinlock);
@@ -287,7 +296,8 @@ void mtk_wdt_restart(enum wd_restart_type type)
 	} else if (type == WD_TYPE_NOLOCK) {
 		*(u32 *)MTK_WDT_RESTART = MTK_WDT_RESTART_KEY;
 	} else
-		pr_debug("WDT:[mtk_wdt_restart] type=%d error pid =%d\n", type, current->pid);
+		pr_debug("WDT:[%s] type=%d error pid =%d\n",
+			  __func__, type, current->pid);
 }
 
 void wdt_dump_reg(void)
@@ -313,10 +323,11 @@ void wdt_arch_reset(char mode)
 	struct device_node *np_rgu = NULL;
 	int i;
 
-	pr_debug("wdt_arch_reset called@Kernel mode =%c\n", mode);
+	pr_debug("%s called@Kernel mode =%c\n", __func__, mode);
 
 	for (i = 0; rgu_of_match[i].compatible; i++) {
-		np_rgu = of_find_compatible_node(NULL, NULL, rgu_of_match[i].compatible);
+		np_rgu = of_find_compatible_node(NULL, NULL,
+					rgu_of_match[i].compatible);
 		if (np_rgu)
 			break;
 	}
@@ -325,47 +336,58 @@ void wdt_arch_reset(char mode)
 		toprgu_base = of_iomap(np_rgu, 0);
 		if (!toprgu_base)
 			pr_info("RGU iomap failed\n");
-		pr_debug("RGU base: 0x%p  RGU irq: %d\n", toprgu_base, wdt_irq_id);
+		pr_debug("RGU base: 0x%p  RGU irq: %d\n", toprgu_base,
+			  wdt_irq_id);
 		}
 
 	spin_lock(&rgu_reg_operation_spinlock);
 	/* Watchdog Rest */
 	writel(MTK_WDT_RESTART_KEY, MTK_WDT_RESTART);
 	wdt_mode_val = __raw_readl(MTK_WDT_MODE);
-	pr_debug("wdt_arch_reset called MTK_WDT_MODE =%x\n", wdt_mode_val);
-	/* clear autorestart bit: autoretart: 1, bypass power key, 0: not bypass power key */
+	pr_debug("%s called MTK_WDT_MODE =%x\n", __func__, wdt_mode_val);
+	/* clear autorestart bit: autoretart:
+	 * 1, bypass power key, 0: not bypass power key
+	 */
 	wdt_mode_val &= ~MTK_WDT_MODE_AUTO_RESTART;
-	/* make sure WDT mode is hw reboot mode, can not config isr mode  */
-	wdt_mode_val &= ~(MTK_WDT_MODE_IRQ | MTK_WDT_MODE_ENABLE | MTK_WDT_MODE_DUAL_MODE);
+	/* make sure WDT mode is hw reboot mode, can not config isr mode */
+	wdt_mode_val &= ~(MTK_WDT_MODE_IRQ | MTK_WDT_MODE_ENABLE |
+			    MTK_WDT_MODE_DUAL_MODE);
 	if (mode) {
-		/* mode != 0 means by pass power key reboot, We using auto_restart bit as by pass power key flag */
-		wdt_mode_val = wdt_mode_val | (MTK_WDT_MODE_KEY|MTK_WDT_MODE_EXTEN|MTK_WDT_MODE_AUTO_RESTART);
+		/* mode != 0 means by pass power key reboot,
+		 * We using auto_restart bit as by pass power key flag
+		 */
+		wdt_mode_val = wdt_mode_val | (MTK_WDT_MODE_KEY |
+				 MTK_WDT_MODE_EXTEN |
+				 MTK_WDT_MODE_AUTO_RESTART);
 	} else
-		wdt_mode_val = wdt_mode_val | (MTK_WDT_MODE_KEY | MTK_WDT_MODE_EXTEN);
+		wdt_mode_val = wdt_mode_val | (MTK_WDT_MODE_KEY |
+				 MTK_WDT_MODE_EXTEN);
 
 	writel(wdt_mode_val, MTK_WDT_MODE);
-	pr_debug("wdt_arch_reset called end MTK_WDT_MODE =%x\n", wdt_mode_val);
+	pr_debug("%s called end MTK_WDT_MODE =%x\n", __func__, wdt_mode_val);
 	udelay(100);
 	writel(MTK_WDT_SWRST_KEY, MTK_WDT_SWRST);
-	pr_debug("wdt_arch_reset: SW_reset happen\n");
+	pr_debug("%s: SW_reset happen\n", __func__);
 	spin_unlock(&rgu_reg_operation_spinlock);
 
 	while (1) {
 		wdt_dump_reg();
-		pr_info("wdt_arch_reset error\n");
+		pr_info("%s error\n", __func__);
 	}
 
 }
 
 int mtk_rgu_dram_reserved(int enable)
 {
-	pr_debug("mtk_rgu_dram_reserved:MTK_WDT_MODE(0x%x)\n", __raw_readl(MTK_WDT_MODE));
+	pr_debug("%s:MTK_WDT_MODE(0x%x)\n",
+		  __func__, __raw_readl(MTK_WDT_MODE));
 	return 0;
 }
 
 int mtk_rgu_mcu_cache_preserve(int enable)
 {
-	pr_debug("mtk_rgu_mcu_cache_preserve:MTK_WDT_DRAMC_CTL(0x%x)\n", __raw_readl(MTK_WDT_DRAMC_CTL));
+	pr_debug("%s:MTK_WDT_DRAMC_CTL(0x%x)\n",
+		  __func__, __raw_readl(MTK_WDT_DRAMC_CTL));
 	return 0;
 }
 
@@ -395,7 +417,8 @@ int mtk_wdt_swsysret_config(int bit, int set_value)
 	spin_unlock(&rgu_reg_operation_spinlock);
 
 	mdelay(10);
-	pr_debug("after set wdt_sys_val =%x,wdt_sys_val=%x\n", __raw_readl(MTK_WDT_SWSYSRST), wdt_sys_val);
+	pr_debug("after set wdt_sys_val =%x,wdt_sys_val=%x\n",
+		  __raw_readl(MTK_WDT_SWSYSRST), wdt_sys_val);
 	return 0;
 }
 
@@ -463,12 +486,15 @@ int mtk_wdt_request_mode_set(int mark_bit, enum wk_req_mode mode)
 }
 
 #else
-/* ------------------------------------------------------------------------------------------------- */
+/* --------------------------------------------------------------------- */
 /* Dummy functions */
-/* ------------------------------------------------------------------------------------------------- */
+/* --------------------------------------------------------------------- */
 void mtk_wdt_set_time_out_value(unsigned int value) {}
 static void mtk_wdt_set_reset_length(unsigned int value) {}
-void mtk_wdt_mode_config(bool dual_mode_en, bool irq,	bool ext_en, bool ext_pol, bool wdt_en) {}
+void mtk_wdt_mode_config(bool dual_mode_en, bool irq, bool ext_en,
+			    bool ext_pol, bool wdt_en)
+{
+}
 int mtk_wdt_enable(enum wk_wdt_en en) { return 0; }
 void mtk_wdt_restart(enum wd_restart_type type) {}
 static void mtk_wdt_sw_trigger(void){}
@@ -496,7 +522,8 @@ static void wdt_report_info(void)
 
 	for_each_process(task) {
 		if (task->state == 0) {
-			pr_debug("PID: %d, name: %s\n backtrace:\n", task->pid, task->comm);
+			pr_debug("PID: %d, name: %s\n backtrace:\n",
+				  task->pid, task->comm);
 			show_stack(task, NULL);
 			pr_debug("\n");
 		}
@@ -519,7 +546,8 @@ static void wdt_fiq(void *arg, void *regs, void *svc_sp)
 	wdt_mode_val = __raw_readl(MTK_WDT_STATUS);
 	writel(wdt_mode_val, MTK_WDT_NONRST_REG);
 #ifdef	CONFIG_MTK_WD_KICKER
-	aee_wdt_printf("\n kick=0x%08x,check=0x%08x,STA=%x\n", wd_api->wd_get_kick_bit(),
+	aee_wdt_printf("\n kick=0x%08x,check=0x%08x,STA=%x\n",
+			 wd_api->wd_get_kick_bit(),
 		wd_api->wd_get_check_bit(), wdt_mode_val);
 #endif
 
@@ -530,7 +558,7 @@ static void wdt_fiq(void *arg, void *regs, void *svc_sp)
 #else				/* CONFIG_FIQ_GLUE */
 static irqreturn_t mtk_wdt_isr(int irq, void *dev_id)
 {
-	pr_info("fwq mtk_wdt_isr\n");
+	pr_info("fwq %s\n", __func__);
 #ifndef __USING_DUMMY_WDT_DRV__	/* FPGA will set this flag */
 
 	wdt_report_info();
@@ -573,14 +601,15 @@ static int mtk_wdt_probe(struct platform_device *dev)
 #else
 	wdt_irq_id = get_hardware_irq(wdt_irq_id);
 	pr_info("*** MTK WDT register fiq: fiq number is %d ***\n", wdt_irq_id);
-	ret = request_fiq(AP_RGU_WDT_IRQ_ID, wdt_fiq, IRQF_TRIGGER_FALLING, NULL);
+	ret = request_fiq(AP_RGU_WDT_IRQ_ID, wdt_fiq,
+			    IRQF_TRIGGER_FALLING, NULL);
 #endif
 
 	if (ret != 0) {
-		pr_info("mtk_wdt_probe : failed to request irq (%d)\n", ret);
+		pr_info("%s : failed to request irq (%d)\n", __func__, ret);
 		return ret;
 	}
-	pr_debug("mtk_wdt_probe : Success to request irq\n");
+	pr_debug("%s : Success to request irq\n", __func__);
 
 
 	/* Set timeout vale and restart counter */
@@ -591,12 +620,15 @@ static int mtk_wdt_probe(struct platform_device *dev)
 
 	/**
 	 * Set the reset length: we will set a special magic key.
-	 * For Power off and power on reset, the INTERVAL default value is 0x7FF.
-	 * We set Interval[1:0] to different value to distinguish different stage.
+	 * For Power off and power on reset, the INTERVAL default
+	 * value is 0x7FF.
+	 * We set Interval[1:0] to different value to
+	 * distinguish different stage.
 	 * Enter pre-loader, we will set it to 0x0
 	 * Enter u-boot, we will set it to 0x1
 	 * Enter kernel, we will set it to 0x2
-	 * And the default value is 0x3 which means reset from a power off and power on reset
+	 * And the default value is 0x3 which means reset from
+	 * a power off and power on reset
 	 */
 #define POWER_OFF_ON_MAGIC	(0x3)
 #define PRE_LOADER_MAGIC	(0x0)
@@ -606,10 +638,10 @@ static int mtk_wdt_probe(struct platform_device *dev)
 
 
 #ifdef CONFIG_MTK_WD_KICKER	/* Initialize to dual mode */
-	pr_debug("mtk_wdt_probe : Initialize to dual mode\n");
+	pr_debug("%s : Initialize to dual mode\n", __func__);
 	mtk_wdt_mode_config(TRUE, TRUE, TRUE, FALSE, TRUE);
 #else				/* Initialize to disable wdt */
-	pr_debug("mtk_wdt_probe : Initialize to disable wdt\n");
+	pr_debug("%s : Initialize to disable wdt\n", __func__);
 	mtk_wdt_mode_config(FALSE, FALSE, TRUE, FALSE, FALSE);
 	g_wdt_enable = 0;
 #endif
@@ -622,10 +654,13 @@ static int mtk_wdt_probe(struct platform_device *dev)
 	writel(interval_val, MTK_WDT_INTERVAL);
 #endif
 	udelay(100);
-	pr_debug("mtk_wdt_probe : done WDT_MODE(%x),MTK_WDT_NONRST_REG(%x)\n",
-		__raw_readl(MTK_WDT_MODE), __raw_readl(MTK_WDT_NONRST_REG));
-	pr_debug("mtk_wdt_probe : done MTK_WDT_REQ_MODE(%x)\n", __raw_readl(MTK_WDT_REQ_MODE));
-	pr_debug("mtk_wdt_probe : done MTK_WDT_REQ_IRQ_EN(%x)\n", __raw_readl(MTK_WDT_REQ_IRQ_EN));
+	pr_debug("%s : done WDT_MODE(%x),MTK_WDT_NONRST_REG(%x)\n",
+		  __func__, __raw_readl(MTK_WDT_MODE),
+		  __raw_readl(MTK_WDT_NONRST_REG));
+	pr_debug("%s : done MTK_WDT_REQ_MODE(%x)\n",
+		  __func__, __raw_readl(MTK_WDT_REQ_MODE));
+	pr_debug("%s : done MTK_WDT_REQ_IRQ_EN(%x)\n",
+		  __func__, __raw_readl(MTK_WDT_REQ_IRQ_EN));
 
 	toprgu_register_reset_controller(dev->dev.of_node, toprgu_base, 0x18);
 
@@ -689,14 +724,16 @@ static struct platform_driver mtk_wdt_driver = {
 	},
 };
 
-/* this function is for those user who need WDT APIs before WDT driver's probe */
+/* this function is for those user who need WDT */
+/* APIs before WDT driver's probe */
 static int __init mtk_wdt_get_base_addr(void)
 {
 	struct device_node *np_rgu = NULL;
 	int i;
 
 	for (i = 0; rgu_of_match[i].compatible; i++) {
-		np_rgu = of_find_compatible_node(NULL, NULL, rgu_of_match[i].compatible);
+		np_rgu = of_find_compatible_node(NULL, NULL,
+				rgu_of_match[i].compatible);
 		if (np_rgu)
 			break;
 	}

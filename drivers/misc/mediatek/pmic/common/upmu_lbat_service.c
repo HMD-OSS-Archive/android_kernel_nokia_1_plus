@@ -1,31 +1,31 @@
 /*
- * Copyright (C) 2016 MediaTek Inc.
-
+ * Copyright (C) 2018 MediaTek Inc.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
-
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
+#include <linux/interrupt.h>
 #include <linux/list.h>
 #include <linux/list_sort.h>
 #include <linux/dcache.h>
 #include <linux/debugfs.h>
-#include <linux/device.h>
+#include <linux/platform_device.h>
 #include <linux/delay.h>
 #include <linux/mutex.h>
-#include <linux/wakelock.h>
+#include <linux/pm_wakeup.h>
 #include <linux/seq_file.h>
 #include <linux/slab.h>
-#include <linux/timer.h>
 #include <linux/workqueue.h>
 
 #include <mt-plat/upmu_common.h>
-#include "include/pmic_lbat_service.h"
+#include "pmic_lbat_service.h"
 
 #define VOLT_TO_RAW(volt)	(((volt) << 12) / 5400)
 #define RAW_TO_VOLT(thd)	(((thd) * 5400) >> 12)
@@ -65,14 +65,12 @@ static void lbat_max_en_setting(int en_val)
 {
 	pmic_set_register_value(PMIC_AUXADC_LBAT_EN_MAX, en_val);
 	pmic_set_register_value(PMIC_AUXADC_LBAT_IRQ_EN_MAX, en_val);
-	pmic_enable_interrupt(INT_BAT_H, en_val, "lbat_service");
 }
 
 static void lbat_min_en_setting(int en_val)
 {
 	pmic_set_register_value(PMIC_AUXADC_LBAT_EN_MIN, en_val);
 	pmic_set_register_value(PMIC_AUXADC_LBAT_IRQ_EN_MIN, en_val);
-	pmic_enable_interrupt(INT_BAT_L, en_val, "lbat_service");
 }
 
 static void lbat_irq_enable(void)
@@ -145,11 +143,11 @@ static void lbat_set_next_thd(struct lbat_user *user, struct lbat_thd_t *thd)
 {
 	if (thd == user->hv_thd) {
 		modify_lbat_list(LBAT_LV, user->lv1_thd);
-		if (user->lv2_thd && !list_empty(&user->lv2_thd->list))
+		if (!list_empty(&user->lv2_thd->list))
 			list_del_init(&user->lv2_thd->list);
 	} else if (thd == user->lv1_thd) {
 		modify_lbat_list(LBAT_HV, user->hv_thd);
-		if (user->lv2_thd && list_empty(&user->lv2_thd->list))
+		if (list_empty(&user->lv2_thd->list))
 			modify_lbat_list(LBAT_LV, user->lv2_thd);
 	}
 }
@@ -332,13 +330,13 @@ int lbat_user_set_debounce(struct lbat_user *user,
 }
 EXPORT_SYMBOL(lbat_user_set_debounce);
 
-static void bat_h_int_handler(void)
+static irqreturn_t bat_h_int_handler(int irq, void *data)
 {
 	struct lbat_user *user;
 
 	if (cur_hv_ptr == NULL) {
 		lbat_max_en_setting(0);
-		return;
+		return IRQ_NONE;
 	}
 	mutex_lock(&lbat_mutex);
 	pr_info("[%s] cur_thd_volt=%d\n", __func__, cur_hv_ptr->thd_volt);
@@ -369,15 +367,16 @@ out:
 	udelay(200);
 	lbat_irq_enable();
 	mutex_unlock(&lbat_mutex);
+	return IRQ_HANDLED;
 }
 
-static void bat_l_int_handler(void)
+static irqreturn_t bat_l_int_handler(int irq, void *data)
 {
 	struct lbat_user *user;
 
 	if (cur_lv_ptr == NULL) {
 		lbat_min_en_setting(0);
-		return;
+		return IRQ_NONE;
 	}
 	mutex_lock(&lbat_mutex);
 	pr_info("[%s] cur_thd_volt=%d\n", __func__, cur_lv_ptr->thd_volt);
@@ -408,6 +407,7 @@ out:
 	udelay(200);
 	lbat_irq_enable();
 	mutex_unlock(&lbat_mutex);
+	return IRQ_HANDLED;
 }
 
 void lbat_suspend(void)
@@ -420,11 +420,11 @@ void lbat_resume(void)
 	lbat_irq_enable();
 }
 
-int lbat_service_init(void)
+int lbat_service_init(struct platform_device *pdev)
 {
 	int ret = 0;
 
-	pr_info("[%s]", __func__);
+	pr_info("[%s]\n", __func__);
 	pmic_set_register_value(PMIC_AUXADC_LBAT_DEBT_MAX,
 		DEF_H_DEB / LBAT_PRD);
 	pmic_set_register_value(PMIC_AUXADC_LBAT_DEBT_MIN,
@@ -436,8 +436,18 @@ int lbat_service_init(void)
 		PMIC_AUXADC_LBAT_DET_PRD_19_16,
 		(LBAT_PRD & 0xF0000) >> 16);
 
-	pmic_register_interrupt_callback(INT_BAT_L, bat_l_int_handler);
-	pmic_register_interrupt_callback(INT_BAT_H, bat_h_int_handler);
+	ret = devm_request_threaded_irq(&pdev->dev,
+		platform_get_irq_byname(pdev, "bat_h"),
+		NULL, bat_h_int_handler, IRQF_TRIGGER_NONE,
+		"bat_h", NULL);
+	if (ret < 0)
+		dev_notice(&pdev->dev, "request bat_h irq fail\n");
+	ret = devm_request_threaded_irq(&pdev->dev,
+		platform_get_irq_byname(pdev, "bat_l"),
+		NULL, bat_l_int_handler, IRQF_TRIGGER_NONE,
+		"bat_l", NULL);
+	if (ret < 0)
+		dev_notice(&pdev->dev, "request bat_l irq fail\n");
 
 	lbat_wq = create_singlethread_workqueue("lbat_service");
 
@@ -557,8 +567,7 @@ static void lbat_dump_user_table(struct seq_file *s)
 		seq_printf(s, "%2d:%20s, %d, %d, %d, (%d,%d,%d,%d), %pf\n",
 			i, user->name,
 			user->hv_thd->thd_volt,
-			user->lv1_thd->thd_volt,
-			user->lv2_thd ? user->lv2_thd->thd_volt : 0,
+			user->lv1_thd->thd_volt, user->lv2_thd->thd_volt,
 			user->hv_deb_prd, user->hv_deb_times,
 			user->lv_deb_prd, user->lv_deb_times,
 			user->callback);
@@ -657,4 +666,3 @@ int lbat_debug_init(struct dentry *debug_dir)
 
 	return 0;
 }
-

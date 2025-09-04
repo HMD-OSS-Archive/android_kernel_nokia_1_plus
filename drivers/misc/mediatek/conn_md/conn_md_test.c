@@ -32,9 +32,10 @@ int conn_md_test(void)
 	int i = 0;
 	int msg_len = 0;
 
-	p_buf_str = kmalloc(sizeof(struct local_para) + PACKAGE_SIZE, GFP_ATOMIC);
+	p_buf_str = kmalloc(sizeof(struct local_para) + PACKAGE_SIZE,
+				GFP_ATOMIC);
 	if (p_buf_str == NULL) {
-		CONN_MD_ERR_FUNC("kmalloc for local para ptr structure failed.\n");
+		CONN_MD_ERR_FUNC("kmalloc for local para structure failed.\n");
 		return -1;
 	}
 	p_buf_str->msg_len = PACKAGE_SIZE;
@@ -138,17 +139,18 @@ static int conn_md_test_rx_cb(struct ipc_ilm *ilm)
 {
 	int i = 0;
 
-	pr_warn("%s, ilm:0x%p\n", __func__, ilm);
-	pr_warn("%s, ilm:src_id(%d), dst_id(%d), msg_id(%d)\n", __func__,
+	pr_info("%s, ilm:0x%p\n", __func__, ilm);
+	pr_info("%s, ilm:src_id(%d), dst_id(%d), msg_id(%d)\n", __func__,
 		ilm->src_mod_id, ilm->dest_mod_id, ilm->msg_id);
 
-	pr_warn("%s, local_para_ptr:0x%p, msg_len:%d\n", __func__, ilm->local_para_ptr,
+	pr_info("%s, local_para_ptr:0x%p, msg_len:%d\n",
+		__func__, ilm->local_para_ptr,
 		ilm->local_para_ptr->msg_len);
 
 	for (i = 0; i < ilm->local_para_ptr->msg_len; i++) {
-		pr_warn("%d ", ilm->local_para_ptr->data[i]);
+		pr_info("%d ", ilm->local_para_ptr->data[i]);
 		if ((i != 0) && (((1 + i) % 8) == 0))
-			pr_warn("\n");
+			pr_info("\n");
 	}
 	return 0;
 }

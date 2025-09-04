@@ -16,11 +16,11 @@
 
 #include "ged_type.h"
 
-typedef void* GED_THREAD_HANDLE;
+typedef void *GED_THREAD_HANDLE;
 
-typedef void (*GED_THREAD_FUNC)(void*);
+typedef void (*GED_THREAD_FUNC)(void *);
 
-GED_ERROR ged_thread_create(GED_THREAD_HANDLE *phThread, const char* szThreadName, GED_THREAD_FUNC pFunc, void* pvData);
+GED_ERROR ged_thread_create(GED_THREAD_HANDLE *phThread, const char *szThreadName, GED_THREAD_FUNC pFunc, void *pvData);
 
 GED_ERROR ged_thread_destroy(GED_THREAD_HANDLE hThread);
 

@@ -53,7 +53,8 @@ static inline struct musb_request *to_musb_request(struct usb_request *req)
 	return req ? container_of(req, struct musb_request, request) : NULL;
 }
 
-extern struct usb_request *musb_alloc_request(struct usb_ep *ep, gfp_t gfp_flags);
+extern struct usb_request
+		*musb_alloc_request(struct usb_ep *ep, gfp_t gfp_flags);
 extern void musb_free_request(struct usb_ep *ep, struct usb_request *req);
 
 
@@ -110,11 +111,15 @@ extern void musb_g_rx(struct musb *musb, u8 epnum);
 
 extern const struct usb_ep_ops musb_g_ep0_ops;
 
-extern int musb_gadget_setup(struct musb *);
-extern void musb_gadget_cleanup(struct musb *);
+extern int musb_gadget_setup(struct musb *musb);
+extern void musb_gadget_cleanup(struct musb *musb);
 
-extern void musb_g_giveback(struct musb_ep *, struct usb_request *, int);
+extern void
+	musb_g_giveback(struct musb_ep *ep,
+	     struct usb_request *request,
+	     int status) __releases(ep->musb->lock) __acquires(ep->musb->lock);
 
-extern void musb_ep_restart(struct musb *, struct musb_request *);
+extern void
+	musb_ep_restart(struct musb *musb, struct musb_request *req);
 
 #endif				/* __MUSB_GADGET_H */

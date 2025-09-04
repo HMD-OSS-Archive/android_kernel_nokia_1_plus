@@ -15,6 +15,7 @@
 
 #include <linux/init.h>
 #include <linux/linkage.h>
+#include <asm/asm-uaccess.h>
 
 	.text
 .equ SCTLR_C_BIT,  0x00000004
@@ -114,54 +115,54 @@ ENTRY(do_dcsw_op)
 	sub	x1, x1, #1
 	lsl	x1, x1, #1
 	mov	x10, x1
-	adr	x14, dcsw_loop_table	// compute inner loop address
-	add	x14, x14, x0, lsl #5	// inner loop is 8x32-bit instructions
+	adr	x14, dcsw_loop_table
+	add	x14, x14, x0, lsl #5
 	mov	x0, x9
 	mov	w8, #1
 loop:
-	add	x2, x10, x10, lsr #1	// work out 3x current cache level
-	lsr	x1, x0, x2		// extract cache type bits from clidr
-	and	x1, x1, #7		// mask the bits for current cache only
-	cmp	x1, #2			// see what cache we have at this level
-	b.lt	level_done		// nothing to do if no cache or icache
+	add	x2, x10, x10, lsr #1
+	lsr	x1, x0, x2
+	and	x1, x1, #7
+	cmp	x1, #2
+	b.lt	level_done
 
-	msr	csselr_el1, x10		// select current cache level in csselr
-	isb				// isb to sych the new cssr&csidr
-	mrs	x1, ccsidr_el1		// read the new ccsidr
-	and	x2, x1, #7		// extract the length of the cache lines
-	add	x2, x2, #4		// add 4 (line length offset)
-	ubfx	x4, x1, #3, #10		// maximum way number
-	clz	w5, w4			// bit position of way size increment
-	lsl	w9, w4, w5		// w9 = aligned max way number
-	lsl	w16, w8, w5		// w16 = way number loop decrement
-	orr	w9, w10, w9		// w9 = combine way and cache number
-	ubfx	w6, w1, #13, #15	// w6 = max set number
-	lsl	w17, w8, w2		// w17 = set number loop decrement
-	dsb	sy			// barrier before we start this level
-	br	x14			// jump to DC operation specific loop
+	msr	csselr_el1, x10
+	isb
+	mrs	x1, ccsidr_el1
+	and	x2, x1, #7
+	add	x2, x2, #4
+	ubfx	x4, x1, #3, #10
+	clz	w5, w4
+	lsl	w9, w4, w5
+	lsl	w16, w8, w5
+	orr	w9, w10, w9
+	ubfx	w6, w1, #13, #15
+	lsl	w17, w8, w2
+	dsb	sy
+	br	x14
 
 	.macro	dcsw_loop _op
 loop2_\_op:
-	lsl	w7, w6, w2		// w7 = aligned max set number
+	lsl	w7, w6, w2
 
 loop3_\_op:
-	orr	w11, w9, w7		// combine cache, way and set number
+	orr	w11, w9, w7
 	dc	\_op, x11
-	subs	w7, w7, w17		// decrement set number
+	subs	w7, w7, w17
 	b.ge	loop3_\_op
 
-	subs	x9, x9, x16		// decrement way number
+	subs	x9, x9, x16
 	b.ge	loop2_\_op
 
 	b	level_done
 	.endm
 
 level_done:
-	add	x10, x10, #2		// increment cache number
+	add	x10, x10, #2
 	cmp	x3, x10
 	b.gt    loop
-	msr	csselr_el1, xzr		// select cache level 0 in csselr
-	dsb	sy			// barrier to complete final cache operation
+	msr	csselr_el1, xzr
+	dsb	sy
 	isb
 exit:
 	ret
@@ -255,10 +256,11 @@ ENTRY(__disable_dcache__inner_clean_dcache_L1__inner_clean_dcache_L2)
 	__inner_dcache_L1_L2 #DCCSW
 ENDPROC(__disable_dcache__inner_clean_dcache_L1__inner_clean_dcache_L2)
 
-ENTRY(__disable_dcache__inner_flush_dcache_L1__inner_clean_dcache_L2)
+ENTRY(dis_D_inner_fL1L2)
 	__dis_D
 	/* since we need to do different operations for L1/L2,
-	   and our current implementation would jump from do_dcsw_op to caller(who invokes the last bl) directly,
+	   and our current implementation would jump from
+	   do_dcsw_op to caller(who invokes the last bl) directly,
 	   we need to construct stack frame by ourself here.
 	   We use two caller-saved registers, x12 & x13, to save lr & sp,
 	   to prevent any memory access during cache operation
@@ -271,4 +273,56 @@ ENTRY(__disable_dcache__inner_flush_dcache_L1__inner_clean_dcache_L2)
 	mov	x29, x12
 	mov	x30, x13
 	__inner_dcache_L2 #DCCSW
-ENDPROC(__disable_dcache__inner_flush_dcache_L1__inner_clean_dcache_L2)
+ENDPROC(dis_D_inner_fL1L2)
+
+ENTRY(dis_D_inner_flush_all)
+	__dis_D
+	__inner_dcache_all #DCCISW
+ENDPROC(dis_D_inner_flush_all)
+
+/*
+ *	__xxxx_dcache_user_range(start,size)
+ *
+ *	Ensure that any D-cache lines for the interval [start, start+size)
+ *	are cleaned or/and invalidated to the PoC.
+ *
+ *	- start        - virtual start address of region (EL0/EL1)
+ *	- size         - size in question
+ */
+
+ENTRY(__flush_dcache_user_area)
+	uaccess_ttbr0_enable x2, x3, x4
+	dcache_by_line_op civac, sy, x0, x1, x2, x3
+	uaccess_ttbr0_disable x1, x2
+	ret
+ENDPROC(__flush_dcache_user_area)
+
+ENTRY(__clean_dcache_user_area)
+	uaccess_ttbr0_enable x2, x3, x4
+	dcache_by_line_op cvac, sy, x0, x1, x2, x3
+	uaccess_ttbr0_disable x1, x2
+	ret
+ENDPROC(__clean_dcache_user_area)
+
+ENTRY(__inval_dcache_user_area)
+	add     x1, x1, x0
+	uaccess_ttbr0_enable x2, x3, x4
+	dcache_line_size x2, x3
+	sub     x3, x2, #1
+	tst     x1, x3                          // end cache line aligned?
+	bic     x1, x1, x3
+	b.eq    1f
+	dc      civac, x1                       // clean & invalidate D / U line
+1:      tst     x0, x3                          // start cache line aligned?
+	bic     x0, x0, x3
+	b.eq    2f
+	dc      civac, x0                       // clean & invalidate D / U line
+	b       3f
+2:      dc      civac, x0                        // invalidate D / U line
+3:      add     x0, x0, x2
+	cmp     x0, x1
+	b.lo    2b
+	dsb     sy
+	uaccess_ttbr0_disable x1, x2
+	ret
+ENDPROC(__inval_dcache_user_area)

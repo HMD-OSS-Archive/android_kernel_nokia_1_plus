@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _SCSI_GENERIC_H
 #define _SCSI_GENERIC_H
 
@@ -90,7 +91,7 @@ typedef struct sg_io_hdr
 #define SG_FLAG_Q_AT_TAIL 0x10
 #define SG_FLAG_Q_AT_HEAD 0x20
 #ifdef MTK_UFS_HQA
-#define SG_FLAG_POWER_LOSS 0x8000 /* MTK patch for SPOH */
+#define SG_FLAG_POWER_LOSS 0x8000 /* MTK PATCH for SPOH */
 #endif
 
 /* following 'info' values are "or"-ed together */

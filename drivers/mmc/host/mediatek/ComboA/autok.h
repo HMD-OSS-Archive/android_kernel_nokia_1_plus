@@ -372,8 +372,8 @@ enum AUTOK_PARAM {
 };
 
 /**********************************************************
-* Function Declaration                                    *
-**********************************************************/
+ * Function Declaration                                   *
+ **********************************************************/
 extern int autok_path_sel(struct msdc_host *host);
 extern int autok_init_ddr208(struct msdc_host *host);
 extern int autok_init_sdr104(struct msdc_host *host);

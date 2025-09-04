@@ -11,6 +11,8 @@
  * GNU General Public License for more details.
  * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
+#define pr_fmt(fmt) "[DFRC] " fmt
+
 #include "dfrc.h"
 
 #include <linux/module.h>
@@ -22,10 +24,12 @@
 #include <linux/kthread.h>
 #include <linux/cdev.h>
 #include <linux/platform_device.h>
+#include <uapi/linux/sched/types.h>
 
 #ifdef PLATFORM_SUPPORT_ARR
 #include <primary_display_arr.h>
 #endif
+#include <primary_display.h>
 
 #include "dfrc_drv.h"
 
@@ -37,56 +41,22 @@ extern int __attribute__((weak)) primary_display_get_min_refresh_rate(void)
 {
 	return 60;
 }
+
 extern int __attribute__((weak)) primary_display_get_max_refresh_rate(void)
 {
 	return 60;
 }
 
-extern int __attribute__((weak)) primary_display_set_refresh_rate(unsigned int fps)
-{
-	return 0;
-}
-
-extern int __attribute__((weak)) primary_display_force_vdo_mode(unsigned int force_on)
+extern
+int __attribute__((weak)) primary_display_set_refresh_rate(unsigned int fps)
 {
 	return 0;
 }
 
 #define DFRC_DEVNAME "mtk_dfrc"
 
-#define DFRC_LOG_LEVEL 3
-
-#if (DFRC_LOG_LEVEL > 0)
-#define DFRC_ERR(x, ...) pr_err("[DFRC] " x, ##__VA_ARGS__)
-#else
-#define DFRC_ERR(...)
-#endif
-
-#if (DFRC_LOG_LEVEL > 1)
-#define DFRC_WRN(x, ...) pr_warn("[DFRC] " x, ##__VA_ARGS__)
-#else
-#define DFRC_WRN(...)
-#endif
-
-#if (DFRC_LOG_LEVEL > 2)
-#define DFRC_INFO(x, ...) pr_info("[DFRC] " x, ##__VA_ARGS__)
-#else
-#define DFRC_INFO(...)
-#endif
-
-#if (DFRC_LOG_LEVEL > 3)
-#define DFRC_DBG(x, ...) pr_info("[DFRC] " x, ##__VA_ARGS__)
-#else
-#define DFRC_DBG(...)
-#endif
-
-#if (DFRC_LOG_LEVEL > 4)
-#define DFRC_VBS(x, ...) pr_info("[DFRC] " x, ##__VA_ARGS__)
-#else
-#define DFRC_VBS(...)
-#endif
-
 #define NUM_UPPER_BOUND 3
+#define MAX_POLICY_NUMBER 16
 
 static char const *dfrc_api_string[DFRC_DRV_API_MAXIMUM] = {
 	"GIFT",
@@ -171,6 +141,7 @@ static int g_init_done;
 static int g_forbid_vsync;
 static int g_use_video_mode;
 static struct DFRC_DRV_PANEL_INFO_LIST g_fps_info;
+static struct DFRC_DRV_REFRESH_RANGE g_default_fps_info = {0, 60, 60};
 static struct DFRC_DRV_WINDOW_STATE g_window_state;
 static struct DFRC_DRV_FOREGROUND_WINDOW_INFO g_fg_window_info;
 
@@ -230,14 +201,20 @@ long dfrc_reg_policy_locked(const struct DFRC_DRV_POLICY *policy)
 	struct DFRC_DRV_POLICY_STATISTICS *ps;
 
 	if (policy == NULL) {
-		DFRC_WRN("reg_policy: parameter is null\n");
+		pr_warn("reg_policy: parameter is null\n");
 		return -EINVAL;
-	} else if (policy->mode >= DFRC_DRV_MODE_MAXIMUM || policy->mode < DFRC_DRV_MODE_DEFAULT) {
-		DFRC_WRN("reg_policy: policy mode is invalid\n");
+	} else if (policy->mode >= DFRC_DRV_MODE_MAXIMUM ||
+			policy->mode < DFRC_DRV_MODE_DEFAULT) {
+		pr_warn("reg_policy: policy mode is invalid\n");
 		return -EINVAL;
-	} else if (policy->api >= DFRC_DRV_API_MAXIMUM || policy->api <= DFRC_DRV_API_UNKNOWN) {
-		DFRC_WRN("reg_policy: policy api is invalid\n");
+	} else if (policy->api >= DFRC_DRV_API_MAXIMUM ||
+			policy->api <= DFRC_DRV_API_UNKNOWN) {
+		pr_warn("reg_policy: policy api is invalid\n");
 		return -EINVAL;
+	} else if (g_num_fps_policy >= MAX_POLICY_NUMBER) {
+		pr_info("reg_policy: policy number is over threshold %d\n",
+				g_num_fps_policy);
+		return -EBUSY;
 	}
 
 	list_for_each(iter, &g_fps_policy_list) {
@@ -251,13 +228,14 @@ long dfrc_reg_policy_locked(const struct DFRC_DRV_POLICY *policy)
 	if (is_new) {
 		node = vmalloc(sizeof(struct DFRC_DRV_POLICY_NODE));
 		if (node == NULL) {
-			DFRC_WRN("reg_fps_policy: failed to allocate memory\n");
 			res = -ENOMEM;
 		} else {
-			DFRC_INFO("reg_fps_policy: reg policy[%llu]\n", policy->sequence);
+			pr_info("reg_fps_policy: reg policy[%llu]\n",
+					policy->sequence);
 			INIT_LIST_HEAD(&node->list);
 			INIT_LIST_HEAD(&node->list_statistics);
-			memcpy(&node->policy, policy, sizeof(struct DFRC_DRV_POLICY));
+			memcpy(&node->policy, policy,
+					sizeof(struct DFRC_DRV_POLICY));
 			g_num_fps_policy++;
 			list_add(&node->list, &g_fps_policy_list);
 
@@ -266,13 +244,16 @@ long dfrc_reg_policy_locked(const struct DFRC_DRV_POLICY *policy)
 			pss->num_policy++;
 			ps->num_policy++;
 			list_add(&node->list_statistics, &ps->list);
-			DFRC_DBG("num_fps_policy:%d  %s_set:%d  %s_statistics:%d\n",
-					g_num_fps_policy, dfrc_mode_string[policy->mode],
-					pss->num_policy, dfrc_api_string[policy->api],
+			pr_debug("num_fps_policy:%d  %s_set:%d  %s_stts:%d\n",
+					g_num_fps_policy,
+					dfrc_mode_string[policy->mode],
+					pss->num_policy,
+					dfrc_api_string[policy->api],
 					ps->num_policy);
 		}
 	} else {
-		DFRC_INFO("reg_fps_policy: the policy[%llu] is existed\n", policy->sequence);
+		pr_info("reg_fps_policy: the policy[%llu] is existed\n",
+				policy->sequence);
 	}
 
 	return res;
@@ -290,7 +271,7 @@ long dfrc_reg_policy(const struct DFRC_DRV_POLICY *policy)
 
 void dfrc_init_kernel_policy(void)
 {
-	DFRC_INFO("dfrc_init_kernel_policy\n");
+	pr_debug("%s\n", __func__);
 	/* init rrc video policy */
 	g_policy_rrc_video.sequence = DFRC_DRV_API_RRC_VIDEO;
 	g_policy_rrc_video.api = DFRC_DRV_API_RRC_VIDEO;
@@ -331,15 +312,19 @@ long dfrc_set_policy_locked(const struct DFRC_DRV_POLICY *policy)
 	struct DFRC_DRV_POLICY_NODE *node = NULL;
 	struct DFRC_DRV_POLICY_STATISTICS_SET *pss = NULL;
 	struct DFRC_DRV_POLICY_STATISTICS *ps = NULL;
+	int api = DFRC_DRV_API_UNKNOWN;
+	int mode = DFRC_DRV_MODE_DEFAULT;
 
 	if (policy == NULL) {
-		DFRC_WRN("set_policy: parameter is null\n");
+		pr_warn("set_policy: parameter is null\n");
 		return -EINVAL;
-	} else if (policy->mode >= DFRC_DRV_MODE_MAXIMUM || policy->mode < DFRC_DRV_MODE_DEFAULT) {
-		DFRC_WRN("set_policy: policy mode is invalid\n");
+	} else if (policy->mode >= DFRC_DRV_MODE_MAXIMUM ||
+			policy->mode < DFRC_DRV_MODE_DEFAULT) {
+		pr_warn("set_policy: policy mode is invalid\n");
 		return -EINVAL;
-	} else if (policy->api >= DFRC_DRV_API_MAXIMUM || policy->api <= DFRC_DRV_API_UNKNOWN) {
-		DFRC_WRN("set_policy: policy api is invalid\n");
+	} else if (policy->api >= DFRC_DRV_API_MAXIMUM ||
+			policy->api <= DFRC_DRV_API_UNKNOWN) {
+		pr_warn("set_policy: policy api is invalid\n");
 		return -EINVAL;
 	}
 
@@ -349,27 +334,34 @@ long dfrc_set_policy_locked(const struct DFRC_DRV_POLICY *policy)
 			is_new = false;
 			if (node->policy.fps != policy->fps ||
 					node->policy.mode != policy->mode ||
-					node->policy.target_pid != policy->target_pid ||
-					node->policy.gl_context_id != policy->gl_context_id ||
+					node->policy.target_pid !=
+					policy->target_pid ||
+					node->policy.gl_context_id !=
+					policy->gl_context_id ||
 					node->policy.flag != policy->flag) {
 				change = true;
-				DFRC_INFO("set_policy: [%llu] fps:%d mode:%d t_pid:%d gl_id:%llu flag:%x\n",
-						policy->sequence, policy->fps, policy->mode,
-						policy->target_pid, policy->gl_context_id,
+				pr_info("set_policy: [%llu] fps:%d mode:%d t_pid:%d gl_id:%llu flag:%x\n",
+						policy->sequence,
+						policy->fps,
+						policy->mode,
+						policy->target_pid,
+						policy->gl_context_id,
 						policy->flag);
 				if (node->policy.mode != policy->mode) {
 					pss = &g_pss[node->policy.mode];
-					ps = &pss->statistics[node->policy.api];
+					api = node->policy.api;
+					ps = &pss->statistics[api];
 					pss->num_policy--;
 					ps->num_policy--;
 					if (node->policy.fps != -1)
 						ps->num_valid_policy--;
-					DFRC_DBG("%s_set:%d  %s_statistics:%d/%d\n",
-							dfrc_mode_string[node->policy.mode],
-							pss->num_policy,
-							dfrc_api_string[node->policy.api],
-							ps->num_valid_policy,
-							ps->num_policy);
+					mode = node->policy.mode;
+					pr_debug("%s_set:%d  %s_stts:%d/%d\n",
+						dfrc_mode_string[mode],
+						pss->num_policy,
+						dfrc_api_string[api],
+						ps->num_valid_policy,
+						ps->num_policy);
 					list_del(&node->list_statistics);
 
 					INIT_LIST_HEAD(&node->list_statistics);
@@ -379,42 +371,47 @@ long dfrc_set_policy_locked(const struct DFRC_DRV_POLICY *policy)
 					ps->num_policy++;
 					if (policy->fps != -1)
 						ps->num_valid_policy++;
-					DFRC_DBG("%s_set:%d  %s_statistics:%d/%d\n",
-							dfrc_mode_string[policy->mode],
-							pss->num_policy,
-							dfrc_api_string[policy->api],
-							ps->num_valid_policy,
-							ps->num_policy);
-					list_add(&node->list_statistics, &ps->list);
+					pr_debug("%s_set:%d  %s_stts:%d/%d\n",
+						dfrc_mode_string[policy->mode],
+						pss->num_policy,
+						dfrc_api_string[policy->api],
+						ps->num_valid_policy,
+						ps->num_policy);
+					list_add(&node->list_statistics,
+							&ps->list);
 				} else if (node->policy.fps != policy->fps) {
 					if (node->policy.fps == -1) {
 						pss = &g_pss[node->policy.mode];
-						ps = &pss->statistics[node->policy.api];
+						api = node->policy.api;
+						ps = &pss->statistics[api];
 						ps->num_valid_policy++;
 					} else if (policy->fps == -1) {
 						pss = &g_pss[node->policy.mode];
-						ps = &pss->statistics[node->policy.api];
+						api = node->policy.api;
+						ps = &pss->statistics[api];
 						ps->num_valid_policy--;
 					}
 					if (pss != NULL)
-						DFRC_DBG("%s_set:%d  %s_statistics:%d/%d\n",
-								dfrc_mode_string[policy->mode],
-								pss->num_policy,
-								dfrc_api_string[policy->api],
-								ps->num_valid_policy,
-								ps->num_policy);
+						pr_debug("%s_set:%d  %s_stts:%d/%d\n",
+						dfrc_mode_string[policy->mode],
+						pss->num_policy,
+						dfrc_api_string[policy->api],
+						ps->num_valid_policy,
+						ps->num_policy);
 				}
 				node->policy.fps = policy->fps;
 				node->policy.mode = policy->mode;
 				node->policy.target_pid = policy->target_pid;
-				node->policy.gl_context_id = policy->gl_context_id;
+				node->policy.gl_context_id =
+					policy->gl_context_id;
 				node->policy.flag = policy->flag;
 			}
 		}
 	}
 
 	if (is_new) {
-		DFRC_INFO("set_policy: can not find policy[%llu]\n", policy->sequence);
+		pr_warn("set_policy: can not find policy[%llu]\n",
+				policy->sequence);
 		res = -ENODEV;
 	} else if (change) {
 		dfrc_remake_policy_locked();
@@ -447,7 +444,8 @@ long dfrc_unreg_policy(const unsigned long long sequence)
 		node = list_entry(iter, struct DFRC_DRV_POLICY_NODE, list);
 		if (node->policy.sequence == sequence) {
 			is_new = false;
-			DFRC_INFO("dfrc_unreg_policy: unreg policy[%llu]\n", sequence);
+			pr_info("%s: unreg policy[%llu]\n",
+					__func__, sequence);
 			g_num_fps_policy--;
 			list_del(&node->list);
 
@@ -457,9 +455,11 @@ long dfrc_unreg_policy(const unsigned long long sequence)
 				ps->num_valid_policy--;
 			pss->num_policy--;
 			ps->num_policy--;
-			DFRC_DBG("%s_set:%d  %s_statistics:%d/%d\n",
-					dfrc_mode_string[node->policy.mode], pss->num_policy,
-					dfrc_api_string[node->policy.api], ps->num_valid_policy,
+			pr_debug("%s_set:%d  %s_statistics:%d/%d\n",
+					dfrc_mode_string[node->policy.mode],
+					pss->num_policy,
+					dfrc_api_string[node->policy.api],
+					ps->num_valid_policy,
 					ps->num_policy);
 			list_del(&node->list_statistics);
 			vfree(node);
@@ -468,7 +468,8 @@ long dfrc_unreg_policy(const unsigned long long sequence)
 	}
 
 	if (is_new) {
-		DFRC_INFO("unreg_fps_policy: can not find policy[%llu]\n", sequence);
+		pr_warn("unreg_fps_policy: can not find policy[%llu]\n",
+				sequence);
 		res = -ENODEV;
 	} else {
 		dfrc_remake_policy_locked();
@@ -482,17 +483,18 @@ void dfrc_set_hwc_info(const struct DFRC_DRV_HWC_INFO *hwc_info)
 {
 	mutex_lock(&g_mutex_data);
 	g_hwc_info = *hwc_info;
-	DFRC_DBG("dfrc_set_hwc_info: single_layer:%d  num_display:%d\n",
+	pr_debug("%s: single_layer:%d  num_display:%d\n", __func__,
 			g_hwc_info.single_layer, g_hwc_info.num_display);
 	dfrc_remake_policy_locked();
 	mutex_unlock(&g_mutex_data);
 }
 
-void dfrc_set_input_window(const struct DFRC_DRV_INPUT_WINDOW_INFO *input_window_info)
+void dfrc_set_input_window(
+	const struct DFRC_DRV_INPUT_WINDOW_INFO *input_window_info)
 {
 	mutex_lock(&g_mutex_data);
 	g_input_window_info = *input_window_info;
-	DFRC_DBG("dfrc_set_input_window: pid:%d\n", g_input_window_info.pid);
+	pr_debug("%s: pid:%d\n", __func__, g_input_window_info.pid);
 	dfrc_remake_policy_locked();
 	mutex_unlock(&g_mutex_data);
 }
@@ -504,14 +506,14 @@ void dfrc_reset_state(void)
 	struct DFRC_DRV_POLICY_STATISTICS_SET *pss = NULL;
 	struct DFRC_DRV_POLICY_STATISTICS *ps = NULL;
 
-	DFRC_INFO("dfrc_reset_state\n");
+	pr_debug("%s\n", __func__);
 	mutex_lock(&g_mutex_data);
 	g_run_rrc_fps = 1;
 	g_allow_rrc_policy = DFRC_ALLOW_VIDEO;
 	list_for_each_safe(iter, next, &g_fps_policy_list) {
 		node = list_entry(iter, struct DFRC_DRV_POLICY_NODE, list);
 		if (node->policy.pid != 0) {
-			DFRC_DBG("reset policy[%llu]\n", node->policy.sequence);
+			pr_debug("reset policy[%llu]\n", node->policy.sequence);
 			list_del(&node->list);
 			g_num_fps_policy--;
 			pss = &g_pss[node->policy.mode];
@@ -535,12 +537,15 @@ long dfrc_get_request_set(struct DFRC_DRC_REQUEST_SET *request_set)
 	int size;
 
 	mutex_lock(&g_mutex_request);
-	if (g_request_policy != NULL && request_set->policy != NULL) {
-		num = request_set->num > g_request_notified.num_policy ? g_request_notified.num_policy :
+	if (g_request_policy != NULL && request_set->policy != NULL &&
+			request_set->num > 0) {
+		num = request_set->num > g_request_notified.num_policy ?
+				g_request_notified.num_policy :
 				request_set->num;
 		size = num * sizeof(struct DFRC_DRV_POLICY);
-		if (copy_to_user((void *)request_set->policy, g_request_policy, size)) {
-			DFRC_WRN("get_request_set: failed to copy data to user\n");
+		if (copy_to_user((void *)request_set->policy,
+					g_request_policy, size)) {
+			pr_warn("get_request_set: failed to copy data to user\n");
 			res = -EFAULT;
 		}
 	}
@@ -586,9 +591,8 @@ static int rrc_fps_is_invalid_fps_locked(int fps, int mode)
 	int res = 1;
 	int i;
 
-	if (fps == -1) {
+	if (fps == -1)
 		return 0;
-	}
 
 	if (mode == DFRC_DRV_MODE_FRR) {
 		if (fps >= 20 && fps <= 60)
@@ -598,7 +602,8 @@ static int rrc_fps_is_invalid_fps_locked(int fps, int mode)
 			res = 0;
 	} else {
 		for (i = 0; i < g_fps_info.num; i++) {
-			if (g_fps_info.range[i].min_fps <= fps && fps <= g_fps_info.range[i].max_fps) {
+			if (g_fps_info.range[i].min_fps <= fps &&
+					fps <= g_fps_info.range[i].max_fps) {
 				res = 0;
 				break;
 			}
@@ -615,7 +620,8 @@ void dfrc_set_window_state(const struct DFRC_DRV_WINDOW_STATE *window_state)
 	mutex_unlock(&g_mutex_data);
 }
 
-void dfrc_set_fg_window(const struct DFRC_DRV_FOREGROUND_WINDOW_INFO *fg_window_info)
+void dfrc_set_fg_window(
+	const struct DFRC_DRV_FOREGROUND_WINDOW_INFO *fg_window_info)
 {
 	mutex_lock(&g_mutex_data);
 	g_fg_window_info = *fg_window_info;
@@ -623,7 +629,12 @@ void dfrc_set_fg_window(const struct DFRC_DRV_FOREGROUND_WINDOW_INFO *fg_window_
 	mutex_unlock(&g_mutex_data);
 }
 
-long dfrc_set_kernel_policy(int api, int fps, int mode, int target_pid, unsigned long long gl_context_id)
+long dfrc_set_kernel_policy(
+	int api,
+	int fps,
+	int mode,
+	int target_pid,
+	unsigned long long gl_context_id)
 {
 	long res = 0L;
 	struct DFRC_DRV_POLICY *temp;
@@ -631,13 +642,14 @@ long dfrc_set_kernel_policy(int api, int fps, int mode, int target_pid, unsigned
 	mutex_lock(&g_mutex_data);
 	if (!g_init_done) {
 		res = -ENODEV;
-		DFRC_WRN("[RRC_DRV] api_%d failed to set %d fps: not ready\n", api, fps);
+		pr_warn("api_%d failed to set %d fps: not ready\n", api, fps);
 		goto set_kernel_policy_exit;
 	}
 
 	if (rrc_fps_is_invalid_fps_locked(fps, mode)) {
 		res = -EINVAL;
-		DFRC_WRN("[RRC_DRV] api_%d failed to set %d fps: fps is invalid\n", api, fps);
+		pr_warn("api_%d failed to set %d fps: fps is invalid\n",
+				api, fps);
 		goto set_kernel_policy_exit;
 	}
 
@@ -655,7 +667,8 @@ long dfrc_set_kernel_policy(int api, int fps, int mode, int target_pid, unsigned
 		temp = &g_policy_loading;
 		break;
 	default:
-		DFRC_INFO("[RRC_DRV] api_%d failed to set %d fps: api is invalid\n", api, fps);
+		pr_warn("api_%d failed to set %d fps: api is invalid\n",
+				api, fps);
 		temp = NULL;
 		res = -EINVAL;
 		break;
@@ -681,11 +694,11 @@ long dfrc_get_panel_info_number(int *num)
 	mutex_lock(&g_mutex_data);
 	if (!g_init_done) {
 		res = -ENODEV;
-		DFRC_WRN("failed to get info number: does not init\n");
+		pr_warn("failed to get info number: does not init\n");
 	}
 
 	if (g_fps_info.num == 0) {
-		DFRC_WRN("failed to get info number: size is 0\n");
+		pr_warn("failed to get info number: size is 0\n");
 		*num = 1;
 	} else {
 		*num = g_fps_info.num;
@@ -702,33 +715,41 @@ long dfrc_get_panel_fps(struct DFRC_DRV_REFRESH_RANGE *range)
 	mutex_lock(&g_mutex_data);
 	if (!g_init_done) {
 		res = -ENODEV;
-		DFRC_INFO("failed to get panel fps: does not init\n");
-	}
-
-	if (g_fps_info.num == 0) {
-		range->min_fps = 60;
-		range->max_fps = 60;
-	} else if (range->index >= g_fps_info.num || range->index < 0) {
-		range->min_fps = 60;
-		range->max_fps = 60;
-		res = -EINVAL;
+		pr_warn("failed to get panel fps: does not init\n");
 	} else {
-		range->min_fps = g_fps_info.range[range->index].min_fps;
-		range->max_fps = g_fps_info.range[range->index].max_fps;
+		if (g_fps_info.num == 0) {
+			range->min_fps = 60;
+			range->max_fps = 60;
+		} else if (range->index >= g_fps_info.num || range->index < 0) {
+			range->min_fps = 60;
+			range->max_fps = 60;
+			res = -EINVAL;
+		} else {
+			range->min_fps = g_fps_info.range[range->index].min_fps;
+			range->max_fps = g_fps_info.range[range->index].max_fps;
+		}
 	}
 
 	mutex_unlock(&g_mutex_data);
 	return res;
 }
 
-long dfrc_get_frr_setting(int pid, unsigned long long gl_context_id, int *fps, int *mode)
+long dfrc_get_frr_setting(
+	int pid,
+	unsigned long long gl_context_id,
+	int *fps,
+	int *mode)
 {
 	int api;
 
 	return dfrc_get_frr_config(pid, gl_context_id, fps, mode, &api);
 }
 
-long dfrc_get_frr_config(int pid, unsigned long long gl_context_id, int *fps, int *mode, int *api)
+long dfrc_get_frr_config(int pid,
+	unsigned long long gl_context_id,
+	int *fps,
+	int *mode,
+	int *api)
 {
 	long res = 0;
 	struct DFRC_DRV_POLICY *policy = NULL;
@@ -759,10 +780,12 @@ long dfrc_get_frr_config(int pid, unsigned long long gl_context_id, int *fps, in
 					policy = &g_request_policy[i];
 			} else {
 				if (pid == g_request_policy[i].target_pid &&
-						gl_context_id == g_request_policy[i].gl_context_id) {
+					gl_context_id ==
+					g_request_policy[i].gl_context_id) {
 					if (policy == NULL)
 						policy = &g_request_policy[i];
-					else if (policy->fps > g_request_policy[i].fps)
+					else if (policy->fps >
+							g_request_policy[i].fps)
 						policy = &g_request_policy[i];
 				}
 			}
@@ -773,7 +796,7 @@ long dfrc_get_frr_config(int pid, unsigned long long gl_context_id, int *fps, in
 		}
 	}
 	mutex_unlock(&g_mutex_request);
-	DFRC_DBG("dfrc_get_frr_setting: pid:%d  gl_context_id:%llu  fps[%d]  mode[%s]\n",
+	pr_debug("get_frr_setting: pid:%d  gl_cnt_id:%llu  fpsi:%d  mode:%s\n",
 			pid, gl_context_id, *fps, dfrc_mode_string[*mode]);
 
 	return res;
@@ -792,7 +815,8 @@ static long dfrc_find_pid_setting(int pid, int *fps, int *mode)
 	int i;
 	int bound_fps = 0;
 	int app_fps = 0;
-	int upper_bound_array[NUM_UPPER_BOUND] = {DFRC_DRV_API_THERMAL, DFRC_DRV_API_LOADING,
+	int upper_bound_array[NUM_UPPER_BOUND] = {DFRC_DRV_API_THERMAL,
+						DFRC_DRV_API_LOADING,
 						DFRC_DRV_API_WHITELIST};
 
 	mutex_lock(&g_mutex_request);
@@ -812,11 +836,14 @@ static long dfrc_find_pid_setting(int pid, int *fps, int *mode)
 			statistics = &set->statistics[upper_bound_array[i]];
 			if (statistics->num_valid_policy != 0) {
 				list_for_each(iter, &statistics->list) {
-					node = list_entry(iter, struct DFRC_DRV_POLICY_NODE, list_statistics);
+					node = list_entry(iter,
+						struct DFRC_DRV_POLICY_NODE,
+						list_statistics);
 					policy = &node->policy;
 					if (policy->fps == -1)
 						continue;
-					if (has_upper_bound && bound_fps > policy->fps) {
+					if (has_upper_bound && bound_fps >
+							policy->fps) {
 						bound_fps = policy->fps;
 					} else if (!has_upper_bound) {
 						bound_fps = policy->fps;
@@ -829,10 +856,13 @@ static long dfrc_find_pid_setting(int pid, int *fps, int *mode)
 		statistics = &set->statistics[DFRC_DRV_API_GIFT];
 		if (statistics->num_valid_policy != 0) {
 			list_for_each(iter, &statistics->list) {
-				node = list_entry(iter, struct DFRC_DRV_POLICY_NODE, list_statistics);
+				node = list_entry(iter,
+						struct DFRC_DRV_POLICY_NODE,
+						list_statistics);
 				policy = &node->policy;
 				if (policy->target_pid == pid) {
-					if (has_app_setting && app_fps < policy->fps) {
+					if (has_app_setting && app_fps <
+							policy->fps) {
 						app_fps = policy->fps;
 					} else if (!has_app_setting) {
 						app_fps = policy->fps;
@@ -855,7 +885,7 @@ static long dfrc_find_pid_setting(int pid, int *fps, int *mode)
 			*fps = DFRC_DRV_FPS_NON_ASSIGN;
 		}
 	}
-	DFRC_DBG("dfrc_find_fg_setting: pid:%d  fps[%d]  mode[%s]\n",
+	pr_debug("dfrc_find_fg_setting: pid:%d  fps[%d]  mode[%s]\n",
 			pid, *fps, dfrc_mode_string[*mode]);
 
 	return res;
@@ -887,46 +917,48 @@ static long dfrc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	switch (cmd) {
 	case DFRC_IOCTL_CMD_REG_POLICY:
 		if (copy_from_user(&policy, (void *)arg, sizeof(policy))) {
-			DFRC_WRN("reg_fps_policy : failed to copy data from user\n");
+			pr_warn("reg_policy : failed to copy data from user\n");
 			return -EFAULT;
 		}
 		res = dfrc_reg_policy(&policy);
 		if (res)
-			DFRC_WRN("reg_fps_policy : failed to register fps policy\n");
+			pr_warn("reg_policy : failed to register fps policy[%d]\n",
+					(int)res);
 		break;
 
 	case DFRC_IOCTL_CMD_SET_POLICY:
 		if (copy_from_user(&policy, (void *)arg, sizeof(policy))) {
-			DFRC_WRN("set_fps_policy : failed to copy data from user\n");
+			pr_warn("set_fps_policy : failed to copy data from user\n");
 			return -EFAULT;
 		}
 		res = dfrc_set_policy(&policy);
 		if (res)
-			DFRC_WRN("set_fps_policy : failed to set fps policy with %dfps\n",
-					policy.fps);
+			pr_warn("set_fps_policy : failed to set fps policy with %dfps\n",
+					(int)policy.fps);
 		break;
 
 	case DFRC_IOCTL_CMD_UNREG_POLICY:
 		if (copy_from_user(&sequence, (void *)arg, sizeof(sequence))) {
-			DFRC_WRN("set_unreg_policy : failed to copy data from user\n");
+			pr_warn("set_unreg_policy : failed to copy data from user\n");
 			return -EFAULT;
 		}
 		res = dfrc_unreg_policy(sequence);
 		if (res)
-			DFRC_WRN("set_unreg_policy : failed to unreg fps policy\n");
+			pr_warn("set_unreg_policy : failed to unreg fps policy\n");
 		break;
 
 	case DFRC_IOCTL_CMD_SET_HWC_INFO:
 		if (copy_from_user(&hwc_info, (void *)arg, sizeof(hwc_info))) {
-			DFRC_WRN("set_hwc_info : failed to copy data from user\n");
+			pr_warn("set_hwc_info : failed to copy data from user\n");
 			return -EFAULT;
 		}
 		dfrc_set_hwc_info(&hwc_info);
 		break;
 
 	case DFRC_IOCTL_CMD_SET_INPUT_WINDOW:
-		if (copy_from_user(&input_window_info, (void *)arg, sizeof(input_window_info))) {
-			DFRC_WRN("set_input_window_info : failed to copy data from user\n");
+		if (copy_from_user(&input_window_info, (void *)arg,
+				sizeof(input_window_info))) {
+			pr_warn("set_input_window_info : failed to copy data from user\n");
 			return -EFAULT;
 		}
 		dfrc_set_input_window(&input_window_info);
@@ -937,68 +969,74 @@ static long dfrc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 
 	case DFRC_IOCTL_CMD_GET_REQUEST_SET:
-		if (copy_from_user(&request_set, (void *)arg, sizeof(request_set))) {
-			DFRC_WRN("get_request_set: failed to copy data from user\n");
+		if (copy_from_user(&request_set, (void *)arg,
+				sizeof(request_set))) {
+			pr_warn("get_request_set: failed to copy data from user\n");
 			return -EFAULT;
 		}
 		res = dfrc_get_request_set(&request_set);
-		if (copy_to_user((void *)arg, &request_set, sizeof(request_set))) {
-			DFRC_WRN("get_request_set: failed to copy data to user\n");
+		if (copy_to_user((void *)arg, &request_set,
+				sizeof(request_set))) {
+			pr_warn("get_request_set: failed to copy data to user\n");
 			return -EFAULT;
 		}
 		break;
 
 	case DFRC_IOCTL_CMD_GET_VSYNC_REQUEST:
 		if (copy_from_user(&request, (void *)arg, sizeof(request))) {
-			DFRC_WRN("get_vsync_request: failed to copy data from user\n");
+			pr_warn("get_vsync_request: failed to copy data from user\n");
 			return -EFAULT;
 		}
 		dfrc_get_vsync_request(&request);
 		if (copy_to_user((void *)arg, &request, sizeof(request))) {
-			DFRC_WRN("get_vsync_request: failed to copy data to user\n");
+			pr_warn("get_vsync_request: failed to copy data to user\n");
 			return -EFAULT;
 		}
 		break;
 
 	case DFRC_IOCTL_CMD_GET_PANEL_INFO:
 		dfrc_get_panel_info(&panel_info);
-		if (copy_to_user((void *)arg, &panel_info, sizeof(panel_info))) {
-			DFRC_WRN("get_panel_info: failed to copy data to user\n");
+		if (copy_to_user((void *)arg, &panel_info,
+				sizeof(panel_info))) {
+			pr_warn("get_panel_info: failed to copy data to user\n");
 			return -EFAULT;
 		}
 		break;
 
 	case DFRC_IOCTL_CMD_GET_REFRESH_RANGE:
 		if (copy_from_user(&range, (void *)arg, sizeof(range))) {
-			DFRC_WRN("get_refresh_range: failed to copy data from user\n");
+			pr_warn("get_refresh_range: failed to copy data from user\n");
 			return -EFAULT;
 		}
 		dfrc_get_panel_fps(&range);
 		if (copy_to_user((void *)arg, &range, sizeof(range))) {
-			DFRC_WRN("get_refresh_range: failed to copy data to user\n");
+			pr_warn("get_refresh_range: failed to copy data to user\n");
 			return -EFAULT;
 		}
 		break;
 
 	case DFRC_IOCTL_CMD_SET_WINDOW_STATE:
-		if (copy_from_user(&window_state, (void *)arg, sizeof(window_state))) {
-			DFRC_WRN("set_window_state : failed to copy data from user\n");
+		if (copy_from_user(&window_state, (void *)arg,
+				sizeof(window_state))) {
+			pr_warn("set_window_state : failed to copy data from user\n");
 			return -EFAULT;
 		}
 		dfrc_set_window_state(&window_state);
 		break;
 
 	case DFRC_IOCTL_CMD_SET_FOREGROUND_WINDOW:
-		if (copy_from_user(&fg_window_info, (void *)arg, sizeof(fg_window_info))) {
-			DFRC_WRN("set_fg_window : failed to copy data from user\n");
+		if (copy_from_user(&fg_window_info, (void *)arg,
+				sizeof(fg_window_info))) {
+			pr_warn("set_fg_window : failed to copy data from user\n");
 			return -EFAULT;
 		}
 		dfrc_set_fg_window(&fg_window_info);
 		break;
 
 	case DFRC_IOCTL_CMD_FORBID_ADJUSTING_VSYNC:
-		if (copy_from_user(&forbid_vsync, (void *)arg, sizeof(forbid_vsync))) {
-			DFRC_WRN("forbid_adjusting_vsync : failed to copy data from user\n");
+		if (copy_from_user(&forbid_vsync, (void *)arg,
+				sizeof(forbid_vsync))) {
+			pr_warn("forbid_adjusting_vsync : failed to copy data from user\n");
 			return -EFAULT;
 		}
 		dfrc_forbid_adjusting_vsync(forbid_vsync);
@@ -1012,9 +1050,13 @@ static long dfrc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 }
 
 #if IS_ENABLED(CONFIG_COMPAT)
-static long compat_dfrc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long compat_dfrc_ioctl(
+	struct file *file,
+	unsigned int cmd,
+	unsigned long arg)
 {
 	long res = 0L;
+
 	switch (cmd) {
 	case DFRC_IOCTL_CMD_REG_POLICY:
 	case DFRC_IOCTL_CMD_SET_POLICY:
@@ -1090,14 +1132,15 @@ static void dfrc_dump_info(void)
 			g_hwc_info.num_display, g_hwc_info.single_layer);
 	dfrc_idump("Force window pid[%d]\n", g_input_window_info.pid);
 	dfrc_idump("Foreground window pid[%d]\n", g_fg_window_info.pid);
-	dfrc_idump("Window state[%08x]\n", g_window_state);
+	dfrc_idump("Window state[%08x]\n", g_window_state.window_flag);
 	dfrc_idump("Forbid adjusting VSync[%d]\n", g_forbid_vsync);
 	dfrc_idump("Allow RRC policy[0x%x]\n", g_allow_rrc_policy);
 	dfrc_idump("Use video mode[%d]\n", g_use_video_mode);
 	dfrc_idump("Support panel refresh rate: %d\n", g_fps_info.num);
 	for (i = 0; i < g_fps_info.num; i++) {
 		dfrc_idump("    [%d] %d~%d\n",
-				i, g_fps_info.range[i].min_fps, g_fps_info.range[i].max_fps);
+				i, g_fps_info.range[i].min_fps,
+				g_fps_info.range[i].max_fps);
 	}
 }
 
@@ -1110,11 +1153,14 @@ static void dfrc_dump_policy_list(void)
 	dfrc_idump("All Fps Policy\n");
 	list_for_each(iter, &g_fps_policy_list) {
 		node = list_entry(iter, struct DFRC_DRV_POLICY_NODE, list);
-		dfrc_idump("    [%d]  sequence[%llu]  api[%d]  pid[%d]  fps[%d]  mode[%d]  ",
+		dfrc_idump("    [%d]  sequence[%llu]  api[%d]  pid[%d]",
 				i, node->policy.sequence, node->policy.api,
-				node->policy.pid, node->policy.fps, node->policy.mode);
-		dfrc_idump("target_pid[%d]  context_id[%p]  flag[0x%x]\n",
-				node->policy.target_pid, node->policy.gl_context_id,
+				node->policy.pid);
+		dfrc_idump("  fps[%d]  mode[%d]",
+				node->policy.fps, node->policy.mode);
+		dfrc_idump("  target_pid[%d]  context_id[%p]  flag[0x%x]\n",
+				node->policy.target_pid,
+				node->policy.gl_context_id,
 				node->policy.flag);
 		i++;
 	}
@@ -1131,19 +1177,27 @@ static void dfrc_dump_statistics_set(void)
 
 	for (i = 0; i < DFRC_DRV_MODE_MAXIMUM; i++) {
 		pss = &g_pss[i];
-		dfrc_idump("%s Statistics (%d)\n", dfrc_mode_string[i], pss->num_policy);
+		dfrc_idump("%s Statistics (%d)\n",
+				dfrc_mode_string[i], pss->num_policy);
 		for (j = 0; j < DFRC_DRV_API_MAXIMUM; j++) {
 			ps = &pss->statistics[j];
-			dfrc_idump("    %s Statistics (%d/%d)\n", dfrc_api_string[j],
-					ps->num_valid_policy, ps->num_policy);
+			dfrc_idump("   %s Statistics (%d/%d)\n",
+					dfrc_api_string[j],
+					ps->num_valid_policy,
+					ps->num_policy);
 			list_for_each(iter, &ps->list) {
-				node = list_entry(iter, struct DFRC_DRV_POLICY_NODE, list_statistics);
+				node = list_entry(iter,
+						struct DFRC_DRV_POLICY_NODE,
+						list_statistics);
 				policy = &node->policy;
-				dfrc_idump("        seq[%llu]  api[%d]  pid[%d]  fps[%d]  mode[%d]",
-						policy->sequence, policy->api, policy->pid,
+				dfrc_idump("      seq[%llu]  api[%d]  pid[%d]",
+						policy->sequence, policy->api,
+						policy->pid);
+				dfrc_idump("    fps[%d]  mode[%d]",
 						policy->fps, policy->mode);
 				dfrc_idump("  t_pid[%d]  context_id[%d]\n",
-						policy->target_pid, policy->gl_context_id);
+						policy->target_pid,
+						policy->gl_context_id);
 			}
 		}
 	}
@@ -1161,8 +1215,11 @@ static void dfrc_reset_reason_buffer(void)
 	memset(g_string_reason, 0, sizeof(g_string_reason));
 }
 
-static ssize_t dfrc_debug_dump_info_read(struct file *file, char __user *buf, size_t size,
-		loff_t *ppos)
+static ssize_t dfrc_debug_dump_info_read(
+	struct file *file,
+	char __user *buf,
+	size_t size,
+	loff_t *ppos)
 {
 	mutex_lock(&g_mutex_data);
 	dfrc_reset_info_buffer();
@@ -1170,45 +1227,57 @@ static ssize_t dfrc_debug_dump_info_read(struct file *file, char __user *buf, si
 	dfrc_dump_policy_list();
 	dfrc_dump_statistics_set();
 	mutex_unlock(&g_mutex_data);
-	return simple_read_from_buffer(buf, size, ppos, g_string_info, g_string_info_len);
+	return simple_read_from_buffer(buf, size, ppos, g_string_info,
+			g_string_info_len);
 }
 
-static ssize_t dfrc_debug_dump_reason_read(struct file *file, char __user *buf, size_t size,
-		loff_t *ppos)
+static ssize_t dfrc_debug_dump_reason_read(
+	struct file *file,
+	char __user *buf,
+	size_t size,
+	loff_t *ppos)
 {
 	ssize_t res;
 
 	mutex_lock(&g_mutex_data);
-	res = simple_read_from_buffer(buf, size, ppos, g_string_reason, g_string_reason_len);
+	res = simple_read_from_buffer(buf, size, ppos, g_string_reason,
+			g_string_reason_len);
 	mutex_unlock(&g_mutex_data);
 	return res;
 }
 
-static struct DFRC_DRV_POLICY_NODE *dfrc_find_min_fps(struct DFRC_DRV_POLICY_STATISTICS *statistics)
+static struct DFRC_DRV_POLICY_NODE *dfrc_find_min_fps(
+	struct DFRC_DRV_POLICY_STATISTICS *statistics)
 {
 	struct list_head *iter;
 	struct DFRC_DRV_POLICY_NODE *node;
 	struct DFRC_DRV_POLICY_NODE *min = NULL;
 
 	list_for_each(iter, &statistics->list) {
-		node = list_entry(iter, struct DFRC_DRV_POLICY_NODE, list_statistics);
+		node = list_entry(iter, struct DFRC_DRV_POLICY_NODE,
+				list_statistics);
 		if (min == NULL && node->policy.fps != -1)
 			min = node;
-		else if ((node->policy.fps != -1) && (min->policy.fps > node->policy.fps))
+		else if ((node->policy.fps != -1) &&
+				(min->policy.fps > node->policy.fps))
 			min = node;
 	}
 	return min;
 }
 
-bool dfrc_have_appointed_mode(struct DFRC_DRV_POLICY_STATISTICS *statistics, int pid, int mode)
+bool dfrc_have_appointed_mode(struct DFRC_DRV_POLICY_STATISTICS *statistics,
+	int pid, int mode)
 {
 	bool res = false;
 	struct list_head *iter;
 	struct DFRC_DRV_POLICY_NODE *node;
 
 	list_for_each(iter, &statistics->list) {
-		node = list_entry(iter, struct DFRC_DRV_POLICY_NODE, list_statistics);
-		if (node->policy.mode == mode && node->policy.target_pid == pid) {
+		node = list_entry(iter,
+				struct DFRC_DRV_POLICY_NODE,
+				list_statistics);
+		if (node->policy.mode == mode &&
+				node->policy.target_pid == pid) {
 			res = true;
 			break;
 		}
@@ -1217,7 +1286,8 @@ bool dfrc_have_appointed_mode(struct DFRC_DRV_POLICY_STATISTICS *statistics, int
 	return res;
 }
 
-static int dfrc_find_valid_policy_locked(struct DFRC_DRV_EXPECTED_POLICY *expected_policy,
+static int dfrc_find_valid_policy_locked(
+	struct DFRC_DRV_EXPECTED_POLICY *expected_policy,
 	struct DFRC_DRV_POLICY_INFO *info)
 {
 	struct DFRC_DRV_POLICY_STATISTICS_SET *arr_statistics;
@@ -1232,51 +1302,65 @@ static int dfrc_find_valid_policy_locked(struct DFRC_DRV_EXPECTED_POLICY *expect
 	if (frr_statistics->statistics[info->api].num_valid_policy &&
 			expected_policy->mode == DFRC_DRV_MODE_DEFAULT) {
 		if (!info->have_appointed_mode || (info->have_appointed_mode &&
-				dfrc_have_appointed_mode(&frr_statistics->statistics[info->api],
-				g_fg_window_info.pid, DFRC_DRV_MODE_FRR))) {
+				dfrc_have_appointed_mode(
+					&frr_statistics->statistics[info->api],
+					g_fg_window_info.pid,
+					DFRC_DRV_MODE_FRR))) {
 			expected_policy->mode = DFRC_DRV_MODE_FRR;
 			expected_policy->frr_statistics = frr_statistics;
-			dfrc_rdump("choose %s config with frr\n", dfrc_api_string[info->api]);
+			dfrc_rdump("choose %s config with frr\n",
+					dfrc_api_string[info->api]);
 			return 1;
 		}
 	} else if (arr_statistics->statistics[info->api].num_valid_policy &&
 			(expected_policy->mode == DFRC_DRV_MODE_DEFAULT ||
 			expected_policy->mode == DFRC_DRV_MODE_ARR)) {
 		if (!info->have_appointed_mode || (info->have_appointed_mode &&
-				dfrc_have_appointed_mode(&arr_statistics->statistics[info->api],
-				g_fg_window_info.pid, DFRC_DRV_MODE_ARR))) {
-			node = dfrc_find_min_fps(&arr_statistics->statistics[info->api]);
+				dfrc_have_appointed_mode(
+					&arr_statistics->statistics[info->api],
+					g_fg_window_info.pid,
+					DFRC_DRV_MODE_ARR))) {
+			node = dfrc_find_min_fps(
+				&arr_statistics->statistics[info->api]);
 			if (node == NULL)
 				return 0;
 			expected_policy->mode = DFRC_DRV_MODE_ARR;
 			if (expected_policy->arr_policy == NULL)
 				expected_policy->arr_policy = &node->policy;
-			else if (expected_policy->arr_policy->fps > node->policy.fps)
+			else if (expected_policy->arr_policy->fps >
+					node->policy.fps)
 				expected_policy->arr_policy = &node->policy;
-			dfrc_rdump("choose %s config with arr\n", dfrc_api_string[info->api]);
+			dfrc_rdump("choose %s config with arr\n",
+					dfrc_api_string[info->api]);
 		}
 	} else if (isw_statistics->statistics[info->api].num_valid_policy &&
 			(expected_policy->mode == DFRC_DRV_MODE_DEFAULT ||
 			expected_policy->mode == DFRC_DRV_MODE_INTERNAL_SW)) {
 		if (!info->have_appointed_mode || (info->have_appointed_mode &&
-				dfrc_have_appointed_mode(&isw_statistics->statistics[info->api],
-				g_fg_window_info.pid, DFRC_DRV_MODE_INTERNAL_SW))) {
-			node = dfrc_find_min_fps(&isw_statistics->statistics[info->api]);
+				dfrc_have_appointed_mode(
+					&isw_statistics->statistics[info->api],
+					g_fg_window_info.pid,
+					DFRC_DRV_MODE_INTERNAL_SW))) {
+			node = dfrc_find_min_fps(
+				&isw_statistics->statistics[info->api]);
 			if (node == NULL)
 				return 0;
 			expected_policy->mode = DFRC_DRV_MODE_INTERNAL_SW;
 			if (expected_policy->isw_policy == NULL)
 				expected_policy->isw_policy = &node->policy;
-			else if (expected_policy->isw_policy->fps > node->policy.fps)
+			else if (expected_policy->isw_policy->fps >
+					node->policy.fps)
 				expected_policy->isw_policy = &node->policy;
-			dfrc_rdump("choose %s config with isw\n", dfrc_api_string[info->api]);
+			dfrc_rdump("choose %s config with isw\n",
+					dfrc_api_string[info->api]);
 		}
 	}
 
 	return 0;
 }
 
-static void dfrc_select_policy_locked(struct DFRC_DRV_EXPECTED_POLICY *expected_policy)
+static void dfrc_select_policy_locked(
+	struct DFRC_DRV_EXPECTED_POLICY *expected_policy)
 {
 	int i, res, size;
 
@@ -1287,7 +1371,8 @@ static void dfrc_select_policy_locked(struct DFRC_DRV_EXPECTED_POLICY *expected_
 
 	size = sizeof(g_policy_order) / sizeof(*g_policy_order);
 	for (i = 0; i < size; i++) {
-		res = dfrc_find_valid_policy_locked(expected_policy, &g_policy_order[i]);
+		res = dfrc_find_valid_policy_locked(expected_policy,
+				&g_policy_order[i]);
 		if (res)
 			return;
 	}
@@ -1305,8 +1390,10 @@ static void dfrc_find_flag_value(int *flag, const int mask)
 	}
 }
 
-static void dfrc_pack_choosed_frr_policy(int num, struct DFRC_DRV_POLICY *new_policy,
-					struct DFRC_DRV_POLICY_STATISTICS_SET *set)
+static void dfrc_pack_choosed_frr_policy(
+	int num,
+	struct DFRC_DRV_POLICY *new_policy,
+	struct DFRC_DRV_POLICY_STATISTICS_SET *set)
 {
 	int i = 0, j = 0;
 	struct list_head *iter;
@@ -1316,7 +1403,8 @@ static void dfrc_pack_choosed_frr_policy(int num, struct DFRC_DRV_POLICY *new_po
 	for (i = 0; i < DFRC_DRV_API_MAXIMUM; i++) {
 		statistics = &set->statistics[i];
 		list_for_each(iter, &statistics->list) {
-			node = list_entry(iter, struct DFRC_DRV_POLICY_NODE, list_statistics);
+			node = list_entry(iter, struct DFRC_DRV_POLICY_NODE,
+					list_statistics);
 			if (node->policy.fps != -1) {
 				if (j < num)
 					new_policy[j] = node->policy;
@@ -1328,7 +1416,8 @@ static void dfrc_pack_choosed_frr_policy(int num, struct DFRC_DRV_POLICY *new_po
 	}
 }
 
-static void dfrc_adjust_vsync_locked(struct DFRC_DRV_EXPECTED_POLICY *expected_policy)
+static void dfrc_adjust_vsync_locked(
+	struct DFRC_DRV_EXPECTED_POLICY *expected_policy)
 {
 	struct DFRC_DRV_VSYNC_REQUEST new_request;
 	int sw_mode = DFRC_DRV_SW_MODE_CALIBRATED_SW;
@@ -1338,6 +1427,7 @@ static void dfrc_adjust_vsync_locked(struct DFRC_DRV_EXPECTED_POLICY *expected_p
 	bool change = false;
 	int size = 0;
 	int i, use_video_mode;
+	struct DFRC_DRV_POLICY_STATISTICS_SET *pss = NULL;
 
 	memset(&new_request, 0, sizeof(new_request));
 	new_request.forbid_vsync = g_forbid_vsync;
@@ -1363,20 +1453,25 @@ static void dfrc_adjust_vsync_locked(struct DFRC_DRV_EXPECTED_POLICY *expected_p
 		new_request.sw_mode = DFRC_DRV_SW_MODE_CALIBRATED_SW;
 		new_request.valid_info = true;
 		new_request.transient_state = false;
-		for (i = 0; i < DFRC_DRV_API_MAXIMUM; i++)
-			size += expected_policy->frr_statistics->statistics[i].num_valid_policy;
+		for (i = 0; i < DFRC_DRV_API_MAXIMUM; i++) {
+			pss = expected_policy->frr_statistics;
+			size += pss->statistics[i].num_valid_policy;
+		}
 		new_request.num_policy = size;
 
 		new_policy = vmalloc(sizeof(struct DFRC_DRV_POLICY) * size);
 		if (new_policy != NULL) {
-			dfrc_pack_choosed_frr_policy(size, new_policy, expected_policy->frr_statistics);
+			dfrc_pack_choosed_frr_policy(size, new_policy,
+					expected_policy->frr_statistics);
 		} else {
-			DFRC_ERR("Failed to allocate new policy for adjusting FRR\n");
+			pr_warn("Failed to allocate new policy for adjusting FRR\n");
 			change = true;
 		}
 	} else if ((expected_policy->mode == DFRC_DRV_MODE_ARR ||
-			expected_policy->mode == DFRC_DRV_MODE_INTERNAL_SW) && g_forbid_vsync) {
-		dfrc_rdump("use default mode, because forbid adjusting vsync\n");
+			expected_policy->mode == DFRC_DRV_MODE_INTERNAL_SW)
+			&& g_forbid_vsync) {
+		dfrc_rdump("use default mode, ");
+		dfrc_rdump("because forbid adjusting vsync\n");
 		fps = -1;
 		sw_mode = DFRC_DRV_SW_MODE_CALIBRATED_SW;
 		hw_mode = DFRC_DRV_HW_MODE_DEFAULT;
@@ -1403,7 +1498,7 @@ static void dfrc_adjust_vsync_locked(struct DFRC_DRV_EXPECTED_POLICY *expected_p
 		if (new_policy) {
 			*new_policy = *expected_policy->arr_policy;
 		} else {
-			DFRC_ERR("Failed to allocate new policy for adjusting ARR\n");
+			pr_warn("Failed to allocate new policy for adjusting ARR\n");
 			change = true;
 		}
 	} else if (expected_policy->mode == DFRC_DRV_MODE_INTERNAL_SW) {
@@ -1423,26 +1518,30 @@ static void dfrc_adjust_vsync_locked(struct DFRC_DRV_EXPECTED_POLICY *expected_p
 		if (new_policy) {
 			*new_policy = *expected_policy->isw_policy;
 		} else {
-			DFRC_ERR("Failed to allocate new policy for adjusting ISW\n");
+			pr_warn("Failed to allocate new policy for adjusting ISW\n");
 			change = true;
 		}
 	}
 
-	dfrc_find_flag_value(&use_video_mode, DFRC_DRV_POLICY_FLAG_USE_VIDEO_MODE);
+	dfrc_find_flag_value(&use_video_mode,
+			DFRC_DRV_POLICY_FLAG_USE_VIDEO_MODE);
 
-	if (memcmp(&new_request, &g_request_notified, sizeof(g_request_notified))) {
+	if (memcmp(&new_request, &g_request_notified,
+			sizeof(g_request_notified))) {
 		change = true;
 	} else {
 		if ((new_policy != NULL && g_request_policy == NULL) ||
-				(new_policy == NULL && g_request_policy != NULL)) {
+				(new_policy == NULL &&
+				g_request_policy != NULL)) {
 			change = true;
 		} else if (new_policy != NULL && g_request_policy != NULL) {
-			size = (new_request.num_policy > g_request_notified.num_policy) ?
-					g_request_notified.num_policy : new_request.num_policy;
+			size = (new_request.num_policy >
+					g_request_notified.num_policy) ?
+					g_request_notified.num_policy :
+					new_request.num_policy;
 			size *= sizeof(struct DFRC_DRV_POLICY);
-			if (memcmp(new_policy, g_request_policy, size)) {
+			if (memcmp(new_policy, g_request_policy, size))
 				change = true;
-			}
 		}
 	}
 
@@ -1465,32 +1564,25 @@ static void dfrc_adjust_vsync_locked(struct DFRC_DRV_EXPECTED_POLICY *expected_p
 		/*primary_display_arr20_set_refresh_rate(fps);*/
 	}
 #else
-	dfrc_rdump("fps:[%d|%d] mode[%d:%d] vdo[%d:%d]\n", fps, g_current_fps,
-			hw_mode, g_current_hw_mode,
-			use_video_mode, g_use_video_mode);
-	if (use_video_mode != 0 || hw_mode == DFRC_DRV_HW_MODE_ARR) {
-		dfrc_rdump("enable vdo mode\n");
-		primary_display_force_vdo_mode(true);
-	}
-
-	if (hw_mode != g_current_hw_mode && hw_mode == DFRC_DRV_HW_MODE_DEFAULT) {
+	dfrc_rdump("fps:[%d|%d] mode[%d:%d]\n",
+			fps, g_current_fps, hw_mode, g_current_hw_mode);
+	if (hw_mode != g_current_hw_mode &&
+			hw_mode == DFRC_DRV_HW_MODE_DEFAULT) {
 		dfrc_rdump("set arr to default: 60");
-		primary_display_set_refresh_rate(60);
+		if (primary_display_set_refresh_rate)
+			primary_display_set_refresh_rate(60);
 	} else if (hw_mode == DFRC_DRV_HW_MODE_ARR && fps != g_current_fps) {
 		dfrc_rdump("set arr with fps: %d\n", fps);
-		primary_display_set_refresh_rate(fps);
-	}
-
-	if (use_video_mode == 0 && hw_mode == DFRC_DRV_HW_MODE_DEFAULT) {
-		dfrc_rdump("disable vdo mode\n");
-		primary_display_force_vdo_mode(false);
+		if (primary_display_set_refresh_rate)
+			primary_display_set_refresh_rate(fps);
 	}
 #endif
 
 	if (change) {
-		DFRC_INFO("adjust vsync: [%d|%d|%d] -> [%d|%d|%d]\n",
-				g_current_fps, g_current_sw_mode, g_current_hw_mode,
-				fps, sw_mode, hw_mode);
+		pr_info("adjust vsync: [%d|%d|%d] -> [%d|%d|%d]\n",
+				g_current_fps, g_current_sw_mode,
+				g_current_hw_mode, fps,
+				sw_mode, hw_mode);
 		g_current_fps = fps;
 		g_current_sw_mode = sw_mode;
 		g_current_hw_mode = hw_mode;
@@ -1510,7 +1602,8 @@ static void dfrc_send_fps_info_to_other_module(void)
 	mutex_unlock(&g_mutex_data);
 
 	dfrc_find_pid_setting(pid, &fps, &mode);
-	dfrc_fps_limit_cb(fps);
+	if (dfrc_fps_limit_cb)
+		dfrc_fps_limit_cb(fps);
 }
 
 static int dfrc_make_policy_kthread_func(void *data)
@@ -1526,10 +1619,12 @@ static int dfrc_make_policy_kthread_func(void *data)
 			return 0;
 		}
 
-		/* if count is not equal to g_event_count, we has new request. */
+		/* if count is not equal to g_event_count, we has */
+		/* new request.                                   */
 		if (g_processed_count == g_event_count) {
 			mutex_unlock(&g_mutex_data);
-			wait_event_interruptible(g_wq_make_policy, g_cond_remake);
+			wait_event_interruptible(g_wq_make_policy,
+						g_cond_remake);
 			mutex_lock(&g_mutex_data);
 			g_cond_remake = 0;
 		}
@@ -1559,7 +1654,8 @@ static int dfrc_init_param(void)
 	g_task_make_policy = kthread_create(dfrc_make_policy_kthread_func, NULL,
 			"dfrc_make_policy_kthread_func");
 	if (IS_ERR(g_task_make_policy)) {
-		DFRC_ERR("dfrc_init_param: failed to create dfrc_make_policy_kthread_func\n");
+		pr_err("%s: failed to create dfrc_make_policy_kthread_func\n",
+				__func__);
 		return -ENODEV;
 	}
 	wake_up_process(g_task_make_policy);
@@ -1576,7 +1672,7 @@ static int dfrc_open(struct inode *inode, struct file *file)
 
 	mutex_lock(&g_mutex_fop);
 	if (g_has_opened) {
-		DFRC_WRN("device is busy\n");
+		pr_warn("device is busy\n");
 		res = -EBUSY;
 		goto open_exit;
 	}
@@ -1584,7 +1680,6 @@ static int dfrc_open(struct inode *inode, struct file *file)
 	file->private_data = vmalloc(sizeof(unsigned int));
 
 	if (file->private_data == NULL) {
-		DFRC_WRN("Not enough entry for RRC open operation\n");
 		res = -ENOMEM;
 		goto open_exit;
 	}
@@ -1649,11 +1744,11 @@ static void dfrc_debug_init(void)
 		debug_dir = debugfs_create_dir("dfrc", NULL);
 		if (debug_dir) {
 			debugfs_dump_info = debugfs_create_file("info",
-					S_IFREG | S_IRUGO, debug_dir, NULL,
+					0444, debug_dir, NULL,
 					&debug_fops_info);
 
 			debugfs_dump_reason = debugfs_create_file("reason",
-					S_IFREG | S_IRUGO, debug_dir, NULL,
+					0444, debug_dir, NULL,
 					&debug_fops_reason);
 		}
 	}
@@ -1682,11 +1777,17 @@ static int dfrc_probe(struct platform_device *pdev)
 	struct class_device *class_dev = NULL;
 	int ret = 0;
 
+	if (primary_get_dpmgr_handle() == NULL) {
+		pr_info("Display does not start probe\n");
+		return -EPROBE_DEFER;
+	}
+
 	ret = alloc_chrdev_region(&dfrc_devno, 0, 1, DFRC_DEVNAME);
 	if (ret)
-		DFRC_ERR("Can't Get Major number for FPS policy Device\n");
+		pr_err("Can't Get Major number for FPS policy Device\n");
 	else
-		DFRC_DBG("Get FPS policy Device Major number (%d)\n", dfrc_devno);
+		pr_info("Get FPS policy Device Major number (%d)\n",
+				dfrc_devno);
 	dfrc_cdev = cdev_alloc();
 	dfrc_cdev->owner = THIS_MODULE;
 	dfrc_cdev->ops = &dfrc_fops;
@@ -1702,15 +1803,33 @@ static int dfrc_probe(struct platform_device *pdev)
 	g_fps_info.support_120 = 0;
 	g_fps_info.support_90 = 0;
 	g_fps_info.num = 1;
-	g_fps_info.range = vmalloc(sizeof(struct DFRC_DRV_REFRESH_RANGE) * g_fps_info.num);
+	g_fps_info.range = vmalloc(sizeof(struct DFRC_DRV_REFRESH_RANGE) *
+					g_fps_info.num);
+	if (g_fps_info.range != NULL) {
 #ifdef PLATFORM_SUPPORT_ARR
-	g_fps_info.range[0].min_fps = primary_display_arr20_get_min_refresh_rate(0);
-	g_fps_info.range[0].max_fps = primary_display_arr20_get_max_refresh_rate(0);
+		g_fps_info.range[0].min_fps =
+			primary_display_arr20_get_min_refresh_rate(0);
+		g_fps_info.range[0].max_fps =
+			primary_display_arr20_get_max_refresh_rate(0);
 #else
-	g_fps_info.range[0].min_fps = primary_display_get_min_refresh_rate();
+		if (primary_display_get_min_refresh_rate) {
+			g_fps_info.range[0].min_fps =
+				primary_display_get_min_refresh_rate();
+		} else {
+			g_fps_info.range[0].min_fps = 60;
+		}
 
-	g_fps_info.range[0].max_fps = primary_display_get_max_refresh_rate();
+		if (primary_display_get_max_refresh_rate) {
+			g_fps_info.range[0].max_fps =
+				primary_display_get_max_refresh_rate();
+		} else {
+			g_fps_info.range[0].max_fps = 60;
+		}
 #endif
+	} else {
+		pr_info("failed to create REFRESH_RANGE, use default value");
+		g_fps_info.range = &g_default_fps_info;
+	}
 
 	dfrc_init_kernel_policy();
 
@@ -1719,12 +1838,12 @@ static int dfrc_probe(struct platform_device *pdev)
 
 static int dfrc_remove(struct platform_device *pdev)
 {
-	DFRC_DBG("start RRC FPS driver remove\n");
+	pr_debug("start RRC FPS driver remove\n");
 	device_destroy(dfrc_class, dfrc_devno);
 	class_destroy(dfrc_class);
 	cdev_del(dfrc_cdev);
 	unregister_chrdev_region(dfrc_devno, 1);
-	DFRC_DBG("done RRC FPS driver remove\n");
+	pr_debug("done RRC FPS driver remove\n");
 
 	return 0;
 }
@@ -1775,18 +1894,18 @@ static int __init dfrc_init(void)
 {
 	int res = 0;
 
-	DFRC_INFO("start to initialize fps policy\n");
+	pr_info("start to initialize fps policy\n");
 
-	DFRC_INFO("register fps policy device\n");
+	pr_debug("register fps policy device\n");
 	if (platform_device_register(&dfrc_device)) {
-		DFRC_ERR("failed to register fps policy device\n");
+		pr_err("failed to register fps policy device\n");
 		res = -ENODEV;
 		return res;
 	}
 
-	DFRC_INFO("register fps policy driver\n");
+	pr_debug("register fps policy driver\n");
 	if (platform_driver_register(&dfrc_driver)) {
-		DFRC_ERR("failed to register fps policy driver\n");
+		pr_err("failed to register fps policy driver\n");
 		res = -ENODEV;
 		return res;
 	}

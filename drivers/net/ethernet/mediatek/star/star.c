@@ -1,15 +1,15 @@
-/* Mediatek STAR MAC network driver.
+/*
+ * Copyright (c) 2019 MediaTek Inc.
+ * Author: Zhiyong Tao <zhiyong.tao@mediatek.com>
  *
- * Copyright (c) 2016-2017 MediaTek Inc.
- *
- * program is free software; you can redistribute it and/or modify
+ * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #include <linux/clk.h>
@@ -33,6 +33,14 @@
 #define ETH_WOL_NAME "WOL"
 
 static void star_finish_xmit(struct net_device *dev);
+
+u32 star_dma_rx_valid(u32 ctrl_len)
+{
+	return (((ctrl_len & RX_FS) != 0) &&
+		((ctrl_len & RX_LS) != 0) &&
+		((ctrl_len & RX_CRCERR) == 0) &&
+		((ctrl_len & RX_OSIZE) == 0));
+}
 
 static struct sk_buff *get_skb(struct net_device *ndev)
 {
@@ -82,11 +90,11 @@ static int alloc_rx_skbs(star_dev *star_dev)
 		}
 
 		/* Note:
-		* We pass to dma addr with skb->tail-2 (4N aligned),
-		* Because Star Ethernet buffer must 16 byte align
-		* But the RX_OFFSET_2B_DIS has to be set to 0, making
-		* DMA to write tail (4N+2) addr.
-		*/
+		 * We pass to dma addr with skb->tail-2 (4N aligned),
+		 * Because Star Ethernet buffer must 16 byte align
+		 * But the RX_OFFSET_2B_DIS has to be set to 0, making
+		 * DMA to write tail (4N+2) addr.
+		 */
 		dmaBuf = dma_map_single(star_dev->dev,
 					skb_tail_pointer(skb) - 2,
 					skb_tailroom(skb),
@@ -98,7 +106,8 @@ static int alloc_rx_skbs(star_dev *star_dev)
 
 		retval = star_dma_rx_set(star_dev, dmaBuf,
 					 skb_tailroom(skb), (uintptr_t)skb);
-		STAR_PR_DEBUG("rx descriptor idx(%d) for skb(%p)\n", retval, skb);
+		STAR_PR_DEBUG("rx descriptor idx(%d) for skb(%p)\n",
+			      retval, skb);
 		if (retval < 0) {
 			dma_unmap_single(star_dev->dev, dmaBuf,
 					 skb_tailroom(skb), DMA_FROM_DEVICE);
@@ -264,11 +273,11 @@ static irqreturn_t star_isr(int irq, void *dev_id)
 	intr_clr_msk &= ~STAR_INT_STA_RXC;
 
 	if (!dev) {
-		STAR_PR_ERR("star_isr - unknown device\n");
+		STAR_PR_ERR("%s - unknown device\n", __func__);
 		return IRQ_NONE;
 	}
 
-	STAR_PR_DEBUG("star_isr(%s)\n", dev->name);
+	STAR_PR_DEBUG("%s(%s)\n", __func__, dev->name);
 
 	star_prv = netdev_priv(dev);
 	star_dev = &star_prv->star_dev;
@@ -279,7 +288,7 @@ static irqreturn_t star_isr(int irq, void *dev_id)
 
 	do {
 		STAR_PR_DEBUG(
-			 "star_isr:interrupt status(0x%08x)\n", intrStatus);
+			 "%s:interrupt status(0x%08x)\n", __func__, intrStatus);
 		if (intrStatus & STAR_INT_STA_RXC) {
 			STAR_PR_DEBUG("rx complete\n");
 			/* Disable rx interrupts */
@@ -328,7 +337,7 @@ static irqreturn_t star_isr(int irq, void *dev_id)
 	if (star_prv->tsk_tx)
 		tasklet_schedule(&star_prv->dsr);
 
-	STAR_PR_DEBUG("star_isr return\n");
+	STAR_PR_DEBUG("%s return\n", __func__);
 
 	return IRQ_HANDLED;
 }
@@ -336,7 +345,7 @@ static irqreturn_t star_isr(int irq, void *dev_id)
 #ifdef CONFIG_STAR_USE_RMII_MODE
 static irqreturn_t star_eint_isr(int irq, void *dev_id)
 {
-	STAR_PR_INFO("enter star_eint_isr\n");
+	STAR_PR_INFO("enter %s\n", __func__);
 
 	return IRQ_HANDLED;
 }
@@ -453,7 +462,7 @@ static int star_open(struct net_device *ndev)
 	int ret;
 	star_private *star_prv = netdev_priv(ndev);
 
-	STAR_PR_INFO("star_open(%s)\n", ndev->name);
+	STAR_PR_INFO("%s(%s)\n", __func__, ndev->name);
 
 	if (star_prv->opened) {
 		STAR_PR_INFO("%s(%s) is already open\n",
@@ -761,7 +770,7 @@ static void starmac_get_drvinfo(struct net_device *dev,
 	strlcpy(info->version, STAR_DRV_VERSION, sizeof(info->version));
 }
 
-static struct ethtool_ops starmac_ethtool_ops = {
+static const struct ethtool_ops starmac_ethtool_ops = {
 	.begin = starmac_check_if_running,
 	.get_drvinfo = starmac_get_drvinfo,
 	.get_settings = starmac_get_settings,
@@ -826,19 +835,23 @@ static int star_resume(struct platform_device *pdev)
 			STAR_PR_INFO("Not support wol.\n");
 			ret = regulator_enable(star_prv->phy_regulator);
 			if (ret != 0)
-				STAR_PR_ERR("failed to regulator_enable(%d)\n", ret);
+				STAR_PR_ERR("failed to regulator_enable(%d)\n",
+					    ret);
 
 			ret = clk_prepare_enable(star_prv->core_clk);
 			if (ret < 0)
-				STAR_PR_ERR("failed to enable core-clk (%d)\n", ret);
+				STAR_PR_ERR("failed to enable core-clk (%d)\n",
+					    ret);
 
 			ret = clk_prepare_enable(star_prv->reg_clk);
 			if (ret < 0)
-				STAR_PR_ERR("failed to enable reg-clk (%d)\n", ret);
+				STAR_PR_ERR("failed to enable reg-clk (%d)\n",
+					    ret);
 
 			ret = clk_prepare_enable(star_prv->trans_clk);
 			if (ret < 0)
-				STAR_PR_ERR("failed to enable trans-clk (%d)\n", ret);
+				STAR_PR_ERR("failed to enable trans-clk (%d)\n",
+					    ret);
 
 			star_hw_init(star_dev);
 			star_mac_enable(netdev);
@@ -892,7 +905,7 @@ static int star_probe(struct platform_device *pdev)
 	star_dev = &star_prv->star_dev;
 	star_dev->dev = &pdev->dev;
 
-	np = of_find_compatible_node(NULL, NULL, "mediatek,mt8516-ethernet");
+	np = of_find_compatible_node(NULL, NULL, "mediatek,mt8168-ethernet");
 	if (!np) {
 		STAR_PR_ERR("%s, fail to find node\n", __func__);
 		ret = -EINVAL;
@@ -935,10 +948,13 @@ static int star_probe(struct platform_device *pdev)
 		goto err_free_netdev;
 	}
 
-	star_prv->phy_regulator = devm_regulator_get(&pdev->dev, "eth-regulator");
-	ret = regulator_set_voltage(star_prv->phy_regulator, 3300000, 3300000);
+	star_prv->phy_regulator = devm_regulator_get(&pdev->dev,
+						     "eth-regulator");
+	ret = regulator_set_voltage(star_prv->phy_regulator,
+				    3300000, 3300000);
 	if (ret != 0) {
-		STAR_PR_ERR("failed to regulator_set_voltage(%d)\n", ret);
+		STAR_PR_ERR("failed to regulator_set_voltage(%d)\n",
+			    ret);
 		return ret;
 	}
 	ret = regulator_enable(star_prv->phy_regulator);
@@ -1058,7 +1074,7 @@ static int star_probe(struct platform_device *pdev)
 	if (ret)
 		STAR_PR_INFO("star_init_procfs fail\n");
 
-	STAR_PR_INFO("star_probe success.\n");
+	STAR_PR_INFO("%s success.\n", __func__);
 
 	return 0;
 
@@ -1098,6 +1114,7 @@ static int star_remove(struct platform_device *pdev)
 
 static const struct of_device_id star_of_match[] = {
 	{ .compatible = "mediatek,mt8516-ethernet", },
+	{ .compatible = "mediatek,mt8168-ethernet", },
 	{},
 };
 

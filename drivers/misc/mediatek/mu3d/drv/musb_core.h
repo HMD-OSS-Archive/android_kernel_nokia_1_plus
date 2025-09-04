@@ -42,15 +42,26 @@
 #include <linux/usb.h>
 #include <linux/usb/otg.h>
 #include <linux/usb/musb.h>
-#include <linux/wakelock.h>
+#include <linux/pm_wakeup.h>
 #include <linux/workqueue.h>
-/*#include <mt-plat/battery_common.h>*/
-#if (CONFIG_MTK_GAUGE_VERSION != 30)
-#include <mt-plat/charging.h>
-#endif
+#if !defined(CONFIG_MTK_GAUGE_VERSION) || defined(CONFIG_FPGA_EARLY_PORTING)
+enum charger_type {
+	CHARGER_UNKNOWN = 0,
+	STANDARD_HOST,		/* USB : 450mA */
+	CHARGING_HOST,
+	NONSTANDARD_CHARGER,	/* AC : 450mA~1A */
+	STANDARD_CHARGER,	/* AC : ~1A */
+	APPLE_2_1A_CHARGER, /* 2.1A apple charger */
+	APPLE_1_0A_CHARGER, /* 1A apple charger */
+	APPLE_0_5A_CHARGER, /* 0.5A apple charger */
+	WIRELESS_CHARGER,
+};
+#else
 #if (CONFIG_MTK_GAUGE_VERSION == 30)
 #include <mt-plat/charger_type.h>
 #endif
+#endif
+
 
 struct musb;
 struct musb_hw_ep;
@@ -61,7 +72,7 @@ extern int fake_CDP;
 extern unsigned int musb_speed;
 
 extern struct musb *_mu3d_musb;
-#if defined(CONFIG_MTK_SMART_BATTERY) && !defined(FOR_BRING_UP)
+#if defined(CONFIG_MTK_CHARGER) && !defined(FOR_BRING_UP)
 extern void BATTERY_SetUSBState(int usb_state_value);
 extern enum charger_type mt_get_charger_type(void);
 #endif
@@ -576,7 +587,6 @@ struct musb {
 
 	u8 address;
 	u8 test_mode_nr;
-	bool in_ipo_off;
 	u32 ackpend;		/* ep0 *//*We don't maintain Max Packet size in it. */
 	enum musb_g_ep0_state ep0_state;
 	struct usb_gadget g;	/* the gadget */
@@ -612,8 +622,7 @@ struct musb {
 	unsigned active_ep;
 	enum charger_type charger_mode;
 	struct work_struct suspend_work;
-	struct wake_lock usb_wakelock;
-	struct delayed_work connection_work;
+	struct wakeup_source usb_wakelock;
 	struct delayed_work check_ltssm_work;
 #ifndef CONFIG_USBIF_COMPLIANCE
 	struct delayed_work reconnect_work;
@@ -774,6 +783,13 @@ static inline int musb_platform_exit(struct musb *musb)
 	return musb->ops->exit(musb);
 }
 
+#ifdef CONFIG_DUAL_ROLE_USB_INTF
+extern void mt_usb_dual_role_to_none(void);
+extern void mt_usb_dual_role_to_device(void);
+extern void mt_usb_dual_role_to_host(void);
+extern int mt_usb_dual_role_init(struct musb *musb);
+#endif
+
 extern bool usb_cable_connected(void);
 extern void usb_phy_savecurrent(unsigned int clk_on);
 extern void usb_phy_recover(unsigned int clk_on);
@@ -830,8 +846,6 @@ extern u32 upmu_get_rgs_chrdet(void);
 
 #ifdef CONFIG_USB_MTK_DUALMODE
 extern bool mtk_is_host_mode(void);
-extern void mtk_enable_host(void);
-extern void mtk_disable_host(void);
 
 #else
 static inline int mtk_is_host_mode(void)
@@ -839,12 +853,20 @@ static inline int mtk_is_host_mode(void)
 	return 0;
 }
 #endif
-#ifdef CONFIG_USB_C_SWITCH
-extern int typec_switch_usb_disconnect(void *data);
-extern int typec_switch_usb_connect(void *data);
-#endif
 extern int mu3d_force_on;
 extern void mt_usb_connect(void);
+extern void mt_usb_disconnect(void);
+extern void mt_usb_reconnect(void);
 extern void mt_usb_connect_test(int start);
 extern void trigger_disconnect_check_work(void);
+/* specific USB operation */
+enum CONNECTION_OPS {
+	CONNECTION_OPS_DISC = 0,
+	CONNECTION_OPS_CHECK,
+	CONNECTION_OPS_CONN
+};
+struct mt_usb_work {
+	struct delayed_work dwork;
+	int ops;
+};
 #endif	/* __MUSB_CORE_H__ */

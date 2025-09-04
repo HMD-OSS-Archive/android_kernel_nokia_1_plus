@@ -17,7 +17,7 @@
 #define IN_RANGE(s, e, rs, re)	(s >= rs && e <= re)
 
 /* Print wrapper */
-#define MTKPASR_PRINT(args...)	do {} while (0) /* pr_alert(args) */
+#define MTKPASR_PRINT(args...)	do {} while (0) /* pr_info(args) */
 
 /*-- Data structures */
 
@@ -32,7 +32,8 @@ struct mtkpasr_bank {
 
 /* PASR masked with channel information */
 struct pasrvec {
-	unsigned long pasr_on;		/* LSB stands for the segment with the smallest order */
+	/* LSB stands for the segment with the smallest order */
+	unsigned long pasr_on;
 	int channel;			/* which channel */
 };
 
@@ -42,10 +43,15 @@ struct pasrvec {
 extern unsigned long query_channel_segment_bits(void);
 
 /* MTKPASR internal functions */
-extern int __init mtkpasr_init_range(unsigned long start_pfn, unsigned long end_pfn, unsigned long *bank_pfns);
+extern int __init mtkpasr_init_range(unsigned long start_pfn,
+		unsigned long end_pfn, unsigned long *bank_pfns);
 
-/* Give bank, this function will return its (start_pfn, end_pfn) and corresponding rank */
-extern int __init query_bank_rank_information(int bank, unsigned long *spfn, unsigned long *epfn, int *segn);
+/*
+ * Give bank, this function will return its (start_pfn, end_pfn)
+ * and corresponding rank
+ */
+extern int __init query_bank_rank_information(int bank, unsigned long *spfn,
+		unsigned long *epfn, int *segn);
 
 /* Query the number of channel */
 #ifdef DEBUG_FOR_CHANNEL_SWITCH
@@ -56,6 +62,7 @@ extern unsigned int __init get_channel_num(void);
 
 /* Query PASR masked with specified channel configuration */
 #define USE_ORIG_CHCONFIG	(0xFFFFFFFF)
-extern int fill_pasr_on_by_chconfig(unsigned int chconfig, struct pasrvec *pasrvec, unsigned long opon);
+extern int fill_pasr_on_by_chconfig(unsigned int chconfig,
+		struct pasrvec *pasrvec, unsigned long opon);
 
 #endif

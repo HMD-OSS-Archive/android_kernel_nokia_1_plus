@@ -14,7 +14,15 @@
 #ifndef __MTK_SPM_MISC_H__
 #define __MTK_SPM_MISC_H__
 
+/* TODO: fix */
+#if !defined(SPM_K414_EARLY_PORTING) && \
+	!defined(CONFIG_MACH_MT6739) && \
+	!defined(CONFIG_MACH_MT6771)
 #include <linux/irqchip/mtk-gic.h>
+#else
+#include <linux/irqchip/mtk-gic-extend.h>
+#endif
+
 
 /* AEE */
 #ifdef CONFIG_MTK_RAM_CONSOLE
@@ -23,15 +31,24 @@
 #define SPM_AEE_RR_REC 0
 #endif
 
+/* TODO: fix */
+#if !defined(SPM_K414_EARLY_PORTING)
 /* IRQ */
 extern int mt_irq_mask_all(struct mtk_irq_mask *mask);
 extern int mt_irq_mask_restore(struct mtk_irq_mask *mask);
 extern void mt_irq_unmask_for_sleep(unsigned int irq);
+#endif
 
 /* UART */
+#if defined(CONFIG_MACH_MT6739)
 extern int request_uart_to_sleep(void);
 extern int request_uart_to_wakeup(void);
 extern void mtk_uart_restore(void);
+#else
+extern int mtk8250_request_to_sleep(void);
+extern int mtk8250_request_to_wakeup(void);
+extern void mtk8250_restore_dev(void);
+#endif
 extern void dump_uart_reg(void);
 
 #if defined(CONFIG_MICROTRUST_TEE_SUPPORT)
@@ -99,7 +116,8 @@ extern unsigned int *aee_rr_rec_mcdi_wfi(void);
 #endif
 
 /* snapshot golden setting */
-extern int snapshot_golden_setting(const char *func, const unsigned int line);
+extern int snapshot_golden_setting(const char *func,
+				   const unsigned int line);
 extern bool is_already_snap_shot;
 
 /* power golden setting */
@@ -126,22 +144,31 @@ extern void mt_eint_print_status(void);
 
 #ifdef CONFIG_FPGA_EARLY_PORTING
 __attribute__ ((weak))
-unsigned int pmic_read_interface_nolock(unsigned int RegNum, unsigned int *val, unsigned int MASK, unsigned int SHIFT)
+unsigned int pmic_read_interface_nolock(unsigned int RegNum,
+					unsigned int *val,
+					unsigned int MASK,
+					unsigned int SHIFT)
 {
-	pr_info("NO %s !!!\n", __func__);
+	printk_deferred("[name:spm&]NO %s !!!\n", __func__);
 	return 0;
 }
 
 __attribute__ ((weak))
-unsigned int pmic_config_interface(unsigned int RegNum, unsigned int val, unsigned int MASK, unsigned int SHIFT)
+unsigned int pmic_config_interface(unsigned int RegNum,
+				   unsigned int val,
+				   unsigned int MASK,
+				   unsigned int SHIFT)
 {
-	pr_info("NO %s !!!\n", __func__);
+	printk_deferred("[name:spm&]NO %s !!!\n", __func__);
 	return 0;
 }
 __attribute__ ((weak))
-unsigned int pmic_config_interface_nolock(unsigned int RegNum, unsigned int val, unsigned int MASK, unsigned int SHIFT)
+unsigned int pmic_config_interface_nolock(unsigned int RegNum,
+					  unsigned int val,
+					  unsigned int MASK,
+					  unsigned int SHIFT)
 {
-	pr_info("NO %s !!!\n", __func__);
+	printk_deferred("[name:spm&]NO %s !!!\n", __func__);
 	return 0;
 }
 #endif /* CONFIG_FPGA_EARLY_PORTING */
@@ -149,7 +176,7 @@ unsigned int pmic_config_interface_nolock(unsigned int RegNum, unsigned int val,
 __attribute__ ((weak))
 int vcorefs_get_curr_ddr(void)
 {
-	pr_info("NO %s !!!\n", __func__);
+	printk_deferred("[name:spm&]NO %s !!!\n", __func__);
 	return -1;
 }
 

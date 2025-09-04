@@ -26,9 +26,6 @@
 #include "include/pmic_irq.h"
 #include "include/pmic_throttling_dlpt.h"
 #include "include/pmic_lbat_service.h"
-#ifdef CONFIG_MTK_AUXADC_INTF
-#include <mt-plat/mtk_auxadc_intf.h>
-#endif /* CONFIG_MTK_AUXADC_INTF */
 
 /*-------pmic_dbg_level global variable-------*/
 unsigned int gPMICDbgLvl;
@@ -42,11 +39,13 @@ unsigned int gPMICCOMDbgLvl; /* so far no used */
 int pmic_pre_wdt_reset(void)
 {
 	int ret = 0;
-/* remove dump exception status before wdt, since we will recore it at next boot preloader */
+/* remove dump exception status before wdt, since we will recore
+ * it at next boot preloader
+ */
 #if 0
 	preempt_disable();
 	local_irq_disable();
-	pr_err(PMICTAG "[%s][pmic_boot_status]\n", __func__);
+	pr_info(PMICTAG "[%s][pmic_boot_status]\n", __func__);
 	pmic_dump_exception_reg();
 #if DUMP_ALL_REG
 	pmic_dump_register();
@@ -85,13 +84,17 @@ int pmic_post_condition3(void)
  * mt-pmic dev_attr APIs
  ******************************************************************************/
 unsigned int g_reg_value;
-static ssize_t show_pmic_access(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t show_pmic_access(struct device *dev,
+				struct device_attribute *attr,
+				char *buf)
 {
-	pr_err("[show_pmic_access] 0x%x\n", g_reg_value);
+	pr_info("[%s] 0x%x\n", __func__, g_reg_value);
 	return sprintf(buf, "0x%x\n", g_reg_value);
 }
 
-static ssize_t store_pmic_access(struct device *dev, struct device_attribute *attr, const char *buf,
+static ssize_t store_pmic_access(struct device *dev,
+				 struct device_attribute *attr,
+				 const char *buf,
 				 size_t size)
 {
 	int ret = 0;
@@ -99,9 +102,10 @@ static ssize_t store_pmic_access(struct device *dev, struct device_attribute *at
 	unsigned int reg_value = 0;
 	unsigned int reg_address = 0;
 
-	pr_err("[store_pmic_access]\n");
+	pr_info("[%s]\n", __func__);
 	if (buf != NULL && size != 0) {
-		pr_err("[store_pmic_access] size is %d, buf is %s\n", (int)size, buf);
+		pr_info("[%s] size is %d, buf is %s\n"
+			, __func__, (int)size, buf);
 
 		pvalue = (char *)buf;
 		addr = strsep(&pvalue, " ");
@@ -111,97 +115,24 @@ static ssize_t store_pmic_access(struct device *dev, struct device_attribute *at
 		if (val) {
 			ret = kstrtou32(val, 16, (unsigned int *)&reg_value);
 
-			pr_err("[store_pmic_access] write PMU reg 0x%x with value 0x%x !\n",
-				reg_address, reg_value);
-			ret = pmic_config_interface(reg_address, reg_value, 0xFFFF, 0x0);
+			pr_info("[%s] write PMU reg 0x%x with value 0x%x !\n"
+				, __func__, reg_address, reg_value);
+			ret = pmic_config_interface(
+					reg_address, reg_value, 0xFFFF, 0x0);
 		} else {
-			ret = pmic_read_interface(reg_address, &g_reg_value, 0xFFFF, 0x0);
-			pr_err("[store_pmic_access] read PMU reg 0x%x with value 0x%x !\n",
-				reg_address, g_reg_value);
-			pr_err("[store_pmic_access] use \"cat pmic_access\" to get value\n");
+			ret = pmic_read_interface(
+					reg_address, &g_reg_value, 0xFFFF, 0x0);
+			pr_info("[%s] read PMU reg 0x%x with value 0x%x !\n"
+				, __func__, reg_address, g_reg_value);
+			pr_info("[%s] use \"cat pmic_access\" to get value\n"
+				,  __func__);
 		}
 	}
 	return size;
 }
 
-static DEVICE_ATTR(pmic_access, 0664, show_pmic_access, store_pmic_access);	/*664*/
-
-/*
- * DVT entry
- */
-unsigned char g_reg_value_pmic;
-
-static ssize_t show_pmic_dvt(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	pr_err("[show_pmic_dvt] 0x%x\n", g_reg_value_pmic);
-	return sprintf(buf, "%u\n", g_reg_value_pmic);
-}
-
-static ssize_t store_pmic_dvt(struct device *dev, struct device_attribute *attr, const char *buf,
-			      size_t size)
-{
-	int ret = 0;
-	char *pvalue = NULL;
-	unsigned int test_item = 0;
-
-	pr_err("[store_pmic_dvt]\n");
-
-	if (buf != NULL && size != 0) {
-		pr_err("[store_pmic_dvt] buf is %s and size is %zu\n", buf, size);
-
-		pvalue = (char *)buf;
-		ret = kstrtou32(pvalue, 16, (unsigned int *)&test_item);
-		pr_err("[store_pmic_dvt] test_item=%d\n", test_item);
-
-#ifdef MTK_PMIC_DVT_SUPPORT
-		pmic_dvt_entry(test_item);
-#else
-		pr_err("[store_pmic_dvt] no define MTK_PMIC_DVT_SUPPORT\n");
-#endif
-	}
-	return size;
-}
-
-static DEVICE_ATTR(pmic_dvt, 0664, show_pmic_dvt, store_pmic_dvt);
-
-/*
- * auxadc
- */
-#ifdef CONFIG_MTK_AUXADC_INTF
-unsigned char g_auxadc_pmic;
-
-static ssize_t show_pmic_auxadc(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	pr_err("[show_pmic_auxadc] 0x%x\n", g_auxadc_pmic);
-	return sprintf(buf, "%u\n", g_auxadc_pmic);
-}
-
-static ssize_t store_pmic_auxadc(struct device *dev, struct device_attribute *attr, const char *buf,
-			      size_t size)
-{
-	int ret = 0, i, j;
-	char *pvalue = NULL;
-	unsigned int val = 0;
-
-	pr_err("[store_pmic_auxadc]\n");
-
-	if (buf != NULL && size != 0) {
-		pvalue = (char *)buf;
-		ret = kstrtou32(pvalue, 16, (unsigned int *)&val);
-		for (i = 0; i < val; i++) {
-			for (j = 0; j < AUXADC_LIST_MAX; j++) {
-				pr_err("[PMIC_AUXADC] [%s]=%d\n",
-						pmic_get_auxadc_name(j),
-						pmic_get_auxadc_value(j));
-				mdelay(5);
-			}
-		}
-	}
-	return size;
-}
-
-static DEVICE_ATTR(pmic_auxadc_ut, 0664, show_pmic_auxadc, store_pmic_auxadc);
-#endif /*--CONFIG_MTK_AUXADC_INTF--*/
+/*664*/
+static DEVICE_ATTR(pmic_access, 0664, show_pmic_access, store_pmic_access);
 
 /*
  * PMIC dump exception
@@ -228,7 +159,9 @@ const struct file_operations pmic_dump_exception_operations = {
 
 /*-------pmic_dbg_level-------*/
 static ssize_t pmic_dbg_level_write(struct file *file,
-	const char __user *buf, size_t size, loff_t *ppos)
+				    const char __user *buf,
+				    size_t size,
+				    loff_t *ppos)
 {
 	char info[10];
 	unsigned int value = 0;
@@ -289,6 +222,32 @@ static const struct file_operations pmic_dbg_level_operations = {
 };
 
 /*
+ * PMIC reg cmp log
+ */
+/*----------------pmic reg cmp machanism-----------------------*/
+void __attribute__ ((weak)) pmic_cmp_register(struct seq_file *m)
+{
+}
+
+static int proc_cmp_register_show(struct seq_file *m, void *v)
+{
+	seq_puts(m, "*****Compare PMIC registers with initial setting*****\n");
+	pmic_cmp_register(m);
+
+	return 0;
+}
+
+static int proc_cmp_register_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, proc_cmp_register_show, NULL);
+}
+
+static const struct file_operations pmic_cmp_register_proc_fops = {
+	.open = proc_cmp_register_open,
+	.read = seq_read,
+};
+
+/*
  * PMIC reg dump log
  */
 /*----------------pmic reg dump machanism-----------------------*/
@@ -322,17 +281,23 @@ int pmic_debug_init(struct platform_device *dev)
 
 	mtk_pmic_dir = debugfs_create_dir("mtk_pmic", NULL);
 	if (!mtk_pmic_dir) {
-		pr_err(PMICTAG "fail to mkdir /sys/kernel/debug/mtk_pmic\n");
+		pr_notice(PMICTAG "fail to mkdir /sys/kernel/debug/mtk_pmic\n");
 		return -ENOMEM;
 	}
 
 	/*--/sys/kernel/debug/mtk_pmic--*/
-	debugfs_create_file("dump_pmic_reg", S_IRUGO | S_IWUSR,
-				mtk_pmic_dir, NULL, &pmic_dump_register_proc_fops);
-	debugfs_create_file("pmic_dump_exception", (S_IFREG | S_IRUGO),
-				mtk_pmic_dir, NULL, &pmic_dump_exception_operations);
-	debugfs_create_file("pmic_dbg_level", (S_IFREG | S_IRUGO),
-				mtk_pmic_dir, NULL, &pmic_dbg_level_operations);
+	debugfs_create_file("dump_pmic_reg", 0644,
+				mtk_pmic_dir, NULL,
+				&pmic_dump_register_proc_fops);
+	debugfs_create_file("cmp_pmic_reg", 0644,
+				mtk_pmic_dir, NULL,
+				&pmic_cmp_register_proc_fops);
+	debugfs_create_file("pmic_dump_exception", (S_IFREG | 0444),
+				mtk_pmic_dir, NULL,
+				&pmic_dump_exception_operations);
+	debugfs_create_file("pmic_dbg_level", (S_IFREG | 0444),
+				mtk_pmic_dir, NULL,
+				&pmic_dbg_level_operations);
 
 	pmic_regulator_debug_init(dev, mtk_pmic_dir);
 
@@ -342,15 +307,12 @@ int pmic_debug_init(struct platform_device *dev)
 
 	lbat_debug_init(mtk_pmic_dir);
 
-	PMICLOG("pmic_debug_init debugfs done\n");
+	PMICLOG("%s debugfs done\n", __func__);
 
 	/*--/sys/devices/platform/mt-pmic/ --*/
-	ret_device_file = device_create_file(&(dev->dev), &dev_attr_pmic_access);
-	ret_device_file = device_create_file(&(dev->dev), &dev_attr_pmic_dvt);
-#ifdef CONFIG_MTK_AUXADC_INTF
-	ret_device_file = device_create_file(&(dev->dev), &dev_attr_pmic_auxadc_ut);
-#endif /*CONFIG_MTK_AUXADC_INTF*/
-	PMICLOG("pmic_debug_init dev attr done\n");
+	ret_device_file = device_create_file(&(dev->dev),
+					     &dev_attr_pmic_access);
+	PMICLOG("%s dev attr done\n", __func__);
 
 	return 0;
 }

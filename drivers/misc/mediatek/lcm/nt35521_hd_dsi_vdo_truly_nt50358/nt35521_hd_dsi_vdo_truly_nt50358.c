@@ -55,7 +55,7 @@
 #define LCM_ID_NT35521 (0xf5)
 
 static const unsigned int BL_MIN_LEVEL = 20;
-static LCM_UTIL_FUNCS lcm_util;
+static struct LCM_UTIL_FUNCS lcm_util;
 
 #define SET_RESET_PIN(v)	(lcm_util.set_reset_pin((v)))
 #define MDELAY(n)		(lcm_util.mdelay(n))
@@ -160,7 +160,7 @@ static int tps65132_probe(struct i2c_client *client, const struct i2c_device_id 
 
 static int tps65132_remove(struct i2c_client *client)
 {
-	LCM_LOGI("tps65132_remove\n");
+	LCM_LOGI("%s\n", __func__);
 	tps65132_i2c_client = NULL;
 	i2c_unregister_device(client);
 	return 0;
@@ -185,19 +185,19 @@ int tps65132_write_bytes(unsigned char addr, unsigned char value)
 
 static int __init tps65132_iic_init(void)
 {
-	LCM_LOGI("tps65132_iic_init\n");
+	LCM_LOGI("%s\n", __func__);
 #if defined(CONFIG_MTK_LEGACY)
 	i2c_register_board_info(TPS_I2C_BUSNUM, &tps65132_board_info, 1);
 #endif
 	LCM_LOGI("tps65132_iic_init2\n");
 	i2c_add_driver(&tps65132_iic_driver);
-	LCM_LOGI("tps65132_iic_init success\n");
+	LCM_LOGI("%s success\n", __func__);
 	return 0;
 }
 
 static void __exit tps65132_iic_exit(void)
 {
-	LCM_LOGI("tps65132_iic_exit\n");
+	LCM_LOGI("%s\n", __func__);
 	i2c_del_driver(&tps65132_iic_driver);
 }
 
@@ -232,7 +232,7 @@ static const unsigned char LCD_MODULE_ID = 0x01;
 #define REGFLAG_RESET_LOW	0xFFFE
 #define REGFLAG_RESET_HIGH	0xFFFF
 
-static LCM_DSI_MODE_SWITCH_CMD lcm_switch_mode_cmd;
+static struct LCM_DSI_MODE_SWITCH_CMD lcm_switch_mode_cmd;
 
 #ifndef TRUE
 #define TRUE 1
@@ -451,15 +451,15 @@ static void push_table(void *cmdq, struct LCM_setting_table *table,
 }
 
 
-static void lcm_set_util_funcs(const LCM_UTIL_FUNCS *util)
+static void lcm_set_util_funcs(const struct LCM_UTIL_FUNCS *util)
 {
-	memcpy(&lcm_util, util, sizeof(LCM_UTIL_FUNCS));
+	memcpy(&lcm_util, util, sizeof(struct LCM_UTIL_FUNCS));
 }
 
 
-static void lcm_get_params(LCM_PARAMS *params)
+static void lcm_get_params(struct LCM_PARAMS *params)
 {
-	memset(params, 0, sizeof(LCM_PARAMS));
+	memset(params, 0, sizeof(struct LCM_PARAMS));
 
 	params->type = LCM_TYPE_DSI;
 
@@ -481,7 +481,7 @@ static void lcm_get_params(LCM_PARAMS *params)
 	params->dsi.switch_mode = CMD_MODE;
 	lcm_dsi_mode = SYNC_PULSE_VDO_MODE;
 #endif
-	LCM_LOGI("lcm_get_params lcm_dsi_mode %d\n", lcm_dsi_mode);
+	LCM_LOGI("%s lcm_dsi_mode %d\n", __func__, lcm_dsi_mode);
 	params->dsi.switch_mode_enable = 0;
 
 	/* DSI */
@@ -845,7 +845,7 @@ static void *lcm_switch_mode(int mode)
 }
 
 
-LCM_DRIVER nt35521_hd_dsi_vdo_truly_nt50358_lcm_drv = {
+struct LCM_DRIVER nt35521_hd_dsi_vdo_truly_nt50358_lcm_drv = {
 	.name = "nt35521_hd_dsi_vdo_truly_nt50358_drv",
 	.set_util_funcs = lcm_set_util_funcs,
 	.get_params = lcm_get_params,

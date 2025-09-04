@@ -19,10 +19,10 @@
 
 #define TZ_TA_DRMKEY_UUID   "989850BF-4663-9DCD-394C-07A45F4633D1"
 
-/* Data Structure for DRMKEY TA
- * You should define data structure used both in REE/TEE here
+/* Data Structure for DRMKEY TA */
+/* You should define data structure used both in REE/TEE here
+ * N/A for Test TA
  */
-/* N/A for DRMKEY TA */
 
 /* Command for Test TA */
 #define TZCMD_DRMKEY_INSTALL		0
@@ -34,4 +34,4 @@
 #define TZCMD_DRMKEY_VERIFY_AEK		6
 #define TZCMD_DRMKEY_SIGNATURE_OP	7
 
-#endif	/* __TRUSTZONE_TA_DRMKEY__ */
+#endif				/* __TRUSTZONE_TA_DRMKEY__ */

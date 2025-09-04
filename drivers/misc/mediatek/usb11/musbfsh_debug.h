@@ -61,7 +61,7 @@ extern int musbfsh_debug;
 		} \
 	} while (0)
 
-static inline int _dbg_level(unsigned level)
+static inline int _dbg_level(unsigned int level)
 {
 	return level <= musbfsh_debug;
 }

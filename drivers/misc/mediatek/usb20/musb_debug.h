@@ -63,11 +63,11 @@
 		} \
 	} } while (0)
 
-extern int musb_debug;
-extern int musb_debug_limit;
-extern int musb_uart_debug;
+extern unsigned int musb_debug;
+extern unsigned int musb_debug_limit;
+extern unsigned int musb_uart_debug;
 
-static inline int _dbg_level(unsigned level)
+static inline int _dbg_level(unsigned int level)
 {
 	return level <= musb_debug;
 }

@@ -21,7 +21,7 @@
 #include "kree_int.h"
 
 #ifdef CONFIG_OF
-TZ_RESULT KREE_ServEnableClock(u32 op, u8 uparam[REE_SERVICE_BUFFER_SIZE])
+int KREE_ServEnableClock(u32 op, u8 uparam[REE_SERVICE_BUFFER_SIZE])
 {
 	struct ree_service_clock *param = (struct ree_service_clock *)uparam;
 	struct clk *clk = mtee_clk_get(param->clk_name);
@@ -36,7 +36,7 @@ TZ_RESULT KREE_ServEnableClock(u32 op, u8 uparam[REE_SERVICE_BUFFER_SIZE])
 	return TZ_RESULT_SUCCESS;
 }
 
-TZ_RESULT KREE_ServDisableClock(u32 op, u8 uparam[REE_SERVICE_BUFFER_SIZE])
+int KREE_ServDisableClock(u32 op, u8 uparam[REE_SERVICE_BUFFER_SIZE])
 {
 	struct ree_service_clock *param = (struct ree_service_clock *)uparam;
 	struct clk *clk = mtee_clk_get(param->clk_name);
@@ -51,10 +51,10 @@ TZ_RESULT KREE_ServDisableClock(u32 op, u8 uparam[REE_SERVICE_BUFFER_SIZE])
 	return TZ_RESULT_SUCCESS;
 }
 #else
-TZ_RESULT KREE_ServEnableClock(u32 op, u8 uparam[REE_SERVICE_BUFFER_SIZE])
+int KREE_ServEnableClock(u32 op, u8 uparam[REE_SERVICE_BUFFER_SIZE])
 {
 /*	struct ree_service_clock *param = (struct ree_service_clock *)uparam; */
-	TZ_RESULT ret = TZ_RESULT_ERROR_GENERIC;
+	int ret = TZ_RESULT_ERROR_GENERIC;
 /*	int rret; */
 
 /*	rret = enable_clock(param->clk_id, param->clk_name); */
@@ -64,10 +64,10 @@ TZ_RESULT KREE_ServEnableClock(u32 op, u8 uparam[REE_SERVICE_BUFFER_SIZE])
 	return ret;
 }
 
-TZ_RESULT KREE_ServDisableClock(u32 op, u8 uparam[REE_SERVICE_BUFFER_SIZE])
+int KREE_ServDisableClock(u32 op, u8 uparam[REE_SERVICE_BUFFER_SIZE])
 {
 /*	struct ree_service_clock *param = (struct ree_service_clock *)uparam; */
-	TZ_RESULT ret = TZ_RESULT_ERROR_GENERIC;
+	int ret = TZ_RESULT_ERROR_GENERIC;
 /*	int rret; */
 
 /*	rret = disable_clock(param->clk_id, param->clk_name); */

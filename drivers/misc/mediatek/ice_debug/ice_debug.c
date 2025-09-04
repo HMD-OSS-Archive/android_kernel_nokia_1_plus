@@ -21,11 +21,11 @@
 #include <linux/clk.h>
 #include <linux/io.h>
 
-static const struct of_device_id mt8173_icedbg_match[] = {
-	{.compatible = "mediatek,mt8173-ice_debug", },
+static const struct of_device_id mt2701_icedbg_match[] = {
+	{.compatible = "mediatek,mt2701-ice_debug", },
 	{ }
 };
-MODULE_DEVICE_TABLE(of, mt8173_icedbg_match);
+MODULE_DEVICE_TABLE(of, mt2701_icedbg_match);
 
 static int mtk_ice_debug_probe(struct platform_device *pdev)
 {
@@ -49,9 +49,9 @@ static int mtk_ice_debug_probe(struct platform_device *pdev)
 static struct platform_driver mtk_icedbg_driver = {
 	.probe = mtk_ice_debug_probe,
 	.driver = {
-		.name = "mediatek,mt8173-ice_debug",
+		.name = "mediatek,mt2701-ice_debug",
 		.owner = THIS_MODULE,
-		.of_match_table = mt8173_icedbg_match,
+		.of_match_table = mt2701_icedbg_match,
 	},
 };
 
@@ -62,5 +62,5 @@ static int __init mtk_ice_debug_init(void)
 module_init(mtk_ice_debug_init);
 
 MODULE_LICENSE("GPL v2");
-MODULE_DESCRIPTION("MediaTek ICE_DEBUG Driver");
+MODULE_DESCRIPTION("MediaTek MT2701 ICE_DEBUG Driver");
 MODULE_AUTHOR("Maoguang Meng <maoguang.meng@mediatek.com>");

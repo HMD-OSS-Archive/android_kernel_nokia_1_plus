@@ -1,10 +1,10 @@
 /*
- * Copyright (C) 2017 MediaTek Inc.
-
+ * Copyright (C) 2018 MediaTek Inc.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
-
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -36,12 +36,18 @@
 /*            1 : ON                                                */
 /* ---------------------------------------------------------------  */
 
-#define pmic_set_sw_en(addr, val)             pmic_config_interface_nolock(addr, val, 1, 0)
-#define pmic_set_sw_lp(addr, val)             pmic_config_interface_nolock(addr, val, 1, 1)
-#define pmic_set_op_en(user, addr, val)       pmic_config_interface_nolock(addr, val, 1, user)
-#define pmic_set_op_cfg(user, addr, val)      pmic_config_interface_nolock(addr, val, 1, user)
-#define pmic_get_op_en(user, addr, pval)      pmic_read_interface_nolock(addr, pval, 1, user)
-#define pmic_get_op_cfg(user, addr, pval)     pmic_read_interface_nolock(addr, pval, 1, user)
+#define pmic_set_sw_en(addr, val)             \
+			pmic_config_interface_nolock(addr, val, 1, 0)
+#define pmic_set_sw_lp(addr, val)             \
+			pmic_config_interface_nolock(addr, val, 1, 1)
+#define pmic_set_op_en(user, addr, val)       \
+			pmic_config_interface_nolock(addr, val, 1, user)
+#define pmic_set_op_cfg(user, addr, val)      \
+			pmic_config_interface_nolock(addr, val, 1, user)
+#define pmic_get_op_en(user, addr, pval)      \
+			pmic_read_interface_nolock(addr, pval, 1, user)
+#define pmic_get_op_cfg(user, addr, pval)     \
+			pmic_read_interface_nolock(addr, pval, 1, user)
 
 #define en_cfg_shift  0x6
 
@@ -93,7 +99,8 @@ const struct PMU_LP_TABLE_ENTRY pmu_lp_table[] = {
 	PMIC_LP_LDO_ENTRY(VBIF28),
 };
 
-static int pmic_lp_golden_set(unsigned int en_adr, unsigned char op_en, unsigned char op_cfg)
+static int pmic_lp_golden_set(unsigned int en_adr,
+		unsigned char op_en, unsigned char op_cfg)
 {
 	unsigned int en_cfg = 0, lp_cfg = 0;
 
@@ -110,8 +117,11 @@ static int pmic_lp_golden_set(unsigned int en_adr, unsigned char op_en, unsigned
 }
 #endif
 
-static int pmic_lp_type_set(unsigned short en_cfg_adr, enum PMU_LP_TABLE_ENUM name,
-			    enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+static int pmic_lp_type_set(unsigned short en_cfg_adr,
+		enum PMU_LP_TABLE_ENUM name,
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
 	unsigned int rb_en = 0, rb_cfg = 0, max_cfg = 1;
 	unsigned short op_en_adr = 0, op_cfg_adr = 0;
@@ -136,7 +146,7 @@ static int pmic_lp_type_set(unsigned short en_cfg_adr, enum PMU_LP_TABLE_ENUM na
 	PMICLOG("0x%x,type %d\n", en_cfg_adr, user);
 
 #if defined(LGS) || defined(LGSWS)
-	const PMU_LP_TABLE_ENTRY *pFlag = &pmu_lp_table[name];
+	const struct PMU_LP_TABLE_ENTRY *pFlag = &pmu_lp_table[name];
 
 	if (user == SW || user == SPM)
 		pmic_lp_golden_set((unsigned int)pFlag->en_adr, op_en, op_cfg);
@@ -162,263 +172,387 @@ static int pmic_lp_type_set(unsigned short en_cfg_adr, enum PMU_LP_TABLE_ENUM na
 	return ret;
 }
 
-int pmic_buck_vproc11_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_buck_vproc11_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_buck_vproc11_lp\n");
-	return pmic_lp_type_set(MT6358_BUCK_VPROC11_OP_EN, VPROC11, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_BUCK_VPROC11_OP_EN,
+				VPROC11, user, op_en, op_cfg);
 }
 
-int pmic_buck_vcore_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_buck_vcore_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_buck_vcore_lp\n");
-	return pmic_lp_type_set(MT6358_BUCK_VCORE_OP_EN, VCORE, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_BUCK_VCORE_OP_EN,
+				VCORE, user, op_en, op_cfg);
 }
 
-int pmic_buck_vgpu_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_buck_vgpu_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_buck_vgpu_lp\n");
-	return pmic_lp_type_set(MT6358_BUCK_VGPU_OP_EN, VGPU, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_BUCK_VGPU_OP_EN,
+				VGPU, user, op_en, op_cfg);
 }
 
-int pmic_buck_vmodem_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_buck_vmodem_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_buck_vmodem_lp\n");
-	return pmic_lp_type_set(MT6358_BUCK_VMODEM_OP_EN, VMODEM, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_BUCK_VMODEM_OP_EN,
+				VMODEM, user, op_en, op_cfg);
 }
 
-int pmic_buck_vs1_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_buck_vs1_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_buck_vs1_lp\n");
-	return pmic_lp_type_set(MT6358_BUCK_VS1_OP_EN, VS1, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_BUCK_VS1_OP_EN,
+				VS1, user, op_en, op_cfg);
 }
 
-int pmic_buck_vs2_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_buck_vs2_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_buck_vs2_lp\n");
-	return pmic_lp_type_set(MT6358_BUCK_VS2_OP_EN, VS2, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_BUCK_VS2_OP_EN,
+				VS2, user, op_en, op_cfg);
 }
 
-int pmic_buck_vpa_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_buck_vpa_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_buck_vpa_lp\n");
-	return pmic_lp_type_set(0, VPA, user, op_en, op_cfg);
+	return pmic_lp_type_set(0,
+				VPA, user, op_en, op_cfg);
 }
 
-int pmic_buck_vdram1_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_buck_vdram1_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_buck_vdram1_lp\n");
-	return pmic_lp_type_set(MT6358_BUCK_VDRAM1_OP_EN, VDRAM1, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_BUCK_VDRAM1_OP_EN,
+				VDRAM1, user, op_en, op_cfg);
 }
 
-int pmic_buck_vproc12_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_buck_vproc12_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_buck_vproc12_lp\n");
-	return pmic_lp_type_set(MT6358_BUCK_VPROC12_OP_EN, VPROC12, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_BUCK_VPROC12_OP_EN,
+				VPROC12, user, op_en, op_cfg);
 }
 
-int pmic_ldo_vsram_gpu_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_ldo_vsram_gpu_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_ldo_vsram_gpu_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VSRAM_GPU_OP_EN, VSRAM_GPU, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_LDO_VSRAM_GPU_OP_EN,
+				VSRAM_GPU, user, op_en, op_cfg);
 }
 
-int pmic_ldo_vsram_others_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_ldo_vsram_others_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_ldo_vsram_others_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VSRAM_OTHERS_OP_EN, VSRAM_OTHERS, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_LDO_VSRAM_OTHERS_OP_EN,
+				VSRAM_OTHERS, user, op_en, op_cfg);
 }
 
-int pmic_ldo_vsram_proc11_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_ldo_vsram_proc11_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_ldo_vsram_proc11_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VSRAM_PROC11_OP_EN, VSRAM_PROC11, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_LDO_VSRAM_PROC11_OP_EN,
+				VSRAM_PROC11, user, op_en, op_cfg);
 }
 
-int pmic_ldo_vxo22_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_ldo_vxo22_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_ldo_vxo22_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VXO22_OP_EN, VXO22, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_LDO_VXO22_OP_EN,
+				VXO22, user, op_en, op_cfg);
 }
 
-int pmic_ldo_vrf18_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_ldo_vrf18_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_ldo_vrf18_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VRF18_OP_EN, VRF18, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_LDO_VRF18_OP_EN,
+				VRF18, user, op_en, op_cfg);
 }
 
-int pmic_ldo_vrf12_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_ldo_vrf12_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_ldo_vrf12_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VRF12_OP_EN, VRF12, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_LDO_VRF12_OP_EN,
+				VRF12, user, op_en, op_cfg);
 }
 
-int pmic_ldo_vefuse_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_ldo_vefuse_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_ldo_vefuse_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VEFUSE_OP_EN, VEFUSE, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_LDO_VEFUSE_OP_EN,
+				VEFUSE, user, op_en, op_cfg);
 }
 
-int pmic_ldo_vcn33_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
-{
-	int ret = 0;
-
-	PMICLOG("pmic_ldo_vcn33_lp\n");
-	ret = pmic_lp_type_set(MT6358_LDO_VCN33_OP_EN, VCN33_0, user, op_en, op_cfg);
-	if (ret)
-		return ret;
-
-	ret = pmic_lp_type_set(MT6358_LDO_VCN33_OP_EN, VCN33_1, user, op_en, op_cfg);
-	return ret;
-}
-
-int pmic_ldo_vcn28_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
-{
-	PMICLOG("pmic_ldo_vcn28_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VCN28_OP_EN, VCN28, user, op_en, op_cfg);
-}
-
-int pmic_ldo_vcn18_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
-{
-	PMICLOG("pmic_ldo_vcn18_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VCN18_OP_EN, VCN18, user, op_en, op_cfg);
-}
-
-int pmic_ldo_vcama1_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
-{
-	PMICLOG("pmic_ldo_vcama1_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VCAMA1_OP_EN, VCAMA1, user, op_en, op_cfg);
-}
-
-int pmic_ldo_vcamd_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
-{
-	PMICLOG("pmic_ldo_vcamd_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VCAMD_OP_EN, VCAMD, user, op_en, op_cfg);
-}
-
-int pmic_ldo_vcama2_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
-{
-	PMICLOG("pmic_ldo_vcama2_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VCAMA2_OP_EN, VCAMA2, user, op_en, op_cfg);
-}
-
-int pmic_ldo_vsram_proc12_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
-{
-	PMICLOG("pmic_ldo_vsram_proc12_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VSRAM_PROC12_OP_EN, VSRAM_PROC12, user, op_en, op_cfg);
-}
-
-int pmic_ldo_vcamio_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
-{
-	PMICLOG("pmic_ldo_vcamio_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VCAMIO_OP_EN, VCAMIO, user, op_en, op_cfg);
-}
-
-int pmic_ldo_vldo28_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_ldo_vcn33_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
 	int ret = 0;
 
-	PMICLOG("pmic_ldo_vldo28_lp\n");
-	ret = pmic_lp_type_set(MT6358_LDO_VLDO28_OP_EN, VLDO28_0, user, op_en, op_cfg);
+	ret = pmic_lp_type_set(MT6358_LDO_VCN33_OP_EN,
+			VCN33_0, user, op_en, op_cfg);
 	if (ret)
 		return ret;
 
-	ret = pmic_lp_type_set(MT6358_LDO_VLDO28_OP_EN, VLDO28_1, user, op_en, op_cfg);
+	ret = pmic_lp_type_set(MT6358_LDO_VCN33_OP_EN,
+				VCN33_1, user, op_en, op_cfg);
 	return ret;
 }
 
-int pmic_ldo_va12_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_ldo_vcn28_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_ldo_va12_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VA12_OP_EN, VA12, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_LDO_VCN28_OP_EN,
+				VCN28, user, op_en, op_cfg);
 }
 
-int pmic_ldo_vaux18_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_ldo_vcn18_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_ldo_vaux18_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VAUX18_OP_EN, VAUX18, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_LDO_VCN18_OP_EN,
+				VCN18, user, op_en, op_cfg);
 }
 
-int pmic_ldo_vaud28_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_ldo_vcama1_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_ldo_vaud28_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VAUD28_OP_EN, VAUD28, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_LDO_VCAMA1_OP_EN,
+				VCAMA1, user, op_en, op_cfg);
 }
 
-int pmic_ldo_vio28_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_ldo_vcamd_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_ldo_vio28_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VIO28_OP_EN, VIO28, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_LDO_VCAMD_OP_EN,
+				VCAMD, user, op_en, op_cfg);
 }
 
-int pmic_ldo_vio18_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_ldo_vcama2_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_ldo_vio18_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VIO18_OP_EN, VIO18, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_LDO_VCAMA2_OP_EN,
+				VCAMA2, user, op_en, op_cfg);
 }
 
-int pmic_ldo_vfe28_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_ldo_vsram_proc12_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_ldo_vfe28_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VFE28_OP_EN, VFE28, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_LDO_VSRAM_PROC12_OP_EN,
+				VSRAM_PROC12, user, op_en, op_cfg);
 }
 
-int pmic_ldo_vdram2_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_ldo_vcamio_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_ldo_vdram2_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VDRAM2_OP_EN, VDRAM2, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_LDO_VCAMIO_OP_EN,
+				VCAMIO, user, op_en, op_cfg);
 }
 
-int pmic_ldo_vmc_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
-{
-	PMICLOG("pmic_ldo_vmc_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VMC_OP_EN, VMC, user, op_en, op_cfg);
-}
-
-int pmic_ldo_vmch_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
-{
-	PMICLOG("pmic_ldo_vmch_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VMCH_OP_EN, VMCH, user, op_en, op_cfg);
-}
-
-int pmic_ldo_vemc_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
-{
-	PMICLOG("pmic_ldo_vemc_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VEMC_OP_EN, VEMC, user, op_en, op_cfg);
-}
-
-int pmic_ldo_vsim1_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
-{
-	PMICLOG("pmic_ldo_vsim1_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VSIM1_OP_EN, VSIM1, user, op_en, op_cfg);
-}
-
-int pmic_ldo_vsim2_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
-{
-	PMICLOG("pmic_ldo_vsim2_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VSIM2_OP_EN, VSIM2, user, op_en, op_cfg);
-}
-
-int pmic_ldo_vibr_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
-{
-	PMICLOG("pmic_ldo_vibr_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VIBR_OP_EN, VIBR, user, op_en, op_cfg);
-}
-
-int pmic_ldo_vusb_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_ldo_vldo28_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
 	int ret = 0;
 
-	PMICLOG("pmic_ldo_vusb_lp\n");
-	ret = pmic_lp_type_set(MT6358_LDO_VUSB_OP_EN, VUSB_0, user, op_en, op_cfg);
+	ret = pmic_lp_type_set(MT6358_LDO_VLDO28_OP_EN,
+			VLDO28_0, user, op_en, op_cfg);
 	if (ret)
 		return ret;
 
-	ret = pmic_lp_type_set(MT6358_LDO_VUSB_OP_EN, VUSB_1, user, op_en, op_cfg);
+	ret = pmic_lp_type_set(MT6358_LDO_VLDO28_OP_EN,
+				VLDO28_1, user, op_en, op_cfg);
 	return ret;
 }
 
-int pmic_ldo_vbif28_lp(enum BUCK_LDO_EN_USER user, unsigned char op_en, unsigned char op_cfg)
+int pmic_ldo_va12_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
 {
-	PMICLOG("pmic_ldo_vbif28_lp\n");
-	return pmic_lp_type_set(MT6358_LDO_VBIF28_OP_EN, VBIF28, user, op_en, op_cfg);
+	return pmic_lp_type_set(MT6358_LDO_VA12_OP_EN,
+				VA12, user, op_en, op_cfg);
 }
+
+int pmic_ldo_vaux18_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
+{
+	return pmic_lp_type_set(MT6358_LDO_VAUX18_OP_EN,
+				VAUX18, user, op_en, op_cfg);
+}
+
+int pmic_ldo_vaud28_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
+{
+	return pmic_lp_type_set(MT6358_LDO_VAUD28_OP_EN,
+				VAUD28, user, op_en, op_cfg);
+}
+
+int pmic_ldo_vio28_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
+{
+	return pmic_lp_type_set(MT6358_LDO_VIO28_OP_EN,
+				VIO28, user, op_en, op_cfg);
+}
+
+int pmic_ldo_vio18_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
+{
+	return pmic_lp_type_set(MT6358_LDO_VIO18_OP_EN,
+				VIO18, user, op_en, op_cfg);
+}
+
+int pmic_ldo_vfe28_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
+{
+	return pmic_lp_type_set(MT6358_LDO_VFE28_OP_EN,
+				VFE28, user, op_en, op_cfg);
+}
+
+int pmic_ldo_vdram2_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
+{
+	return pmic_lp_type_set(MT6358_LDO_VDRAM2_OP_EN,
+				VDRAM2, user, op_en, op_cfg);
+}
+
+int pmic_ldo_vmc_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
+{
+	return pmic_lp_type_set(MT6358_LDO_VMC_OP_EN,
+				VMC, user, op_en, op_cfg);
+}
+
+int pmic_ldo_vmch_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
+{
+	return pmic_lp_type_set(MT6358_LDO_VMCH_OP_EN,
+				VMCH, user, op_en, op_cfg);
+}
+
+int pmic_ldo_vemc_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
+{
+	return pmic_lp_type_set(MT6358_LDO_VEMC_OP_EN,
+				VEMC, user, op_en, op_cfg);
+}
+
+int pmic_ldo_vsim1_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
+{
+	return pmic_lp_type_set(MT6358_LDO_VSIM1_OP_EN,
+				VSIM1, user, op_en, op_cfg);
+}
+
+int pmic_ldo_vsim2_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
+{
+	return pmic_lp_type_set(MT6358_LDO_VSIM2_OP_EN,
+				VSIM2, user, op_en, op_cfg);
+}
+
+int pmic_ldo_vibr_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
+{
+	return pmic_lp_type_set(MT6358_LDO_VIBR_OP_EN,
+				VIBR, user, op_en, op_cfg);
+}
+
+int pmic_ldo_vusb_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
+{
+	int ret = 0;
+
+	ret = pmic_lp_type_set(MT6358_LDO_VUSB_OP_EN,
+			VUSB_0, user, op_en, op_cfg);
+	if (ret)
+		return ret;
+
+	ret = pmic_lp_type_set(MT6358_LDO_VUSB_OP_EN,
+				VUSB_1, user, op_en, op_cfg);
+	return ret;
+}
+
+int pmic_ldo_vbif28_lp(
+		enum BUCK_LDO_EN_USER user,
+		unsigned char op_en,
+		unsigned char op_cfg)
+{
+	return pmic_lp_type_set(MT6358_LDO_VBIF28_OP_EN,
+				VBIF28, user, op_en, op_cfg);
+}
+

@@ -1,32 +1,14 @@
 /*
- * Rawbulk Driver from VIA Telecom
- * Copyright (C) 2011 VIA Telecom, Inc.
- * Author: Karfield Chen (kfchen@via-telecom.com)
- * Copyright (C) 2012 VIA Telecom, Inc.
- * Author: Juelun Guo (jlguo@via-telecom.com)
- * Changes:
+ * Copyright (C) 2017 MediaTek Inc.
  *
- * Sep 2012: Juelun Guo <jlguo@via-telecom.com>
- *           Version 1.0.4
- *           changed to support for sdio bypass.
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- *
- *
- * Rawbulk is transfer performer between CBP host driver and Gadget driver
- *
- *
- * upstream:    CBP Driver ---> Gadget IN
- * downstream:  Gadget OUT ---> CBP Driver
- *
- *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 /* #define DEBUG */
@@ -54,16 +36,20 @@
 #define FS_CH_C2K 4
 #endif
 
-#define terr(t, fmt, args...) pr_err("Rawbulk [%s]:" fmt "\n", t->name,  ##args)
+#define terr(t, fmt, args...) \
+	pr_notice("[Error] Rawbulk [%s]:" fmt "\n", t->name, ##args)
 
 #define STOP_UPSTREAM   0x1
 #define STOP_DOWNSTREAM 0x2
 
-/* extern int modem_buffer_push(int port_num, const unsigned char *buf, int count); */
+/* extern int modem_buffer_push(int port_num, const unsigned char *buf,
+ * int count);
+ */
 #ifdef CONFIG_EVDO_DT_VIA_SUPPORT
 char *transfer_name[] = { "modem", "ets", "at", "pcv", "gps" };
 #else
-char *transfer_name[] = { "pcv", "modem", "dummy0", "at", "gps", "dummy1", "dummy2", "ets" };
+char *transfer_name[] = { "pcv", "modem", "dummy0", "at", "gps", "dummy1",
+			"dummy2", "ets" };
 #endif
 
 unsigned int upstream_data[_MAX_TID] = { 0 };
@@ -173,21 +159,21 @@ static unsigned int up_note_sz = 1024 * 1024;
 static unsigned int drop_check_interval = 1;
 unsigned int c2k_usb_dbg_level = C2K_LOG_NOTICE;
 
-module_param(c2k_usb_dbg_level, uint, S_IRUGO | S_IWUSR);
-module_param(dump_mask, uint, S_IRUGO | S_IWUSR);
-module_param(full_dump, uint, S_IRUGO | S_IWUSR);
-module_param(max_cache_cnt, uint, S_IRUGO | S_IWUSR);
-module_param(base_cache_cnt, uint, S_IRUGO | S_IWUSR);
-module_param(drop_check_interval, uint, S_IRUGO | S_IWUSR);
+module_param(c2k_usb_dbg_level, uint, 0644);
+module_param(dump_mask, uint, 0644);
+module_param(full_dump, uint, 0644);
+module_param(max_cache_cnt, uint, 0644);
+module_param(base_cache_cnt, uint, 0644);
+module_param(drop_check_interval, uint, 0644);
 MODULE_PARM_DESC(dump_mask, "Set data dump mask for each transfers");
 
 #ifdef C2K_USB_UT
 int delay_set = 1200;
-module_param(delay_set, uint, S_IRUGO | S_IWUSR);
+module_param(delay_set, uint, 0644);
 #endif
 
 static inline void dump_data(struct rawbulk_transfer *trans,
-			     const char *str, const unsigned char *data, int size)
+			  const char *str, const unsigned char *data, int size)
 {
 	int i;
 	char verb[128], *pbuf, *pbuf_end;
@@ -198,7 +184,8 @@ static inline void dump_data(struct rawbulk_transfer *trans,
 
 	pbuf = verb;
 	pbuf_end = pbuf + sizeof(verb);
-	pbuf += snprintf(pbuf, pbuf_size, "DUMP tid = %d, %s: len = %d, chars = \"", trans->id, str, size);
+	pbuf += snprintf(pbuf, pbuf_size, "DUMP tid = %d, %s: len = %d, ",
+			trans->id, str, size);
 
 	/* data in ascii */
 #if 0
@@ -241,14 +228,15 @@ static inline void dump_data(struct rawbulk_transfer *trans,
 	C2K_ERR("%s\n", verb);
 }
 
-static struct upstream_transaction *alloc_upstream_transaction(struct rawbulk_transfer *transfer,
-							       int bufsz)
+static struct upstream_transaction *alloc_upstream_transaction(
+		struct rawbulk_transfer *transfer, int bufsz)
 {
 	struct upstream_transaction *t;
 
 	C2K_DBG("%s\n", __func__);
 
-	/* t = kmalloc(sizeof *t + bufsz * sizeof(unsigned char), GFP_KERNEL); */
+	/* t = kmalloc(sizeof *t + bufsz * sizeof(unsigned char), GFP_KERNEL);
+	 */
 	t = kmalloc(sizeof(struct upstream_transaction), GFP_KERNEL);
 	if (!t)
 		return NULL;
@@ -270,7 +258,8 @@ static struct upstream_transaction *alloc_upstream_transaction(struct rawbulk_tr
 		goto failto_alloc_usb_request;
 	t->req->context = t;
 	t->name[0] = 0;
-	snprintf(t->name, sizeof(t->name), "U%d ( G:%s)", transfer->upstream.ntrans, transfer->upstream.ep->name);
+	snprintf(t->name, sizeof(t->name), "U%d ( G:%s)",
+		transfer->upstream.ntrans, transfer->upstream.ep->name);
 
 	INIT_LIST_HEAD(&t->tlist);
 	list_add_tail(&t->tlist, &transfer->upstream.transactions);
@@ -295,7 +284,7 @@ static void free_upstream_transaction(struct rawbulk_transfer *transfer)
 	mutex_lock(&transfer->usb_up_mutex);
 	list_for_each_safe(p, n, &transfer->upstream.transactions) {
 		struct upstream_transaction *t = list_entry(p, struct
-							    upstream_transaction, tlist);
+						upstream_transaction, tlist);
 
 		list_del(p);
 		/* kfree(t->buffer); */
@@ -334,7 +323,8 @@ static void start_upstream(struct work_struct *work)
 {
 	int ret = -1, got = 0;
 	struct upstream_transaction *t;
-	struct rawbulk_transfer *transfer = container_of(work, struct rawbulk_transfer, write_work);
+	struct rawbulk_transfer *transfer = container_of(work,
+					struct rawbulk_transfer, write_work);
 	struct cache_buf *c;
 	int length;
 	char *buffer;
@@ -345,7 +335,8 @@ static void start_upstream(struct work_struct *work)
 
 	mutex_lock(&transfer->modem_up_mutex);
 
-	list_for_each_entry(c, &transfer->cache_buf_lists.transactions, clist) {
+	list_for_each_entry(c, &transfer->cache_buf_lists.transactions,
+								clist) {
 		if (c && (c->state == UPSTREAM_STAT_UPLOADING)
 		    && !(transfer->control & STOP_UPSTREAM)) {
 			ret = 0;
@@ -364,7 +355,8 @@ reget:
 	ret = -1;
 	mutex_lock(&transfer->usb_up_mutex);
 	list_for_each_entry(t, &transfer->upstream.transactions, tlist) {
-		if (t && (t->state == UPSTREAM_STAT_FREE) && !(transfer->control & STOP_UPSTREAM)) {
+		if (t && (t->state == UPSTREAM_STAT_FREE) &&
+				!(transfer->control & STOP_UPSTREAM)) {
 			ret = 0;
 			retry = 0;
 			got = 1;
@@ -384,7 +376,8 @@ reget:
 		static int skip_cnt;
 
 		if (__ratelimit(&ratelimit)) {
-			C2K_NOTE("%s: up request is buzy, reget, skip_cnt<%d>\n", __func__, skip_cnt);
+			C2K_NOTE("%s: up request is buzy, skip_cnt<%d>\n",
+				__func__, skip_cnt);
 			skip_cnt = 0;
 		} else
 			skip_cnt++;
@@ -438,7 +431,8 @@ static void upstream_complete(struct usb_ep *ep, struct usb_request *req)
 	ucnt[transfer->id]++;
 
 	if (udata[transfer->id] >= up_note_sz) {
-		C2K_NOTE("t<%d>,%d Bytes upload\n", transfer->id, udata[transfer->id]);
+		C2K_NOTE("t<%d>,%d Bytes upload\n", transfer->id,
+			udata[transfer->id]);
 		udata[transfer->id] = 0;
 		ucnt[transfer->id] = 0;
 	}
@@ -458,7 +452,8 @@ static void stop_upstream(struct upstream_transaction *t)
 	t->state = UPSTREAM_STAT_FREE;
 }
 
-int rawbulk_push_upstream_buffer(int transfer_id, const void *buffer, unsigned int length)
+int rawbulk_push_upstream_buffer(int transfer_id, const void *buffer,
+				unsigned int length)
 {
 	int ret = -ENOENT;
 	struct rawbulk_transfer *transfer;
@@ -470,20 +465,25 @@ int rawbulk_push_upstream_buffer(int transfer_id, const void *buffer, unsigned i
 	if (transfer_id > (FS_CH_C2K - 1))
 		transfer_id--;
 	else if (transfer_id == (FS_CH_C2K - 1)) {
-		C2K_ERR("channal %d is flashless, no nessesory to bypass\n", (FS_CH_C2K - 1));
+		C2K_ERR("channal %d is flashless, no nessesory to bypass\n",
+			(FS_CH_C2K - 1));
 		return 0;
 	}
 
-	C2K_DBG("%s:transfer_id = %d, length = %d\n", __func__, transfer_id, length);
+	C2K_DBG("%s:transfer_id = %d, length = %d\n", __func__, transfer_id,
+		length);
 
 	transfer = id_to_transfer(transfer_id);
 	if (!transfer)
 		return -ENODEV;
 
 	mutex_lock(&transfer->modem_up_mutex);
-	list_for_each_entry(c, &transfer->cache_buf_lists.transactions, clist) {
-		if (c && (c->state == UPSTREAM_STAT_FREE) && !(transfer->control & STOP_UPSTREAM)) {
-			list_move_tail(&c->clist, &transfer->cache_buf_lists.transactions);
+	list_for_each_entry(c, &transfer->cache_buf_lists.transactions,
+								clist) {
+		if (c && (c->state == UPSTREAM_STAT_FREE) &&
+					!(transfer->control & STOP_UPSTREAM)) {
+			list_move_tail(&c->clist,
+				&transfer->cache_buf_lists.transactions);
 
 			c->state = UPSTREAM_STAT_UPLOADING;
 			ret = 0;
@@ -495,25 +495,30 @@ int rawbulk_push_upstream_buffer(int transfer_id, const void *buffer, unsigned i
 	if (ret < 0 && transfer->cache_buf_lists.ntrans < max_cache_cnt) {
 		c = kmalloc(sizeof(struct cache_buf), GFP_KERNEL);
 		if (!c)
-			C2K_NOTE("fail to allocate upstream sdio buf n %d\n", transfer_id);
+			C2K_NOTE("fail to allocate upstream sdio buf n %d\n",
+					transfer_id);
 		else {
 			c->buffer = (char *)__get_free_page(GFP_KERNEL);
 			/* c->buffer = kmalloc(upsz, GFP_KERNEL); */
 			if (!c->buffer) {
 				kfree(c);
 				c = NULL;
-				C2K_NOTE("fail to allocate upstream sdio buf n %d\n", transfer_id);
+				C2K_NOTE("fail to alloc upstream buf n%d\n",
+					transfer_id);
 			} else {
 				c->state = UPSTREAM_STAT_UPLOADING;
 				INIT_LIST_HEAD(&c->clist);
-				list_add_tail(&c->clist, &transfer->cache_buf_lists.transactions);
+				list_add_tail(&c->clist,
+				&transfer->cache_buf_lists.transactions);
 				transfer->cache_buf_lists.ntrans++;
-				total_tran[transfer_id] = transfer->cache_buf_lists.ntrans;
-				C2K_NOTE("new cache, t<%d>, trans<%d>, alloc_fail<%d>, upstream<%d,%d>\n",
-					 transfer_id,
-					 transfer->cache_buf_lists.ntrans,
-					 alloc_fail[transfer_id],
-					 upstream_data[transfer_id], upstream_cnt[transfer_id]);
+				total_tran[transfer_id] =
+				transfer->cache_buf_lists.ntrans;
+				C2K_NOTE("t<%d>,tran<%d>,fail<%d>,up<%d,%d>\n",
+					transfer_id,
+					transfer->cache_buf_lists.ntrans,
+					alloc_fail[transfer_id],
+					upstream_data[transfer_id],
+					upstream_cnt[transfer_id]);
 			}
 		}
 		ret = 0;
@@ -523,14 +528,17 @@ int rawbulk_push_upstream_buffer(int transfer_id, const void *buffer, unsigned i
 		total_drop[transfer_id] += length;
 
 		if (time_after(jiffies, drop_check_timeout)) {
-			C2K_NOTE("cahce full, t<%d>, drop<%d>, total_drop<%d>\n"
+			C2K_NOTE("cahce full, t<%d>, drop<%d>, tota_drop<%d>\n"
 			     , transfer_id, length, total_drop[transfer_id]);
 
 			C2K_NOTE("trans<%d>, alloc_fail<%d>, upstream<%d,%d>\n"
-			     , transfer->cache_buf_lists.ntrans, alloc_fail[transfer_id],
-			     upstream_data[transfer_id], upstream_cnt[transfer_id]);
+				, transfer->cache_buf_lists.ntrans,
+				alloc_fail[transfer_id],
+				upstream_data[transfer_id],
+				upstream_cnt[transfer_id]);
 
-			drop_check_timeout = jiffies + HZ * drop_check_interval;
+			drop_check_timeout = jiffies + HZ * drop_check_interval
+					;
 		}
 		mutex_unlock(&transfer->modem_up_mutex);
 		return -ENOMEM;
@@ -570,14 +578,17 @@ static void downstream_delayed_work(struct work_struct *work);
 
 static void downstream_complete(struct usb_ep *ep, struct usb_request *req);
 
-static struct downstream_transaction *alloc_downstream_transaction(struct rawbulk_transfer
-								   *transfer, int bufsz)
+static struct downstream_transaction *alloc_downstream_transaction(
+						struct rawbulk_transfer
+						*transfer, int bufsz)
 {
 	struct downstream_transaction *t;
 
 	C2K_NOTE("%s\n", __func__);
 
-	/* t = kzalloc(sizeof *t + bufsz * sizeof(unsigned char), GFP_ATOMIC); */
+	/* t = kzalloc(sizeof *t + bufsz * sizeof(unsigned char), GFP_ATOMIC);
+	 *
+	 */
 	t = kmalloc(sizeof(struct downstream_transaction), GFP_ATOMIC);
 	if (!t)
 		return NULL;
@@ -627,7 +638,7 @@ static void free_downstream_transaction(struct rawbulk_transfer *transfer)
 	spin_lock_irqsave(&transfer->usb_down_lock, flags);
 	list_for_each_safe(p, n, &transfer->downstream.transactions) {
 		struct downstream_transaction *t = list_entry(p, struct
-							      downstream_transaction, tlist);
+						downstream_transaction, tlist);
 
 		list_del(p);
 		/* kfree(t->buffer); */
@@ -693,11 +704,13 @@ static int start_downstream(struct downstream_transaction *t)
 			transfer->sdio_block = 1;
 			spin_unlock(&transfer->modem_block_lock);
 			spin_lock(&transfer->usb_down_lock);
-			list_move_tail(&t->tlist, &transfer->repush2modem.transactions);
+			list_move_tail(&t->tlist,
+					&transfer->repush2modem.transactions);
 			spin_unlock(&transfer->usb_down_lock);
 			transfer->repush2modem.ntrans++;
 			transfer->downstream.ntrans--;
-			queue_delayed_work(transfer->flow_wq, &transfer->delayed, time_delayed);
+			queue_delayed_work(transfer->flow_wq,
+					&transfer->delayed, time_delayed);
 			return -EPIPE;
 		} else
 			return -EPIPE;
@@ -752,7 +765,8 @@ static void downstream_complete(struct usb_ep *ep, struct usb_request *req)
 	ptr = (char *)t->req->buf;
 	pbuf = (char *)verb;
 
-	pbuf += sprintf(pbuf, "down len(%d), %d, ", t->req->actual, (int)sizeof(unsigned char));
+	pbuf += sprintf(pbuf, "down len(%d), %d, ", t->req->actual,
+			(int)sizeof(unsigned char));
 	for (i = 0; i < t->req->actual; i++) {
 		c = *(ptr + i);
 		if (last_c == 0xff)
@@ -761,8 +775,9 @@ static void downstream_complete(struct usb_ep *ep, struct usb_request *req)
 			compare_val = last_c + 1;
 		if (c != compare_val || ut_err == 1) {
 			if (c != compare_val) {
-				C2K_NOTE("<%x,%x, %x>, sizeof(unsigned char):%d\n", c, last_c,
-					 compare_val, (int)sizeof(unsigned char));
+				C2K_NOTE("<%x,%x, %x>,size:%d\n", c, last_c,
+					compare_val,
+					(int)sizeof(unsigned char));
 			}
 			ut_err = 1;
 		}
@@ -773,7 +788,7 @@ static void downstream_complete(struct usb_ep *ep, struct usb_request *req)
 	}
 	C2K_DBG("%s, last_c(%x)\n", verb, last_c);
 	if (ut_err)
-		C2K_NOTE("errrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr\n");
+		C2K_NOTE("errrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr\n");
 #endif
 
 	dump_data(transfer, "downstream", t->buffer, req->actual);
@@ -783,7 +798,8 @@ static void downstream_complete(struct usb_ep *ep, struct usb_request *req)
 		spin_unlock(&transfer->modem_block_lock);
 
 		spin_lock(&transfer->usb_down_lock);
-		list_move_tail(&t->tlist, &transfer->repush2modem.transactions);
+		list_move_tail(&t->tlist,
+				&transfer->repush2modem.transactions);
 		spin_unlock(&transfer->usb_down_lock);
 		transfer->repush2modem.ntrans++;
 		transfer->downstream.ntrans--;
@@ -803,12 +819,12 @@ static void downstream_delayed_work(struct work_struct *work)
 	int time_delayed = msecs_to_jiffies(1);
 
 	struct rawbulk_transfer *transfer = container_of(work, struct
-							 rawbulk_transfer, delayed.work);
+					rawbulk_transfer, delayed.work);
 	C2K_NOTE("%s\n", __func__);
 
 	spin_lock_irqsave(&transfer->usb_down_lock, flags);
-	list_for_each_entry_safe(downstream, downstream_copy, &transfer->repush2modem.transactions,
-				 tlist) {
+	list_for_each_entry_safe(downstream, downstream_copy,
+			&transfer->repush2modem.transactions, tlist) {
 		spin_unlock_irqrestore(&transfer->usb_down_lock, flags);
 
 		rc = ccci_c2k_buffer_push(transfer->id, downstream->req->buf,
@@ -817,12 +833,14 @@ static void downstream_delayed_work(struct work_struct *work)
 			if (rc != -ENOMEM)
 				terr(downstream, "port is not presence\n");
 			if (!(transfer->control & STOP_DOWNSTREAM))
-				queue_delayed_work(transfer->flow_wq, &transfer->delayed,
-						   time_delayed);
+				queue_delayed_work(transfer->flow_wq,
+						&transfer->delayed,
+						time_delayed);
 			return;
 		}
 		spin_lock_irqsave(&transfer->usb_down_lock, flags);
-		list_move_tail(&downstream->tlist, &transfer->downstream.transactions);
+		list_move_tail(&downstream->tlist,
+				&transfer->downstream.transactions);
 		spin_unlock_irqrestore(&transfer->usb_down_lock, flags);
 		downstream->stalled = 0;
 		downstream->state = DOWNSTREAM_STAT_FREE;
@@ -852,7 +870,8 @@ static void downstream_delayed_work(struct work_struct *work)
 	spin_unlock_irqrestore(&transfer->modem_block_lock, flags);
 }
 
-int rawbulk_start_transactions(int transfer_id, int nups, int ndowns, int upsz, int downsz)
+int rawbulk_start_transactions(int transfer_id, int nups, int ndowns, int upsz,
+				int downsz)
 {
 	int n;
 	int rc, ret, up_cache_cnt;
@@ -861,6 +880,7 @@ int rawbulk_start_transactions(int transfer_id, int nups, int ndowns, int upsz, 
 	struct upstream_transaction *upstream;	/* upstream_copy; */
 	struct downstream_transaction *downstream, *downstream_copy;
 	struct cache_buf *c;
+	char name[20];
 
 	C2K_NOTE("%s\n", __func__);
 
@@ -868,14 +888,28 @@ int rawbulk_start_transactions(int transfer_id, int nups, int ndowns, int upsz, 
 	if (!transfer)
 		return -ENODEV;
 
+	memset(name, 0, 20);
+	snprintf(name, sizeof(name), "%s_flow_ctrl",
+			transfer_name[transfer_id]);
+	if (!transfer->flow_wq)
+		transfer->flow_wq = create_singlethread_workqueue(name);
+	if (!transfer->flow_wq)
+		return -ENOMEM;
+	memset(name, 0, 20);
+	snprintf(name, sizeof(name), "%s_tx_wq", transfer_name[transfer_id]);
+	if (!transfer->tx_wq)
+		transfer->tx_wq = create_singlethread_workqueue(name);
+	if (!transfer->tx_wq)
+		return -ENOMEM;
+
 	if (!rawbulk->cdev)
 		return -ENODEV;
 
 	if (!transfer->function)
 		return -ENODEV;
 
-	C2K_NOTE("start transactions on id %d, nups %d ndowns %d upsz %d downsz %d\n",
-		 transfer_id, nups, ndowns, upsz, downsz);
+	C2K_NOTE("start trans on id %d, nups %d ndowns %d upsz %d downsz %d\n",
+		transfer_id, nups, ndowns, upsz, downsz);
 
 	/* stop host transfer 1stly */
 	ret = ccci_c2k_rawbulk_intercept(transfer->id, 1);
@@ -895,7 +929,8 @@ int rawbulk_start_transactions(int transfer_id, int nups, int ndowns, int upsz, 
 		if (!upstream) {
 			rc = -ENOMEM;
 			mutex_unlock(&transfer->usb_up_mutex);
-			C2K_NOTE("fail to allocate upstream transaction n %d", n);
+			C2K_NOTE("fail to allocate upstream transaction n %d",
+					n);
 			goto failto_alloc_upstream;
 		}
 	}
@@ -910,7 +945,9 @@ int rawbulk_start_transactions(int transfer_id, int nups, int ndowns, int upsz, 
 		up_cache_cnt = 8 * nups;
 	C2K_NOTE("t<%d>, up_cache_cnt<%d>\n", transfer_id, up_cache_cnt);
 	for (n = 0; n < up_cache_cnt; n++) {
-		/* c = kzalloc(sizeof *c + upsz * sizeof(unsigned char), GFP_KERNEL); */
+		/* c = kzalloc(sizeof *c + upsz * sizeof(unsigned char),
+		 * GFP_KERNEL);
+		 */
 		c = kmalloc(sizeof(struct cache_buf), GFP_KERNEL);
 		if (!c) {
 			rc = -ENOMEM;
@@ -932,7 +969,8 @@ int rawbulk_start_transactions(int transfer_id, int nups, int ndowns, int upsz, 
 		}
 		c->state = UPSTREAM_STAT_FREE;
 		INIT_LIST_HEAD(&c->clist);
-		list_add_tail(&c->clist, &transfer->cache_buf_lists.transactions);
+		list_add_tail(&c->clist,
+				&transfer->cache_buf_lists.transactions);
 		transfer->cache_buf_lists.ntrans++;
 	}
 	total_tran[transfer_id] = transfer->cache_buf_lists.ntrans;
@@ -943,8 +981,10 @@ int rawbulk_start_transactions(int transfer_id, int nups, int ndowns, int upsz, 
 		downstream = alloc_downstream_transaction(transfer, downsz);
 		if (!downstream) {
 			rc = -ENOMEM;
-			spin_unlock_irqrestore(&transfer->usb_down_lock, flags);
-			C2K_NOTE("fail to allocate downstream transaction n %d", n);
+			spin_unlock_irqrestore(&transfer->usb_down_lock,
+						flags);
+			C2K_NOTE("fail to allocate downstream transaction n %d"
+					, n);
 			goto failto_alloc_downstream;
 		}
 	}
@@ -952,14 +992,16 @@ int rawbulk_start_transactions(int transfer_id, int nups, int ndowns, int upsz, 
 	transfer->control &= ~STOP_UPSTREAM;
 	transfer->control &= ~STOP_DOWNSTREAM;
 
-	list_for_each_entry_safe(downstream, downstream_copy, &transfer->downstream.transactions,
-				 tlist) {
-		if (downstream->state == DOWNSTREAM_STAT_FREE && !downstream->stalled) {
+	list_for_each_entry_safe(downstream, downstream_copy,
+				&transfer->downstream.transactions, tlist) {
+		if (downstream->state == DOWNSTREAM_STAT_FREE &&
+							!downstream->stalled) {
 			rc = queue_downstream(downstream);
 			if (rc < 0) {
-				spin_unlock_irqrestore(&transfer->usb_down_lock, flags);
-				C2K_NOTE("fail to start downstream %s rc %d\n", downstream->name,
-					 rc);
+				spin_unlock_irqrestore(&transfer->usb_down_lock
+							, flags);
+				C2K_NOTE("fail to start downstream %s rc %d\n",
+					downstream->name, rc);
 				goto failto_start_downstream;
 			}
 		}
@@ -969,8 +1011,10 @@ int rawbulk_start_transactions(int transfer_id, int nups, int ndowns, int upsz, 
 
 failto_start_downstream:
 	spin_lock_irqsave(&transfer->usb_down_lock, flags);
-	list_for_each_entry(downstream, &transfer->downstream.transactions, tlist)
-	stop_downstream(downstream);
+	list_for_each_entry(downstream, &transfer->downstream.transactions,
+			tlist) {
+		stop_downstream(downstream);
+	}
 	spin_unlock_irqrestore(&transfer->usb_down_lock, flags);
 failto_alloc_up_sdiobuf:
 	free_upstream_sdio_buf(transfer);
@@ -1025,17 +1069,18 @@ void rawbulk_stop_transactions(int transfer_id)
 
 	free_upstream_sdio_buf(transfer);
 
-	list_for_each_entry_safe(downstream, downstream_copy, &transfer->downstream.transactions,
-				 tlist) {
+	list_for_each_entry_safe(downstream, downstream_copy,
+				&transfer->downstream.transactions, tlist) {
 		stop_downstream(downstream);
 	}
 
 	spin_lock_irqsave(&transfer->usb_down_lock, flags);
 	list_for_each_safe(p, n, &transfer->repush2modem.transactions) {
 		struct downstream_transaction *delayed_t = list_entry(p, struct
-								      downstream_transaction,
-								      tlist);
-		list_move_tail(&delayed_t->tlist, &transfer->downstream.transactions);
+							downstream_transaction,
+							tlist);
+		list_move_tail(&delayed_t->tlist,
+				&transfer->downstream.transactions);
 	}
 	spin_unlock_irqrestore(&transfer->usb_down_lock, flags);
 
@@ -1085,43 +1130,55 @@ int rawbulk_transfer_statistics(int transfer_id, char *buf)
 
 	transfer = id_to_transfer(transfer_id);
 	if (!transfer)
-		return snprintf(pbuf, pbuf_end-pbuf, "-ENODEV, id %d\n", transfer_id);
+		return snprintf(pbuf, pbuf_end-pbuf, "-ENODEV, id %d\n",
+				transfer_id);
 
 	pbuf += snprintf(pbuf, pbuf_end-pbuf, "rawbulk statistics:\n");
 	if (rawbulk->cdev && rawbulk->cdev->config)
-		pbuf += snprintf(pbuf, pbuf_end-pbuf, " gadget device: %s\n", rawbulk->cdev->config->label);
+		pbuf += snprintf(pbuf, pbuf_end-pbuf, " gadget device: %s\n",
+				rawbulk->cdev->config->label);
 	else
-		pbuf += snprintf(pbuf, pbuf_end-pbuf, " gadget device: -ENODEV\n");
-	pbuf += snprintf(pbuf, pbuf_end-pbuf, " upstreams (total %d transactions)\n", transfer->upstream.ntrans);
+		pbuf += snprintf(pbuf, pbuf_end-pbuf, "gadget device:NODEV\n");
+	pbuf += snprintf(pbuf, pbuf_end-pbuf, "upstreams(total %d trans)\n",
+			transfer->upstream.ntrans);
 	mutex_lock(&transfer->usb_up_mutex);
-	list_for_each_entry(upstream, &transfer->upstream.transactions, tlist) {
-		pbuf += snprintf(pbuf, pbuf_end-pbuf, "  %s state: %s", upstream->name,
-				state2string(upstream->state, 1));
-		pbuf += snprintf(pbuf, pbuf_end-pbuf, ", maxbuf: %d bytes", upstream->buffer_length);
+	list_for_each_entry(upstream, &transfer->upstream.transactions,
+								tlist) {
+		pbuf += snprintf(pbuf, pbuf_end-pbuf, "  %s state: %s",
+				upstream->name, state2string(upstream->state,
+				1));
+		pbuf += snprintf(pbuf, pbuf_end-pbuf, ", maxbuf: %d bytes",
+				upstream->buffer_length);
 		if (upstream->stalled)
 			pbuf += snprintf(pbuf, pbuf_end-pbuf, " (stalled!)");
 		pbuf += snprintf(pbuf, pbuf_end-pbuf, "\n");
 	}
 	mutex_unlock(&transfer->usb_up_mutex);
 
-	pbuf += snprintf(pbuf, pbuf_end-pbuf, " cache_buf_lists (total %d transactions)\n",
+	pbuf += snprintf(pbuf, pbuf_end-pbuf, "cache_buf (total %d trans)\n",
 			transfer->cache_buf_lists.ntrans);
 	mutex_lock(&transfer->modem_up_mutex);
-	list_for_each_entry(c, &transfer->cache_buf_lists.transactions, clist) {
-		pbuf += snprintf(pbuf, pbuf_end-pbuf, "  %s state:", state2string(c->state, 1));
-		pbuf += snprintf(pbuf, pbuf_end-pbuf, ", maxbuf: %d bytes", c->length);
+	list_for_each_entry(c, &transfer->cache_buf_lists.transactions,
+								clist) {
+		pbuf += snprintf(pbuf, pbuf_end-pbuf, "  %s state:",
+				state2string(c->state, 1));
+		pbuf += snprintf(pbuf, pbuf_end-pbuf, ", maxbuf: %d bytes",
+				c->length);
 		pbuf += snprintf(pbuf, pbuf_end-pbuf, "\n");
 	}
 	mutex_unlock(&transfer->modem_up_mutex);
 
-	pbuf += snprintf(pbuf, pbuf_end-pbuf, " downstreams (total %d transactions)\n",
+	pbuf += snprintf(pbuf, pbuf_end-pbuf, "downstreams (total %d trans)\n",
 			transfer->downstream.ntrans);
 	spin_lock_irqsave(&transfer->usb_down_lock, flags);
-	list_for_each_entry(downstream, &transfer->downstream.transactions, tlist) {
+	list_for_each_entry(downstream, &transfer->downstream.transactions,
+				tlist) {
 		spin_unlock_irqrestore(&transfer->usb_down_lock, flags);
-		pbuf += snprintf(pbuf, pbuf_end-pbuf, "  %s state: %s", downstream->name,
+		pbuf += snprintf(pbuf, pbuf_end-pbuf, "  %s state: %s",
+				downstream->name,
 				state2string(downstream->state, 0));
-		pbuf += snprintf(pbuf, pbuf_end-pbuf, " pbuf_end-pbuf,, maxbuf: %d bytes", downstream->buffer_length);
+		pbuf += snprintf(pbuf, pbuf_end-pbuf, "pbufend maxbuf:%dbytes",
+				downstream->buffer_length);
 		if (downstream->stalled)
 			pbuf += snprintf(pbuf, pbuf_end-pbuf, " (stalled!)");
 		pbuf += snprintf(pbuf, pbuf_end-pbuf, "\n");
@@ -1129,14 +1186,17 @@ int rawbulk_transfer_statistics(int transfer_id, char *buf)
 	}
 	spin_unlock_irqrestore(&transfer->usb_down_lock, flags);
 
-	pbuf += snprintf(pbuf, pbuf_end-pbuf, " repush2modem (total %d transactions)\n",
+	pbuf += snprintf(pbuf, pbuf_end-pbuf, "repush2modem(total %d trans)\n",
 			transfer->downstream.ntrans);
 	spin_lock_irqsave(&transfer->usb_down_lock, flags);
-	list_for_each_entry(downstream, &transfer->repush2modem.transactions, tlist) {
+	list_for_each_entry(downstream, &transfer->repush2modem.transactions,
+				tlist) {
 		spin_unlock_irqrestore(&transfer->usb_down_lock, flags);
-		pbuf += snprintf(pbuf, pbuf_end-pbuf,  "  %s state: %s", downstream->name,
+		pbuf += snprintf(pbuf, pbuf_end-pbuf,  "  %s state: %s",
+				downstream->name,
 				state2string(downstream->state, 0));
-		pbuf += snprintf(pbuf, pbuf_end-pbuf, ", maxbuf: %d bytes", downstream->buffer_length);
+		pbuf += snprintf(pbuf, pbuf_end-pbuf, ", maxbuf: %d bytes",
+				downstream->buffer_length);
 		if (downstream->stalled)
 			pbuf += snprintf(pbuf, pbuf_end-pbuf, " (stalled!)");
 		pbuf += snprintf(pbuf, pbuf_end-pbuf, "\n");
@@ -1148,8 +1208,8 @@ int rawbulk_transfer_statistics(int transfer_id, char *buf)
 }
 EXPORT_SYMBOL_GPL(rawbulk_transfer_statistics);
 
-int rawbulk_bind_function(int transfer_id, struct usb_function *function, struct
-			  usb_ep * bulk_out, struct usb_ep *bulk_in,
+int rawbulk_bind_function(int transfer_id, struct usb_function *function,
+			struct usb_ep *bulk_out, struct usb_ep *bulk_in,
 			  rawbulk_autoreconn_callback_t autoreconn_callback)
 {
 
@@ -1264,17 +1324,9 @@ static __init int rawbulk_init(void)
 		INIT_DELAYED_WORK(&t->delayed, downstream_delayed_work);
 		memset(name, 0, 20);
 		snprintf(name, sizeof(name), "%s_flow_ctrl", transfer_name[n]);
-		t->flow_wq = create_singlethread_workqueue(name);
-		if (!t->flow_wq)
-			return -ENOMEM;
-
 		INIT_WORK(&t->write_work, start_upstream);
 		memset(name, 0, 20);
 		snprintf(name, sizeof(name), "%s_tx_wq", transfer_name[n]);
-		t->tx_wq = create_singlethread_workqueue(name);
-		if (!t->tx_wq)
-			return -ENOMEM;
-
 		mutex_init(&t->modem_up_mutex);
 		mutex_init(&t->usb_up_mutex);
 		spin_lock_init(&t->lock);
@@ -1297,8 +1349,10 @@ static __exit void rawbulk_exit(void)
 	for (n = 0; n < _MAX_TID; n++) {
 		t = &rawbulk->transfer[n];
 		rawbulk_stop_transactions(n);
-		destroy_workqueue(t->flow_wq);
-		destroy_workqueue(t->tx_wq);
+		if (t->flow_wq)
+			destroy_workqueue(t->flow_wq);
+		if (t->tx_wq)
+			destroy_workqueue(t->tx_wq);
 	}
 	kfree(rawbulk);
 }

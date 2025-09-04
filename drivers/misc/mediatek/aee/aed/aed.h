@@ -21,12 +21,6 @@
 #include <linux/kallsyms.h>
 #include <linux/ptrace.h>
 
-#define LOGD(fmt, msg...)	no_printk(fmt, ##msg)
-#define LOGV(fmt, msg...)    no_printk(fmt, ##msg)
-#define LOGI	LOGD
-#define LOGE(fmt, msg...)	no_printk(fmt, ##msg)
-#define LOGW	LOGE
-
 #define AE_INVALID              0xAEEFF000
 #define AE_NOT_AVAILABLE        0xAEE00000
 #define AE_DEFAULT              0xAEE00001
@@ -72,31 +66,45 @@ enum AE_CMD_ID {
 	AE_REQ_PROCESS,
 	AE_REQ_MODULE,
 	AE_REQ_BACKTRACE,
-	AE_REQ_DETAIL,		/* Content of response message rule:
-				 *   if msg.arg1==AE_PASS_BY_FILE => msg->data=file path
-				 */
+	/* Content of response message rule:
+	 *   if msg.arg1==AE_PASS_BY_FILE => msg->data=file path
+	 */
+	AE_REQ_DETAIL,
 
 	AE_REQ_ROOT_LOG_DIR,
 	AE_REQ_CURR_LOG_DIR,
 	AE_REQ_DFLT_LOG_DIR,
 	AE_REQ_MAIN_LOG_FILE_PATH,
 
-	AE_IND_FATAL_RAISED,	/* fatal event raised, indicate AED to notify users */
-	AE_IND_EXP_RAISED,	/* exception event raised, indicate AED to notify users */
-	AE_IND_WRN_RAISED,	/* warning event raised, indicate AED to notify users */
-	AE_IND_REM_RAISED,	/* reminding event raised, indicate AED to notify users */
+	/* fatal event raised, indicate AED to notify users */
+	AE_IND_FATAL_RAISED,
+	/* exception event raised, indicate AED to notify users */
+	AE_IND_EXP_RAISED,
+	/* warning event raised, indicate AED to notify users */
+	AE_IND_WRN_RAISED,
+	/* reminding event raised, indicate AED to notify users */
+	AE_IND_REM_RAISED,
 
-	AE_IND_LOG_STATUS,	/* arg = AE_ERR */
-	AE_IND_LOG_CLOSE,	/* arg = AE_ERR */
+	/* arg = AE_ERR */
+	AE_IND_LOG_STATUS,
+	/* arg = AE_ERR */
+	AE_IND_LOG_CLOSE,
 
-	AE_REQ_SWITCH_DAL_BEEP,	/* arg: dal on|off, seq: beep on|off */
-	AE_REQ_DB_COUNT,	/* arg: db count */
-	AE_REQ_DB_FORCE_PATH,	/* arg: force db path yes\no */
+	/* arg: dal on|off, seq: beep on|off */
+	AE_REQ_SWITCH_DAL_BEEP,
+	/* arg: db count */
+	AE_REQ_DB_COUNT,
+	/* arg: force db path yes\no */
+	AE_REQ_DB_FORCE_PATH,
 	AE_REQ_SWITCH_EXP_LEVEL,
-	AE_REQ_IS_AED_READY,	/* query if AED is ready for service */
-	AE_REQ_COREDUMP,	/* msg->data=file path */
-	AE_REQ_SET_READFLAG,	/* set read flag msg */
-	AE_REQ_E2S_INIT,	/* Init notification of client side(application layer) of Exp2Server */
+	/* query if AED is ready for service */
+	AE_REQ_IS_AED_READY,
+	/* msg->data=file path */
+	AE_REQ_COREDUMP,
+	/* set read flag msg */
+	AE_REQ_SET_READFLAG,
+	/* Init notification of client side(application layer) of Exp2Server */
+	AE_REQ_E2S_INIT,
 	AE_REQ_USERSPACEBACKTRACE = 40,
 	AE_REQ_USER_REG,
 	AE_REQ_USER_MAPS,
@@ -133,7 +141,8 @@ struct aee_dal_setcolor {
 	unsigned int screencolor;
 };
 
-#define MAX_AEE_KERNEL_BT 16	/* we use MAX_NR_FRAME to control max unwind layer */
+/* we use MAX_NR_FRAME to control max unwind layer */
+#define MAX_AEE_KERNEL_BT 16
 #define AEE_NR_FRAME 32
 
 struct aee_ioctl {
@@ -149,7 +158,8 @@ struct aee_ioctl {
 struct aee_thread_user_stack {
 	pid_t tid;
 	int StackLength;
-	unsigned char Userspace_Stack[8192];	/* 8k stack ,define to char only for match 64bit/32bit */
+	/* 8k stack ,define to char only for match 64bit/32bit */
+	unsigned char Userspace_Stack[8192];
 };
 
 struct aee_siginfo {
@@ -160,10 +170,11 @@ struct aee_siginfo {
 	uintptr_t fault_addr;
 };
 
-#define AEEIOCTL_DAL_SHOW       _IOW('p', 0x01, struct aee_dal_show)	/* Show string on DAL layer  */
+/* Show string on DAL layer  */
+#define AEEIOCTL_DAL_SHOW       _IOW('p', 0x01, struct aee_dal_show)
 #define AEEIOCTL_DAL_CLEAN      _IO('p', 0x02)	/* Clear DAL layer */
-#define AEEIOCTL_SETCOLOR       _IOW('p', 0x03, struct aee_dal_setcolor)	/* RGB color 0x00RRGGBB */
-/*#define AEEIOCTL_GET_PROCESS_BT _IOW('p', 0x04, struct aee_process_bt) *//*change new ID for KK */
+/* RGB color 0x00RRGGBB */
+#define AEEIOCTL_SETCOLOR       _IOW('p', 0x03, struct aee_dal_setcolor)
 #define AEEIOCTL_GET_PROCESS_BT _IOW('p', 0x04, struct aee_ioctl)
 #define AEEIOCTL_GET_SMP_INFO   _IOR('p', 0x05, int)
 #define AEEIOCTL_SET_AEE_MODE   _IOR('p', 0x06, int)
@@ -181,6 +192,9 @@ struct aee_siginfo {
 #define AEEIOCTL_GET_AEE_SIGINFO _IOW('p', 0x10, struct aee_siginfo)
 #define AEEIOCTL_SET_HANG_FLAG _IOW('p', 0x11, int)
 #define AEEIOCTL_SET_HANG_REBOOT _IO('p', 0x12)
+#define AEEIOCTL_GET_THREAD_RMS  _IOW('p', 0x13, struct unwind_info_rms)
+#define AEEIOCTL_GET_THREAD_STACK_RAW  _IOW('p', 0x14, struct unwind_info_stack)
+
 
 #define AED_FILE_OPS(entry) \
 	static const struct file_operations proc_##entry##_fops = { \
@@ -194,8 +208,9 @@ struct aee_siginfo {
 	}
 
 #define  AED_PROC_ENTRY(name, entry, mode)\
-	({if (!proc_create(#name, S_IFREG | mode, aed_proc_dir, &proc_##entry##_fops)) \
-		LOGE("proc_create %s failed\n", #name); })
+	({if (!proc_create(#name, S_IFREG | mode, aed_proc_dir, \
+		&proc_##entry##_fops)) \
+		pr_info("proc_create %s failed\n", #name); })
 
 
 struct proc_dir_entry;

@@ -103,7 +103,7 @@
 #define THERMAL_DRV_UPDATE_TEMP_DIRECT_TO_MET	(1)
 
 /* Define this in tscpu_settings.h enables this feature. It polls CPU TS in hrtimer and
- * run ATM in RT 98 kthread. This is for Everest only.
+ * run ATM in RT 98 kthread. This is for MT6797 only.
  */
 #define FAST_RESPONSE_ATM						(1)
 #define THERMAL_INIT_VALUE						(0xDA1)
@@ -294,6 +294,7 @@ extern void tscpu_workqueue_start_timer(void);
 
 extern void __iomem  *therm_clk_infracfg_ao_base;
 extern int Num_of_GPU_OPP;
+extern int gpu_max_opp;
 extern struct mt_gpufreq_power_table_info *mtk_gpu_power;
 extern int mtk_gpufreq_register(struct mt_gpufreq_power_table_info *freqs, int num);
 extern int tscpu_read_curr_temp;
@@ -695,6 +696,6 @@ extern void __iomem *INFRACFG_AO_base;
 #define THERMAL_MSRCTL2_MASK    0x000001C0
 
 /*cpu core nums*/
-#define TZCPU_NO_CPU_CORES              (8)
+#define TZCPU_NO_CPU_CORES             CONFIG_NR_CPUS
 
 #endif	/* __TSCPU_SETTINGS_H__ */

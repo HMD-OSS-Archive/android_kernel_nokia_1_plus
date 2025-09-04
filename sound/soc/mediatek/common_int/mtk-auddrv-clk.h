@@ -1,21 +1,21 @@
 /*
-* Copyright (C) 2015 MediaTek Inc.
-*
-* This program is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.
-* If not, see <http://www.gnu.org/licenses/>.
-*/
+ * Copyright (C) 2015 MediaTek Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.
+ * If not, see <http://www.gnu.org/licenses/>.
+ */
 
-/*******************************************************************************
+/***************************************************************************
  *
  * Filename:
  * ---------
@@ -33,10 +33,10 @@
  * -------
  *   Chipeng Chang (mtk02308)
  *
- *------------------------------------------------------------------------------
+ *---------------------------------------------------------------------------
  *
- *
- *******************************************************************************/
+ ****************************************************************************
+ */
 
 #ifndef _AUDDRV_CLK_H_
 #define _AUDDRV_CLK_H_
@@ -45,23 +45,19 @@
  *                     C O M P I L E R   F L A G S
  *****************************************************************************/
 
-
 /*****************************************************************************
  *                E X T E R N A L   R E F E R E N C E S
  *****************************************************************************/
 
 #include "mtk-auddrv-common.h"
 
-
 /*****************************************************************************
  *                         D A T A   T Y P E S
  *****************************************************************************/
 
-
 /*****************************************************************************
  *                         M A C R O
  *****************************************************************************/
-
 
 /*****************************************************************************
  *                 FUNCTION       D E F I N I T I O N
@@ -125,7 +121,8 @@ void DisableALLbySampleRate(unsigned int SampleRate);
 void EnableI2SDivPower(unsigned int Diveder_name, bool bEnable);
 void EnableApll1(bool bEnable);
 void EnableApll2(bool bEnable);
-void SetCLkBclk(unsigned int MckDiv, unsigned int SampleRate, unsigned int Channels, unsigned int Wlength);
+void SetCLkBclk(unsigned int MckDiv, unsigned int SampleRate,
+		unsigned int Channels, unsigned int Wlength);
 unsigned int SetCLkMclk(unsigned int I2snum, unsigned int SampleRate);
 void EnableI2SCLKDiv(unsigned int I2snum, bool bEnable);
 void PowerDownAllI2SDiv(void);

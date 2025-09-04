@@ -41,25 +41,13 @@
 #include <linux/usb.h>
 #include <linux/usb/otg.h>
 #include "musb.h"
-#include <linux/wakelock.h>
+#include <linux/pm_wakeup.h>
 #include <linux/version.h>
-#if CONFIG_MTK_GAUGE_VERSION == 30
-#include <mt-plat/charger_type.h>
-#else
-#include <mt-plat/charging.h>
-#endif
-#if defined(CONFIG_MTK_SMART_BATTERY)
-extern enum charger_type mt_get_charger_type(void);
-#endif
 #include <linux/clk.h>
+#include <mt-plat/charger_type.h>
 
-extern struct clk *usbpll_clk;
-extern struct clk *usbmcu_clk;
-extern struct clk *usb_clk;
-extern struct clk *icusb_clk;
-
-#ifdef CONFIG_MTK_MUSB_PORT0_LOWPOWER_MODE
-extern bool musb_shutted;
+#if defined(CONFIG_MTK_CHARGER)
+extern enum charger_type mt_get_charger_type(void);
 #endif
 
 /* to prevent 32 bit project misuse */
@@ -81,11 +69,14 @@ extern int kernel_init_done;
 extern int musb_force_on;
 extern int musb_host_dynamic_fifo;
 extern int musb_host_dynamic_fifo_usage_msk;
+extern unsigned int musb_uart_debug;
 extern bool musb_host_db_enable;
 extern bool musb_host_db_workaround1;
 extern bool musb_host_db_workaround2;
 extern long musb_host_db_delay_ns;
 extern long musb_host_db_workaround_cnt;
+extern int mtk_host_audio_free_ep_udelay;
+
 extern struct musb *mtk_musb;
 extern bool mtk_usb_power;
 extern ktime_t ktime_ready;
@@ -95,8 +86,8 @@ extern int polling_vbus_value(void *data);
 #if defined(CONFIG_USBIF_COMPLIANCE)
 extern bool polling_vbus;
 extern struct task_struct *vbus_polling_tsk;
-extern void musb_set_host_request_flag(struct musb *musb, unsigned value);
-extern void pmic_bvalid_det_int_en(int);
+extern void musb_set_host_request_flag(struct musb *musb, unsigned int value);
+extern void pmic_bvalid_det_int_en(int i);
 #define CONFIG_USBIF_COMPLIANCE_PMIC
 #if defined(CONFIG_USBIF_COMPLIANCE_PMIC)
 extern int PMIC_IMM_GetOneChannelValue(int dwChannel, int deCount, int trimd);
@@ -148,21 +139,25 @@ extern void musb_bug(void);
 #define MUSB_CONFIG_PROC_FS
 #endif
 
+#ifdef CONFIG_MTK_MUSB_PORT0_LOWPOWER_MODE
+extern bool musb_shutted;
+#endif
+
 /****************************** PERIPHERAL ROLE *****************************/
 
-extern irqreturn_t musb_g_ep0_irq(struct musb *);
-extern void musb_g_tx(struct musb *, u8);
-extern void musb_g_rx(struct musb *, u8);
-extern void musb_g_reset(struct musb *);
-extern void musb_g_suspend(struct musb *);
-extern void musb_g_resume(struct musb *);
-extern void musb_g_wakeup(struct musb *);
-extern void musb_g_disconnect(struct musb *);
+extern irqreturn_t musb_g_ep0_irq(struct musb *musb);
+extern void musb_g_tx(struct musb *musb, u8 epnum);
+extern void musb_g_rx(struct musb *musb, u8 epnum);
+extern void musb_g_reset(struct musb *musb);
+extern void musb_g_suspend(struct musb *musb);
+extern void musb_g_resume(struct musb *musb);
+extern void musb_g_wakeup(struct musb *musb);
+extern void musb_g_disconnect(struct musb *musb);
 
 /****************************** HOST ROLE ***********************************/
-extern irqreturn_t musb_h_ep0_irq(struct musb *);
-extern void musb_host_tx(struct musb *, u8);
-extern void musb_host_rx(struct musb *, u8);
+extern irqreturn_t musb_h_ep0_irq(struct musb *musb);
+extern void musb_host_tx(struct musb *musb, u8 epnum);
+extern void musb_host_rx(struct musb *musb, u8 epnum);
 
 /****************************** CONSTANTS ********************************/
 
@@ -274,7 +269,7 @@ struct musb_platform_ops {
 	void (*set_vbus)(struct musb *musb, int on);
 
 	int (*adjust_channel_params)(struct dma_channel *channel,
-				      u16 packet_sz, u8 *mode, dma_addr_t *dma_addr, u32 *len);
+		u16 packet_sz, u8 *mode, dma_addr_t *dma_addr, u32 *len);
 
 	void (*enable_clk)(struct musb *musb);
 	void (*disable_clk)(struct musb *musb);
@@ -364,7 +359,7 @@ struct musb {
 	const struct musb_platform_ops *ops;
 	struct musb_context_registers context;
 
-	 irqreturn_t (*isr)(int, void *);
+	irqreturn_t (*isr)(int irq, void *priv);
 	struct work_struct irq_work;
 	struct work_struct otg_notifier_work;
 	u16 hwvers;
@@ -374,9 +369,9 @@ struct musb {
 	struct delayed_work carplay_work;
 #endif
 	struct musb_fifo_cfg *fifo_cfg;
-	unsigned fifo_cfg_size;
+	unsigned int fifo_cfg_size;
 	struct musb_fifo_cfg *fifo_cfg_host;
-	unsigned fifo_cfg_host_size;
+	unsigned int fifo_cfg_host_size;
 	u32 fifo_size;
 
 	u16 intrrxe;
@@ -490,7 +485,7 @@ struct musb {
 	enum musb_g_ep0_state ep0_state;
 	struct usb_gadget g;	/* the gadget */
 	struct usb_gadget_driver *gadget_driver;	/* its driver */
-	struct wake_lock usb_lock;
+	struct wakeup_source usb_lock;
 
 	/*
 	 * FIXME: Remove this flag.
@@ -523,7 +518,6 @@ struct musb {
 	enum usb_otg_event otg_event;
 #endif
 	struct workqueue_struct *st_wq;
-
 #ifdef CONFIG_DUAL_ROLE_USB_INTF
 	struct dual_role_phy_instance *dr_usb;
 #endif /* CONFIG_DUAL_ROLE_USB_INTF */
@@ -534,7 +528,8 @@ static inline struct musb *gadget_to_musb(struct usb_gadget *g)
 	return container_of(g, struct musb, g);
 }
 
-static inline int musb_read_fifosize(struct musb *musb, struct musb_hw_ep *hw_ep, u8 epnum)
+static inline int musb_read_fifosize
+	(struct musb *musb, struct musb_hw_ep *hw_ep, u8 epnum)
 {
 	void __iomem *mbase = musb->mregs;
 	u8 reg = 0;
@@ -582,9 +577,9 @@ extern void musb_put_id(struct device *dev, int id);
 extern void musb_write_fifo(struct musb_hw_ep *ep, u16 len, const u8 *src);
 extern void musb_read_fifo(struct musb_hw_ep *ep, u16 len, u8 *dst);
 
-extern void musb_load_testpacket(struct musb *);
-extern void musb_generic_disable(struct musb *);
-extern irqreturn_t musb_interrupt(struct musb *);
+extern void musb_load_testpacket(struct musb *musb);
+extern void musb_generic_disable(struct musb *musb);
+extern irqreturn_t musb_interrupt(struct musb *musb);
 extern irqreturn_t dma_controller_irq(int irq, void *private_data);
 
 extern void musb_hnp_stop(struct musb *musb);
@@ -615,7 +610,8 @@ static inline int musb_platform_set_mode(struct musb *musb, u8 mode)
 	return musb->ops->set_mode(musb, mode);
 }
 
-static inline void musb_platform_try_idle(struct musb *musb, unsigned long timeout)
+static inline void
+	musb_platform_try_idle(struct musb *musb, unsigned long timeout)
 {
 	if (musb->ops->try_idle)
 		musb->ops->try_idle(musb, timeout);

@@ -14,7 +14,7 @@
 /* common and private utility for mtprof */
 #include <linux/seq_file.h>
 #include <linux/sched.h>
-#include <linux/cputime.h>
+//#include <linux/cputime.h>
 
 #define SEQ_printf(m, x...)	    \
 	do {			    \

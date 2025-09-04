@@ -199,12 +199,10 @@ static inline enum TZ_PARAM_TYPES TZ_GetParamTypes(uint32_t paramTypes, int num)
 /* The handle is invalid. */
 #define TZ_RESULT_ERROR_INVALID_HANDLE 0xFFFF0011
 
-typedef int TZ_RESULT;
-
 /**
  * Return a human readable error string.
  */
-const char *TZ_GetErrorString(TZ_RESULT res);
+const char *TZ_GetErrorString(int res);
 
 #ifdef __cplusplus
 }

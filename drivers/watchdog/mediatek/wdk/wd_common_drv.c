@@ -1,15 +1,15 @@
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ * Copyright (C) 2016 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ */
 
 #include <linux/version.h>
 #include <linux/kernel.h>
@@ -31,19 +31,20 @@
 #ifdef CONFIG_MTK_AEE_IPANIC
 #include <mt-plat/mtk_ram_console.h>
 #endif
-#ifdef CONFIG_MTK_ACAO_SUPPORT
 #include <linux/tick.h>
 #include <mt-plat/mtk_gpt.h>
-#endif
 #include <ext_wd_drv.h>
-#include <mach/wd_api.h>
+#include <mt-plat/mtk_wd_api.h>
 #include <linux/seq_file.h>
+#include <uapi/linux/sched/types.h>
+#include <linux/sched/clock.h>
 
 /*************************************************************************
  * Feature configure region
  *************************************************************************/
 #define __ENABLE_WDT_SYSFS__
 #define __ENABLE_WDT_AT_INIT__
+#define KWDT_KICK_TIME_ALIGN
 
 /* ------------------------------------------------------------------------ */
 #define PFX "wdk: "
@@ -54,18 +55,24 @@
 #define dbgmsg(...)
 #endif
 #define msg(msg...) pr_info(PFX msg)
-#define warnmsg(msg...) pr_warn(PFX msg)
-#define errmsg(msg...) pr_err(PFX msg)
+#define warnmsg(msg...) pr_info(PFX msg)
+#define errmsg(msg...) pr_notice(PFX msg)
 
 #define WK_MAX_MSG_SIZE (128)
 #define MIN_KICK_INTERVAL	 1
 #define MAX_KICK_INTERVAL	30
+#define SOFT_KICK_RANGE     (100*1000) // 100ms
 #define	MRDUMP_SYSRESETB	0
 #define	MRDUMP_EINTRST		1
 #define PROC_WK "wdk"
 #define	PROC_MRDUMP_RST	"mrdump_rst"
 
-__weak void mtk_wdt_cpu_callback(struct task_struct *wk_tsk, unsigned long action, int hotcpu, int kicker_init)
+__weak void mtk_wdt_cpu_callback(struct task_struct *wk_tsk, int hotcpu,
+				     int kicker_init)
+{
+}
+
+__weak void mtk_timer_clkevt_aee_dump(void)
 {
 }
 
@@ -98,14 +105,17 @@ static struct workqueue_struct *wdk_workqueue;
 static unsigned int lasthpg_act;
 static unsigned int lasthpg_cpu;
 static unsigned long long lasthpg_t;
+#ifdef KWDT_KICK_TIME_ALIGN
+static unsigned long g_nxtKickTime;
+#endif
 
 static char cmd_buf[256];
 
 
 static int wk_proc_cmd_read(struct seq_file *s, void *v)
 {
-	seq_printf(s, "mode interval timeout enable\n%-4d %-9d %-8d %-7d\n", g_wk_wdt_mode,
-		   g_kinterval, g_timeout, g_enable);
+	seq_printf(s, "mode interval timeout enable\n%-4d %-9d %-8d %-7d\n",
+		g_wk_wdt_mode, g_kinterval, g_timeout, g_enable);
 	return 0;
 }
 
@@ -114,13 +124,14 @@ static int wk_proc_cmd_open(struct inode *inode, struct file *file)
 	return single_open(file, wk_proc_cmd_read, NULL);
 }
 
-static ssize_t wk_proc_cmd_write(struct file *file, const char *buf, size_t count, loff_t *data)
+static ssize_t wk_proc_cmd_write(struct file *file, const char *buf,
+	size_t count, loff_t *data)
 {
 	int ret;
 	int timeout;
 	int mode;
 	int kinterval;
-	int en;			/* enable or disable ext wdt 1<-->enable 0<-->disable */
+	int en;	/* enable or disable ext wdt 1<-->enable 0<-->disable */
 	struct wd_api *my_wd_api = NULL;
 
 	ret = get_wd_api(&my_wd_api);
@@ -141,31 +152,35 @@ static ssize_t wk_proc_cmd_write(struct file *file, const char *buf, size_t coun
 
 	pr_debug("Write %s\n", cmd_buf);
 
-	ret = sscanf(cmd_buf, "%d %d %d %d %d", &mode, &kinterval, &timeout, &debug_sleep, &en);
+	ret = sscanf(cmd_buf, "%d %d %d %d %d", &mode,
+		&kinterval, &timeout, &debug_sleep, &en);
 
-	pr_debug("[wdk] mode=%d interval=%d timeout=%d enable =%d\n", mode, kinterval, timeout, en);
+	pr_debug("[wdk] mode=%d interval=%d timeout=%d enable =%d\n",
+		mode, kinterval, timeout, en);
 
 	if (timeout < kinterval) {
-		pr_info("The interval(%d) value should be smaller than timeout value(%d)\n",
+		pr_info("Interval(%d) need smaller than timeout value(%d)\n",
 		       kinterval, timeout);
 		return -1;
 	}
 
 	if ((timeout < MIN_KICK_INTERVAL) || (timeout > MAX_KICK_INTERVAL)) {
-		pr_info("The timeout(%d) is invalid (%d - %d)\n", kinterval, MIN_KICK_INTERVAL,
-		       MAX_KICK_INTERVAL);
+		pr_info("The timeout(%d) is invalid (%d - %d)\n", kinterval,
+			MIN_KICK_INTERVAL, MAX_KICK_INTERVAL);
 		return -1;
 	}
 
-	if ((kinterval < MIN_KICK_INTERVAL) || (kinterval > MAX_KICK_INTERVAL)) {
-		pr_info("The interval(%d) is invalid (%d - %d)\n", kinterval, MIN_KICK_INTERVAL,
-		       MAX_KICK_INTERVAL);
+	if ((kinterval < MIN_KICK_INTERVAL) ||
+		(kinterval > MAX_KICK_INTERVAL)) {
+		pr_info("The interval(%d) is invalid (%d - %d)\n", kinterval,
+			MIN_KICK_INTERVAL, MAX_KICK_INTERVAL);
 		return -1;
 	}
 
 	if (!((mode == WDT_IRQ_ONLY_MODE) ||
 	      (mode == WDT_HW_REBOOT_ONLY_MODE) || (mode == WDT_DUAL_MODE))) {
-		pr_info("Tha watchdog kicker wdt mode is not correct %d\n", mode);
+		pr_info("Tha watchdog kicker wdt mode is not correct %d\n",
+			mode);
 		return -1;
 	}
 
@@ -224,12 +239,12 @@ static int mrdump_proc_cmd_open(struct inode *inode, struct file *file)
 	return single_open(file, mrdump_proc_cmd_read, NULL);
 }
 
-static ssize_t mrdump_proc_cmd_write(struct file *file, const char *buf, size_t count,
-				     loff_t *data)
+static ssize_t mrdump_proc_cmd_write(struct file *file,
+	const char *buf, size_t count, loff_t *data)
 {
 	int ret = 0;
 	int mrdump_rst_source;
-	int en, mode;		/* enable or disable ext wdt 1<-->enable 0<-->disable */
+	int en, mode;/* enable or disable ext wdt 1<-->enable 0<-->disable */
 	char mrdump_cmd_buf[256];
 	struct wd_api *my_wd_api = NULL;
 
@@ -251,20 +266,23 @@ static ssize_t mrdump_proc_cmd_write(struct file *file, const char *buf, size_t 
 
 	dbgmsg("Write %s\n", mrdump_cmd_buf);
 
-	ret = sscanf(mrdump_cmd_buf, "%d %d %d", &mrdump_rst_source, &mode, &en);
+	ret = sscanf(mrdump_cmd_buf, "%d %d %d",
+		&mrdump_rst_source, &mode, &en);
 	if (ret != 3)
 		pr_debug("%s: expect 3 numbers\n", __func__);
 
-	pr_debug("[MRDUMP] rst_source=%d mode=%d enable=%d\n", mrdump_rst_source, mode, en);
+	pr_debug("[MRDUMP] rst_source=%d mode=%d enable=%d\n",
+		mrdump_rst_source, mode, en);
 
 	if (mrdump_rst_source > 1) {
-		errmsg("The mrdump_rst_source(%d) value should be smaller than 2\n",
+		errmsg("mrdump_rst_source(%d) value need smaller than 2\n",
 		       mrdump_rst_source);
 		return -1;
 	}
 
 	if (mode > 1) {
-		errmsg("The mrdump_rst_mode(%d) value should be smaller than 2\n", mode);
+		errmsg("mrdump_rst_mode(%d) value should be smaller than 2\n",
+			mode);
 		return -1;
 	}
 
@@ -295,7 +313,7 @@ static int start_kicker_thread_with_default_setting(void)
 
 	g_kinterval = 20;	/* default interval: 20s */
 
-	g_need_config = 0;	/* Note, we DO NOT want to call configure function */
+	g_need_config = 0;/* Note, we DO NOT want to call configure function */
 
 	wdt_start = 1;		/* Start once only */
 	rtc_update = jiffies;	/* update rtc_update time base*/
@@ -303,7 +321,7 @@ static int start_kicker_thread_with_default_setting(void)
 	spin_unlock(&lock);
 	start_kicker();
 
-	pr_debug("[wdk] start_kicker_thread_with_default_setting done\n");
+	pr_debug("[wdk] %s done\n", __func__);
 	return ret;
 }
 
@@ -314,7 +332,8 @@ void wk_start_kick_cpu(int cpu)
 		pr_debug("[wdk] wk_task[%d] is NULL\n", cpu);
 	} else {
 		kthread_bind(wk_tsk[cpu], cpu);
-		pr_info("[wdk] bind thread %d to cpu %d\n", wk_tsk[cpu]->pid, cpu);
+		pr_info("[wdk] bind thread %d to cpu %d\n",
+			wk_tsk[cpu]->pid, cpu);
 		wake_up_process(wk_tsk[cpu]);
 	}
 }
@@ -329,13 +348,17 @@ void dump_wdk_bind_info(void)
 	for (i = 0; i < CPU_NR; i++) {
 		if (wk_tsk[i] != NULL) {
 			/*
-			 * pr_info("[wdk]CPU %d, %d, %lld, %lu, %d, %ld\n", i, wk_tsk_bind[i], wk_tsk_bind_time[i],
-			 *	wk_tsk[i]->cpus_allowed.bits[0], wk_tsk[i]->on_rq, wk_tsk[i]->state);
-				*/
+			 * pr_info("[wdk]CPU %d, %d, %lld, %lu, %d, %ld\n",
+			 *	i, wk_tsk_bind[i], wk_tsk_bind_time[i],
+			 *	wk_tsk[i]->cpus_allowed.bits[0],
+			 *	wk_tsk[i]->on_rq, wk_tsk[i]->state);
+			 */
 			memset(wk_tsk_buf, 0, sizeof(wk_tsk_buf));
 			snprintf(wk_tsk_buf, sizeof(wk_tsk_buf),
-				"[wdk]CPU %d, %d, %lld, %lu, %d, %ld\n", i, wk_tsk_bind[i], wk_tsk_bind_time[i],
-				wk_tsk[i]->cpus_allowed.bits[0], wk_tsk[i]->on_rq, wk_tsk[i]->state);
+				"[wdk]CPU %d, %d, %lld, %lu, %d, %ld\n",
+				i, wk_tsk_bind[i], wk_tsk_bind_time[i],
+				wk_tsk[i]->cpus_allowed.bits[0],
+				wk_tsk[i]->on_rq, wk_tsk[i]->state);
 #ifdef CONFIG_MTK_AEE_IPANIC
 			aee_sram_fiq_log(wk_tsk_buf);
 #endif
@@ -344,11 +367,8 @@ void dump_wdk_bind_info(void)
 #ifdef CONFIG_MTK_AEE_IPANIC
 	aee_sram_fiq_log("\n");
 #endif
-
-#ifdef CONFIG_MTK_ACAO_SUPPORT
-	mt_gpt_clkevt_aee_dump();
+	mtk_timer_clkevt_aee_dump();
 	tick_broadcast_mtk_aee_dump();
-#endif
 }
 
 void kicker_cpu_bind(int cpu)
@@ -357,7 +377,8 @@ void kicker_cpu_bind(int cpu)
 		pr_debug("[wdk]wk_task[%d] is NULL\n", cpu);
 	else {
 		/* kthread_bind(wk_tsk[cpu], cpu); */
-		WARN_ON_ONCE(set_cpus_allowed_ptr(wk_tsk[cpu], cpumask_of(cpu)) < 0);
+		WARN_ON_ONCE(set_cpus_allowed_ptr(wk_tsk[cpu],
+			cpumask_of(cpu)) < 0);
 		wake_up_process(wk_tsk[cpu]);
 		wk_tsk_bind[cpu] = 1;
 		wk_tsk_bind_time[cpu] = sched_clock();
@@ -413,14 +434,17 @@ static const struct file_operations mrdump_rst_proc_cmd_fops = {
 int wk_proc_init(void)
 {
 
-	struct proc_dir_entry *de = proc_create(PROC_WK, 0660, NULL, &wk_proc_cmd_fops);
+	struct proc_dir_entry *de = NULL;
+
+	de = proc_create(PROC_WK, 0660, NULL, &wk_proc_cmd_fops);
 
 	if (!de)
-		pr_debug("[wk_proc_init]: create /proc/wdk failed\n");
+		pr_debug("[%s]: create /proc/wdk failed\n", __func__);
 
-	de = proc_create(PROC_MRDUMP_RST, 0660, NULL, &mrdump_rst_proc_cmd_fops);
+	de = proc_create(PROC_MRDUMP_RST, 0660, NULL,
+		&mrdump_rst_proc_cmd_fops);
 	if (!de)
-		pr_debug("[wk_proc_init]: create /proc/mrdump_rst failed\n");
+		pr_debug("[%s]: create /proc/mrdump_rst failed\n", __func__);
 
 	pr_debug("[wdk] Initialize proc\n");
 
@@ -461,12 +485,58 @@ static void kwdt_print_utc(char *msg_buf, int msg_buf_size)
 		tm_android.tm_min, tm_android.tm_sec,
 		(unsigned int)tv_android.tv_usec);
 }
+static void kwdt_process_kick(int local_bit, int cpu,
+				unsigned long curInterval, char msg_buf[])
+{
+	local_bit = kick_bit;
+	if ((local_bit & (1 << cpu)) == 0) {
+		/* pr_debug("[wdk] set kick_bit\n"); */
+		local_bit |= (1 << cpu);
+		/* aee_rr_rec_wdk_kick_jiffies(jiffies); */
+	}
+
+	/*
+	 * do not print message with spinlock held to
+	 *  avoid bulk of delayed printk happens here
+	 */
+	snprintf(msg_buf, WK_MAX_MSG_SIZE,
+		"[wdk-c] cpu=%d,lbit=0x%x,cbit=0x%x,%d,%d,%lld,[%lld,%ld]\n",
+		cpu, local_bit, wk_check_kick_bit(), lasthpg_cpu, lasthpg_act,
+		lasthpg_t, sched_clock(), curInterval);
+
+	if (local_bit == wk_check_kick_bit()) {
+		msg_buf[5] = 'k';
+		mtk_wdt_restart(WD_TYPE_NORMAL);/* for KICK external wdt */
+		local_bit = 0;
+	}
+
+	kick_bit = local_bit;
+	spin_unlock(&lock);
+
+	/*
+	 * [wdt-c]: mark local bit only.
+	 * [wdt-k]: kick watchdog actaully, this log is more important thus
+	 *	    using printk_deferred to ensure being printed.
+	 */
+	if (msg_buf[5] != 'k')
+		pr_info("%s", msg_buf);
+	else
+		printk_deferred("%s", msg_buf);
+
+#ifdef CONFIG_LOCAL_WDT
+	printk_deferred("[wdk] cpu:%d, kick local wdt,RT[%lld]\n",
+			cpu, sched_clock());
+	/* kick local wdt */
+	mpcore_wdt_restart(WD_TYPE_NORMAL);
+#endif
+}
 
 static int kwdt_thread(void *arg)
 {
 	struct sched_param param = {.sched_priority = 99 };
 	int cpu = 0;
 	int local_bit = 0, loc_need_config = 0, loc_timeout = 0;
+	unsigned long curInterval = 0;
 	struct wd_api *loc_wk_wdt = NULL;
 	char msg_buf[WK_MAX_MSG_SIZE];
 
@@ -492,11 +562,12 @@ static int kwdt_thread(void *arg)
 		 * pr_debug("[wdk] loc_wk_wdt(%x),loc_wk_wdt->ready(%d)\n",
 		 * loc_wk_wdt ,loc_wk_wdt->ready);
 		 */
-
+		curInterval = g_kinterval*1000*1000;
 		if (loc_wk_wdt && loc_wk_wdt->ready && g_enable) {
 			if (loc_need_config) {
 				/* daul  mode */
-				loc_wk_wdt->wd_config(WDT_DUAL_MODE, loc_timeout);
+				loc_wk_wdt->wd_config(WDT_DUAL_MODE,
+					loc_timeout);
 				spin_lock(&lock);
 				g_need_config = 0;
 				spin_unlock(&lock);
@@ -508,73 +579,40 @@ static int kwdt_thread(void *arg)
 
 			spin_lock(&lock);
 
-			/* smp_processor_id does not allowed preemptible context */
+			/* smp_processor_id does not
+			 * allowed preemptible context
+			 */
 			cpu = smp_processor_id();
 
 			/* to avoid wk_tsk[cpu] had not created out */
 			if (wk_tsk[cpu] != 0) {
 
-				/* only process kicking info if thread-x is on cpu-x */
+				/* only process kicking info
+				 * if thread-x is on cpu-x
+				 */
 				if (wk_tsk[cpu]->pid == current->pid) {
-
-					local_bit = kick_bit;
-					if ((local_bit & (1 << cpu)) == 0) {
-						/* pr_debug("[wdk] set kick_bit\n"); */
-						local_bit |= (1 << cpu);
-						/* aee_rr_rec_wdk_kick_jiffies(jiffies); */
+#ifdef KWDT_KICK_TIME_ALIGN
+					if (kick_bit == 0) {
+						g_nxtKickTime =
+							ktime_to_us(ktime_get())
+							+ g_kinterval*1000*1000;
+						curInterval =
+							g_kinterval*1000*1000;
+					} else {
+						curInterval =	g_nxtKickTime
+						- ktime_to_us(ktime_get());
 					}
-
-					/*
-					 * do not print message with spinlock held to avoid bulk of delayed printk
-					 * happens here
-					 */
-					snprintf(msg_buf, WK_MAX_MSG_SIZE,
-						"[wdk-c] cpu=%d,lbit=0x%x,cbit=0x%x,%d,%d,%lld,[%lld]\n",
-						cpu, local_bit, wk_check_kick_bit(), lasthpg_cpu, lasthpg_act,
-						lasthpg_t, sched_clock());
-
-					if (local_bit == wk_check_kick_bit()) {
-						msg_buf[5] = 'k';
-						mtk_wdt_restart(WD_TYPE_NORMAL);	/* for KICK external wdt */
-						local_bit = 0;
-					}
-
-					kick_bit = local_bit;
-					spin_unlock(&lock);
-
-					/*
-					 * [wdt-c]: mark local bit only.
-					 * [wdt-k]: kick watchdog actaully, this log is more important thus
-					 *          using printk_deferred to ensure being printed.
-					 */
-					if (msg_buf[5] != 'k')
-						pr_debug("%s", msg_buf);
-					else
-						printk_deferred("%s", msg_buf);
-
-#ifdef CONFIG_LOCAL_WDT
-					printk_deferred("[wdk] cpu:%d, kick local wdt,RT[%lld]\n",
-							cpu, sched_clock());
-					/* kick local wdt */
-					mpcore_wdt_restart(WD_TYPE_NORMAL);
+					/* to avoid interval too long */
+					if (curInterval > g_kinterval*1000*1000)
+						curInterval =
+							g_kinterval*1000*1000;
 #endif
-				} else {
+					kwdt_process_kick(local_bit, cpu,
+						curInterval, msg_buf);
+				} else
 					spin_unlock(&lock);
-
-#ifdef CONFIG_MTK_ACAO_SUPPORT
-					/*
-					 * acao will not let cpu down (as well migrate wdk kthread to other
-					 * cpu) in most of time, thus we dump this case for easier debugging.
-					 */
-					pr_info("[wdk] mis-matched, cpu=%d, bound-pid=%d, cur-pid=%d\n",
-						cpu, wk_tsk[cpu]->pid, current->pid);
-#endif
-				}
-			} else {
+			} else
 				spin_unlock(&lock);
-
-				pr_info("[wdk] per-cpu thread is not created yet.\n");
-			}
 		} else if (g_enable == 0) {
 			pr_debug("[wdk] stop to kick\n");
 		} else {
@@ -587,33 +625,43 @@ static int kwdt_thread(void *arg)
 			if (wk_tsk[cpu]->pid == current->pid) {
 #if (DEBUG_WDK == 1)
 				msleep_interruptible(debug_sleep * 1000);
-				pr_debug("[wdk] wdk woke up %d\n", debug_sleep);
+				pr_debug("[wdk] wdk woke up %d\n",
+					debug_sleep);
 #endif
 				/* limit the rtc time update frequency */
 				spin_lock(&lock);
 				msg_buf[0] = '\0';
 				if (time_after(jiffies, rtc_update)) {
 					rtc_update = jiffies + (1 * HZ);
-					kwdt_print_utc(msg_buf, WK_MAX_MSG_SIZE);
+					kwdt_print_utc(msg_buf,
+						WK_MAX_MSG_SIZE);
 				}
 				spin_unlock(&lock);
 
 				/*
-				 * do not print message with spinlock held to avoid bulk of delayed printk
-				 * happens here
+				 * do not print message with spinlock held to
+				 * avoid bulk of delayed printk happens here
 				 */
 				if (msg_buf[0] != '\0')
 					pr_info("%s", msg_buf);
 			}
 		}
 
-		msleep_interruptible((g_kinterval) * 1000);
+#ifdef KWDT_KICK_TIME_ALIGN
+		usleep_range(curInterval, curInterval + SOFT_KICK_RANGE);
+#else
+		usleep_range(g_kinterval*1000*1000,
+			g_kinterval*1000*1000 + SOFT_KICK_RANGE);
+#endif
 
 #ifdef CONFIG_MTK_AEE_POWERKEY_HANG_DETECT
-		if ((cpu == 0) && (wk_tsk[cpu]->pid == current->pid)) {	/* only effect at cpu0 */
-			if (aee_kernel_wdt_kick_api(g_kinterval) == WDT_PWK_HANG_FORCE_HWT) {
+		if ((cpu == 0) && (wk_tsk[cpu]->pid == current->pid)) {
+			/* only effect at cpu0 */
+			if (aee_kernel_wdt_kick_api(g_kinterval) ==
+				WDT_PWK_HANG_FORCE_HWT) {
 				printk_deferred("power key trigger HWT\n");
-				cpus_kick_bit = 0xFFFF;	/* Try to force to HWT */
+				/* Try to force to HWT */
+				cpus_kick_bit = 0xFFFF;
 			}
 		}
 #endif
@@ -629,7 +677,8 @@ static int start_kicker(void)
 
 	wk_cpu_update_bit_flag(0, 1);
 	for (i = 0; i < CPU_NR; i++) {
-		wk_tsk[i] = kthread_create(kwdt_thread, (void *)(unsigned long)i, "wdtk-%d", i);
+		wk_tsk[i] = kthread_create(kwdt_thread,
+			(void *)(unsigned long)i, "wdtk-%d", i);
 		if (IS_ERR(wk_tsk[i])) {
 			int ret = PTR_ERR(wk_tsk[i]);
 
@@ -658,7 +707,7 @@ unsigned int get_kick_bit(void)
 
 /******************************************************************************
  * SYSFS support
-******************************************************************************/
+ *****************************************************************************/
 #ifdef __ENABLE_WDT_SYSFS__
 /*---------------------------------------------------------------------------*/
 /*define sysfs entry for configuring debug level and sysrq*/
@@ -675,7 +724,7 @@ struct mtk_rgu_sys_entry {
 };
 /*---------------------------------------------------------------------------*/
 static struct mtk_rgu_sys_entry pause_wdt_entry = {
-	{.name = "pause", .mode = S_IRUGO | S_IWUSR},
+	{.name = "pause", .mode = 0644},
 	mtk_rgu_pause_wdt_show,
 	mtk_rgu_pause_wdt_store,
 };
@@ -714,18 +763,24 @@ int mtk_rgu_sysfs(void)
 }
 
 /*---------------------------------------------------------------------------*/
-ssize_t mtk_rgu_attr_show(struct kobject *kobj, struct attribute *attr, char *buffer)
+ssize_t mtk_rgu_attr_show(struct kobject *kobj,
+	struct attribute *attr, char *buffer)
 {
-	struct mtk_rgu_sys_entry *entry = container_of(attr, struct mtk_rgu_sys_entry, attr);
+	struct mtk_rgu_sys_entry *entry = NULL;
+
+	entry = container_of(attr, struct mtk_rgu_sys_entry, attr);
 
 	return entry->show(kobj, buffer);
 }
 
 /*---------------------------------------------------------------------------*/
-ssize_t mtk_rgu_attr_store(struct kobject *kobj, struct attribute *attr, const char *buffer,
+ssize_t mtk_rgu_attr_store(struct kobject *kobj,
+	struct attribute *attr, const char *buffer,
 			   size_t size)
 {
-	struct mtk_rgu_sys_entry *entry = container_of(attr, struct mtk_rgu_sys_entry, attr);
+	struct mtk_rgu_sys_entry *entry = NULL;
+
+	entry = container_of(attr, struct mtk_rgu_sys_entry, attr);
 
 	return entry->store(kobj, buffer, size);
 }
@@ -744,7 +799,8 @@ ssize_t mtk_rgu_pause_wdt_show(struct kobject *kobj, char *buffer)
 }
 
 /*---------------------------------------------------------------------------*/
-ssize_t mtk_rgu_pause_wdt_store(struct kobject *kobj, const char *buffer, size_t size)
+ssize_t mtk_rgu_pause_wdt_store(struct kobject *kobj,
+	const char *buffer, size_t size)
 {
 	char pause_wdt;
 	int pause_wdt_b;
@@ -755,7 +811,9 @@ ssize_t mtk_rgu_pause_wdt_store(struct kobject *kobj, const char *buffer, size_t
 	if (res != 1) {
 		pr_info("%s: expect 1 numbers\n", __func__);
 	} else {
-		/* For real case, pause wdt if get value is not zero. Suspend and resume may enable wdt again */
+		/* For real case, pause wdt if get value is not zero.
+		 * Suspend and resume may enable wdt again
+		 */
 		if (pause_wdt_b)
 			mtk_wdt_enable(WK_WDT_DIS);
 	}
@@ -766,87 +824,50 @@ ssize_t mtk_rgu_pause_wdt_store(struct kobject *kobj, const char *buffer, size_t
 #endif /*__ENABLE_WDT_SYSFS__*/
 /*---------------------------------------------------------------------------*/
 
-static int wk_cpu_callback(struct notifier_block *nfb, unsigned long action, void *hcpu)
+static int wk_cpu_callback_online(unsigned int cpu)
 {
-	int hotcpu = (unsigned long)hcpu;
+	wk_cpu_update_bit_flag(cpu, 1);
 
-	switch (action) {
-	case CPU_UP_PREPARE:
-	case CPU_UP_PREPARE_FROZEN:
-		/* Update CPU mask in WDT driver */
-		wk_cpu_update_bit_flag(hotcpu, 1);
-
-		/*
-		 * Kick WDT here because this CPU may be blocked awhile between
-		 * PREPARE and ONLINE states. If HWT happens during this period,
-		 * we may be confused by WDT CPU kicking status: it will indicate
-		 * "2 CPUs did not kick WDT". This makes us hard to debug.
-		 */
-		mtk_wdt_restart(WD_TYPE_NORMAL);
+	mtk_wdt_restart(WD_TYPE_NORMAL);
 
 #ifdef CONFIG_LOCAL_WDT
-		pr_debug("[wdk]cpu %d plug on kick local wdt\n", hotcpu);
-		/* kick local wdt */
-		mpcore_wdt_restart(WD_TYPE_NORMAL);
+	pr_debug("[wdk]cpu %d plug on kick local wdt\n", cpu);
+	/* kick local wdt */
+	mpcore_wdt_restart(WD_TYPE_NORMAL);
 #endif
-		/* pr_info("[wdk]cpu %d plug on kick wdt\n", hotcpu); */
-		break;
-	case CPU_ONLINE:
-	case CPU_ONLINE_FROZEN:
-		/*
-		 * Bind WDK thread to this CPU.
-		 * NOTE: Thread binding must be executed after CPU is ready (online).
-		 */
-		if (g_kicker_init == 1)
-			kicker_cpu_bind(hotcpu);
+	/*
+	 * Bind WDK thread to this CPU.
+	 * NOTE: Thread binding must be executed after CPU is ready
+	 * (online).
+	 */
+	if (g_kicker_init == 1)
+		kicker_cpu_bind(cpu);
+	else
+		pr_info("kicker was not bound to CPU%d\n", cpu);
 
-		/*
-		 * DO NOT kick WDT here because we do not expect long execution time
-		 * between PREPARE and ONLINE.
-		 *
-		 * Long execution time between PREPARE and ONLINE may cause HWT after
-		 * CPU is ONLINE, i.e., after thread binding. In this case, HWT is
-		 * required to report this unexpected issue.
-		 */
-		break;
-#ifdef CONFIG_HOTPLUG_CPU
-#ifdef CONFIG_LOCAL_WDT
-		/* must kick local wdt in per cpu */
-	case CPU_DYING:
-		/* fall-through */
-#endif
-	case CPU_UP_CANCELED:
-		/* fall-through */
-	case CPU_UP_CANCELED_FROZEN:
-		/* fall-through */
-	case CPU_DEAD:
-		/* fall-through */
-	case CPU_DEAD_FROZEN:
-		mtk_wdt_restart(WD_TYPE_NORMAL);	/* for KICK external wdt */
-#ifdef CONFIG_LOCAL_WDT
-		pr_debug("[wdk]cpu %d plug off kick local wdt\n", hotcpu);
-		/* kick local wdt */
-		/* mpcore_wdt_restart(WD_TYPE_NORMAL); */
-		/* disable local watchdog */
-		mpcore_wk_wdt_stop();
-#endif
-		wk_cpu_update_bit_flag(hotcpu, 0);
-		/* pr_info("[wdk]cpu %d plug off, kick wdt\n", hotcpu); */
-		break;
-#endif				/* CONFIG_HOTPLUG_CPU */
-	default:
-		return NOTIFY_DONE;
-	}
+	mtk_wdt_cpu_callback(wk_tsk[cpu], cpu, g_kicker_init);
 
-	mtk_wdt_cpu_callback(wk_tsk[hotcpu], action, hotcpu, g_kicker_init);
-
-	return NOTIFY_OK;
+	return 0;
 }
 
-static struct notifier_block cpu_nfb = {
-	.notifier_call = wk_cpu_callback,
-	.priority = 6
-};
+static int wk_cpu_callback_offline(unsigned int cpu)
+{
+#ifdef CONFIG_LOCAL_WDT
+	pr_debug("[wdk]cpu %d plug off kick local wdt\n", cpu);
+	/* kick local wdt */
+	/* mpcore_wdt_restart(WD_TYPE_NORMAL); */
+	/* disable local watchdog */
+	mpcore_wk_wdt_stop();
+#endif
+	wk_cpu_update_bit_flag(cpu, 0);
+	/* pr_info("[wdk]cpu %d plug off, kick wdt\n", hotcpu); */
+
+	mtk_wdt_restart(WD_TYPE_NORMAL);/* for KICK external wdt */
+
+	mtk_wdt_cpu_callback(wk_tsk[cpu], cpu, g_kicker_init);
+
+	return 0;
+}
 
 static void wdk_work_callback(struct work_struct *work)
 {
@@ -865,14 +886,17 @@ static void wdk_work_callback(struct work_struct *work)
 
 	cpu_hotplug_disable();
 
-#ifdef __ENABLE_WDT_AT_INIT__
-
-	start_kicker_thread_with_default_setting();
-
-#endif
-
 	wk_proc_init();
-	register_cpu_notifier(&cpu_nfb);
+
+	res = cpuhp_setup_state_nocalls(CPUHP_AP_ONLINE_DYN,
+		"watchdog:wdkctrl:online", wk_cpu_callback_online, NULL);
+	if (res < 0)
+		pr_info("[wdk]setup CPUHP_AP_ONLINE_DYN fail %d\n", res);
+
+	res = cpuhp_setup_state_nocalls(CPUHP_BP_PREPARE_DYN,
+		"watchdog:wdkctrl:offline", NULL, wk_cpu_callback_offline);
+	if (res < 0)
+		pr_info("[wdk]setup CPUHP_BP_PREPARE_DYN fail %d\n", res);
 
 	for (i = 0; i < CPU_NR; i++) {
 		if (cpu_online(i)) {
@@ -885,7 +909,13 @@ static void wdk_work_callback(struct work_struct *work)
 	}
 	mtk_wdt_restart(WD_TYPE_NORMAL);	/* for KICK external wdt */
 	cpu_hotplug_enable();
-	pr_info("[wdk]init_wk done late_initcall cpus_kick_bit=0x%x -----\n", cpus_kick_bit);
+
+#ifdef __ENABLE_WDT_AT_INIT__
+	start_kicker_thread_with_default_setting();
+#endif
+
+	pr_info("[wdk]init_wk done late_initcall cpus_kick_bit=0x%x -----\n",
+		cpus_kick_bit);
 
 }
 
@@ -922,7 +952,6 @@ static int __init init_wk_check_bit(void)
 	return 0;
 }
 
-/*********************************************************************************/
 late_initcall(init_wk);
 arch_initcall(init_wk_check_bit);
 

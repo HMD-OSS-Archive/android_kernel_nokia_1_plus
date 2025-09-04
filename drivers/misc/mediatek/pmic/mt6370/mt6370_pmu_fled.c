@@ -24,6 +24,8 @@
 
 #define MT6370_PMU_FLED_DRV_VERSION	"1.0.2_MTK"
 
+static DEFINE_MUTEX(fled_lock);
+
 static u8 mt6370_fled_inited;
 static u8 mt6370_global_mode = FLASHLIGHT_MODE_OFF;
 
@@ -47,6 +49,11 @@ struct mt6370_pmu_fled_data {
 	unsigned char fled_strb_cur_reg;
 	unsigned char fled_strb_to_reg;
 	unsigned char fled_cs_mask;
+};
+
+static const char *flashlight_mode_str[FLASHLIGHT_MODE_MAX] = {
+	"off", "torch", "flash", "mixed",
+	"dual flash", "dual torch", "dual off",
 };
 
 static irqreturn_t mt6370_pmu_fled_strbpin_irq_handler(int irq, void *data)
@@ -236,9 +243,9 @@ static inline int mt6370_fled_parse_dt(struct device *dev,
 static struct flashlight_properties mt6370_fled_props = {
 	.type = FLASHLIGHT_TYPE_LED,
 	.torch_brightness = 0,
-	.torch_max_brightness = 31, /* 0000 ~ 1110 */
+	.torch_max_brightness = 30, /* 00000 ~ 11110 */
 	.strobe_brightness = 0,
-	.strobe_max_brightness = 256, /* 0000000 ~ 1110000 */
+	.strobe_max_brightness = 255, /* 0000000 ~ 1111111 */
 	.strobe_delay = 0,
 	.strobe_timeout = 0,
 	.alias_name = "mt6370-fled",
@@ -282,18 +289,22 @@ static int mt6370_fled_set_mode(struct rt_fled_dev *info,
 {
 	struct mt6370_pmu_fled_data *fi = (struct mt6370_pmu_fled_data *)info;
 	int ret = 0;
+	u8 val, mask;
 
+	mutex_lock(&fled_lock);
 	switch (mode) {
 	case FLASHLIGHT_MODE_TORCH:
 		if (mt6370_global_mode == FLASHLIGHT_MODE_FLASH)
 			break;
 		ret |= mt6370_pmu_reg_clr_bit(fi->chip,
 			MT6370_PMU_REG_FLEDEN, MT6370_STROBE_EN_MASK);
-		ret |= mt6370_pmu_reg_set_bit(fi->chip,
-				MT6370_PMU_REG_FLEDEN, fi->id == MT6370_FLED1 ? 0x02 : 0x01);
+		udelay(500);
+		ret |= mt6370_pmu_reg_set_bit(fi->chip, MT6370_PMU_REG_FLEDEN,
+				fi->id == MT6370_FLED1 ? 0x02 : 0x01);
 		ret |= mt6370_pmu_reg_set_bit(fi->chip,
 				MT6370_PMU_REG_FLEDEN, MT6370_TORCH_EN_MASK);
-		dev_info(fi->dev, "set to torch mode\n");
+		udelay(500);
+		dev_info(fi->dev, "set to torch mode with 500 us delay\n");
 		mt6370_global_mode = mode;
 		if (fi->id == MT6370_FLED1)
 			mt6370_fled_on |= 1 << MT6370_FLED1;
@@ -304,12 +315,12 @@ static int mt6370_fled_set_mode(struct rt_fled_dev *info,
 		ret = mt6370_pmu_reg_clr_bit(fi->chip,
 			MT6370_PMU_REG_FLEDEN, MT6370_STROBE_EN_MASK);
 		udelay(400);
-		ret |= mt6370_pmu_reg_set_bit(fi->chip,
-			MT6370_PMU_REG_FLEDEN, fi->id == MT6370_FLED1 ? 0x02 : 0x01);
+		ret |= mt6370_pmu_reg_set_bit(fi->chip, MT6370_PMU_REG_FLEDEN,
+			fi->id == MT6370_FLED1 ? 0x02 : 0x01);
 		ret |= mt6370_pmu_reg_set_bit(fi->chip,
 			MT6370_PMU_REG_FLEDEN, MT6370_STROBE_EN_MASK);
-		udelay(400);
-		dev_info(fi->dev, "set to flash mode\n");
+		mdelay(5);
+		dev_info(fi->dev, "set to flash mode with 400/4500 us delay\n");
 		mt6370_global_mode = mode;
 		if (fi->id == MT6370_FLED1)
 			mt6370_fled_on |= 1 << MT6370_FLED1;
@@ -328,9 +339,71 @@ static int mt6370_fled_set_mode(struct rt_fled_dev *info,
 		if (mt6370_fled_on == 0)
 			mt6370_global_mode = mode;
 		break;
+	case FLASHLIGHT_MODE_DUAL_FLASH:
+		if (fi->id == MT6370_FLED2)
+			goto out;
+		/* strobe off */
+		ret = mt6370_pmu_reg_clr_bit(fi->chip, MT6370_PMU_REG_FLEDEN,
+					     MT6370_STROBE_EN_MASK);
+		if (ret < 0)
+			break;
+		udelay(400);
+		/* fled en/strobe on */
+		val = BIT(MT6370_FLED1) | BIT(MT6370_FLED2) |
+			MT6370_STROBE_EN_MASK;
+		mask = val;
+		ret = mt6370_pmu_reg_update_bits(fi->chip,
+						 MT6370_PMU_REG_FLEDEN,
+						 mask, val);
+		if (ret < 0)
+			break;
+		mt6370_global_mode = mode;
+		mt6370_fled_on |= (BIT(MT6370_FLED1) | BIT(MT6370_FLED2));
+		break;
+	case FLASHLIGHT_MODE_DUAL_TORCH:
+		if (fi->id == MT6370_FLED2)
+			goto out;
+		if (mt6370_global_mode == FLASHLIGHT_MODE_FLASH ||
+		    mt6370_global_mode == FLASHLIGHT_MODE_DUAL_FLASH)
+			goto out;
+		/* Fled en/Strobe off/Torch on */
+		ret = mt6370_pmu_reg_clr_bit(fi->chip, MT6370_PMU_REG_FLEDEN,
+					     MT6370_STROBE_EN_MASK);
+		if (ret < 0)
+			break;
+		udelay(500);
+		val = BIT(MT6370_FLED1) | BIT(MT6370_FLED2) |
+			MT6370_TORCH_EN_MASK;
+		ret = mt6370_pmu_reg_set_bit(fi->chip,
+					     MT6370_PMU_REG_FLEDEN, val);
+		if (ret < 0)
+			break;
+		udelay(500);
+		mt6370_global_mode = mode;
+		mt6370_fled_on |= (BIT(MT6370_FLED1) | BIT(MT6370_FLED2));
+		break;
+	case FLASHLIGHT_MODE_DUAL_OFF:
+		if (fi->id == MT6370_FLED2)
+			goto out;
+		ret = mt6370_pmu_reg_clr_bit(fi->chip, MT6370_PMU_REG_FLEDEN,
+					 BIT(MT6370_FLED1) | BIT(MT6370_FLED2));
+		if (ret < 0)
+			break;
+		mt6370_fled_on = 0;
+		mt6370_global_mode = FLASHLIGHT_MODE_OFF;
+		break;
 	default:
+		mutex_unlock(&fled_lock);
 		return -EINVAL;
 	}
+	if (ret < 0)
+		dev_info(fi->dev, "%s set %s mode fail\n", __func__,
+			 flashlight_mode_str[mode]);
+	else
+		dev_info(fi->dev, "%s set %s\n", __func__,
+			 flashlight_mode_str[mode]);
+out:
+	mutex_unlock(&fled_lock);
 	return ret;
 }
 
@@ -376,8 +449,12 @@ static int mt6370_fled_strobe_current_list(struct rt_fled_dev *info,
 {
 	struct mt6370_pmu_fled_data *fi = (struct mt6370_pmu_fled_data *)info;
 
-	return (selector > fi->base.init_props->strobe_max_brightness) ?
-		-EINVAL : 100000 + selector * 12500;
+	if (selector > fi->base.init_props->strobe_max_brightness)
+		return -EINVAL;
+	if (selector < 128)
+		return 50000 + selector * 12500;
+	else
+		return 25000 + (selector - 128) * 6250;
 }
 
 static unsigned int mt6370_timeout_level_list[] = {
@@ -418,18 +495,19 @@ static int mt6370_fled_set_strobe_current_sel(struct rt_fled_dev *info,
 	struct mt6370_pmu_fled_data *fi = (struct mt6370_pmu_fled_data *)info;
 	int ret;
 
-	if (selector >= 256)
+	if (selector > fi->base.init_props->strobe_max_brightness)
 		return -EINVAL;
-	if (selector >= 128)
-		mt6370_pmu_reg_set_bit(fi->chip, fi->fled_strb_cur_reg, 0x80);
-	else
+	if (selector < 128)
 		mt6370_pmu_reg_clr_bit(fi->chip, fi->fled_strb_cur_reg, 0x80);
+	else
+		mt6370_pmu_reg_set_bit(fi->chip, fi->fled_strb_cur_reg, 0x80);
 
 	if (selector >= 128)
 		selector -= 128;
-	ret = mt6370_pmu_reg_update_bits(fi->chip, fi->fled_strb_cur_reg,
-		MT6370_FLED_STROBECUR_MASK,
-		selector << MT6370_FLED_STROBECUR_SHIFT);
+	ret = mt6370_pmu_reg_update_bits(fi->chip,
+					 fi->fled_strb_cur_reg,
+					 MT6370_FLED_STROBECUR_MASK,
+				       selector << MT6370_FLED_STROBECUR_SHIFT);
 	return ret;
 }
 
@@ -570,26 +648,22 @@ static struct rt_fled_hal mt6370_fled_hal = {
 	.rt_hal_fled_torch_current_list = mt6370_fled_torch_current_list,
 	.rt_hal_fled_strobe_current_list = mt6370_fled_strobe_current_list,
 	.rt_hal_fled_timeout_level_list = mt6370_fled_timeout_level_list,
-	/* .rt_hal_fled_lv_protection_list = mt6370_fled_lv_protection_list, */
-	.rt_hal_fled_strobe_timeout_list =
-					mt6370_fled_strobe_timeout_list,
+	/* .fled_lv_protection_list = mt6370_fled_lv_protection_list, */
+	.rt_hal_fled_strobe_timeout_list = mt6370_fled_strobe_timeout_list,
 	/* method to set */
-	.rt_hal_fled_set_torch_current_sel =
-					mt6370_fled_set_torch_current_sel,
+	.rt_hal_fled_set_torch_current_sel = mt6370_fled_set_torch_current_sel,
 	.rt_hal_fled_set_strobe_current_sel =
 					mt6370_fled_set_strobe_current_sel,
-	.rt_hal_fled_set_timeout_level_sel =
-					mt6370_fled_set_timeout_level_sel,
+	.rt_hal_fled_set_timeout_level_sel = mt6370_fled_set_timeout_level_sel,
+
 	.rt_hal_fled_set_strobe_timeout_sel =
 					mt6370_fled_set_strobe_timeout_sel,
 
 	/* method to get */
-	.rt_hal_fled_get_torch_current_sel =
-					mt6370_fled_get_torch_current_sel,
+	.rt_hal_fled_get_torch_current_sel = mt6370_fled_get_torch_current_sel,
 	.rt_hal_fled_get_strobe_current_sel =
 					mt6370_fled_get_strobe_current_sel,
-	.rt_hal_fled_get_timeout_level_sel =
-					mt6370_fled_get_timeout_level_sel,
+	.rt_hal_fled_get_timeout_level_sel = mt6370_fled_get_timeout_level_sel,
 	.rt_hal_fled_get_strobe_timeout_sel =
 					mt6370_fled_get_strobe_timeout_sel,
 	/* PM shutdown, optional */
@@ -638,7 +712,8 @@ static int mt6370_pmu_fled_probe(struct platform_device *pdev)
 	bool use_dt = pdev->dev.of_node;
 	int ret;
 
-	pr_info("%s (%s) id = %d\n", __func__, MT6370_PMU_FLED_DRV_VERSION, pdev->id);
+	pr_info("%s (%s) id = %d\n", __func__, MT6370_PMU_FLED_DRV_VERSION,
+						pdev->id);
 	fled_data = mt6370_find_info(pdev->id);
 	if (fled_data == NULL) {
 		dev_err(&pdev->dev, "invalid fled ID Specified\n");

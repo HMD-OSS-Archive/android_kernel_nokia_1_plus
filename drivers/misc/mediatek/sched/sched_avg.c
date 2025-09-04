@@ -1,13 +1,14 @@
-/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
+/*
+ * Copyright (C) 2017 MediaTek Inc.
  *
  * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
 /*
@@ -19,11 +20,16 @@
 #include <linux/sched.h>
 #include <linux/math64.h>
 #include <linux/types.h>
+#include <linux/sched/clock.h>
+#include <linux/topology.h>
+#include <linux/arch_topology.h>
 #include <trace/events/sched.h>
+//TODO: remove comment after met ready
+//#include <mt-plat/mt_sched.h>
 #include "rq_stats.h"
 
-#include <mt-plat/met_drv.h>
-#include <mt-plat/fpsgo_v2_common.h>
+// TODO: remove comment after MET ready
+//#include <mt-plat/met_drv.h>
 
 enum overutil_type_t {
 	NO_OVERUTIL = 0,
@@ -39,7 +45,8 @@ static DEFINE_PER_CPU(u64, nr);
 static DEFINE_PER_CPU(u64, nr_heavy);
 static DEFINE_PER_CPU(unsigned long, iowait_prod_sum);
 static DEFINE_PER_CPU(spinlock_t, nr_lock) = __SPIN_LOCK_UNLOCKED(nr_lock);
-static DEFINE_PER_CPU(spinlock_t, nr_heavy_lock) = __SPIN_LOCK_UNLOCKED(nr_heavy_lock);
+static DEFINE_PER_CPU(spinlock_t, nr_heavy_lock) =
+			__SPIN_LOCK_UNLOCKED(nr_heavy_lock);
 static u64 last_get_time;
 static int init_heavy;
 
@@ -68,7 +75,6 @@ struct cluster_heavy_tbl_t {
 struct cluster_heavy_tbl_t *cluster_heavy_tbl;
 
 static int init_heavy_tlb(void);
-
 
 /*
  * Big Task Tracking:
@@ -139,9 +145,12 @@ int show_btask(char *buf, int buf_size)
 		for (j = 0; j < MAX_CPU_CLUSTER; j++) {
 			p = find_task_by_vpid(btask_list[j]);
 
-			len += snprintf(buf+len, buf_size-len, "H.[%d][%d]=%d %s(%lu)\n", i, j, btask_list[j],
-					(btask_list[j] && p) ? p->comm : "NULL",
-					(btask_list[j] && p) ? p->se.avg.util_avg : 0UL);
+			len += snprintf(
+			buf+len,
+			buf_size-len,
+			"H.[%d][%d]=%d %s(%lu)\n", i, j, btask_list[j],
+			(btask_list[j] && p) ? p->comm : "NULL",
+			(btask_list[j] && p) ? p->se.avg.util_avg : 0UL);
 		}
 	}
 
@@ -151,9 +160,12 @@ int show_btask(char *buf, int buf_size)
 		for (j = 0; j < MAX_CPU_CLUSTER; j++) {
 			p = find_task_by_vpid(btask_list[j]);
 
-			len += snprintf(buf+len, buf_size-len, "L.[%d][%d]=%d %s(%lu)\n", i, j, btask_list[j],
-					(btask_list[j] && p) ? p->comm : "NULL",
-					(btask_list[j] && p) ? p->se.avg.util_avg : 0UL);
+			len += snprintf(
+			buf+len,
+			buf_size-len,
+			"L.[%d][%d]=%d %s(%lu)\n", i, j, btask_list[j],
+			(btask_list[j] && p) ? p->comm : "NULL",
+			(btask_list[j] && p) ? p->se.avg.util_avg : 0UL);
 		}
 	}
 
@@ -165,8 +177,9 @@ enum overutil_type_t is_task_overutil(struct task_struct *p)
 	struct overutil_stats_t *cpu_overutil;
 	/* int cid; */
 	/* int cluster_nr = arch_get_nr_clusters(); */
-	int cpu, cid;
+
 	unsigned long task_util;
+	int cpu, cid;
 	unsigned long boosted_task_util;
 
 	if (!p)
@@ -179,6 +192,7 @@ enum overutil_type_t is_task_overutil(struct task_struct *p)
 #else
 	cid = cpu_topology[cpu].socket_id;
 #endif
+
 
 	get_task_util(p, &task_util, &boosted_task_util);
 
@@ -209,7 +223,7 @@ static int gb_task_cpu;
 static int gb_boosted_util;
 
 static DEFINE_SPINLOCK(gb_max_util_lock);
-void (*fpsgo_sched_nominate_fp)(pid_t *, int *);
+void (*fpsgo_sched_nominate_fp)(pid_t *id, int *utl);
 
 void sched_max_util_task_tracking(void)
 {
@@ -242,7 +256,8 @@ void sched_max_util_task_tracking(void)
 	for_each_possible_cpu(cpu) {
 		cpu_overutil = &per_cpu(cpu_overutil_state, cpu);
 
-		if (cpu_online(cpu) && (cpu_overutil->max_task_util > max_util)) {
+		if (cpu_online(cpu) &&
+			(cpu_overutil->max_task_util > max_util)) {
 			max_util = cpu_overutil->max_task_util;
 			boost_util = cpu_overutil->max_boost_util;
 			max_cpu = cpu;
@@ -267,8 +282,8 @@ void sched_max_util_task_tracking(void)
 	if (fpsgo_sched_nominate_fp)
 		fpsgo_sched_nominate_fp(&tasks[0], &utils[0]);
 
+#if defined(MET_SCHED_DEBUG) && MET_SCHED_DEBUG
 	met_tag_oneshot(0, "sched_max_task_util", max_util);
-#if MET_SCHED_DEBUG
 	met_tag_oneshot(0, "sched_boost_task_util", boost_util);
 #endif
 }
@@ -311,8 +326,9 @@ int sched_get_nr_running_avg(int *avg, int *iowait_avg)
 
 	if (!diff)
 		return 0;
-	WARN(diff < 0, "[sched_get_nr_running_avg] time last:%llu curr:%llu ",
-		last_get_time, curr_time);
+	if (diff < 0)
+		printk_deferred("[%s] time last:%llu curr:%llu ",
+		__func__, last_get_time, curr_time);
 
 	old_lgt = last_get_time;
 	last_get_time = curr_time;
@@ -326,12 +342,14 @@ int sched_get_nr_running_avg(int *avg, int *iowait_avg)
 			clk_faulty = 1;
 			cpumask |= 1 << cpu;
 		}
-		/* ////// */
 		tmp_avg += per_cpu(nr_prod_sum, cpu);
-		scaled_tlp += per_cpu(nr, cpu); /* record tasks nr of last poll */
-		tmp_avg += per_cpu(nr, cpu) * (curr_time - per_cpu(last_time, cpu));
+		/* record tasks nr of last poll */
+		scaled_tlp += per_cpu(nr, cpu);
+		tmp_avg += per_cpu(nr, cpu) *
+			(curr_time - per_cpu(last_time, cpu));
 		tmp_iowait = per_cpu(iowait_prod_sum, cpu);
-		tmp_iowait += nr_iowait_cpu(cpu) * (curr_time - per_cpu(last_time, cpu));
+		tmp_iowait += nr_iowait_cpu(cpu) *
+			(curr_time - per_cpu(last_time, cpu));
 		per_cpu(last_time, cpu) = curr_time;
 		per_cpu(nr_prod_sum, cpu) = 0;
 		per_cpu(iowait_prod_sum, cpu) = 0;
@@ -342,22 +360,26 @@ int sched_get_nr_running_avg(int *avg, int *iowait_avg)
 	if (clk_faulty) {
 		*avg = 0;
 		*iowait_avg = 0;
-		pr_warn("[%s] **** CPU (0x%08x)clock may unstable !!\n", __func__, cpumask);
+		printk_deferred("[%s] **** CPU (0x%08x)clock may unstable !!\n",
+		__func__, cpumask);
 		return 0;
 	}
-	/* ///// */
 
 	*avg = (int)div64_u64(tmp_avg * 100, (u64) diff);
 	*iowait_avg = (int)div64_u64(tmp_iowait * 100, (u64) diff);
 
-	WARN(*avg < 0, "[sched_get_nr_running_avg] avg:%d(%llu/%lld), time last:%llu curr:%llu ",
+	if (unlikely(*avg < 0)) {
+		printk_deferred("[%s] avg:%d(%llu/%lld), time last:%llu curr:%llu ",
+		__func__,
 		*avg, tmp_avg, diff, old_lgt, curr_time);
-	if (unlikely(*avg < 0))
 		*avg = 0;
-	WARN(*iowait_avg < 0, "[sched_get_nr_running_avg] iowait_avg:%d(%llu/%lld) time last:%llu curr:%llu ",
+	}
+	if (unlikely(*iowait_avg < 0)) {
+		printk_deferred("[%s] iowait_avg:%d(%llu/%lld) time last:%llu curr:%llu ",
+		__func__,
 		*iowait_avg, tmp_iowait, diff, old_lgt, curr_time);
-	if (unlikely(*iowait_avg < 0))
 		*iowait_avg = 0;
+	}
 
 	return scaled_tlp*100;
 }
@@ -368,18 +390,24 @@ int reset_heavy_task_stats(int cpu)
 	int nr_heavy_tasks;
 	int nr_overutil_l = 0, nr_overutil_h = 0;
 	unsigned long flags;
-	struct overutil_stats_t *cpu_overutil = &per_cpu(cpu_overutil_state, cpu);
+	struct overutil_stats_t *cpu_overutil =
+		&per_cpu(cpu_overutil_state, cpu);
 
 	spin_lock_irqsave(&per_cpu(nr_heavy_lock, cpu), flags);
 	nr_heavy_tasks = per_cpu(nr_heavy, cpu);
 	if (nr_heavy_tasks) {
-		pr_warn("[heavy_task] %s: nr_heavy_tasks=%d in cpu%d\n", __func__,
-			nr_heavy_tasks, cpu);
+		printk_deferred(
+		"[heavy_task] %s: nr_heavy_tasks=%d in cpu%d\n", __func__,
+		nr_heavy_tasks, cpu);
 		per_cpu(nr_heavy, cpu) = 0;
 	}
-	if (cpu_overutil->nr_overutil_l != 0 || cpu_overutil->nr_overutil_h != 0) {
-		pr_warn("[over-utiled task] %s: nr_overutil_l=%d nr_overutil_h=%d\n",
-			__func__, cpu_overutil->nr_overutil_l, cpu_overutil->nr_overutil_h);
+	if (cpu_overutil->nr_overutil_l != 0 ||
+		cpu_overutil->nr_overutil_h != 0) {
+		printk_deferred(
+			"[over-utiled task] %s: nr_overutil_l=%d nr_overutil_h=%d\n",
+			__func__,
+			cpu_overutil->nr_overutil_l,
+			cpu_overutil->nr_overutil_h);
 
 		nr_overutil_l = cpu_overutil->nr_overutil_l;
 		nr_overutil_h = cpu_overutil->nr_overutil_h;
@@ -463,23 +491,30 @@ void overutil_thresh_chg_notify(void)
 		if (cid == 0) {
 			cpu_overutil->overutil_thresh_l = INT_MAX;
 			cpu_overutil->overutil_thresh_h =
-				(int)(cluster_heavy_tbl[cid].max_capacity*overutil_threshold)/100;
+				(int)(cluster_heavy_tbl[cid].max_capacity*
+					overutil_threshold)/100;
 		} else if (cid > 0 && cid < (cluster_nr-1)) {
 			cpu_overutil->overutil_thresh_l =
-				(int)(cluster_heavy_tbl[cid-1].max_capacity*overutil_threshold)/100;
+				(int)(cluster_heavy_tbl[cid-1].max_capacity*
+					overutil_threshold)/100;
 			cpu_overutil->overutil_thresh_h =
-				(int)(cluster_heavy_tbl[cid].max_capacity*overutil_threshold)/100;
+				(int)(cluster_heavy_tbl[cid].max_capacity*
+					overutil_threshold)/100;
 		} else if (cid == (cluster_nr-1)) {
 			cpu_overutil->overutil_thresh_l =
-				(int)(cluster_heavy_tbl[cid-1].max_capacity*overutil_threshold)/100;
+				(int)(cluster_heavy_tbl[cid-1].max_capacity*
+					overutil_threshold)/100;
 			cpu_overutil->overutil_thresh_h = INT_MAX;
 		} else
-			pr_warn("%s: cid=%d is out of nr=%d\n", __func__, cid, cluster_nr);
+			printk_deferred("%s: cid=%d is out of nr=%d\n",
+			__func__,
+			cid, cluster_nr);
 		spin_unlock(&per_cpu(nr_heavy_lock, cpu)); /* heavy-unlock */
 
 		/* pick next cpu if not online */
 		if (!cpu_online(cpu)) {
-			raw_spin_unlock_irqrestore(&cpu_rq(cpu)->lock, flags); /* rq-unlock */
+			/* rq-unlock */
+			raw_spin_unlock_irqrestore(&cpu_rq(cpu)->lock, flags);
 			continue;
 		}
 
@@ -507,7 +542,8 @@ void overutil_thresh_chg_notify(void)
 		cpu_overutil->l_last_update_time = curr_time;
 		spin_unlock(&per_cpu(nr_heavy_lock, cpu)); /* heavy-unlock */
 
-		raw_spin_unlock_irqrestore(&cpu_rq(cpu)->lock, flags); /* rq-unlock */
+		/* rq-unlock */
+		raw_spin_unlock_irqrestore(&cpu_rq(cpu)->lock, flags);
 	}
 }
 
@@ -536,12 +572,14 @@ int sched_get_nr_heavy_running_avg(int cluster_id, int *avg)
 	/* cluster_id  need reasonale. */
 	cluster_nr = arch_get_nr_clusters();
 	if (cluster_id < 0 || cluster_id >= cluster_nr) {
-		pr_warn("[%s] invalid cluster id %d\n", __func__, cluster_id);
+		printk_deferred("[%s] invalid cluster id %d\n",
+			__func__, cluster_id);
 		return -1;
 	}
 
 	/* Time diff can't be zero. */
-	diff = (s64)(curr_time - cluster_heavy_tbl[cluster_id].last_get_heavy_time);
+	diff = (s64)(curr_time -
+		cluster_heavy_tbl[cluster_id].last_get_heavy_time);
 	if (!diff) {
 		*avg = 0;
 		return -1;
@@ -565,13 +603,17 @@ int sched_get_nr_heavy_running_avg(int cluster_id, int *avg)
 #ifdef CONFIG_MTK_SCHED_RQAVG_US
 		ack_cap = is_ack_curcap(cpu);
 		if (ack_cap)
-			tmp_avg += per_cpu(nr_heavy, cpu) * (curr_time - per_cpu(last_heavy_time, cpu));
+			tmp_avg += per_cpu(nr_heavy, cpu) *
+			(curr_time - per_cpu(last_heavy_time, cpu));
 
 		trace_sched_avg_heavy_nr(5, per_cpu(nr_heavy, cpu),
-				(curr_time - per_cpu(last_heavy_time, cpu)), ack_cap, cpu);
+			(curr_time - per_cpu(last_heavy_time, cpu)),
+			ack_cap, cpu);
 #else
 		ack_cap = -1;
-		tmp_avg += per_cpu(nr_heavy, cpu) * (curr_time - per_cpu(last_heavy_time, cpu));
+		tmp_avg +=
+		per_cpu(nr_heavy, cpu) *
+		(curr_time - per_cpu(last_heavy_time, cpu));
 #endif
 		per_cpu(last_heavy_time, cpu) = curr_time;
 
@@ -591,9 +633,6 @@ int sched_get_nr_heavy_running_avg(int cluster_id, int *avg)
 
 	trace_sched_avg_heavy_time(diff, old_lgt, cluster_id);
 
-	mt_sched_printf(sched_log, "[heavy_task] avg:%d(%llu/%llu), last:%llu curr:%llu, last_heavy:%llu cid%d, ack:%d",
-					*avg, tmp_avg, diff, old_lgt, curr_time, last_heavy_nr, cluster_id, ack_cap);
-
 	return last_heavy_nr;
 }
 EXPORT_SYMBOL(sched_get_nr_heavy_running_avg);
@@ -605,7 +644,8 @@ EXPORT_SYMBOL(sched_get_nr_heavy_running_avg);
  * usage: the amount of capacity of a cluster that is used by CFS tasks.
  * capacity: the max capacity of this cluster
  */
-int sched_get_cluster_util(int cluster_id, unsigned long *usage, unsigned long *capacity)
+int sched_get_cluster_util(int cluster_id,
+			unsigned long *usage, unsigned long *capacity)
 {
 	int cluster_nr;
 	int cpu;
@@ -640,7 +680,7 @@ int sched_get_cluster_util(int cluster_id, unsigned long *usage, unsigned long *
 		cpu_cap = capacity_orig_of(cpu);
 
 		if (usage)
-			*usage += cpu_util(cpu);
+			*usage += boosted_cpu_util(cpu, 0);
 	}
 
 	if (capacity)
@@ -672,12 +712,14 @@ int sched_get_nr_overutil_avg(int cluster_id, int *l_avg, int *h_avg)
 	/* cluster_id  need reasonale. */
 	cluster_nr = arch_get_nr_clusters();
 	if (cluster_id < 0 || cluster_id >= cluster_nr) {
-		pr_warn("[%s] invalid cluster id %d\n", __func__, cluster_id);
+		printk_deferred("[%s] invalid cluster id %d\n",
+		__func__, cluster_id);
 		return -1;
 	}
 
 	/* Time diff can't be zero/negative. */
-	diff = (s64)(curr_time - cluster_heavy_tbl[cluster_id].last_get_overutil_time);
+	diff = (s64)(curr_time -
+			cluster_heavy_tbl[cluster_id].last_get_overutil_time);
 	if (diff <= 0) {
 		*l_avg = *h_avg = 0;
 		return -1;
@@ -701,10 +743,12 @@ int sched_get_nr_overutil_avg(int cluster_id, int *l_avg, int *h_avg)
 
 		/* get prod sum */
 		l_tmp_avg += cpu_overutil->nr_overutil_l_prod_sum;
-		l_tmp_avg += cpu_overutil->nr_overutil_l * (curr_time - cpu_overutil->l_last_update_time);
+		l_tmp_avg += cpu_overutil->nr_overutil_l *
+			(curr_time - cpu_overutil->l_last_update_time);
 
 		h_tmp_avg += cpu_overutil->nr_overutil_h_prod_sum;
-		h_tmp_avg += cpu_overutil->nr_overutil_h * (curr_time - cpu_overutil->h_last_update_time);
+		h_tmp_avg += cpu_overutil->nr_overutil_h *
+			(curr_time - cpu_overutil->h_last_update_time);
 
 		/* update last update time */
 		cpu_overutil->l_last_update_time = curr_time;
@@ -738,7 +782,7 @@ EXPORT_SYMBOL(sched_get_nr_overutil_avg);
 #define BIG_TASK_BOOSTED_THRESHOLD 150
 #define BIG_TASK_GAME_THRESHOLD 80
 
-#if MET_SCHED_DEBUG
+#if defined(MET_SCHED_DEBUG) && MET_SCHED_DEBUG
 static char met_log_info[10][32] = {
 	"sched_bt_overavg_0L",
 	"sched_bt_overavg_0H",
@@ -776,7 +820,7 @@ void sched_big_task_nr(int *L_nr, int *B_nr)
 		sched_get_nr_overutil_avg(i, &l_avg_time[i], &h_avg_time[i]);
 		_l_nr[i] = get_btask_nr(i, false);
 		_h_nr[i] = get_btask_nr(i, true);
-#if MET_SCHED_DEBUG
+#if defined(MET_SCHED_DEBUG) && MET_SCHED_DEBUG
 		met_tag_oneshot(0, met_log_info[i*2],   l_avg_time[i]);
 		met_tag_oneshot(0, met_log_info[i*2+1], h_avg_time[i]);
 
@@ -803,33 +847,40 @@ void sched_big_task_nr(int *L_nr, int *B_nr)
 		if ((l_avg_time[2]/_l_nr[2]) > BIG_TASK_AVG_THRESHOLD)
 			*B_nr += _l_nr[2];
 		else
-			*B_nr += ((l_avg_time[2]/BIG_TASK_AVG_THRESHOLD) >= _l_nr[2]) ?
-				_l_nr[2] : (l_avg_time[2]/BIG_TASK_AVG_THRESHOLD);
+			*B_nr +=
+			((l_avg_time[2]/BIG_TASK_AVG_THRESHOLD) >= _l_nr[2]) ?
+			_l_nr[2] : (l_avg_time[2]/BIG_TASK_AVG_THRESHOLD);
 	}
 
 	if (_h_nr[1]) {
 		if ((h_avg_time[1]/_h_nr[1]) > BIG_TASK_AVG_THRESHOLD)
 			*B_nr += _h_nr[1];
 		else
-			*B_nr += ((h_avg_time[1]/BIG_TASK_AVG_THRESHOLD) >= _h_nr[1]) ?
-				_h_nr[1] : (h_avg_time[1]/BIG_TASK_AVG_THRESHOLD);
+			*B_nr +=
+			((h_avg_time[1]/BIG_TASK_AVG_THRESHOLD) >= _h_nr[1]) ?
+			_h_nr[1] : (h_avg_time[1]/BIG_TASK_AVG_THRESHOLD);
 	}
 
 	/* L core nr */
 	if (_l_nr[1]) {
-		if (((l_avg_time[1] - h_avg_time[1])/_l_nr[1]) > BIG_TASK_AVG_THRESHOLD)
+		if (((l_avg_time[1] - h_avg_time[1])/_l_nr[1]) >
+							BIG_TASK_AVG_THRESHOLD)
 			*L_nr += _l_nr[1];
 		else
-			*L_nr += (((l_avg_time[1] - h_avg_time[1])/BIG_TASK_AVG_THRESHOLD) >= _l_nr[1]) ?
-				_l_nr[1] : ((l_avg_time[1] - h_avg_time[1])/BIG_TASK_AVG_THRESHOLD);
+			*L_nr +=
+			(((l_avg_time[1] - h_avg_time[1])/
+			BIG_TASK_AVG_THRESHOLD) >= _l_nr[1]) ?
+			_l_nr[1] : ((l_avg_time[1] - h_avg_time[1])/
+			BIG_TASK_AVG_THRESHOLD);
 	}
 
 	if (_h_nr[0]) {
 		if ((h_avg_time[0]/_h_nr[0]) > BIG_TASK_AVG_THRESHOLD)
 			*L_nr += _h_nr[0];
 		else
-			*L_nr += ((h_avg_time[0]/BIG_TASK_AVG_THRESHOLD) >= _h_nr[0]) ?
-				_h_nr[0] : (h_avg_time[0]/BIG_TASK_AVG_THRESHOLD);
+			*L_nr +=
+			((h_avg_time[0]/BIG_TASK_AVG_THRESHOLD) >= _h_nr[0]) ?
+			_h_nr[0] : (h_avg_time[0]/BIG_TASK_AVG_THRESHOLD);
 	}
 
 	/* if big core needed for performance */
@@ -843,11 +894,6 @@ void sched_big_task_nr(int *L_nr, int *B_nr)
 		/* how to quantify it???? */
 		if (boosted > BIG_TASK_BOOSTED_THRESHOLD)
 			*B_nr = 1;
-#ifdef CONFIG_MTK_SCHED_EAS_POWER_SUPPORT
-		/* Game mode detection is supported in EAS power module */
-		else if (is_game_mode && util > BIG_TASK_GAME_THRESHOLD)
-			*B_nr = 1;
-#endif
 	}
 
 	if (cluster_nr < 3) { /* no big core */
@@ -858,9 +904,9 @@ void sched_big_task_nr(int *L_nr, int *B_nr)
 	/* reset big task tracking */
 	reset_btask_nr();
 
+#if defined(MET_SCHED_DEBUG) && MET_SCHED_DEBUG
 	met_tag_oneshot(0, "sched_bt_b_avg", b_avg);
 	met_tag_oneshot(0, "sched_bt_l_avg", l_avg);
-#if MET_SCHED_DEBUG
 	met_tag_oneshot(0, "sched_bt_b_nr", *B_nr);
 	met_tag_oneshot(0, "sched_bt_l_nr", *L_nr);
 #endif
@@ -895,7 +941,10 @@ void sched_update_nr_prod(int cpu, unsigned long nr_running, int inc)
 	per_cpu(last_time, cpu) = curr_time;
 	per_cpu(nr, cpu) = nr_running + inc;
 
-	WARN_ON(per_cpu(nr, cpu) < 0);
+	if (per_cpu(nr, cpu) < 0)
+		printk_deferred("assertion failed at %s:%d\n",
+		__FILE__,
+		__LINE__);
 
 	per_cpu(nr_prod_sum, cpu) += nr_running * diff;
 	per_cpu(iowait_prod_sum, cpu) += nr_iowait_cpu(cpu) * diff;
@@ -913,23 +962,27 @@ int get_overutil_stats(char *buf, int buf_size)
 	for_each_possible_cpu(cpu) {
 		cpu_overutil = &per_cpu(cpu_overutil_state, cpu);
 
-		len += snprintf(buf+len, buf_size-len, "cpu=%d capacity=%lu overutil_l=%d overutil_h=%d\n",
-				cpu, cpu_rq(cpu)->cpu_capacity_orig,
-				cpu_overutil->overutil_thresh_l, cpu_overutil->overutil_thresh_h);
+		len += snprintf(buf+len, buf_size-len,
+			"cpu=%d capacity=%lu overutil_l=%d overutil_h=%d\n",
+			cpu, cpu_rq(cpu)->cpu_capacity_orig,
+			cpu_overutil->overutil_thresh_l,
+			cpu_overutil->overutil_thresh_h);
 	}
 
 	for_each_possible_cpu(cpu) {
 		cpu_overutil = &per_cpu(cpu_overutil_state, cpu);
 
-		len += snprintf(buf+len, buf_size-len, "cpu=%d nr_overutil_l=%d nr_overutil_h=%d\n",
-				cpu, cpu_overutil->nr_overutil_l, cpu_overutil->nr_overutil_h);
+		len += snprintf(buf+len, buf_size-len,
+			"cpu=%d nr_overutil_l=%d nr_overutil_h=%d\n",
+			cpu, cpu_overutil->nr_overutil_l,
+			cpu_overutil->nr_overutil_h);
 	}
 
 	return len;
 }
 
-
-void sched_update_nr_heavy_prod(int invoker, struct task_struct *p, int cpu, int heavy_nr_inc, bool ack_cap_req)
+void sched_update_nr_heavy_prod(int invoker, struct task_struct *p,
+	int cpu, int heavy_nr_inc, bool ack_cap_req)
 {
 	s64 diff;
 	u64 curr_time;
@@ -943,7 +996,9 @@ void sched_update_nr_heavy_prod(int invoker, struct task_struct *p, int cpu, int
 	if (!init_heavy) {
 		init_heavy_tlb();
 		if (!init_heavy) {
-			WARN_ON(!init_heavy);
+			printk_deferred("assertion failed at %s:%d\n",
+			__FILE__,
+			__LINE__);
 			return;
 		}
 	}
@@ -960,37 +1015,45 @@ void sched_update_nr_heavy_prod(int invoker, struct task_struct *p, int cpu, int
 
 		if (over_type == H_OVERUTIL) {
 			/* H_OVERUTIL */
-			diff = (s64) (curr_time - cpu_overutil->l_last_update_time);
-			if (diff >= 0) { /* update overutil for degrading threshold */
-				cpu_overutil->l_last_update_time = curr_time;
-				cpu_overutil->nr_overutil_l_prod_sum += cpu_overutil->nr_overutil_l*diff;
-				cpu_overutil->nr_overutil_l += heavy_nr_inc;
-			}
-
-			diff = (s64) (curr_time - cpu_overutil->h_last_update_time);
-			if (diff >= 0) {/* update overutil for upgrading threshold */
-				cpu_overutil->h_last_update_time = curr_time;
-				cpu_overutil->nr_overutil_h_prod_sum += cpu_overutil->nr_overutil_h*diff;
-				cpu_overutil->nr_overutil_h += heavy_nr_inc;
-			}
-		} else {/* L_OVERUTIL */
-			diff = (s64) (curr_time - cpu_overutil->l_last_update_time);
+			diff = (s64) (curr_time -
+					cpu_overutil->l_last_update_time);
+			/* update overutil for degrading threshold */
 			if (diff >= 0) {
 				cpu_overutil->l_last_update_time = curr_time;
-				cpu_overutil->nr_overutil_l_prod_sum += cpu_overutil->nr_overutil_l*diff;
-				cpu_overutil->nr_overutil_l += heavy_nr_inc;
+				cpu_overutil->nr_overutil_l_prod_sum +=
+					cpu_overutil->nr_overutil_l*diff;
+				cpu_overutil->nr_overutil_l +=
+					heavy_nr_inc;
+			}
+
+			diff = (s64) (curr_time -
+					cpu_overutil->h_last_update_time);
+			/* update overutil for upgrading threshold */
+			if (diff >= 0) {
+				cpu_overutil->h_last_update_time = curr_time;
+				cpu_overutil->nr_overutil_h_prod_sum +=
+					cpu_overutil->nr_overutil_h*diff;
+				cpu_overutil->nr_overutil_h +=
+					heavy_nr_inc;
+			}
+		} else {/* L_OVERUTIL */
+			diff = (s64) (curr_time -
+				cpu_overutil->l_last_update_time);
+			if (diff >= 0) {
+				cpu_overutil->l_last_update_time = curr_time;
+				cpu_overutil->nr_overutil_l_prod_sum +=
+					cpu_overutil->nr_overutil_l*diff;
+				cpu_overutil->nr_overutil_l +=
+					heavy_nr_inc;
 			}
 		}
 	}
-
 #ifdef CONFIG_MTK_SCHED_RQAVG_US
 	if (is_heavy_task(p)) {
-
 		/* for heavy task avg */
 		prev_heavy_nr = per_cpu(nr_heavy, cpu);
 		per_cpu(nr_heavy, cpu) = prev_heavy_nr + heavy_nr_inc;
 		/* WARN_ON((int)per_cpu(nr_heavy, cpu) < 0); */
-
 		diff = (s64) (curr_time - per_cpu(last_heavy_time, cpu));
 		if (diff < 0)
 			goto OUT;
@@ -1000,28 +1063,21 @@ void sched_update_nr_heavy_prod(int invoker, struct task_struct *p, int cpu, int
 		/* for current opp control */
 		if (ack_cap_req) {
 			ack_cap = is_ack_curcap(cpu);
-			per_cpu(nr_heavy_prod_sum, cpu) += prev_heavy_nr*diff*ack_cap;
-			trace_sched_avg_heavy_nr(invoker, prev_heavy_nr, diff, ack_cap, cpu);
+			per_cpu(nr_heavy_prod_sum, cpu) +=
+				prev_heavy_nr*diff*ack_cap;
+			trace_sched_avg_heavy_nr(invoker, prev_heavy_nr,
+				diff, ack_cap, cpu);
 		} else {
 			ack_cap = -1;
-			per_cpu(nr_heavy_prod_sum, cpu) += prev_heavy_nr*diff;
-			trace_sched_avg_heavy_nr(invoker, prev_heavy_nr, diff, ack_cap, cpu);
+			per_cpu(nr_heavy_prod_sum, cpu) +=
+				prev_heavy_nr*diff;
+			trace_sched_avg_heavy_nr(invoker, prev_heavy_nr,
+				diff, ack_cap, cpu);
 		}
-
-		mt_sched_printf(sched_log, "[hvytsk] %d(%s): nr=%ld diff=%llu cpu=%d ac=%d pid=%d load=%ld w=%ld",
-				invoker,
-				(heavy_nr_inc >= 0)?"+":"-",
-				(long)per_cpu(nr_heavy, cpu),
-				diff,
-				cpu,
-				ack_cap,
-				p->pid,
-				p->se.avg.load_avg,
-				p->se.load.weight);
 	}
-
 OUT:
 #endif
+
 	spin_unlock_irqrestore(&per_cpu(nr_heavy_lock, cpu), flags);
 }
 EXPORT_SYMBOL(sched_update_nr_heavy_prod);
@@ -1040,7 +1096,7 @@ static int init_heavy_tlb(void)
 #else
 		int overutil_threshold = 1024;
 #endif
-		pr_info("%s start.\n", __func__);
+		printk_deferred("%s start.\n", __func__);
 
 		gb_task_util = 0;
 		gb_task_pid = 0;
@@ -1048,15 +1104,21 @@ static int init_heavy_tlb(void)
 
 		/* allocation for clustser information */
 		cluster_nr = arch_get_nr_clusters();
-		cluster_heavy_tbl = kcalloc(cluster_nr, sizeof(struct cluster_heavy_tbl_t), GFP_ATOMIC);
+		if (cluster_nr <= 0)
+			return 0;
+		cluster_heavy_tbl = kcalloc(cluster_nr,
+			sizeof(struct cluster_heavy_tbl_t), GFP_ATOMIC);
 		if (!cluster_heavy_tbl)
 			return 0;
 
 		for (i = 0; i < cluster_nr; i++) {
 			arch_get_cluster_cpus(&cls_cpus, i);
 			tmp_cpu = cpumask_first(&cls_cpus);
-			/* replace cpu_rq(cpu)->cpu_capacity_orig by get_cpu_orig_capacity()  */
-			cluster_heavy_tbl[i].max_capacity = get_cpu_orig_capacity(tmp_cpu);
+			/* replace cpu_rq(cpu)->cpu_capacity_orig by
+			 * get_cpu_orig_capacity()
+			 */
+			cluster_heavy_tbl[i].max_capacity =
+				capacity_orig_of(tmp_cpu);
 		}
 
 		for_each_possible_cpu(tmp_cpu) {
@@ -1080,22 +1142,30 @@ static int init_heavy_tlb(void)
 			if (cid == 0) {
 				cpu_overutil->overutil_thresh_l = INT_MAX;
 				cpu_overutil->overutil_thresh_h =
-						(int)(cluster_heavy_tbl[cid].max_capacity*overutil_threshold)/100;
+				(int)(cluster_heavy_tbl[cid].max_capacity*
+					overutil_threshold)/100;
 			} else if (cid > 0 && cid < (cluster_nr-1)) {
 				cpu_overutil->overutil_thresh_l =
-						(int)(cluster_heavy_tbl[cid-1].max_capacity*overutil_threshold)/100;
+				(int)(cluster_heavy_tbl[cid-1].max_capacity*
+					overutil_threshold)/100;
 				cpu_overutil->overutil_thresh_h =
-						(int)(cluster_heavy_tbl[cid].max_capacity*overutil_threshold)/100;
+				(int)(cluster_heavy_tbl[cid].max_capacity*
+					overutil_threshold)/100;
 			} else if (cid == (cluster_nr-1)) {
 				cpu_overutil->overutil_thresh_l =
-						(int)(cluster_heavy_tbl[cid-1].max_capacity*overutil_threshold)/100;
+				(int)(cluster_heavy_tbl[cid-1].max_capacity*
+					overutil_threshold)/100;
 				cpu_overutil->overutil_thresh_h = INT_MAX;
 			} else
-				pr_warn("%s: cid=%d is out of nr=%d\n", __func__, cid, cluster_nr);
+				printk_deferred("%s: cid=%d is out of nr=%d\n",
+					__func__, cid, cluster_nr);
 
-			pr_warn("%s: cpu=%d thresh_l=%d thresh_h=%d max_capaicy=%lu\n",
-				__func__, tmp_cpu, cpu_overutil->overutil_thresh_l, cpu_overutil->overutil_thresh_h,
-				(unsigned long int)cluster_heavy_tbl[cid].max_capacity);
+			printk_deferred("%s: cpu=%d thresh_l=%d thresh_h=%d max_capaicy=%lu\n",
+				__func__, tmp_cpu,
+				cpu_overutil->overutil_thresh_l,
+				cpu_overutil->overutil_thresh_h,
+				(unsigned long int)
+				cluster_heavy_tbl[cid].max_capacity);
 		}
 
 		init_heavy = 1;

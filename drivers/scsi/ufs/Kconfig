@@ -35,8 +35,9 @@
 config SCSI_UFSHCD
 	tristate "Universal Flash Storage Controller Driver Core"
 	depends on SCSI && SCSI_DMA
-	# select PM_DEVFREQ
-	# select DEVFREQ_GOV_SIMPLE_ONDEMAND
+	select PM_DEVFREQ
+	select DEVFREQ_GOV_SIMPLE_ONDEMAND
+	select NLS
 	select RPMB
 	---help---
 	This selects the support for UFS devices in Linux, say Y and make
@@ -61,6 +62,14 @@ config SCSI_UFSHCD_PCI
 
 	  If unsure, say N.
 
+config SCSI_UFS_DWC_TC_PCI
+	tristate "DesignWare pci support using a G210 Test Chip"
+	depends on SCSI_UFSHCD_PCI
+	---help---
+	  Synopsys Test Chip is a PHY for prototyping purposes.
+
+	  If unsure, say N.
+
 config SCSI_UFSHCD_PLATFORM
 	tristate "Platform bus based UFS Controller support"
 	depends on SCSI_UFSHCD
@@ -69,6 +78,14 @@ config SCSI_UFSHCD_PLATFORM
 	you have an UFS controller on Platform bus.
 
 	If you have a controller with this interface, say Y or M here.
+
+	  If unsure, say N.
+
+config SCSI_UFS_DWC_TC_PLATFORM
+	tristate "DesignWare platform support using a G210 Test Chip"
+	depends on SCSI_UFSHCD_PLATFORM
+	---help---
+	  Synopsys Test Chip is a PHY for prototyping purposes.
 
 	  If unsure, say N.
 
@@ -83,14 +100,29 @@ config SCSI_UFS_QCOM
 	  specific registers.
 
 	  Select this if you have UFS controller on QCOM chipset.
+	  If unsure, say N.
+
+config UFSHPB
+	bool "UFSHPB (EXPERIMENTAL)"
+	depends on SCSI_UFSHCD
+	---help---
+	  This selects the UFSHPB v1.0 test driver.
+	  HPB can improve UFS storage random read performance over 1G.
+	  This is the new feature for UFS.
+
+	  Say Y if you want to use UFSHPB as default support.
+
+	  If unsure, say N.
 
 config MTK_UFS_SUPPORT
-	bool "Select UFS as default booting device on MTK platform"
+	bool "MTK specific hooks to UFS controller platform driver"
 	depends on SCSI_UFSHCD_PLATFORM
+	select CRC16
 	default n
 	---help---
-	  This selects MediaTek specific hooks to UFS controller platform driver
-	  and enable embedded UFS as default booting device on MediaTek platforms.
+	  This selects MediaTek specific hooks to UFS controller platform
+	  driver and enable embedded UFS as default booting device on
+	  MediaTek platforms.
 
 	  Say Y if you want to use embedded UFS as default booting device.
 
@@ -103,3 +135,6 @@ config MTK_UFS_BLOCK_IO_LOG
 	---help---
 	  Enable IO trace for performance analysis and application access
 	  pattern study.
+	  Say Y if you want to have IO trace.
+
+	  If unsure, say N

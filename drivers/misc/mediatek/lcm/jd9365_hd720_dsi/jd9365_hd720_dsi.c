@@ -11,6 +11,8 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/module.h>
+
 #ifdef BUILD_LK
 #include <string.h>
 #include <platform/mt_gpio.h>
@@ -51,7 +53,8 @@ void lcm_request_gpio_control(struct device *dev)
 	LCD_PWR_EN_PIN = of_get_named_gpio(dev->of_node, "lcd_pwr_en_pin", 0);
 	gpio_request(LCD_PWR_EN_PIN, "LCD_PWR_EN_PIN");
 
-	LCD_PWR_BIAS_ENP_PIN = of_get_named_gpio(dev->of_node, "lcd_pwr_bias_enp_pin", 0);
+	LCD_PWR_BIAS_ENP_PIN =
+		of_get_named_gpio(dev->of_node, "lcd_pwr_bias_enp_pin", 0);
 	gpio_request(LCD_PWR_BIAS_ENP_PIN, "LCD_PWR_BIAS_ENP_PIN");
 }
 
@@ -70,7 +73,7 @@ static const struct of_device_id lcm_platform_of_match[] = {
 	 .data = 0,
 	 }, {
 	     /* sentinel */
-	     }
+	}
 };
 
 MODULE_DEVICE_TABLE(of, platform_of_match);
@@ -118,10 +121,10 @@ MODULE_DESCRIPTION("LCM display subsystem driver");
 MODULE_LICENSE("GPL");
 #endif
 
-/* --------------------------------------------------------------------------- */
+/* ----------------------------------------------------------------- */
 /* Local Constants */
-/* --------------------------------------------------------------------------- */
-#define LCM_DSI_CMD_MODE								0
+/* ----------------------------------------------------------------- */
+#define LCM_DSI_CMD_MODE				0
 #define FRAME_WIDTH                                     (720)
 #define FRAME_HEIGHT                                    (1280)
 
@@ -142,27 +145,34 @@ MODULE_LICENSE("GPL");
 #define GPIO_LCD_BIAS_ENP      GPIO_LCD_BIAS_ENP_PIN
 #endif
 
-static LCM_UTIL_FUNCS lcm_util;
+static struct LCM_UTIL_FUNCS lcm_util;
 
 #define SET_RESET_PIN(v) (lcm_util.set_reset_pin((v)))
 
 #define UDELAY(n) (lcm_util.udelay(n))
 #define MDELAY(n) (lcm_util.mdelay(n))
 
-/* --------------------------------------------------------------------------- */
+/* --------------------------------------------------------------------- */
 /* Local Functions */
-/* --------------------------------------------------------------------------- */
-#define dsi_set_cmdq_V2(cmd, count, ppara, force_update) lcm_util.dsi_set_cmdq_V2(cmd, count, ppara, force_update)
-#define dsi_set_cmdq(pdata, queue_size, force_update) lcm_util.dsi_set_cmdq(pdata, queue_size, force_update)
-#define wrtie_cmd(cmd)                          lcm_util.dsi_write_cmd(cmd)
-#define write_regs(addr, pdata, byte_nums)      lcm_util.dsi_write_regs(addr, pdata, byte_nums)
-#define read_reg(cmd)                           lcm_util.dsi_dcs_read_lcm_reg(cmd)
-#define read_reg_v2(cmd, buffer, buffer_size)   lcm_util.dsi_dcs_read_lcm_reg_v2(cmd, buffer, buffer_size)
-/* --------------------------------------------------------------------------- */
+/* --------------------------------------------------------------------- */
+#define dsi_set_cmdq_V2(cmd, count, ppara, force_update) \
+	lcm_util.dsi_set_cmdq_V2(cmd, count, ppara, force_update)
+#define dsi_set_cmdq(pdata, queue_size, force_update) \
+	lcm_util.dsi_set_cmdq(pdata, queue_size, force_update)
+#define wrtie_cmd(cmd) \
+	lcm_util.dsi_write_cmd(cmd)
+#define write_regs(addr, pdata, byte_nums) \
+	lcm_util.dsi_write_regs(addr, pdata, byte_nums)
+#define read_reg(cmd) \
+	lcm_util.dsi_dcs_read_lcm_reg(cmd)
+#define read_reg_v2(cmd, buffer, buffer_size) \
+	lcm_util.dsi_dcs_read_lcm_reg_v2(cmd, buffer, buffer_size)
+/* ------------------------------------------------ */
 /* Local Constants */
-/* --------------------------------------------------------------------------- */
+/* ------------------------------------------------ */
 #define REGFLAG_DELAY                               0xFC
-#define REGFLAG_END_OF_TABLE                        0xFD	/* END OF REGISTERS MARKER */
+#define REGFLAG_END_OF_TABLE                        0xFD
+/* END OF REGISTERS MARKER */
 
 #ifndef TRUE
 #define TRUE 1
@@ -172,19 +182,22 @@ static LCM_UTIL_FUNCS lcm_util;
 #define FALSE 0
 #endif
 
-/* --------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------- */
 /* Local Variables */
-/* --------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------- */
 static void lcm_set_gpio_output(unsigned int GPIO, unsigned int output)
 {
 	if (GPIO == 0xFFFFFFFF) {
 #ifdef BUILD_LK
 		printf("[LK/LCM] GPIO_LCD_PWR_EN =   0x%x\n", GPIO_LCD_PWR_EN);
-		printf("[LK/LCM] GPIO_LCD_BIAS_ENP =   0x%x\n", GPIO_LCD_BIAS_ENP);
+		printf("[LK/LCM] GPIO_LCD_BIAS_ENP =   0x%x\n",
+			GPIO_LCD_BIAS_ENP);
 		printf("[LK/LCM] GPIO_LCM_RST =   0x%x\n", GPIO_LCD_RST);
 #else
-		pr_debug("[Kernel/LCM] GPIO_LCD_PWR_EN =   0x%x\n", LCD_PWR_EN_PIN);
-		pr_debug("[Kernel/LCM] GPIO_LCD_BIAS_ENP =   0x%x\n", LCD_PWR_BIAS_ENP_PIN);
+		pr_debug("[Kernel/LCM] GPIO_LCD_PWR_EN =   0x%x\n",
+			LCD_PWR_EN_PIN);
+		pr_debug("[Kernel/LCM] GPIO_LCD_BIAS_ENP =   0x%x\n",
+			LCD_PWR_BIAS_ENP_PIN);
 		pr_debug("[Kernel/LCM] GPIO_LCM_RST =   0x%x\n", LCD_RST_PIN);
 #endif
 		return;
@@ -469,8 +482,8 @@ static struct LCM_setting_table lcm_initialization_setting[] = {
 	{REGFLAG_END_OF_TABLE, 0x00, {} }
 };
 
-static void dsi_send_cmdq_tinno(unsigned cmd, unsigned char count, unsigned char *para_list,
-				unsigned char force_update)
+static void dsi_send_cmdq_tinno(unsigned int cmd, unsigned char count,
+	unsigned char *para_list, unsigned char force_update)
 {
 	unsigned int item[16];
 	unsigned char dsi_cmd = (unsigned char)cmd;
@@ -488,7 +501,8 @@ static void dsi_send_cmdq_tinno(unsigned cmd, unsigned char count, unsigned char
 		item[0] = 0x1500 | (dsi_cmd << 16) | (para_list[0] << 24);
 		length = 1;
 	} else {
-		item[0] = 0x3902 | ((count + 1) << 16);	/* Count include command. */
+		/* Count include command. */
+		item[0] = 0x3902 | ((count + 1) << 16);
 		++length;
 		while (1) {
 			if (index == count + 1)
@@ -513,7 +527,7 @@ static void push_table(struct LCM_setting_table *table, unsigned int count,
 		       unsigned char force_update)
 {
 	unsigned int i;
-	unsigned cmd;
+	unsigned int cmd;
 
 	for (i = 0; i < count; i++) {
 		cmd = table[i].cmd;
@@ -526,8 +540,11 @@ static void push_table(struct LCM_setting_table *table, unsigned int count,
 			break;
 
 		default:
-			dsi_send_cmdq_tinno(cmd, table[i].count, table[i].para_list, force_update);
-			/* dsi_set_cmdq_V2(cmd, table[i].count, table[i].para_list, force_update); */
+			dsi_send_cmdq_tinno(cmd, table[i].count,
+				table[i].para_list, force_update);
+			/* dsi_set_cmdq_V2(cmd, table[i].count,
+			 *	table[i].para_list, force_update);
+			 */
 		}
 	}
 }
@@ -535,20 +552,21 @@ static void push_table(struct LCM_setting_table *table, unsigned int count,
 static void init_lcm_registers(void)
 {
 	push_table(lcm_initialization_setting,
-		   sizeof(lcm_initialization_setting) / sizeof(struct LCM_setting_table), 1);
+		   sizeof(lcm_initialization_setting) /
+		   sizeof(struct LCM_setting_table), 1);
 }
 
-/* --------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------- */
 /* LCM Driver Implementations */
-/* --------------------------------------------------------------------------- */
-static void lcm_set_util_funcs(const LCM_UTIL_FUNCS *util)
+/* ------------------------------------------------------------------- */
+static void lcm_set_util_funcs(const struct LCM_UTIL_FUNCS *util)
 {
-	memcpy(&lcm_util, util, sizeof(LCM_UTIL_FUNCS));
+	memcpy(&lcm_util, util, sizeof(struct LCM_UTIL_FUNCS));
 }
 
-static void lcm_get_params(LCM_PARAMS *params)
+static void lcm_get_params(struct LCM_PARAMS *params)
 {
-	memset(params, 0, sizeof(LCM_PARAMS));
+	memset(params, 0, sizeof(struct LCM_PARAMS));
 
 	params->type = LCM_TYPE_DSI;
 
@@ -633,13 +651,14 @@ static void lcm_init_lcm(void)
 void lcm_suspend(void)
 {
 #ifndef BUILD_LK
-	pr_notice("[Kernel/LCM] lcm_suspend() enter\n");
+	pr_notice("[Kernel/LCM] %s enter\n", __func__);
 
 	lcm_set_gpio_output(LCD_RST_PIN, GPIO_OUT_ZERO);
 	MDELAY(5);
 
 	push_table(lcm_suspend_setting,
-		   sizeof(lcm_suspend_setting) / sizeof(struct LCM_setting_table), 1);
+		   sizeof(lcm_suspend_setting) /
+		   sizeof(struct LCM_setting_table), 1);
 
 	lcm_set_gpio_output(LCD_PWR_BIAS_ENP_PIN, GPIO_OUT_ZERO);
 	MDELAY(10);
@@ -651,7 +670,7 @@ void lcm_suspend(void)
 void lcm_resume(void)
 {
 #ifndef BUILD_LK
-	pr_notice("[Kernel/LCM] lcm_resume() enter\n");
+	pr_notice("[Kernel/LCM] %s enter\n", __func__);
 
 	lcm_set_gpio_output(LCD_PWR_EN_PIN, GPIO_OUT_ONE);
 	MDELAY(5);
@@ -673,7 +692,8 @@ void lcm_resume(void)
 }
 
 #if (LCM_DSI_CMD_MODE)
-static void lcm_update(unsigned int x, unsigned int y, unsigned int width, unsigned int height)
+static void lcm_update(unsigned int x, unsigned int y,
+		unsigned int width, unsigned int height)
 {
 	unsigned int x0 = x;
 	unsigned int y0 = y;
@@ -706,7 +726,7 @@ static void lcm_update(unsigned int x, unsigned int y, unsigned int width, unsig
 }
 #endif
 
-LCM_DRIVER jd9365_hd720_dsi_lcm_drv = {
+struct LCM_DRIVER jd9365_hd720_dsi_lcm_drv = {
 	.name = "jd9365_hd720_dsi",
 	.set_util_funcs = lcm_set_util_funcs,
 	.get_params = lcm_get_params,

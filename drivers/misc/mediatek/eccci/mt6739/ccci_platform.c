@@ -63,7 +63,7 @@ int Is_MD_EMI_voilation(void)
 #define MPU_REGION_ID_MD3_SMEM          9
 #define MPU_REGION_ID_MD1MD3_SMEM       10
 #define MPU_REGION_ID_MD1_MCURW_HWRW    11
-#define MPU_REGION_ID_MD1_ROM           12  /* contain DSP in Jade */
+#define MPU_REGION_ID_MD1_ROM           12  /* contain DSP in MT6755 */
 #define MPU_REGION_ID_MD1_MCURW_HWRO    13
 #define MPU_REGION_ID_MD1_MCURO_HWRW    14
 #define MPU_REGION_ID_WIFI_EMI_FW       15

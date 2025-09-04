@@ -1,29 +1,28 @@
 /*
-* HDMI support
-*
-* Copyright (C) 2013 ITE Tech. Inc.
-* Author: Hermes Wu <hermes.wu@ite.com.tw>
-*
-* HDMI TX driver for IT66121
-*
-*
-* This program is free software; you can redistribute it and/or modify it
-* under the terms of the GNU General Public License version 2 as published by
-* the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful, but WITHOUT
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
-* more details.
-*
-* You should have received a copy of the GNU General Public License along with
-* this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ * HDMI support
+ *
+ * Copyright (C) 2013 ITE Tech. Inc.
+ * Author: Hermes Wu <hermes.wu@ite.com.tw>
+ *
+ * HDMI TX driver for IT66121
+ *
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 #include "hdmitx.h"
 #include "hdmitx_drv.h"
 
 #ifdef HDMITX_INPUT_INFO
-
 
 #define InitCEC() HDMITX_SetI2C_Byte(0x0F, 0x08, 0x00)
 #define DisableCEC() HDMITX_SetI2C_Byte(0x0F, 0x08, 0x08)
@@ -36,10 +35,11 @@ LONG CalcAudFS(void)
 
 	/* RCLK = CalcRCLK(); */
 	Switch_HDMITX_Bank(0);
-	Cnt = (LONG) HDMITX_ReadI2C_Byte(0x60);
+	Cnt = (LONG)HDMITX_ReadI2C_Byte(0x60);
 	FS = hdmiTxDev[0].RCLK / 2;
 	FS /= Cnt;
-	HDMITX_DEBUG_PRINTF1(("FS = %ld RCLK = %ld, Cnt = %ld\n", FS, hdmiTxDev[0].RCLK, Cnt));
+	HDMITX_DEBUG_PRINTF1(("FS = %ld RCLK = %ld, Cnt = %ld\n", FS,
+			      hdmiTxDev[0].RCLK, Cnt));
 	return FS;
 }
 
@@ -81,7 +81,6 @@ LONG CalcPCLK(void)
 		/* IT66121_LOG("div = %d\n",(int)div) ; */
 		if (count < (1 << (11 - div)))
 			break;
-
 	}
 	HDMITX_SetI2C_Byte(0xD7, 0x70, div << 4);
 

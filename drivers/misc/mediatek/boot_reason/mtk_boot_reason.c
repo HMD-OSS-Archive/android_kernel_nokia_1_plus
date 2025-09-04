@@ -50,18 +50,20 @@ static atomic_t g_br_errcnt = ATOMIC_INIT(0);
 static atomic_t g_br_status = ATOMIC_INIT(0);
 
 #ifdef CONFIG_OF
-static int __init dt_get_boot_reason(unsigned long node, const char *uname, int depth, void *data)
+static int __init dt_get_boot_reason(unsigned long node, const char *uname,
+	int depth, void *data)
 {
 	char *ptr = NULL, *br_ptr = NULL;
 
-	if (depth != 1 || (strcmp(uname, "chosen") != 0 && strcmp(uname, "chosen@0") != 0))
+	if (depth != 1 || (strcmp(uname, "chosen") != 0
+		&& strcmp(uname, "chosen@0") != 0))
 		return 0;
 
 	ptr = (char *)of_get_flat_dt_prop(node, "bootargs", NULL);
 	if (ptr) {
 		br_ptr = strstr(ptr, "boot_reason=");
 		if (br_ptr != 0) {
-			g_boot_reason = br_ptr[12] - '0';	/* get boot reason */
+			g_boot_reason = br_ptr[12] - '0';
 			atomic_set(&g_br_status, 1);
 		} else {
 			pr_warn("'boot_reason=' is not found\n");
@@ -82,7 +84,8 @@ static void __init init_boot_reason(unsigned int line)
 	int rc;
 
 	if (atomic_read(&g_br_state) == BOOT_REASON_INITIALIZING) {
-		pr_warn("%s (%d) state(%d)\n", __func__, line, atomic_read(&g_br_state));
+		pr_notice("%s (%d) state(%d)\n", __func__, line,
+			atomic_read(&g_br_state));
 		atomic_inc(&g_br_errcnt);
 		return;
 	}
@@ -94,25 +97,29 @@ static void __init init_boot_reason(unsigned int line)
 
 	if (g_boot_reason != BR_UNKNOWN) {
 		atomic_set(&g_br_state, BOOT_REASON_INITIALIZED);
-		pr_warn("boot_reason = %d\n", g_boot_reason);
+		pr_notice("boot_reason = %d\n", g_boot_reason);
 		return;
 	}
 
-	pr_debug("%s %d %d %d\n", __func__, line, g_boot_reason, atomic_read(&g_br_state));
+	pr_debug("%s %d %d %d\n", __func__, line, g_boot_reason,
+		atomic_read(&g_br_state));
 	rc = of_scan_flat_dt(dt_get_boot_reason, NULL);
 	if (rc != 0)
 		atomic_set(&g_br_state, BOOT_REASON_INITIALIZED);
 	else
 		atomic_set(&g_br_state, BOOT_REASON_UNINIT);
-	pr_debug("%s %d %d %d\n", __func__, line, g_boot_reason, atomic_read(&g_br_state));
+	pr_debug("%s %d %d %d\n", __func__, line, g_boot_reason,
+		atomic_read(&g_br_state));
 #endif
 }
 
 /* return boot reason */
 enum boot_reason_t get_boot_reason(void)
 {
-	if (atomic_read(&g_br_state) != BOOT_REASON_INITIALIZED)
-		pr_warn("%s (%d) state(%d)\n", __func__, __LINE__, atomic_read(&g_br_state));
+	if (atomic_read(&g_br_state) != BOOT_REASON_INITIALIZED) {
+		pr_warn("fail, %s (%d) state(%d)\n", __func__, __LINE__,
+			atomic_read(&g_br_state));
+	}
 
 	return g_boot_reason;
 }
@@ -126,7 +133,8 @@ static int __init boot_reason_core(void)
 static int __init boot_reason_init(void)
 {
 	pr_debug("boot_reason = %d, state(%d,%d,%d)", g_boot_reason,
-		 atomic_read(&g_br_state), atomic_read(&g_br_errcnt), atomic_read(&g_br_status));
+		atomic_read(&g_br_state), atomic_read(&g_br_errcnt),
+		atomic_read(&g_br_status));
 	return 0;
 }
 

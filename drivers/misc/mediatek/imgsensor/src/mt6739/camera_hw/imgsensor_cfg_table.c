@@ -83,7 +83,7 @@ struct IMGSENSOR_HW_CFG imgsensor_custom_config[] = {
 struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[] = {
 #ifdef MIPI_SWITCH
 	{
-		IMGSENSOR_SENSOR_IDX_NAME_SUB,
+		PLATFORM_POWER_SEQ_NAME,
 		{
 			{
 				IMGSENSOR_HW_PIN_MIPI_SWITCH_EN,
@@ -99,10 +99,11 @@ struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[] = {
 				IMGSENSOR_HW_PIN_STATE_LEVEL_HIGH,
 				0
 			},
-		}
+		},
+		IMGSENSOR_SENSOR_IDX_SUB,
 	},
 	{
-		IMGSENSOR_SENSOR_IDX_NAME_MAIN2,
+		PLATFORM_POWER_SEQ_NAME,
 		{
 			{
 				IMGSENSOR_HW_PIN_MIPI_SWITCH_EN,
@@ -118,7 +119,8 @@ struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[] = {
 				IMGSENSOR_HW_PIN_STATE_LEVEL_0,
 				0
 			},
-		}
+		},
+		IMGSENSOR_SENSOR_IDX_MAIN2,
 	},
 #endif
 

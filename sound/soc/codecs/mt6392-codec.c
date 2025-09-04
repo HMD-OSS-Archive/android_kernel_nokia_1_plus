@@ -583,7 +583,7 @@ static struct regmap *mt6392_codec_get_regmap_from_dt(const char *phandle_name,
 	self_node = of_find_compatible_node(NULL, NULL,
 		"mediatek," MT6392_CODEC_NAME);
 	if (!self_node) {
-		dev_err(dev, "%s failed to find %s node\n",
+		dev_dbg(dev, "%s failed to find %s node\n",
 			__func__, MT6392_CODEC_NAME);
 		return NULL;
 	}
@@ -591,7 +591,7 @@ static struct regmap *mt6392_codec_get_regmap_from_dt(const char *phandle_name,
 
 	node = of_parse_phandle(self_node, phandle_name, 0);
 	if (!node) {
-		dev_err(dev, "%s failed to find %s node\n",
+		dev_dbg(dev, "%s failed to find %s node\n",
 			__func__, phandle_name);
 		return NULL;
 	}
@@ -599,7 +599,7 @@ static struct regmap *mt6392_codec_get_regmap_from_dt(const char *phandle_name,
 
 	platdev = of_find_device_by_node(node);
 	if (!platdev) {
-		dev_err(dev, "%s failed to get platform device of %s\n",
+		dev_dbg(dev, "%s failed to get platform device of %s\n",
 			__func__, phandle_name);
 		return NULL;
 	}
@@ -626,7 +626,7 @@ static int mt6392_codec_parse_dt(struct snd_soc_codec *codec)
 			"mediatek,pwrap-regmap",
 			codec_data);
 	if (!codec_data->regmap) {
-		dev_err(dev, "%s failed to get %s\n",
+		dev_dbg(dev, "%s failed to get %s\n",
 			__func__, "mediatek,pwrap-regmap");
 		devm_kfree(dev, codec_data);
 		ret = -EPROBE_DEFER;
@@ -636,7 +636,7 @@ static int mt6392_codec_parse_dt(struct snd_soc_codec *codec)
 	ret = of_property_read_u32(dev->of_node, "mediatek,speaker-mode",
 				&codec_data->speaker_mode);
 	if (ret) {
-		dev_warn(dev, "%s fail to read speaker-mode in node %s\n",
+		dev_dbg(dev, "%s fail to read speaker-mode in node %s\n",
 			__func__, dev->of_node->full_name);
 		codec_data->speaker_mode = MT6392_CLASS_D;
 	} else if (codec_data->speaker_mode != MT6392_CLASS_D &&
@@ -676,7 +676,7 @@ static int mt6392_codec_probe(struct snd_soc_codec *codec)
 
 #ifdef CONFIG_DEBUG_FS
 	codec_data->debugfs = debugfs_create_file("mt6392_codec_regs",
-			S_IFREG | S_IRUGO,
+			S_IFREG | 0444,
 			NULL, codec_data, &mt6392_codec_debug_ops);
 #endif
 	return ret;
@@ -696,12 +696,15 @@ static int mt6392_codec_remove(struct snd_soc_codec *codec)
 static struct snd_soc_codec_driver mt6392_codec_driver = {
 	.probe = mt6392_codec_probe,
 	.remove = mt6392_codec_remove,
-	.controls = mt6392_codec_controls,
-	.num_controls = ARRAY_SIZE(mt6392_codec_controls),
-	.dapm_widgets = mt6392_codec_dapm_widgets,
-	.num_dapm_widgets = ARRAY_SIZE(mt6392_codec_dapm_widgets),
-	.dapm_routes = mt6392_codec_dapm_routes,
-	.num_dapm_routes = ARRAY_SIZE(mt6392_codec_dapm_routes),
+
+	.component_driver = {
+		.controls = mt6392_codec_controls,
+		.num_controls = ARRAY_SIZE(mt6392_codec_controls),
+		.dapm_widgets = mt6392_codec_dapm_widgets,
+		.num_dapm_widgets = ARRAY_SIZE(mt6392_codec_dapm_widgets),
+		.dapm_routes = mt6392_codec_dapm_routes,
+		.num_dapm_routes = ARRAY_SIZE(mt6392_codec_dapm_routes),
+	},
 };
 
 static int mt6392_codec_dev_probe(struct platform_device *pdev)
@@ -727,7 +730,7 @@ static int mt6392_codec_dev_probe(struct platform_device *pdev)
 	codec_data->regmap = devm_regmap_init(dev, NULL, codec_data,
 		&mt6392_codec_regmap_config);
 	if (IS_ERR(codec_data->regmap)) {
-		dev_err(dev, "%s failed to get regmap of codec\n", __func__);
+		dev_dbg(dev, "%s failed to get regmap of codec\n", __func__);
 		devm_kfree(dev, codec_data);
 		codec_data->regmap = NULL;
 		return -EINVAL;

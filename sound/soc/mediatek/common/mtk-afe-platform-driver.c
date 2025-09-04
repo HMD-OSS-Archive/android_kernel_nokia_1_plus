@@ -23,38 +23,15 @@
 
 int mtk_afe_combine_sub_dai(struct mtk_base_afe *afe)
 {
-	struct snd_soc_dai_driver *sub_dai_drivers;
-	struct snd_soc_component_driver *sub_component;
-	struct snd_kcontrol_new *controls;
-	struct snd_soc_dapm_widget *dapm_widgets;
-	struct snd_soc_dapm_route *dapm_routes;
+	struct mtk_base_afe_dai *dai;
 	size_t num_dai_drivers = 0, dai_idx = 0;
-	size_t num_control = 0, control_idx = 0;
-	size_t num_widget = 0, widget_idx = 0;
-	size_t num_route = 0, route_idx = 0;
-	int i;
 
-	if (afe->sub_dais == NULL) {
-		dev_err(afe->dev, "%s(), sub_dais == NULL\n", __func__);
-		return -EINVAL;
+	/* calculate total dai driver size */
+	list_for_each_entry(dai, &afe->sub_dais, list) {
+		num_dai_drivers += dai->num_dai_drivers;
 	}
 
-	/* calcualte sub_dais size */
-	for (i = 0; i < afe->num_sub_dais; i++) {
-		if (afe->sub_dais[i].dai_drivers != NULL &&
-		    afe->sub_dais[i].num_dai_drivers != 0)
-			num_dai_drivers += afe->sub_dais[i].num_dai_drivers;
-
-		if (afe->sub_dais[i].component != NULL) {
-			sub_component = afe->sub_dais[i].component;
-			num_control += sub_component->num_controls;
-			num_widget += sub_component->num_dapm_widgets;
-			num_route += sub_component->num_dapm_routes;
-		}
-	}
-
-	dev_info(afe->dev, "%s(), num of dai %zd, control %zd, widget %zd, route %zd\n",
-		 __func__, num_dai_drivers, num_control, num_widget, num_route);
+	dev_info(afe->dev, "%s(), num of dai %zd\n", __func__, num_dai_drivers);
 
 	/* combine sub_dais */
 	afe->num_dai_drivers = num_dai_drivers;
@@ -65,73 +42,58 @@ int mtk_afe_combine_sub_dai(struct mtk_base_afe *afe)
 	if (!afe->dai_drivers)
 		return -ENOMEM;
 
-	controls = devm_kcalloc(afe->dev,
-				num_control,
-				sizeof(struct snd_kcontrol_new),
-				GFP_KERNEL);
-	if (!controls)
-		return -ENOMEM;
-
-	dapm_widgets = devm_kcalloc(afe->dev,
-				    num_widget,
-				    sizeof(struct snd_soc_dapm_widget),
-				    GFP_KERNEL);
-	if (!dapm_widgets)
-		return -ENOMEM;
-
-	dapm_routes = devm_kcalloc(afe->dev,
-				   num_route,
-				   sizeof(struct snd_soc_dapm_route),
-				   GFP_KERNEL);
-	if (!dapm_routes)
-		return -ENOMEM;
-
-	for (i = 0; i < afe->num_sub_dais; i++) {
-		if (afe->sub_dais[i].dai_drivers != NULL &&
-		    afe->sub_dais[i].num_dai_drivers != 0) {
-			sub_dai_drivers = afe->sub_dais[i].dai_drivers;
-			/* dai driver */
-			memcpy(&afe->dai_drivers[dai_idx],
-			       sub_dai_drivers,
-			       afe->sub_dais[i].num_dai_drivers *
-			       sizeof(struct snd_soc_dai_driver));
-			dai_idx += afe->sub_dais[i].num_dai_drivers;
-		}
-
-		if (afe->sub_dais[i].component != NULL) {
-			sub_component = afe->sub_dais[i].component;
-
-			/* component driver, controls */
-			memcpy(&controls[control_idx],
-			       sub_component->controls,
-			       sub_component->num_controls *
-			       sizeof(struct snd_kcontrol_new));
-			control_idx += sub_component->num_controls;
-
-			/* component driver, dapm_widgets */
-			memcpy(&dapm_widgets[widget_idx],
-			       sub_component->dapm_widgets,
-			       sub_component->num_dapm_widgets *
-			       sizeof(struct snd_soc_dapm_widget));
-			widget_idx += sub_component->num_dapm_widgets;
-
-			/* component driver, dapm_routes */
-			memcpy(&dapm_routes[route_idx],
-			       sub_component->dapm_routes,
-			       sub_component->num_dapm_routes *
-			       sizeof(struct snd_soc_dapm_route));
-			route_idx += sub_component->num_dapm_routes;
-		}
+	list_for_each_entry(dai, &afe->sub_dais, list) {
+		/* dai driver */
+		memcpy(&afe->dai_drivers[dai_idx],
+		       dai->dai_drivers,
+		       dai->num_dai_drivers *
+		       sizeof(struct snd_soc_dai_driver));
+		dai_idx += dai->num_dai_drivers;
 	}
 
-	afe->component_driver.num_controls = num_control;
-	afe->component_driver.controls = controls;
-	afe->component_driver.num_dapm_widgets = num_widget;
-	afe->component_driver.dapm_widgets = dapm_widgets;
-	afe->component_driver.num_dapm_routes = num_route;
-	afe->component_driver.dapm_routes = dapm_routes;
+	return 0;
+}
+
+int mtk_afe_add_sub_dai_control(struct snd_soc_platform *platform)
+{
+	struct mtk_base_afe *afe = snd_soc_platform_get_drvdata(platform);
+	struct mtk_base_afe_dai *dai;
+
+	list_for_each_entry(dai, &afe->sub_dais, list) {
+		if (dai->controls)
+			snd_soc_add_platform_controls(platform,
+						      dai->controls,
+						      dai->num_controls);
+
+		if (dai->dapm_widgets)
+			snd_soc_dapm_new_controls(&platform->component.dapm,
+						  dai->dapm_widgets,
+						  dai->num_dapm_widgets);
+	}
+	/* add routes after all widgets are added */
+	list_for_each_entry(dai, &afe->sub_dais, list) {
+		if (dai->dapm_routes)
+			snd_soc_dapm_add_routes(&platform->component.dapm,
+						dai->dapm_routes,
+						dai->num_dapm_routes);
+	}
+
+	snd_soc_dapm_new_widgets(platform->component.dapm.card);
 
 	return 0;
+
+}
+
+unsigned int word_size_align(unsigned int in_size)
+{
+	unsigned int align_size;
+
+	/* sram is device memory,need word size align,
+	 * 8 byte for 64 bit platform
+	 * [3:0] = 4'h0 for the convenience of the hardware implementation
+	 */
+	align_size = in_size & 0xFFFFFFF0;
+	return align_size;
 }
 
 static snd_pcm_uframes_t mtk_afe_pcm_pointer
@@ -165,27 +127,58 @@ static snd_pcm_uframes_t mtk_afe_pcm_pointer
 	pcm_ptr_bytes = hw_ptr - hw_base;
 
 POINTER_RETURN_FRAMES:
+	pcm_ptr_bytes = word_size_align(pcm_ptr_bytes);
 	return bytes_to_frames(substream->runtime, pcm_ptr_bytes);
 }
 
-static const struct snd_pcm_ops mtk_afe_pcm_ops = {
-	.ioctl = snd_pcm_lib_ioctl,
-	.pointer = mtk_afe_pcm_pointer,
-};
-
-static int mtk_afe_pcm_new(struct snd_soc_pcm_runtime *rtd)
+int mtk_afe_pcm_ack(struct snd_pcm_substream *substream)
 {
-	size_t size;
-	struct snd_card *card = rtd->card->snd_card;
-	struct snd_pcm *pcm = rtd->pcm;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct mtk_base_afe *afe = snd_soc_platform_get_drvdata(rtd->platform);
+	struct mtk_base_afe_memif *memif = &afe->memif[rtd->cpu_dai->id];
 
-	size = afe->mtk_afe_hardware->buffer_bytes_max;
-	return snd_pcm_lib_preallocate_pages_for_all(pcm, SNDRV_DMA_TYPE_DEV,
-						     card->dev, size, size);
+	if (!memif->ack_enable)
+		return 0;
+
+	if (memif->ack)
+		memif->ack(substream);
+	else
+		dev_warn(afe->dev, "%s(), ack_enable but ack == NULL\n",
+			 __func__);
+
+	return 0;
 }
 
-static void mtk_afe_pcm_free(struct snd_pcm *pcm)
+const struct snd_pcm_ops mtk_afe_pcm_ops = {
+	.ioctl = snd_pcm_lib_ioctl,
+	.pointer = mtk_afe_pcm_pointer,
+	.ack = mtk_afe_pcm_ack,
+};
+
+int mtk_afe_pcm_new(struct snd_soc_pcm_runtime *rtd)
+{
+	size_t size = 0;
+	struct snd_pcm *pcm = rtd->pcm;
+	struct mtk_base_afe *afe = snd_soc_platform_get_drvdata(rtd->platform);
+	int ret = 0;
+
+	if (rtd->cpu_dai->id < afe->memif_size) { /* DL and UL memif pcm */
+		size = afe->mtk_afe_hardware->buffer_bytes_max;
+		ret = snd_pcm_lib_preallocate_pages_for_all(pcm,
+							    SNDRV_DMA_TYPE_DEV,
+							    afe->dev,
+							    size, size);
+	}
+
+	dev_info(afe->dev, "%s(), dai_link_name : %s, memif_id : %d, size : %zu, ret : %d\n",
+		 __func__,
+		 rtd->dai_link->name,
+		 rtd->cpu_dai->id,
+		 size, ret);
+	return ret;
+}
+
+void mtk_afe_pcm_free(struct snd_pcm *pcm)
 {
 	snd_pcm_lib_preallocate_free_for_all(pcm);
 }

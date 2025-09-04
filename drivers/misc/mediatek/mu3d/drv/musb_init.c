@@ -34,7 +34,6 @@
 #include "mu3d_hal_phy.h"
 #include "mu3d_hal_usb_drv.h"
 #include "musb_gadget.h"
-#include <linux/phy/mediatek/mtk_usb_phy.h>
 
 #ifdef CONFIG_PROJECT_PHY
 #include "mtk-phy-asic.h"
@@ -473,7 +472,7 @@ static inline void mtu3d_link_intr_handler(struct musb *musb, u32 dwLinkIntValue
 			musb_g_reset(musb);
 		speed_last = speed;
 		speed = SSUSB_SPEED_SUPER;
-		ss_timestamp = CURRENT_TIME;
+		ss_timestamp = current_kernel_time();
 #endif
 		break;
 
@@ -831,8 +830,10 @@ static int mtu3d_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_FPGA_EARLY_PORTING
 	{
-		if (!of_property_read_u32(np, "fgpa_i2c_physical_base", (u32 *) &i2c_physical_base))
-			os_printk(K_WARNIN, "%s, i2c_physical_base:%x from dtsi\n",  __func__, i2c_physical_base);
+		if (!of_property_read_u32(np, "fpga_i2c_physical_base",
+				(u32 *) &i2c_physical_base))
+			os_printk(K_WARNIN, "%s, i2c_physical_base:%x (dtsi)\n"
+				,  __func__, i2c_physical_base);
 
 	}
 #endif

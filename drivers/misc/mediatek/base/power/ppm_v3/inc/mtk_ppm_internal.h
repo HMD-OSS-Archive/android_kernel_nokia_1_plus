@@ -31,12 +31,12 @@ extern "C" {
 #include <linux/sched.h>
 #include <linux/cpumask.h>
 
-#include "mach/mtk_ppm_api.h"
+#include "mtk_ppm_api.h"
 #include "mtk_ppm_platform.h"
 #include "mtk_ppm_ipi.h"
 
 /*==============================================================*/
-/* Definitions							*/
+/* Definitions                                                  */
 /*==============================================================*/
 /* POLICY */
 /* If priority value is the same, it will decide by ppm_policy enum value */
@@ -48,67 +48,76 @@ extern "C" {
 #define PPM_POLICY_PRIO_LOWEST			(0xFF)
 
 /* Cluster setting */
-#define get_cluster_min_cpufreq_idx(id)		(ppm_main_info.cluster_info[id].dvfs_opp_num - 1)
+#define get_cluster_min_cpufreq_idx(id)	\
+	(ppm_main_info.cluster_info[id].dvfs_opp_num - 1)
 #define get_cluster_max_cpufreq_idx(id)		(0)
 #define get_cluster_min_cpu_core(id)		(0)
-#define get_cluster_max_cpu_core(id)		(ppm_main_info.cluster_info[id].core_num)
+#define get_cluster_max_cpu_core(id)	\
+	(ppm_main_info.cluster_info[id].core_num)
 #define get_cluster_max_cpufreq(id)	\
-	((ppm_main_info.cluster_info[id].dvfs_tbl) ? ppm_main_info.cluster_info[id].dvfs_tbl[0].frequency : ~0)
+	((ppm_main_info.cluster_info[id].dvfs_tbl)	\
+	? ppm_main_info.cluster_info[id].dvfs_tbl[0].frequency	\
+	: ~0)
 #define get_cluster_min_cpufreq(id)		\
 	((ppm_main_info.cluster_info[id].dvfs_tbl)	\
-	? ppm_main_info.cluster_info[id].dvfs_tbl[DVFS_OPP_NUM-1].frequency	\
+	? ppm_main_info.cluster_info[id].dvfs_tbl[DVFS_OPP_NUM-1].frequency \
 	: 0)
 
 /* loop macros */
-#define for_each_ppm_clusters(i)	for (i = 0; i < ppm_main_info.cluster_num; i++)
+#define for_each_ppm_clusters(i)	\
+	for (i = 0; i < ppm_main_info.cluster_num; i++)
 #define for_each_ppm_clients(i)		for (i = 0; i < NR_PPM_CLIENTS; i++)
 
 /* operation */
+#ifndef MAX
 #define MAX(a, b)		((a) >= (b) ? (a) : (b))
+#endif
+
+#ifndef MIN
 #define MIN(a, b)		((a) >= (b) ? (b) : (a))
+#endif
 
 /* LOCK */
 #define ppm_lock(lock)		mutex_lock(lock)
 #define ppm_unlock(lock)	mutex_unlock(lock)
 
 /* PROCFS */
-#define PROC_FOPS_RW(name)							\
-static int ppm_ ## name ## _proc_open(struct inode *inode, struct file *file)	\
-{										\
-	return single_open(file, ppm_ ## name ## _proc_show, PDE_DATA(inode));	\
-}										\
-static const struct file_operations ppm_ ## name ## _proc_fops = {		\
-	.owner	= THIS_MODULE,							\
-	.open	= ppm_ ## name ## _proc_open,					\
-	.read	= seq_read,							\
-	.llseek	= seq_lseek,							\
-	.release	= single_release,					\
-	.write	= ppm_ ## name ## _proc_write,					\
+#define PROC_FOPS_RW(name)                                                    \
+static int ppm_ ## name ## _proc_open(struct inode *inode, struct file *file) \
+{                                                                             \
+	return single_open(file, ppm_ ## name ## _proc_show, PDE_DATA(inode));\
+}                                                                             \
+static const struct file_operations ppm_ ## name ## _proc_fops = {            \
+	.owner	= THIS_MODULE,                                                \
+	.open	= ppm_ ## name ## _proc_open,                                 \
+	.read	= seq_read,                                                   \
+	.llseek	= seq_lseek,                                                  \
+	.release	= single_release,                                     \
+	.write	= ppm_ ## name ## _proc_write,                                \
 }
 
-#define PROC_FOPS_RO(name)							\
-static int ppm_ ## name ## _proc_open(struct inode *inode, struct file *file)	\
-{										\
-	return single_open(file, ppm_ ## name ## _proc_show, PDE_DATA(inode));	\
-}										\
-static const struct file_operations ppm_ ## name ## _proc_fops = {		\
-	.owner	= THIS_MODULE,							\
-	.open	= ppm_ ## name ## _proc_open,					\
-	.read	= seq_read,							\
-	.llseek	= seq_lseek,							\
-	.release	= single_release,					\
+#define PROC_FOPS_RO(name)                                                    \
+static int ppm_ ## name ## _proc_open(struct inode *inode, struct file *file) \
+{                                                                             \
+	return single_open(file, ppm_ ## name ## _proc_show, PDE_DATA(inode));\
+}                                                                             \
+static const struct file_operations ppm_ ## name ## _proc_fops = {            \
+	.owner	= THIS_MODULE,                                                \
+	.open	= ppm_ ## name ## _proc_open,                                 \
+	.read	= seq_read,                                                   \
+	.llseek	= seq_lseek,                                                  \
+	.release	= single_release,                                     \
 }
 
-#define PROC_ENTRY(name)	{__stringify(name), &ppm_ ## name ## _proc_fops}
+#define PROC_ENTRY(name) {__stringify(name), &ppm_ ## name ## _proc_fops}
 
 /* LOG */
 #undef TAG
 #define TAG     "[Power/PPM] "
 
-#define ppm_err		ppm_info
-#define ppm_warn	ppm_info
-#define ppm_info(fmt, args...)		\
-	pr_notice(TAG""fmt, ##args)
+#define ppm_err			ppm_info
+#define ppm_warn		ppm_info
+#define ppm_info(fmt, args...)	pr_notice(TAG""fmt, ##args)
 #define ppm_dbg(type, fmt, args...)				\
 	do {							\
 		if (ppm_debug & ALL || ppm_debug & type)	\
@@ -121,23 +130,23 @@ static const struct file_operations ppm_ ## name ## _proc_fops = {		\
 		if (ppm_debug == ALL)		\
 			ppm_info(fmt, ##args);	\
 	} while (0)
-#define ppm_cont(fmt, args...)		\
-	pr_cont(fmt, ##args)
 
 
 #define FUNC_LV_MODULE		BIT(0)	/* module, platform driver interface */
 #define FUNC_LV_API		BIT(1)	/* mt_ppm driver global function */
 #define FUNC_LV_MAIN		BIT(2)	/* mt_ppm driver main function */
-#define FUNC_LV_POLICY		BIT(4)	/* mt_ppm driver other policy function */
+#define FUNC_LV_POLICY		BIT(4)	/* mt_ppm driver policy function */
 
 #define FUNC_ENTER(lv)	\
-	do { if ((lv) & ppm_func_lv_mask) ppm_info(">> %s()\n", __func__); } while (0)
+	do { if ((lv) & ppm_func_lv_mask)	\
+		ppm_info(">> %s()\n", __func__); } while (0)
 #define FUNC_EXIT(lv)	\
-	do { if ((lv) & ppm_func_lv_mask) ppm_info("<< %s():%d\n", __func__, __LINE__); } while (0)
+	do { if ((lv) & ppm_func_lv_mask)	\
+		ppm_info("<< %s():%d\n", __func__, __LINE__); } while (0)
 
 
 /*==============================================================*/
-/* Enum								*/
+/* Enum                                                         */
 /*==============================================================*/
 enum {
 	NO_LOG	= 0,
@@ -147,29 +156,32 @@ enum {
 	DLPT	= 1 << 3,
 	USER_LIMIT = 1 << 4,
 	TIME_PROFILE = 1 << 5,
-	COBRA_ALGO = 1 << 6,
+	COBRA = 1 << 6,
 	SYS_BOOST = 1 << 7,
 	IPI	= 1 << 8,
 	CPI	= 1 << 9,
+	HARD_USER_LIMIT = 1 << 10,
 };
 
 enum ppm_policy {
-	PPM_POLICY_PTPOD = 0,		/* highest priority if priority value is the same */
+	PPM_POLICY_PTPOD = 0, /* highest priority */
 	PPM_POLICY_UT,
 	PPM_POLICY_FORCE_LIMIT,
 	PPM_POLICY_PWR_THRO,
 	PPM_POLICY_THERMAL,
 	PPM_POLICY_DLPT,
+	PPM_POLICY_HARD_USER_LIMIT,
 	PPM_POLICY_USER_LIMIT,
 	PPM_POLICY_LCM_OFF,
 	PPM_POLICY_SYS_BOOST,
+	PPM_POLICY_HICA,
 
 	NR_PPM_POLICIES,
 };
 
 
 /*==============================================================*/
-/* Data Structures						*/
+/* Data Structures                                              */
 /*==============================================================*/
 struct ppm_cluster_limit {
 	int min_cpufreq_idx;
@@ -213,20 +225,16 @@ struct ppm_cluster_info {
 	unsigned int dvfs_opp_num;
 	unsigned int max_freq_except_userlimit;
 	struct cpufreq_frequency_table *dvfs_tbl;	/* from DVFS driver */
+	int	doe_max;
+	int	doe_min;
 };
 
 struct ppm_data {
 	bool is_enabled;
+	bool is_doe_enabled;
 	bool is_in_suspend;
 	unsigned int min_power_budget;
 	cpumask_var_t exclusive_core;
-
-#ifdef PPM_VPROC_5A_LIMIT_CHECK
-	/* enable = 0: skip 5A limit check */
-	/* on/off is controlled by thermal */
-	bool is_5A_limit_enable;
-	bool is_5A_limit_on;
-#endif
 
 	/* platform settings */
 	unsigned int cluster_num;
@@ -262,7 +270,7 @@ struct ppm_userlimit_data {
 
 
 /*==============================================================*/
-/* Global variables						*/
+/* Global variables                                             */
 /*==============================================================*/
 extern struct ppm_data ppm_main_info;
 extern struct proc_dir_entry *policy_dir;
@@ -273,21 +281,22 @@ extern unsigned int ppm_debug;
 
 
 /*==============================================================*/
-/* APIs								*/
+/* APIs                                                         */
 /*==============================================================*/
+extern int mt_ppm_main(void);
 /* procfs */
 extern int ppm_procfs_init(void);
-extern char *ppm_copy_from_user_for_proc(const char __user *buffer, size_t count);
+extern char *ppm_copy_from_user_for_proc(
+	const char __user *buffer, size_t count);
 
 /* platform dependent APIs */
 extern void ppm_update_req_by_pwr(struct ppm_policy_req *req);
-extern int ppm_find_pwr_idx(struct ppm_cluster_status *cluster_status);
 extern int ppm_get_min_pwr_idx(void);
 extern int ppm_get_max_pwr_idx(void);
 
 /* main */
 extern int ppm_main_freq_to_idx(unsigned int cluster_id,
-					unsigned int freq, unsigned int relation);
+	unsigned int freq, unsigned int relation);
 extern void ppm_clear_policy_limit(struct ppm_policy_data *policy);
 extern void ppm_main_clear_client_req(struct ppm_client_req *c_req);
 extern int ppm_main_register_policy(struct ppm_policy_data *policy);
@@ -296,7 +305,8 @@ extern void ppm_main_unregister_policy(struct ppm_policy_data *policy);
 /* profiling */
 extern int ppm_profile_init(void);
 extern void ppm_profile_exit(void);
-extern void ppm_profile_update_client_exec_time(enum ppm_client client, unsigned long long time);
+extern void ppm_profile_update_client_exec_time(
+	enum ppm_client client, unsigned long long time);
 #ifdef PPM_SSPM_SUPPORT
 extern void ppm_profile_update_ipi_exec_time(int id, unsigned long long time);
 #endif

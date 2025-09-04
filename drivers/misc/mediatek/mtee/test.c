@@ -29,7 +29,7 @@ uint32_t TEECK_Test_Add(KREE_SESSION_HANDLE session, uint32_t a, uint32_t b)
 {
 	union MTEEC_PARAM param[4];
 	uint32_t paramTypes;
-	TZ_RESULT ret;
+	int ret;
 
 	param[0].value.a = a;
 	param[1].value.a = b;
@@ -48,7 +48,7 @@ uint32_t TEECK_Test_Add(KREE_SESSION_HANDLE session, uint32_t a, uint32_t b)
 
 void tz_test(void)
 {
-	TZ_RESULT ret;
+	int ret;
 	KREE_SESSION_HANDLE test_session;
 	KREE_SESSION_HANDLE mem_session;
 	KREE_SECUREMEM_HANDLE mem_handle;
@@ -69,7 +69,7 @@ void tz_test(void)
 	}
 
 	result = TEECK_Test_Add(test_session, 10, 20);
-	pr_debug("tz_test TZCMD_TEST_ADD %d\n", result);
+	pr_debug("%s TZCMD_TEST_ADD %d\n", __func__, result);
 
 	/* / Time test. */
 	getnstimeofday(&start);

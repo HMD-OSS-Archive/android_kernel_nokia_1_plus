@@ -25,18 +25,21 @@
 
 #include <mt-plat/mtk_io.h>
 #include <mt-plat/sync_write.h>
-
-#include <dramc.h>
 #include <mt_emi.h>
+#if DBG_INFO_READY
+#include <plat_dbg_info.h>
+#endif
 
 static struct dentry *emi_mbw_dir;
 static struct dentry *dump_buf;
 static void __iomem *mbw_dram_buf;
 static bool elm_enabled;
 
-static ssize_t dump_buf_read(struct file *file, char __user *data, size_t len, loff_t *ppos)
+static ssize_t dump_buf_read
+	(struct file *file, char __user *data, size_t len, loff_t *ppos)
 {
-	ssize_t bytes = len < (MBW_BUF_LEN - *ppos) ? len : (MBW_BUF_LEN - *ppos);
+	ssize_t bytes = len < (MBW_BUF_LEN - *ppos) ?
+		len : (MBW_BUF_LEN - *ppos);
 
 	if (!mbw_dram_buf)
 		return 0;
@@ -70,7 +73,11 @@ void elm_init(struct platform_driver *emi_ctrl, struct platform_device *pdev)
 
 	pr_info("[ELM] initialize EMI ELMv2\n");
 
+#if DBG_INFO_READY
 	LAST_EMI_BASE = get_dbg_info_base(0xE31C);
+#else
+	LAST_EMI_BASE = NULL;
+#endif
 	if (!LAST_EMI_BASE) {
 		pr_err("[ELM] get LAST_EMI_BASE fail\n");
 		return;
@@ -80,7 +87,11 @@ void elm_init(struct platform_driver *emi_ctrl, struct platform_device *pdev)
 	if (readl(IOMEM(LAST_EMI_DECS_CTRL)) == 0xDECDDECD) {
 		mbw_buf_l = readl(IOMEM(LAST_EMI_MBW_BUF_L));
 		mbw_buf_h = readl(IOMEM(LAST_EMI_MBW_BUF_H));
+#ifdef CONFIG_PHYS_ADDR_T_64BIT
 		mbw_buf_start = ((phys_addr_t)mbw_buf_h << 32) + mbw_buf_l;
+#else
+		mbw_buf_start = (phys_addr_t)mbw_buf_l;
+#endif
 		mbw_dram_buf = ioremap_wc(mbw_buf_start, MBW_BUF_LEN);
 		elm_enabled = true;
 		pr_info("[ELM] enable mbw_buf dump\n");
@@ -92,7 +103,7 @@ void elm_init(struct platform_driver *emi_ctrl, struct platform_device *pdev)
 		return;
 	}
 
-	dump_buf = debugfs_create_file("dump_buf", S_IFREG | S_IRUGO,
+	dump_buf = debugfs_create_file("dump_buf", 0444,
 		emi_mbw_dir, NULL, &dump_buf_fops);
 	if (!dump_buf) {
 		pr_err("[ELM] create dump_buf fail\n");

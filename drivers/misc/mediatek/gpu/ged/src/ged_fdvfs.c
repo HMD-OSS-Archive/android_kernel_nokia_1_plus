@@ -33,7 +33,6 @@ GED_FDVFS_COUNTER counters[] = {
 #define FDVFS_COUNTER_SIZE (ARRAY_SIZE(counters))
 #define FDVFS_SAMPLE_TIME 1000000
 
-#define GED_FDVFS_SYSTRACE  1
 
 void fdvfs_print_info(void)
 {
@@ -300,7 +299,6 @@ static DEFINE_SPINLOCK(counter_info_lock);
 
 enum hrtimer_restart ged_fdvfs_debug_cb(struct hrtimer *timer)
 {
-	pr_warn("(GED) FDVFS_5 ");
 	mt_do_systrace();
 
 	hrtimer_start(&g_HT_fdvfs_debug, ns_to_ktime(GED_FDVFS_TIMER_TIMEOUT), HRTIMER_MODE_REL);
@@ -336,7 +334,7 @@ static void *_mtk_of_ioremap(const char *node_name)
 	if (node)
 		return of_iomap(node, 0);
 
-	pr_err("#@# %s:(%s::%d) Cannot find [%s] of_node\n", "FDVFS", __FILE__, __LINE__, node_name);
+	pr_info("#@# %s:(%s::%d) Cannot find [%s] of_node\n", "FDVFS", __FILE__, __LINE__, node_name);
 	return NULL;
 }
 #endif
@@ -373,7 +371,6 @@ GED_ERROR ged_fdvfs_system_init(void)
 #endif
 #endif
 
-	mfg_is_power_on = 0;
 
 	return GED_OK;
 }

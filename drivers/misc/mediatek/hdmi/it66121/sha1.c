@@ -1,24 +1,24 @@
 /*
-* HDMI support
-*
-* Copyright (C) 2013 ITE Tech. Inc.
-* Author: Hermes Wu <hermes.wu@ite.com.tw>
-*
-* HDMI TX driver for IT66121
-*
-*
-* This program is free software; you can redistribute it and/or modify it
-* under the terms of the GNU General Public License version 2 as published by
-* the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful, but WITHOUT
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
-* more details.
-*
-* You should have received a copy of the GNU General Public License along with
-* this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ * HDMI support
+ *
+ * Copyright (C) 2013 ITE Tech. Inc.
+ * Author: Hermes Wu <hermes.wu@ite.com.tw>
+ *
+ * HDMI TX driver for IT66121
+ *
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include "sha1.h"
 
@@ -43,21 +43,16 @@ void SHATransform(ULONG *h)
 
 	for (t = 0; t < 20; t++) {
 		if (t >= 16) {
-			tmp =
-			    w[(t - 3) % WCOUNT] ^ w[(t - 8) % WCOUNT] ^ w[(t -
-									   14) % WCOUNT] ^ w[(t -
-											      16) %
-											     WCOUNT];
+			tmp = w[(t - 3) % WCOUNT] ^ w[(t - 8) % WCOUNT] ^
+				  w[(t - 14) % WCOUNT] ^ w[(t - 16) % WCOUNT];
 			w[(t) % WCOUNT] = rol(tmp, 1);
 		}
 		HDCP_DEBUG_PRINTF2(("w[%d]=%08lX\n", t, w[(t) % WCOUNT]));
 
-		tmp =
-		    rol(h[0],
-			5) + ((h[1] & h[2]) | (h[3] & ~h[1])) + h[4] + w[(t) % WCOUNT] + 0x5a827999;
-		HDCP_DEBUG_PRINTF2(("%08lX %08lX %08lX %08lX %08lX\n", h[0], h[1], h[2], h[3],
-				    h[4]));
-
+		tmp = rol(h[0], 5) + ((h[1] & h[2]) | (h[3] & ~h[1])) +
+			h[4] + w[(t) % WCOUNT] + 0x5a827999;
+		HDCP_DEBUG_PRINTF2(("%08lX %08lX %08lX %08lX %08lX\n",
+			h[0], h[1], h[2], h[3], h[4]));
 		h[4] = h[3];
 		h[3] = h[2];
 		h[2] = rol(h[1], 30);
@@ -66,15 +61,14 @@ void SHATransform(ULONG *h)
 
 	}
 	for (t = 20; t < 40; t++) {
-		tmp =
-		    w[(t - 3) % WCOUNT] ^ w[(t - 8) % WCOUNT] ^ w[(t - 14) % WCOUNT] ^ w[(t -
-											  16) %
-											 WCOUNT];
+		tmp = w[(t - 3) % WCOUNT] ^ w[(t - 8) % WCOUNT] ^
+			  w[(t - 14) % WCOUNT] ^ w[(t - 16) % WCOUNT];
 		w[(t) % WCOUNT] = rol(tmp, 1);
 		HDCP_DEBUG_PRINTF2(("w[%d]=%08lX\n", t, w[(t) % WCOUNT]));
-		tmp = rol(h[0], 5) + (h[1] ^ h[2] ^ h[3]) + h[4] + w[(t) % WCOUNT] + 0x6ed9eba1;
-		HDCP_DEBUG_PRINTF2(("%08lX %08lX %08lX %08lX %08lX\n", h[0], h[1], h[2], h[3],
-				    h[4]));
+		tmp = rol(h[0], 5) + (h[1] ^ h[2] ^ h[3]) + h[4] +
+			w[(t) % WCOUNT] + 0x6ed9eba1;
+		HDCP_DEBUG_PRINTF2(("%08lX %08lX %08lX %08lX %08lX\n",
+			h[0], h[1], h[2], h[3], h[4]));
 		h[4] = h[3];
 		h[3] = h[2];
 		h[2] = rol(h[1], 30);
@@ -82,18 +76,14 @@ void SHATransform(ULONG *h)
 		h[0] = tmp;
 	}
 	for (t = 40; t < 60; t++) {
-		tmp =
-		    w[(t - 3) % WCOUNT] ^ w[(t - 8) % WCOUNT] ^ w[(t - 14) % WCOUNT] ^ w[(t -
-											  16) %
-											 WCOUNT];
+		tmp = w[(t - 3) % WCOUNT] ^ w[(t - 8) % WCOUNT] ^
+			  w[(t - 14) % WCOUNT] ^ w[(t - 16) % WCOUNT];
 		w[(t) % WCOUNT] = rol(tmp, 1);
 		HDCP_DEBUG_PRINTF2(("w[%d]=%08lX\n", t, w[(t) % WCOUNT]));
-		tmp =
-		    rol(h[0],
-			5) + ((h[1] & h[2]) | (h[1] & h[3]) | (h[2] & h[3])) + h[4] +
-		    w[(t) % WCOUNT] + 0x8f1bbcdc;
-		HDCP_DEBUG_PRINTF2(("%08lX %08lX %08lX %08lX %08lX\n", h[0], h[1], h[2], h[3],
-				    h[4]));
+		tmp = rol(h[0], 5) + ((h[1] & h[2]) | (h[1] & h[3]) |
+		(h[2] & h[3])) + h[4] + w[(t) % WCOUNT] + 0x8f1bbcdc;
+		HDCP_DEBUG_PRINTF2(("%08lX %08lX %08lX %08lX %08lX\n",
+			h[0], h[1], h[2], h[3], h[4]));
 		h[4] = h[3];
 		h[3] = h[2];
 		h[2] = rol(h[1], 30);
@@ -101,29 +91,30 @@ void SHATransform(ULONG *h)
 		h[0] = tmp;
 	}
 	for (t = 60; t < 80; t++) {
-		tmp =
-		    w[(t - 3) % WCOUNT] ^ w[(t - 8) % WCOUNT] ^ w[(t - 14) % WCOUNT] ^ w[(t -
-											  16) %
-											 WCOUNT];
+		tmp = w[(t - 3) % WCOUNT] ^ w[(t - 8) % WCOUNT] ^
+			w[(t - 14) % WCOUNT] ^ w[(t - 16) % WCOUNT];
 		w[(t) % WCOUNT] = rol(tmp, 1);
 		HDCP_DEBUG_PRINTF2(("w[%d]=%08lX\n", t, w[(t) % WCOUNT]));
-		tmp = rol(h[0], 5) + (h[1] ^ h[2] ^ h[3]) + h[4] + w[(t) % WCOUNT] + 0xca62c1d6;
-		HDCP_DEBUG_PRINTF2(("%08lX %08lX %08lX %08lX %08lX\n", h[0], h[1], h[2], h[3],
-				    h[4]));
+		tmp = rol(h[0], 5) + (h[1] ^ h[2] ^ h[3]) + h[4] +
+			w[(t) % WCOUNT] + 0xca62c1d6;
+		HDCP_DEBUG_PRINTF2(("%08lX %08lX %08lX %08lX %08lX\n",
+			h[0], h[1], h[2], h[3], h[4]));
 		h[4] = h[3];
 		h[3] = h[2];
 		h[2] = rol(h[1], 30);
 		h[1] = h[0];
 		h[0] = tmp;
 	}
-	HDCP_DEBUG_PRINTF2(("%08lX %08lX %08lX %08lX %08lX\n", h[0], h[1], h[2], h[3], h[4]));
+	HDCP_DEBUG_PRINTF2(("%08lX %08lX %08lX %08lX %08lX\n",
+		h[0], h[1], h[2], h[3], h[4]));
 	h[0] += 0x67452301;
 	h[1] += 0xefcdab89;
 	h[2] += 0x98badcfe;
 	h[3] += 0x10325476;
 	h[4] += 0xc3d2e1f0;
 
-	HDCP_DEBUG_PRINTF2(("%08lX %08lX %08lX %08lX %08lX\n", h[0], h[1], h[2], h[3], h[4]));
+	HDCP_DEBUG_PRINTF2(("%08lX %08lX %08lX %08lX %08lX\n",
+		h[0], h[1], h[2], h[3], h[4]));
 }
 
 void SHA_Simple(void *p, WORD len, unsigned char *output)
@@ -141,8 +132,8 @@ void SHA_Simple(void *p, WORD len, unsigned char *output)
 		c = pBuff[i];
 		c <<= (3 - (i % 4)) * 8;
 		w[t] |= c;
-		HDCP_DEBUG_PRINTF2(("pBuff[%d]=%02X,c=%08lX,w[%d]=%08lX\n", (int)i, (int)pBuff[i],
-				    c, (int)t, w[t]));
+		HDCP_DEBUG_PRINTF2(("pBuff[%d]=%02X,c=%08lX,w[%d]=%08lX\n",
+			(int)i, (int)pBuff[i], c, (int)t, w[t]));
 	}
 	t = i / 4;
 	if (i % 4 == 0)

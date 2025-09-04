@@ -44,9 +44,9 @@
 #define MFB_BASE_HW   0x1502E000
 
 /*This macro is for setting irq status represnted
-* by a local variable,MFBInfo.IrqInfo.Status[MFB_IRQ_TYPE_INT_MFB_ST]
-*/
-#define MFB_INT_ST                 ((unsigned int)1<<0)
+ * by a local variable,MFBInfo.IrqInfo.Status[MFB_IRQ_TYPE_INT_MFB_ST]
+ */
+#define MFB_INT_ST                 (1<<0)
 
 
 struct MFB_REG_STRUCT {
@@ -68,7 +68,9 @@ struct MFB_REG_IO_STRUCT {
 enum MFB_IRQ_CLEAR_ENUM {
 	MFB_IRQ_CLEAR_NONE,	/* non-clear wait, clear after wait */
 	MFB_IRQ_CLEAR_WAIT,	/* clear wait, clear before and after wait */
-	MFB_IRQ_WAIT_CLEAR,	/* wait the signal and clear it, avoid the hw executime is too s hort. */
+	MFB_IRQ_WAIT_CLEAR,	/* wait the signal and clear it, avoid the
+				 * hw executime is too s hort.
+				 */
 	MFB_IRQ_CLEAR_STATUS,	/* clear specific status only */
 	MFB_IRQ_CLEAR_ALL	/* clear all status */
 };
@@ -240,26 +242,40 @@ struct compat_MFB_Request {
 #define MFB_DUMP_ISR_LOG    _IO(MFB_MAGIC, MFB_CMD_DUMP_ISR_LOG)
 
 
-#define MFB_READ_REGISTER   _IOWR(MFB_MAGIC, MFB_CMD_READ_REG,        MFB_REG_IO_STRUCT)
-#define MFB_WRITE_REGISTER  _IOWR(MFB_MAGIC, MFB_CMD_WRITE_REG,       MFB_REG_IO_STRUCT)
-#define MFB_WAIT_IRQ        _IOW(MFB_MAGIC, MFB_CMD_WAIT_IRQ,        MFB_WAIT_IRQ_STRUCT)
-#define MFB_CLEAR_IRQ       _IOW(MFB_MAGIC, MFB_CMD_CLEAR_IRQ,       MFB_CLEAR_IRQ_STRUCT)
+#define MFB_READ_REGISTER \
+	_IOWR(MFB_MAGIC, MFB_CMD_READ_REG, MFB_REG_IO_STRUCT)
+#define MFB_WRITE_REGISTER \
+	_IOWR(MFB_MAGIC, MFB_CMD_WRITE_REG, MFB_REG_IO_STRUCT)
+#define MFB_WAIT_IRQ        \
+	_IOW(MFB_MAGIC, MFB_CMD_WAIT_IRQ, MFB_WAIT_IRQ_STRUCT)
+#define MFB_CLEAR_IRQ       \
+	_IOW(MFB_MAGIC, MFB_CMD_CLEAR_IRQ, MFB_CLEAR_IRQ_STRUCT)
 
-#define MFB_ENQNUE_NUM  _IOW(MFB_MAGIC, MFB_CMD_ENQUE_NUM,    int)
-#define MFB_ENQUE      _IOWR(MFB_MAGIC, MFB_CMD_ENQUE,      MFB_Config)
-#define MFB_ENQUE_REQ  _IOWR(MFB_MAGIC, MFB_CMD_ENQUE_REQ,  MFB_Request)
+#define MFB_ENQNUE_NUM  \
+	_IOW(MFB_MAGIC, MFB_CMD_ENQUE_NUM, int)
+#define MFB_ENQUE       \
+	_IOWR(MFB_MAGIC, MFB_CMD_ENQUE, MFB_Config)
+#define MFB_ENQUE_REQ  \
+	_IOWR(MFB_MAGIC, MFB_CMD_ENQUE_REQ, MFB_Request)
 
-#define MFB_DEQUE_NUM  _IOR(MFB_MAGIC, MFB_CMD_DEQUE_NUM,    int)
-#define MFB_DEQUE      _IOWR(MFB_MAGIC, MFB_CMD_DEQUE,      MFB_Config)
-#define MFB_DEQUE_REQ  _IOWR(MFB_MAGIC, MFB_CMD_DEQUE_REQ,  MFB_Request)
+#define MFB_DEQUE_NUM  \
+	_IOR(MFB_MAGIC, MFB_CMD_DEQUE_NUM, int)
+#define MFB_DEQUE      \
+	_IOWR(MFB_MAGIC, MFB_CMD_DEQUE, MFB_Config)
+#define MFB_DEQUE_REQ  \
+	_IOWR(MFB_MAGIC, MFB_CMD_DEQUE_REQ, MFB_Request)
 
 
 #ifdef CONFIG_COMPAT
-#define COMPAT_MFB_WRITE_REGISTER   _IOWR(MFB_MAGIC, MFB_CMD_WRITE_REG,     compat_MFB_REG_IO_STRUCT)
-#define COMPAT_MFB_READ_REGISTER    _IOWR(MFB_MAGIC, MFB_CMD_READ_REG,      compat_MFB_REG_IO_STRUCT)
+#define COMPAT_MFB_WRITE_REGISTER   \
+	_IOWR(MFB_MAGIC, MFB_CMD_WRITE_REG, compat_MFB_REG_IO_STRUCT)
+#define COMPAT_MFB_READ_REGISTER    \
+	_IOWR(MFB_MAGIC, MFB_CMD_READ_REG, compat_MFB_REG_IO_STRUCT)
 
-#define COMPAT_MFB_ENQUE_REQ   _IOWR(MFB_MAGIC, MFB_CMD_ENQUE_REQ,  compat_MFB_Request)
-#define COMPAT_MFB_DEQUE_REQ   _IOWR(MFB_MAGIC, MFB_CMD_DEQUE_REQ,  compat_MFB_Request)
+#define COMPAT_MFB_ENQUE_REQ   \
+	_IOWR(MFB_MAGIC, MFB_CMD_ENQUE_REQ, compat_MFB_Request)
+#define COMPAT_MFB_DEQUE_REQ   \
+	_IOWR(MFB_MAGIC, MFB_CMD_DEQUE_REQ, compat_MFB_Request)
 
 #endif
 

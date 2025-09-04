@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 MediaTek Inc.
+ * Copyright (C) 2017 MediaTek Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -33,7 +33,8 @@ extern void musb_tx_zlp_qmu(struct musb *musb, u32 ep_num);
 /*FIXME, not good layer present */
 extern void mtk_qmu_enable(struct musb *musb, u8 EP_Num, u8 isRx);
 extern void __iomem *qmu_base;
-extern int mtk_kick_CmdQ(struct musb *musb, int isRx, struct musb_qh *qh, struct urb *urb);
+extern int mtk_kick_CmdQ(struct musb *musb,
+				int isRx, struct musb_qh *qh, struct urb *urb);
 extern void musb_host_active_dev_add(int addr);
 #endif
 #endif

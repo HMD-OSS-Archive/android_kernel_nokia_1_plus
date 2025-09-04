@@ -69,11 +69,12 @@ enum android_alarm_return_flags {
 #define ANDROID_ALARM_SET_AND_WAIT(type)    ALARM_IOW(3, type, struct timespec)
 #define ANDROID_ALARM_GET_TIME(type)        ALARM_IOW(4, type, struct timespec)
 #define ANDROID_ALARM_SET_RTC               _IOW('a', 5, struct timespec)
-#define ANDROID_ALARM_BASE_CMD(cmd)         (cmd & ~(_IOC(0, 0, 0xf0, 0)))
+#define ANDROID_ALARM_BASE_CMD(cmd)         ((cmd) & ~(_IOC(0, 0, 0xf0, 0)))
 #define ANDROID_ALARM_IOCTL_TO_TYPE(cmd)    (_IOC_NR(cmd) >> 4)
 #define ANDROID_ALARM_GET_POWER_ON          _IOR('a', 7, struct rtc_wkalrm)
-#define ANDROID_ALARM_SET_IPO(type)             ALARM_IOW(8, type, struct timespec)
-#define ANDROID_ALARM_SET_AND_WAIT_IPO(type)    ALARM_IOW(9, type, struct timespec)
+#define ANDROID_ALARM_SET_IPO(type) ALARM_IOW(8, type, struct timespec)
+#define ANDROID_ALARM_SET_AND_WAIT_IPO(type) \
+	ALARM_IOW(9, type, struct timespec)
 #define ANDROID_ALARM_GET_POWER_ON_IPO          _IOR('a', 10, struct rtc_wkalrm)
 #define ANDROID_ALARM_WAIT_IPO                  _IO('a', 11)
 
@@ -90,13 +91,9 @@ struct rtc_device *alarmtimer_get_rtcdev(void);
 							struct compat_timespec)
 #define ANDROID_ALARM_SET_IPO_COMPAT(type)		ALARM_IOW(8, type, \
 							struct compat_timespec)
-#define ANDROID_ALARM_SET_AND_WAIT_IPO_COMPAT(type)		ALARM_IOW(9, type, \
+#define ANDROID_ALARM_SET_AND_WAIT_IPO_COMPAT(type) ALARM_IOW(9, type, \
 							struct compat_timespec)
 #define ANDROID_ALARM_IOCTL_NR(cmd)		(_IOC_NR(cmd) & ((1 << 4) - 1))
-#define ANDROID_ALARM_COMPAT_TO_NORM(cmd)  \
-				ALARM_IOW(ANDROID_ALARM_IOCTL_NR(cmd), \
-					ANDROID_ALARM_IOCTL_TO_TYPE(cmd), \
-					struct timespec)
 
 #endif
 

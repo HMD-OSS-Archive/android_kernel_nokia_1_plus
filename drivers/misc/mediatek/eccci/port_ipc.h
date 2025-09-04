@@ -1,15 +1,15 @@
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ * Copyright (C) 2016 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ */
 
 #ifndef __PORT_IPC_H__
 #define __PORT_IPC_H__
@@ -30,11 +30,14 @@ enum CCCI_IPC_MSG_ID_RANGE {
 	IPC_EL1_MSG_ID_RANGE = 0x20,
 	IPC_CCCIIPC_MSG_ID_BEGIN = IPC_EL1_MSG_ID_BEGIN + IPC_EL1_MSG_ID_RANGE,
 	IPC_CCCIIPC_MSG_ID_RANGE = 0x10,
-	IPC_IPCORE_MSG_ID_BEGIN = IPC_CCCIIPC_MSG_ID_BEGIN + IPC_CCCIIPC_MSG_ID_RANGE,
+	IPC_IPCORE_MSG_ID_BEGIN =
+		IPC_CCCIIPC_MSG_ID_BEGIN + IPC_CCCIIPC_MSG_ID_RANGE,
 	IPC_IPCORE_MSG_ID_RANGE = 0x8,
-	IPC_MDT_MSG_ID_BEGIN = IPC_IPCORE_MSG_ID_BEGIN + IPC_IPCORE_MSG_ID_RANGE,
+	IPC_MDT_MSG_ID_BEGIN =
+		IPC_IPCORE_MSG_ID_BEGIN + IPC_IPCORE_MSG_ID_RANGE,
 	IPC_MDT_MSG_ID_RANGE = 0x8,
-	IPC_UFPM_MSG_ID_BEGIN = IPC_MDT_MSG_ID_BEGIN + IPC_MDT_MSG_ID_RANGE,
+	IPC_UFPM_MSG_ID_BEGIN =
+		IPC_MDT_MSG_ID_BEGIN + IPC_MDT_MSG_ID_RANGE,
 	IPC_UFPM_MSG_ID_RANGE = 0x18,
 };
 
@@ -76,10 +79,10 @@ struct ccci_emi_info {
 /* export API */
 int ccci_ipc_send_ilm(int md_id, struct ipc_ilm *in_ilm);
 int ccci_get_emi_info(int md_id, struct ccci_emi_info *emi_info);
-void ccci_garbage_filter(int val);
 
 /* external API */
-#if defined(CONFIG_MTK_MD_DIRECT_TETHERING_SUPPORT) || defined(CONFIG_MTK_MD_DIRECT_LOGGING_SUPPORT)
+#if defined(CONFIG_MTK_MD_DIRECT_TETHERING_SUPPORT) || \
+	defined(CONFIG_MTK_MD_DIRECT_LOGGING_SUPPORT)
 extern int rndis_md_msg_hdlr(struct ipc_ilm *ilm);
 #endif
 #if defined(CONFIG_MTK_MD_DIRECT_TETHERING_SUPPORT)

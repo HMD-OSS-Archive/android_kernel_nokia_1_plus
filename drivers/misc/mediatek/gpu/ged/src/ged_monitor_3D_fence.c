@@ -17,11 +17,8 @@
 #include <asm/atomic.h>
 #include <linux/module.h>
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0))
-#include <linux/sync.h>
-#else
-#include <../drivers/staging/android/sync.h>
-#endif
+#include <linux/sync_file.h>
+#include <linux/dma-fence.h>
 
 #include <mt-plat/mtk_gpu_utility.h>
 #include <trace/events/gpu.h>
@@ -33,48 +30,34 @@
 #include "ged_base.h"
 #include "ged_type.h"
 #include "ged_dvfs.h"
+#include "ged_global.h"
 
 #include <asm/div64.h>
 
 static atomic_t g_i32Count = ATOMIC_INIT(0);
 static unsigned int ged_monitor_3D_fence_debug;
 static unsigned int ged_monitor_3D_fence_disable;
-static unsigned int ged_monitor_3D_fence_switch = 1;
+static unsigned int ged_monitor_3D_fence_switch;
+static unsigned int ged_smart_boost;
 static unsigned int ged_monitor_3D_fence_systrace;
 static unsigned long g_ul3DFenceDoneTime;
 
-extern bool mtk_get_bottom_gpu_freq(unsigned int *pui32FreqLevel);
-
-#ifdef GED_DEBUG_MONITOR_3D_FENCE
-extern GED_LOG_BUF_HANDLE ghLogBuf_GED;
-#endif
-extern GED_LOG_BUF_HANDLE ghLogBuf_DVFS;
-
-typedef struct GED_MONITOR_3D_FENCE_TAG
-{
-	struct sync_fence_waiter    sSyncWaiter;
-	struct work_struct          sWork;
-	struct sync_fence*          psSyncFence;
+typedef struct GED_MONITOR_3D_FENCE_TAG {
+	struct dma_fence_cb sSyncWaiter;
+	struct work_struct sWork;
+	struct dma_fence *psSyncFence;
 } GED_MONITOR_3D_FENCE;
 
-static void ged_sync_cb(struct sync_fence *fence, struct sync_fence_waiter *waiter)
+static void ged_sync_cb(struct dma_fence *sFence, struct dma_fence_cb *waiter)
 {
 	GED_MONITOR_3D_FENCE *psMonitor;
 	unsigned long long t;
 
 	t = ged_get_time();
 
-	do_div(t,1000);
+	do_div(t, 1000);
 
 	ged_monitor_3D_fence_notify();
-
-#if defined(CONFIG_MACH_MT6799) || defined(CONFIG_MACH_MT8167) || defined(CONFIG_MACH_MT8173)
-	/* FIX-ME: IMG's loading API requires mutext lock which is not suitable here */;
-#else
-#ifndef GED_ENABLE_FB_DVFS
-	ged_dvfs_cal_gpu_utilization_force();
-#endif
-#endif
 
 	psMonitor = GED_CONTAINER_OF(waiter, GED_MONITOR_3D_FENCE, sSyncWaiter);
 
@@ -86,27 +69,44 @@ static void ged_sync_cb(struct sync_fence *fence, struct sync_fence_waiter *wait
 static void ged_monitor_3D_fence_work_cb(struct work_struct *psWork)
 {
 	GED_MONITOR_3D_FENCE *psMonitor;
-	int ret;
 
 #ifdef GED_DEBUG_MONITOR_3D_FENCE
 	ged_log_buf_print(ghLogBuf_GED, "ged_monitor_3D_fence_work_cb");
 #endif
 
-#ifndef GED_ENABLE_FB_DVFS
-	ged_dvfs_cal_gpu_utilization_force();
-#endif
 
-	ret = atomic_sub_return(1, &g_i32Count);
+	if (atomic_sub_return(1, &g_i32Count) < 1) {
+		unsigned int uiFreqLevelID;
+
+		if (mtk_get_bottom_gpu_freq(&uiFreqLevelID)) {
+			if (uiFreqLevelID > 0 && ged_monitor_3D_fence_switch) {
+#ifdef GED_DEBUG_MONITOR_3D_FENCE
+				ged_log_buf_print(ghLogBuf_GED, "mtk_set_bottom_gpu_freq(0)");
+#endif
+				mtk_set_bottom_gpu_freq(0);
+
+#if 0
+#ifdef CONFIG_MTK_SCHED_TRACERS
+				if (ged_monitor_3D_fence_systrace) {
+					unsigned long long t = cpu_clock(smp_processor_id());
+
+					trace_gpu_sched_switch("Smart Boost", t, 0, 0, 1);
+				}
+#endif
+#endif
+			}
+		}
+	}
 
 	if (ged_monitor_3D_fence_debug > 0)
-		GED_LOGI("[-]3D fences count = %d\n", ret);
+		GED_LOGI("[-]3D fences count = %d\n", atomic_read(&g_i32Count));
 
 	psMonitor = GED_CONTAINER_OF(psWork, GED_MONITOR_3D_FENCE, sWork);
-	sync_fence_put(psMonitor->psSyncFence);
+	dma_fence_put(psMonitor->psSyncFence);
 	ged_free(psMonitor, sizeof(GED_MONITOR_3D_FENCE));
 }
 
-unsigned long ged_monitor_3D_fence_done_time()
+unsigned long ged_monitor_3D_fence_done_time(void)
 {
 	return g_ul3DFenceDoneTime;
 }
@@ -115,16 +115,17 @@ GED_ERROR ged_monitor_3D_fence_add(int fence_fd)
 {
 	int err;
 	unsigned long long t;
-	GED_MONITOR_3D_FENCE* psMonitor;
+	GED_MONITOR_3D_FENCE *psMonitor;
+	struct dma_fence *psDebugAddress;
 
 	if (ged_monitor_3D_fence_disable)
 		return GED_OK;
 
 	t = ged_get_time();
 
-	do_div(t,1000);
+	do_div(t, 1000);
 
-	psMonitor = (GED_MONITOR_3D_FENCE*)ged_alloc(sizeof(GED_MONITOR_3D_FENCE));
+	psMonitor = (GED_MONITOR_3D_FENCE *)ged_alloc(sizeof(GED_MONITOR_3D_FENCE));
 
 #ifdef GED_DEBUG_MONITOR_3D_FENCE
 	ged_log_buf_print(ghLogBuf_GED, "[+]ged_monitor_3D_fence_add");
@@ -133,31 +134,53 @@ GED_ERROR ged_monitor_3D_fence_add(int fence_fd)
 	if (!psMonitor)
 		return GED_ERROR_OOM;
 
-	sync_fence_waiter_init(&psMonitor->sSyncWaiter, ged_sync_cb);
-	INIT_WORK(&psMonitor->sWork, ged_monitor_3D_fence_work_cb);
-	psMonitor->psSyncFence = sync_fence_fdget(fence_fd);
+	psMonitor->psSyncFence = sync_file_get_fence(fence_fd);
+
 	if (psMonitor->psSyncFence == NULL) {
 		ged_free(psMonitor, sizeof(GED_MONITOR_3D_FENCE));
 		return GED_ERROR_INVALID_PARAMS;
 	}
 
-	ged_log_buf_print(ghLogBuf_DVFS, "[+] ged_monitor_3D_fence_add (ts=%llu) %p", t, psMonitor->psSyncFence);
+	INIT_WORK(&psMonitor->sWork, ged_monitor_3D_fence_work_cb);
+
+	psDebugAddress = psMonitor->psSyncFence;
+
+	err = dma_fence_add_callback(psMonitor->psSyncFence,
+		&psMonitor->sSyncWaiter, ged_sync_cb);
+
+	ged_log_buf_print(ghLogBuf_DVFS,
+		"[+] %s (ts=%llu) %p", __func__, t, psDebugAddress);
+
 
 #ifdef GED_DEBUG_MONITOR_3D_FENCE
-	ged_log_buf_print(ghLogBuf_GED, "[+]sync_fence_wait_async");
+	ged_log_buf_print(ghLogBuf_GED, "dma_fence_add_callback, err = %d", err);
 #endif
 
-	err = sync_fence_wait_async(psMonitor->psSyncFence, &psMonitor->sSyncWaiter);
 
-#ifdef GED_DEBUG_MONITOR_3D_FENCE
-	ged_log_buf_print(ghLogBuf_GED, "[-]sync_fence_wait_async, err = %d", err);
-#endif
-
-	if ((err == 1) || (err < 0)) {
-		sync_fence_put(psMonitor->psSyncFence);
+	if (err < 0) {
+		dma_fence_put(psMonitor->psSyncFence);
 		ged_free(psMonitor, sizeof(GED_MONITOR_3D_FENCE));
-	} else if (err == 0) {
-		atomic_add_return(1, &g_i32Count);
+	} else {
+		int iCount = atomic_add_return (1, &g_i32Count);
+		if (iCount > 1) {
+			unsigned int uiFreqLevelID;
+
+			if (mtk_get_bottom_gpu_freq(&uiFreqLevelID)) {
+				if (uiFreqLevelID != mt_gpufreq_get_dvfs_table_num() - 1) {
+#if 0
+#ifdef CONFIG_MTK_SCHED_TRACERS
+					if (ged_monitor_3D_fence_systrace) {
+						unsigned long long t = cpu_clock(smp_processor_id());
+
+						trace_gpu_sched_switch("Smart Boost", t, 1, 0, 1);
+					}
+#endif
+#endif
+					if (ged_monitor_3D_fence_switch)
+						mtk_set_bottom_gpu_freq(mt_gpufreq_get_dvfs_table_num() - 1);
+				}
+			}
+		}
 	}
 
 	if (ged_monitor_3D_fence_debug > 0)
@@ -172,7 +195,7 @@ GED_ERROR ged_monitor_3D_fence_add(int fence_fd)
 
 void ged_monitor_3D_fence_set_enable(GED_BOOL bEnable)
 {
-	if (bEnable != ged_monitor_3D_fence_switch)
+	if (bEnable != ged_monitor_3D_fence_switch && ged_smart_boost)
 		ged_monitor_3D_fence_switch = bEnable;
 }
 
@@ -182,7 +205,7 @@ void ged_monitor_3D_fence_notify(void)
 
 	t = ged_get_time();
 
-	do_div(t,1000);
+	do_div(t, 1000);
 
 	g_ul3DFenceDoneTime = (unsigned long)t;
 }
@@ -192,6 +215,7 @@ int ged_monitor_3D_fence_get_count(void)
 	return atomic_read(&g_i32Count);
 }
 
+module_param(ged_smart_boost, uint, 0644);
 module_param(ged_monitor_3D_fence_debug, uint, 0644);
 module_param(ged_monitor_3D_fence_disable, uint, 0644);
 module_param(ged_monitor_3D_fence_systrace, uint, 0644);

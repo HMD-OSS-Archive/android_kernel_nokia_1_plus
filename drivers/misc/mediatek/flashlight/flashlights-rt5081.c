@@ -281,13 +281,15 @@ static int rt5081_set_scenario(int scenario)
 	if (scenario & FLASHLIGHT_SCENARIO_CAMERA_MASK) {
 		if (!is_decrease_voltage) {
 			pr_info("Decrease voltage level.\n");
-			charger_manager_enable_high_voltage_charging(flashlight_charger_consumer, false);
+			charger_manager_enable_high_voltage_charging(
+					flashlight_charger_consumer, false);
 			is_decrease_voltage = 1;
 		}
 	} else {
 		if (is_decrease_voltage) {
 			pr_info("Increase voltage level.\n");
-			charger_manager_enable_high_voltage_charging(flashlight_charger_consumer, true);
+			charger_manager_enable_high_voltage_charging(
+					flashlight_charger_consumer, true);
 			is_decrease_voltage = 0;
 		}
 	}
@@ -390,6 +392,8 @@ static int rt5081_timer_cancel(int channel)
 static int rt5081_operate(int channel, int enable)
 {
 	ktime_t ktime;
+	unsigned int s;
+	unsigned int ns;
 
 	/* setup enable/disable */
 	if (channel == RT5081_CHANNEL_CH1) {
@@ -409,10 +413,13 @@ static int rt5081_operate(int channel, int enable)
 
 	/* decouple mode */
 	if (rt5081_decouple_mode) {
-		if (channel == RT5081_CHANNEL_CH1)
+		if (channel == RT5081_CHANNEL_CH1) {
 			rt5081_en_ch2 = RT5081_DISABLE;
-		else if (channel == RT5081_CHANNEL_CH2)
+			rt5081_timeout_ms[RT5081_CHANNEL_CH2] = 0;
+		} else if (channel == RT5081_CHANNEL_CH2) {
 			rt5081_en_ch1 = RT5081_DISABLE;
+			rt5081_timeout_ms[RT5081_CHANNEL_CH1] = 0;
+		}
 	}
 
 	/* operate flashlight and setup timer */
@@ -424,15 +431,19 @@ static int rt5081_operate(int channel, int enable)
 			rt5081_timer_cancel(RT5081_CHANNEL_CH2);
 		} else {
 			if (rt5081_timeout_ms[RT5081_CHANNEL_CH1]) {
-				ktime = ktime_set(
-						rt5081_timeout_ms[RT5081_CHANNEL_CH1] / 1000,
-						(rt5081_timeout_ms[RT5081_CHANNEL_CH1] % 1000) * 1000000);
+				s = rt5081_timeout_ms[RT5081_CHANNEL_CH1]
+					/ 1000;
+				ns = rt5081_timeout_ms[RT5081_CHANNEL_CH1]
+						% 1000 * 1000000;
+				ktime = ktime_set(s, ns);
 				rt5081_timer_start(RT5081_CHANNEL_CH1, ktime);
 			}
 			if (rt5081_timeout_ms[RT5081_CHANNEL_CH2]) {
-				ktime = ktime_set(
-						rt5081_timeout_ms[RT5081_CHANNEL_CH2] / 1000,
-						(rt5081_timeout_ms[RT5081_CHANNEL_CH2] % 1000) * 1000000);
+				s = rt5081_timeout_ms[RT5081_CHANNEL_CH2]
+					/ 1000;
+				ns = rt5081_timeout_ms[RT5081_CHANNEL_CH2]
+						% 1000 * 1000000;
+				ktime = ktime_set(s, ns);
 				rt5081_timer_start(RT5081_CHANNEL_CH2, ktime);
 			}
 			rt5081_enable();
@@ -546,14 +557,14 @@ static int rt5081_set_driver(int set)
 		if (!use_count)
 			ret = rt5081_init();
 		use_count++;
-		pr_info_ratelimited("Set driver: %d\n", use_count);
+		pr_debug("Set driver: %d\n", use_count);
 	} else {
 		use_count--;
 		if (!use_count)
 			ret = rt5081_uninit();
 		if (use_count < 0)
 			use_count = 0;
-		pr_info_ratelimited("Unset driver: %d\n", use_count);
+		pr_debug("Unset driver: %d\n", use_count);
 	}
 	mutex_unlock(&rt5081_mutex);
 
@@ -564,7 +575,8 @@ static ssize_t rt5081_strobe_store(struct flashlight_arg arg)
 {
 	rt5081_set_driver(1);
 	rt5081_set_scenario(
-			FLASHLIGHT_SCENARIO_CAMERA | FLASHLIGHT_SCENARIO_COUPLE);
+			FLASHLIGHT_SCENARIO_CAMERA |
+			FLASHLIGHT_SCENARIO_COUPLE);
 	rt5081_set_level(arg.channel, arg.level);
 	rt5081_timeout_ms[arg.channel] = 0;
 
@@ -575,7 +587,8 @@ static ssize_t rt5081_strobe_store(struct flashlight_arg arg)
 
 	msleep(arg.dur);
 	rt5081_set_scenario(
-			FLASHLIGHT_SCENARIO_FLASHLIGHT | FLASHLIGHT_SCENARIO_COUPLE);
+			FLASHLIGHT_SCENARIO_FLASHLIGHT |
+			FLASHLIGHT_SCENARIO_COUPLE);
 	rt5081_operate(arg.channel, RT5081_DISABLE);
 	rt5081_set_driver(0);
 
@@ -617,7 +630,8 @@ static int rt5081_parse_dt(struct device *dev,
 		pr_info("Parse no dt, decouple.\n");
 
 	pdata->dev_id = devm_kzalloc(dev,
-			pdata->channel_num * sizeof(struct flashlight_device_id),
+			pdata->channel_num *
+			sizeof(struct flashlight_device_id),
 			GFP_KERNEL);
 	if (!pdata->dev_id)
 		return -ENOMEM;
@@ -629,14 +643,16 @@ static int rt5081_parse_dt(struct device *dev,
 			goto err_node_put;
 		if (of_property_read_u32(cnp, "part", &pdata->dev_id[i].part))
 			goto err_node_put;
-		snprintf(pdata->dev_id[i].name, FLASHLIGHT_NAME_SIZE, RT5081_NAME);
+		snprintf(pdata->dev_id[i].name, FLASHLIGHT_NAME_SIZE,
+				RT5081_NAME);
 		pdata->dev_id[i].channel = i;
 		pdata->dev_id[i].decouple = decouple;
 
 		pr_info("Parse dt (type,ct,part,name,channel,decouple)=(%d,%d,%d,%s,%d,%d).\n",
 				pdata->dev_id[i].type, pdata->dev_id[i].ct,
 				pdata->dev_id[i].part, pdata->dev_id[i].name,
-				pdata->dev_id[i].channel, pdata->dev_id[i].decouple);
+				pdata->dev_id[i].channel,
+				pdata->dev_id[i].decouple);
 		i++;
 	}
 
@@ -700,7 +716,8 @@ static int rt5081_probe(struct platform_device *pdev)
 		pr_err("Failed to set strobe timeout.\n");
 
 	/* get charger consumer manager */
-	flashlight_charger_consumer = charger_manager_get_by_name(&flashlight_dev_ch1->dev, CHARGER_SUPPLY_NAME);
+	flashlight_charger_consumer = charger_manager_get_by_name(
+			&flashlight_dev_ch1->dev, CHARGER_SUPPLY_NAME);
 	if (!flashlight_charger_consumer) {
 		pr_err("Failed to get charger manager.\n");
 		return -EFAULT;
@@ -709,7 +726,8 @@ static int rt5081_probe(struct platform_device *pdev)
 	/* register flashlight device */
 	if (pdata->channel_num) {
 		for (i = 0; i < pdata->channel_num; i++)
-			if (flashlight_dev_register_by_device_id(&pdata->dev_id[i], &rt5081_ops))
+			if (flashlight_dev_register_by_device_id(
+						&pdata->dev_id[i], &rt5081_ops))
 				return -EFAULT;
 	} else {
 		if (flashlight_dev_register(RT5081_NAME, &rt5081_ops))
@@ -733,7 +751,8 @@ static int rt5081_remove(struct platform_device *pdev)
 	/* unregister flashlight device */
 	if (pdata && pdata->channel_num)
 		for (i = 0; i < pdata->channel_num; i++)
-			flashlight_dev_unregister_by_device_id(&pdata->dev_id[i]);
+			flashlight_dev_unregister_by_device_id(
+					&pdata->dev_id[i]);
 	else
 		flashlight_dev_unregister(RT5081_NAME);
 

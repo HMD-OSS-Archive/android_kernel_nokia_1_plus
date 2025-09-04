@@ -90,7 +90,7 @@ static void mt6370_pmu_ldo_irq_register(struct platform_device *pdev)
 }
 
 static int mt6370_ldo_list_voltage(struct regulator_dev *rdev,
-		unsigned selector)
+		unsigned int selector)
 {
 	int vout = 0;
 
@@ -101,7 +101,7 @@ static int mt6370_ldo_list_voltage(struct regulator_dev *rdev,
 }
 
 static int mt6370_ldo_set_voltage_sel(
-		struct regulator_dev *rdev, unsigned selector)
+		struct regulator_dev *rdev, unsigned int selector)
 {
 	struct mt6370_pmu_ldo_data *info = rdev_get_drvdata(rdev);
 	const int count = rdev->desc->n_voltages;
@@ -295,7 +295,7 @@ static int mt6370_pmu_ldo_probe(struct platform_device *pdev)
 	mt6370_pmu_ldo_irq_register(pdev);
 
 	dev_info(&pdev->dev, "%s successfully\n", __func__);
-	return ret;
+	return 0;
 probe_err:
 	dev_info(&pdev->dev, "%s: register mtk regulator failed\n", __func__);
 	return ret;

@@ -1,41 +1,14 @@
 /*
- * MUSB OTG driver DMA controller abstraction
+ * Copyright (C) 2017 MediaTek Inc.
  *
- * Copyright 2005 Mentor Graphics Corporation
- * Copyright (C) 2005-2006 by Texas Instruments
- * Copyright (C) 2006-2007 Nokia Corporation
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
- * Copyright 2015 Mediatek Inc.
- *	Marvin Lin <marvin.lin@mediatek.com>
- *	Arvin Wang <arvin.wang@mediatek.com>
- *	Vincent Fan <vincent.fan@mediatek.com>
- *	Bryant Lu <bryant.lu@mediatek.com>
- *	Yu-Chang Wang <yu-chang.wang@mediatek.com>
- *	Macpaul Lin <macpaul.lin@mediatek.com>
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.
- *
- * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN
- * NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
- * USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
- * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
  */
 
 #ifndef __MUSBFSH_DMA_H__
@@ -122,7 +95,8 @@ struct dma_channel {
  * then it's possible that the hardware has completed (or aborted) a transfer,
  * so the driver needs to update that status.
  */
-static inline enum dma_channel_status dma_channel_status(struct dma_channel *c)
+static inline enum dma_channel_status
+dma_channel_status(struct dma_channel *c)
 {
 	return (is_dma_capable() && c) ? c->status : MUSBFSH_DMA_STATUS_UNKNOWN;
 }
@@ -141,15 +115,16 @@ static inline enum dma_channel_status dma_channel_status(struct dma_channel *c)
  * Controllers manage dma channels.
  */
 struct dma_controller {
-	int (*start)(struct dma_controller *);
-	int (*stop)(struct dma_controller *);
-	struct dma_channel *(*channel_alloc)(struct dma_controller *,
-					      struct musbfsh_hw_ep *, u8 is_tx);
-	void (*channel_release)(struct dma_channel *);
+	int (*start)(struct dma_controller *channel);
+	int (*stop)(struct dma_controller *channel);
+	struct dma_channel *(*channel_alloc)(struct dma_controller *channel,
+		struct musbfsh_hw_ep *hw_ep, u8 is_tx);
+	void (*channel_release)(struct dma_channel *channel);
 	int (*channel_program)(struct dma_channel *channel,
-				u16 maxpacket, u8 mode, dma_addr_t dma_addr,
-				u32 length);
-	int (*channel_abort)(struct dma_channel *);
+		u16 maxpacket, u8 mode,
+		dma_addr_t dma_addr,
+		u32 length);
+	int (*channel_abort)(struct dma_channel *channel);
 };
 
 /* called after channel_program(), may indicate a fault */
@@ -157,8 +132,8 @@ extern void musbfsh_dma_completion(struct musbfsh *musb, u8 epnum, u8 transmit);
 
 
 extern struct dma_controller *
-musbfsh_dma_controller_create(struct musbfsh *, void __iomem *);
+musbfsh_dma_controller_create(struct musbfsh *musbfsh, void __iomem *base);
 
-extern void musbfsh_dma_controller_destroy(struct dma_controller *);
+extern void musbfsh_dma_controller_destroy(struct dma_controller *c);
 
 #endif				/* __MUSBFSH_DMA_H__ */

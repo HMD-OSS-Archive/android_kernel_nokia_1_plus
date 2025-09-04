@@ -1,10 +1,10 @@
 /*
- * Copyright (C) 2016 MediaTek Inc.
-
+ * Copyright (C) 2018 MediaTek Inc.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
-
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -29,7 +29,30 @@
 #include <mach/upmu_sw.h>
 
 #include "mtk_pmic_common.h"
-#include "mtk_pmic_info.h"
+#ifdef CONFIG_MTK_PMIC_CHIP_MT6353
+#include "mt6353/mtk_pmic_info.h"
+#endif
+#ifdef CONFIG_MTK_PMIC_CHIP_MT6335
+#include "mt6335/mtk_pmic_info.h"
+#endif
+#ifdef CONFIG_MTK_PMIC_CHIP_MT6355
+#include "mt6355/mtk_pmic_info.h"
+#endif
+#ifdef CONFIG_MTK_PMIC_CHIP_MT6356
+#include "mt6356/mtk_pmic_info.h"
+#endif
+#ifdef CONFIG_MTK_PMIC_CHIP_MT6357
+#include "mt6357/mtk_pmic_info.h"
+#endif
+#ifdef CONFIG_MTK_PMIC_CHIP_MT6358
+#include "mt6358/mtk_pmic_info.h"
+#endif
+#ifdef CONFIG_MTK_PMIC_CHIP_MT6359
+#include "mt6359/mtk_pmic_info.h"
+#endif
+#ifdef CONFIG_MTK_PMIC_CHIP_MT6359P
+#include "mt6359p/mtk_pmic_info.h"
+#endif
 
 #define PMIC_EN REGULATOR_CHANGE_STATUS
 #define PMIC_VOL REGULATOR_CHANGE_VOLTAGE
@@ -43,8 +66,6 @@ extern int g_lowbat_int_bottom;
 extern int g_low_battery_level;
 /*----- BATTERY_OC_PROTECT -----*/
 extern int g_battery_oc_level;
-/* for update VBIF28 by AUXADC */
-extern unsigned int g_pmic_pad_vbif28_vol;
 /* for chip version used */
 extern unsigned int g_pmic_chip_version;
 /* for recording MD power vosel */
@@ -69,7 +90,8 @@ extern void msdc_sd_power_off(void);
 extern int mtk_regulator_init(struct platform_device *dev);
 extern unsigned int pmic_config_interface_buck_vsleep_check(unsigned int RegNum,
 	unsigned int val, unsigned int MASK, unsigned int SHIFT);
-extern void pmic_regulator_debug_init(struct platform_device *dev, struct dentry *debug_dir);
+extern void pmic_regulator_debug_init(
+	struct platform_device *dev, struct dentry *debug_dir);
 extern void pmic_regulator_suspend(void);
 extern void pmic_regulator_resume(void);
 /*----- EFUSE -----*/
@@ -82,6 +104,7 @@ extern unsigned int bat_get_ui_percentage(void);
 extern signed int fgauge_read_IM_current(void *data);
 extern void pmic_auxadc_lock(void);
 extern void pmic_auxadc_unlock(void);
+extern unsigned int bat_get_ui_percentage(void);
 extern signed int fgauge_read_v_by_d(int d_val);
 extern signed int fgauge_read_r_bat_by_v(signed int voltage);
 extern void kpd_pwrkey_pmic_handler(unsigned long pressed);
@@ -95,7 +118,7 @@ extern void pmu_drv_tool_customization_init(void);
 extern int batt_init_cust_data(void);
 
 extern unsigned int mt_gpio_to_irq(unsigned int gpio);
-extern int mt_gpio_set_debounce(unsigned gpio, unsigned debounce);
+extern int mt_gpio_set_debounce(unsigned int gpio, unsigned int debounce);
 extern unsigned int upmu_get_rgs_chrdet(void);
 #ifdef CONFIG_MTK_PMIC_COMMON
 extern int PMIC_check_battery(void);
@@ -132,6 +155,7 @@ struct mtk_regulator {
 	PMU_FLAGS_LIST_ENUM qi_en_reg;
 	PMU_FLAGS_LIST_ENUM qi_vol_reg;
 	PMU_FLAGS_LIST_ENUM modeset_reg;
+	PMU_FLAGS_LIST_ENUM lp_mode_reg;
 	const int *pvoltages;
 	const int *idxs;
 	bool isUsedable;
@@ -141,8 +165,8 @@ struct mtk_regulator {
 	struct mtk_regulator_vosel vosel;
 	/*--- BUCK/LDO ---*/
 	const char *type;
-	unsigned int (*en_cb)(unsigned int);
-	unsigned int (*vol_cb)(unsigned int);
+	unsigned int (*en_cb)(unsigned int parm);
+	unsigned int (*vol_cb)(unsigned int parm);
 	unsigned int (*da_en_cb)(void);
 	unsigned int (*da_vol_cb)(void);
 };

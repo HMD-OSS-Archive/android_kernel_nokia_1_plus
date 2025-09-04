@@ -27,7 +27,7 @@
 
 #ifdef GED_LOGE
 #undef GED_LOGE
-#define GED_LOGE pr_warn
+#define GED_LOGE pr_debug
 #endif
 
 /* These module params are for developers to set specific fps and debug. */
@@ -112,7 +112,8 @@ static GED_ERROR ged_frr_fence2context_table_add_item(int targetPid, uint64_t ta
 	int targetIndex;
 	unsigned long long leastCreateTime;
 
-	GED_LOGE("[FRR] [+] add item: pid(%d), cid(%llu), fid(%p)\n", targetPid, targetCid, targetFid);
+	GED_LOGE("[FRR] [+] add item: pid(%d), cid(%llu), fid(%p)\n"
+		, targetPid, targetCid, targetFid);
 
 	if (!fence2ContextTable) {
 		GED_LOGE("[FRR] [-] add item: fence2ContextTable is NULL\n");

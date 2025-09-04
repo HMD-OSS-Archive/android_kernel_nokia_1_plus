@@ -44,12 +44,29 @@ struct spower_raw_t {
 #include "mtk_spower_data_mt6739.h"
 #endif
 
+#if defined(CONFIG_MACH_MT6765)
+#include "mtk_spower_data_mt6765.h"
+#endif
+
 #if defined(CONFIG_MACH_MT6771)
 #include "mtk_spower_data_mt6771.h"
 #endif
 
 #if defined(CONFIG_MACH_MT6775)
 #include "mtk_spower_data_mt6775.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6768)
+#include "mtk_spower_data_mt6768.h"
+#endif
+
+
+#if defined(CONFIG_MACH_MT6785)
+#include "mtk_spower_data_mt6785.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6885)
+#include "mtk_spower_data_mt6885.h"
 #endif
 
 struct voltage_row_s {
@@ -86,7 +103,8 @@ struct sptab_list {
 #define tsize(tab)		((tab)->tsize)
 #define tab_validate(tab)	(!!(tab) && (tab)->data != NULL)
 
-static inline void spower_tab_construct(struct sptab_s *tab, struct spower_raw_t *raw, unsigned int id)
+static inline void spower_tab_construct(struct sptab_s *tab,
+		struct spower_raw_t *raw, unsigned int id)
 {
 	int i;
 	struct sptab_s *ptab = (struct sptab_s *)tab;
@@ -95,8 +113,10 @@ static inline void spower_tab_construct(struct sptab_s *tab, struct spower_raw_t
 		ptab->vsize = raw->vsize;
 		ptab->tsize = raw->tsize;
 		ptab->data = raw->table[i];
-		ptab->vrow = (struct voltage_row_s *)ptab->data;
-		ptab->trow = (struct temperature_row_s *)(ptab->data + ptab->vsize);
+		ptab->vrow =
+			(struct voltage_row_s *)ptab->data;
+		ptab->trow =
+			(struct temperature_row_s *)(ptab->data + ptab->vsize);
 		ptab->devinfo_domain = raw->devinfo_domain;
 		ptab->spower_id = id;
 		ptab->leakage_id = raw->leakage_id;

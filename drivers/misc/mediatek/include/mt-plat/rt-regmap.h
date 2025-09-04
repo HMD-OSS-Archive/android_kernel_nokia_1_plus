@@ -1,12 +1,14 @@
 /*
- * Header of Richtek regmap with debugfs Driver
+ *  Copyright (C) 2017 MediaTek Inc.
  *
- * Copyright (C) 2014 Richtek Technology Corp.
- * Jeff Chang <jeff_chang@richtek.com>
- *
- * This program is free software; you can redistribute it and/or modify
+ * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
  */
 
 #ifndef LINUX_MISC_RT_REGMAP_H

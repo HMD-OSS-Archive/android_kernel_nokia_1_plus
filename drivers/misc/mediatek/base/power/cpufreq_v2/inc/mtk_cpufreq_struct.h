@@ -64,7 +64,8 @@ struct mt_cpu_dvfs {
 	int idx_opp_ppm_limit;	/* ppm update limit */
 	int armpll_is_available;	/* For CCI clock switch flag */
 	int idx_normal_max_opp;	/* idx for normal max OPP */
-	struct cpufreq_frequency_table *freq_tbl_for_cpufreq;	/* freq table for cpufreq */
+		/* freq table for cpufreq */
+	struct cpufreq_frequency_table *freq_tbl_for_cpufreq;
 
 	/* enable/disable DVFS function */
 	bool dvfs_disable_by_suspend;
@@ -83,8 +84,10 @@ struct buck_ctrl_t {
 };
 
 struct buck_ctrl_ops {
-	unsigned int (*get_cur_volt)(struct buck_ctrl_t *buck_p);	/* return volt (mV * 100) */
-	int (*set_cur_volt)(struct buck_ctrl_t *buck_p, unsigned int volt);	/* set volt (mv * 100) */
+		/* return volt (mV * 100) */
+	unsigned int (*get_cur_volt)(struct buck_ctrl_t *buck_p);
+	int (*set_cur_volt)(struct buck_ctrl_t *buck_p,
+		unsigned int volt);	/* set volt (mv * 100) */
 	unsigned int (*transfer2pmicval)(unsigned int volt);
 	unsigned int (*transfer2volt)(unsigned int val);
 	unsigned int (*settletime)(unsigned int ori, unsigned int target);
@@ -106,9 +109,12 @@ struct pll_ctrl_t {
 struct pll_ctrl_ops {
 	unsigned int (*get_cur_freq)(struct pll_ctrl_t *pll_p);	/* return khz */
 	/* int (*set_cur_freq)(struct pll_ctrl_t *pll_p, unsigned int freq); */
-	void (*set_armpll_dds)(struct pll_ctrl_t *pll_p, unsigned int vco, unsigned int pos_div);
-	void (*set_armpll_posdiv)(struct pll_ctrl_t *pll_p, unsigned int pos_div);
-	void (*set_armpll_clkdiv)(struct pll_ctrl_t *pll_p, unsigned int clk_div);
+	void (*set_armpll_dds)(struct pll_ctrl_t *pll_p,
+		unsigned int vco, unsigned int pos_div);
+	void (*set_armpll_posdiv)(struct pll_ctrl_t *pll_p,
+		unsigned int pos_div);
+	void (*set_armpll_clkdiv)(struct pll_ctrl_t *pll_p,
+		unsigned int clk_div);
 	void (*set_freq_hopping)(struct pll_ctrl_t *pll_p, unsigned int dds);
 	void (*clksrc_switch)(struct pll_ctrl_t *pll_p, enum top_ckmuxsel sel);
 	enum top_ckmuxsel (*get_clksrc)(struct pll_ctrl_t *pll_p);

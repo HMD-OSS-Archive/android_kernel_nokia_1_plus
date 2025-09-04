@@ -11,7 +11,7 @@ config GT5688_CONFIG
 
 config GTP_DRIVER_SEND_CFG
 	bool "GT5688 for Mediatek package"
-	default n
+	default y
 	help
 	  Say Y here if you have GT5688 touch panel GTP_DRIVER_SEND_CFG.
 
@@ -22,7 +22,6 @@ config GTP_DRIVER_SEND_CFG
 
 config GTP_CUSTOM_CFG
 	bool "GT5688 for Mediatek package"
-	default n
 	help
 	  Say Y here if you have GT5688 touch panel GTP_CUSTOM_CFG.
 
@@ -33,7 +32,6 @@ config GTP_CUSTOM_CFG
 
 config GTP_CHANGE_X2Y
 	bool "GT5688 for Mediatek package"
-	default n
 	help
 	  Say Y here if you have GT5688 touch panel GTP_CHANGE_X2Y.
 
@@ -44,7 +42,6 @@ config GTP_CHANGE_X2Y
 
 config GTP_WARP_X_ON
 	bool "GT5688 for Mediatek package"
-	default n
 	help
 	  Say Y here if you have GT5688 touch panel GTP_WARP_X_ON.
 
@@ -55,7 +52,6 @@ config GTP_WARP_X_ON
 
 config GTP_WARP_Y_ON
 	bool "GT5688 for Mediatek package"
-	default n
 	help
 	  Say Y here if you have GT5688 touch panel GTP_WARP_Y_ON.
 
@@ -66,7 +62,6 @@ config GTP_WARP_Y_ON
 
 config GTP_GESTURE_WAKEUP
 	bool "GT5688 for Mediatek package"
-	default n
 	help
 	  Say Y here if you have GT5688 touch panel GTP_GESTURE_WAKEUP.
 
@@ -77,7 +72,6 @@ config GTP_GESTURE_WAKEUP
 
 config GTP_HOTKNOT
 	bool "GT5688 for Mediatek package"
-	default n
 	help
 	  Say Y here if you have GT5688 touch panel GTP_HOTKNOT.
 
@@ -88,7 +82,6 @@ config GTP_HOTKNOT
 
 config HOTKNOT_TYPE
 	bool "GT5688 for Mediatek package"
-	default n
 	help
 	  Say Y here if you have GT5688 touch panel HOTKNOT_TYPE.
 
@@ -99,7 +92,6 @@ config HOTKNOT_TYPE
 
 config HOTKNOT_BLOCK_RW
 	bool "GT5688 for Mediatek package"
-	default n
 	help
 	  Say Y here if you have GT5688 touch panel HOTKNOT_BLOCK_RW.
 
@@ -110,7 +102,6 @@ config HOTKNOT_BLOCK_RW
 
 config GTP_PROXIMITY
 	bool "GT5688 for Mediatek package"
-	default n
 	help
 	  Say Y here if you have GT5688 touch panel GTP_PROXIMITY.
 
@@ -121,7 +112,6 @@ config GTP_PROXIMITY
 
 config GTP_WITH_STYLUS
 	bool "GT5688 for Mediatek package"
-	default n
 	help
 	  Say Y here if you have GT5688 touch panel GTP_WITH_STYLUS.
 
@@ -132,7 +122,6 @@ config GTP_WITH_STYLUS
 
 config GTP_HAVE_STYLUS_KEY
 	bool "GT5688 for Mediatek package"
-	default n
 	help
 	  Say Y here if you have GT5688 touch panel GTP_HAVE_STYLUS_KEY.
 
@@ -143,7 +132,6 @@ config GTP_HAVE_STYLUS_KEY
 
 config GTP_AUTO_UPDATE
 	bool "GT5688 for Mediatek package"
-	default n
 	help
 	  Say Y here if you have GT5688 touch panel GTP_AUTO_UPDATE.
 
@@ -154,7 +142,6 @@ config GTP_AUTO_UPDATE
 
 config GTP_HEADER_FW_UPDATE
 	bool "GT5688 for Mediatek package"
-	default n
 	help
 	  Say Y here if you have GT5688 touch panel GTP_HEADER_FW_UPDATE.
 
@@ -165,7 +152,6 @@ config GTP_HEADER_FW_UPDATE
 
 config GTP_REQUEST_FW_UPDATE
 	bool "GT5688 for Mediatek package"
-	default n
 	help
 	Say Y here if you have GT5688 touch panel GTP_REQUEST_FW_UPDATE.
 
@@ -176,7 +162,6 @@ config GTP_REQUEST_FW_UPDATE
 
 config GTP_CREATE_WR_NODE
 	bool "GT5688 for Mediatek package"
-	default n
 	help
 	  Say Y here if you have GT5688 touch panel GTP_CREATE_WR_NODE.
 
@@ -187,7 +172,6 @@ config GTP_CREATE_WR_NODE
 
 config GTP_ESD_PROTECT
 	bool "GT5688 for Mediatek package"
-	default n
 	help
 	  Say Y here if you have GT5688 touch panel GTP_ESD_PROTECT.
 
@@ -198,7 +182,6 @@ config GTP_ESD_PROTECT
 
 config GTP_CHARGER_SWITCH
 	bool "GT5688 for Mediatek package"
-	default n
 	help
 	  Say Y here if you have GT5688 touch panel GTP_CHARGER_SWITCH.
 
@@ -209,7 +192,6 @@ config GTP_CHARGER_SWITCH
 
 config GTP_DEBUG_ARRAY_ON
 	bool "GT5688 for Mediatek package"
-	default n
 	help
 	  Say Y here if you have GT5688 touch panel GTP_DEBUG_ARRAY_ON.
 
@@ -220,7 +202,6 @@ config GTP_DEBUG_ARRAY_ON
 
 config GTP_DEBUG_FUNC_ON
 	bool "GT5688 for Mediatek package"
-	default n
 	help
 	  Say Y here if you have GT5688 touch panel GTP_DEBUG_FUNC_ON.
 
@@ -231,7 +212,6 @@ config GTP_DEBUG_FUNC_ON
 
 config GTP_POWER_CTRL_SLEEP
 	bool "GT5688 for Mediatek package"
-	default n
 	help
 	  Say Y here if you have GT5688 touch panel GTP_POWER_CTRL_SLEEP.
 
@@ -242,7 +222,6 @@ config GTP_POWER_CTRL_SLEEP
 
 config GTP_ICS_SLOT_REPORT
 	bool "GT5688 for TYPE_B_PROTOCOL"
-	default n
 	help
 	  Say Y here if you have GT5688 touch panel GTP_ICS_SLOT_REPORT
 	  to support TYPE_B_PROTOCOL.

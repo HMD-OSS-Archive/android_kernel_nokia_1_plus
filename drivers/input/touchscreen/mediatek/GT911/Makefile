@@ -7,4 +7,3 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/
 obj-y	+=  goodix_tool.o
 obj-y	+=  gt9xx_driver.o
 obj-y	+=  gt9xx_update.o
-

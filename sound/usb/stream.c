@@ -125,11 +125,9 @@ static int usb_chmap_ctl_info(struct snd_kcontrol *kcontrol,
 static bool have_dup_chmap(struct snd_usb_substream *subs,
 			   struct audioformat *fp)
 {
-	struct list_head *p;
+	struct audioformat *prev = fp;
 
-	for (p = fp->list.prev; p != &subs->fmt_list; p = p->prev) {
-		struct audioformat *prev;
-		prev = list_entry(p, struct audioformat, list);
+	list_for_each_entry_continue_reverse(prev, &subs->fmt_list, list) {
 		if (prev->chmap &&
 		    !memcmp(prev->chmap, fp->chmap, sizeof(*fp->chmap)))
 			return true;
@@ -505,11 +503,6 @@ int snd_usb_parse_audio_interface(struct snd_usb_audio *chip, int iface_no)
 	 */
 	if (chip->usb_id == USB_ID(0x04fa, 0x4201))
 		num = 4;
-	/*
-	 * LeTV type-c headset, only use 16bits/sample resolution.
-	 */
-	if (chip->usb_id == USB_ID(0x262a, 0x1534))
-		num = 2;
 
 	for (i = 0; i < num; i++) {
 		alts = &iface->altsetting[i];
@@ -665,10 +658,8 @@ int snd_usb_parse_audio_interface(struct snd_usb_audio *chip, int iface_no)
 			continue;
 
 		fp = kzalloc(sizeof(*fp), GFP_KERNEL);
-		if (! fp) {
-			dev_err(&dev->dev, "cannot malloc\n");
+		if (!fp)
 			return -ENOMEM;
-		}
 
 		fp->iface = iface_no;
 		fp->altsetting = altno;
@@ -689,10 +680,6 @@ int snd_usb_parse_audio_interface(struct snd_usb_audio *chip, int iface_no)
 		/* some quirks for attributes here */
 
 		switch (chip->usb_id) {
-		case USB_ID(0x0451, 0x17ed): /* ISK UK400 */
-			if (stream == SNDRV_PCM_STREAM_PLAYBACK)
-				fp->attributes &= ~(UAC_EP_CS_ATTR_FILL_MAX);
-			break;
 		case USB_ID(0x0a92, 0x0053): /* AudioTrak Optoplay */
 			/* Optoplay sets the sample rate attribute although
 			 * it seems not supporting it in fact.
@@ -734,7 +721,7 @@ int snd_usb_parse_audio_interface(struct snd_usb_audio *chip, int iface_no)
 			chconfig = 0;
 		fp->chmap = convert_chmap(fp->channels, chconfig, protocol);
 
-		dev_info(&dev->dev, "%u:%d: add audio endpoint %#x\n", iface_no, altno, fp->endpoint);
+		dev_dbg(&dev->dev, "%u:%d: add audio endpoint %#x\n", iface_no, altno, fp->endpoint);
 		err = snd_usb_add_audio_stream(chip, stream, fp);
 		if (err < 0) {
 			list_del(&fp->list); /* unlink for avoiding double-free */

@@ -1,15 +1,15 @@
-/* Mediatek STAR MAC network driver.
+/*
+ * Copyright (c) 2019 MediaTek Inc.
+ * Author: Zhiyong Tao <zhiyong.tao@mediatek.com>
  *
- * Copyright (c) 2016-2017 MediaTek Inc.
- *
- * program is free software; you can redistribute it and/or modify
+ * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 #include "star.h"
@@ -202,12 +202,13 @@ void rtl8201fr_wol_enable(struct net_device *netdev)
 	star_prv = netdev_priv(netdev);
 	dev = &star_prv->star_dev;
 
-	STAR_PR_INFO("enter rtl8201fr_wol_enable\n");
+	STAR_PR_INFO("enter %s\n", __func__);
 
 	memcpy(sa.sa_data, netdev->dev_addr, netdev->addr_len);
 	STAR_PR_INFO("device mac address:%x %x %x %x %x %x.\n",
-		     netdev->dev_addr[0], netdev->dev_addr[1], netdev->dev_addr[2],
-		 netdev->dev_addr[3], netdev->dev_addr[4], netdev->dev_addr[5]);
+		     netdev->dev_addr[0], netdev->dev_addr[1],
+		     netdev->dev_addr[2], netdev->dev_addr[3],
+		     netdev->dev_addr[4], netdev->dev_addr[5]);
 
 	/* enable phy wol */
 	star_mdc_mdio_write(dev, star_prv->phy_addr, 4, 0x61);
@@ -252,7 +253,7 @@ void rtl8201fr_wol_disable(struct net_device *netdev)
 	star_private *star_prv = netdev_priv(netdev);
 	star_dev *dev = &star_prv->star_dev;
 
-	STAR_PR_INFO("enter rtl8201fr_wol_disable\n");
+	STAR_PR_INFO("enter %s\n", __func__);
 
 	/* unset rx isolate */
 	star_mdc_mdio_write(dev, star_prv->phy_addr, 31, 0x17);

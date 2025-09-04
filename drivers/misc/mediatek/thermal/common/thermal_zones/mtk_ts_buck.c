@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 MediaTek Inc.
+ * Copyright (C) 2017 MediaTek Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -41,7 +41,9 @@ static kgid_t gid = KGIDT_INIT(1000);
 static DEFINE_SEMAPHORE(sem_mutex);
 
 static unsigned int interval;	/* seconds, 0 : no auto polling */
-static unsigned int trip_temp[10] = { 120000, 110000, 100000, 90000, 80000, 70000, 65000, 60000, 55000, 50000 };
+static unsigned int trip_temp[10] = { 120000, 110000, 100000, 90000, 80000,
+					70000, 65000, 60000, 55000, 50000 };
+
 static unsigned int cl_dev_sysrst_state;
 static struct thermal_zone_device *thz_dev;
 
@@ -65,7 +67,8 @@ static char g_bind9[20] = { 0 };
 
 /**
  * If curr_temp >= polling_trip_temp1, use interval
- * else if cur_temp >= polling_trip_temp2 && curr_temp < polling_trip_temp1, use interval*polling_factor1
+ * else if cur_temp >= polling_trip_temp2 && curr_temp < polling_trip_temp1,
+ *	use interval*polling_factor1
  * else, use interval*polling_factor2
  */
 static int polling_trip_temp1 = 40000;
@@ -101,7 +104,7 @@ void tsbuck_read_6332_efuse(void)
 	int i = 0, j = 0;
 	__u32 efusevalue[2];
 
-	pr_debug("[tsbuck_read_6332_efuse] start\n");
+	pr_debug("[%s] start\n", __func__);
 
 	/* 1. enable efuse ctrl engine clock */
 	ret = pmic_config_interface(0x80B6, 0x0010, 0xFFFF, 0);
@@ -110,16 +113,18 @@ void tsbuck_read_6332_efuse(void)
 	/* 2. */
 	ret = pmic_config_interface(0x8C6C, 0x1, 0x1, 0);
 /*
-*    //dump
-*    tsbuck_dprintk("Reg[0x%x]=0x%x,Reg[0x%x]=0x%x,Reg[0x%x]=0x%x\n",
-*	0x80B2,upmu_get_reg_value(0x80B2),
-*	0x80A0,upmu_get_reg_value(0x80A0),
-*	0x8C6C,upmu_get_reg_value(0x8C6C)
-*	);
-*/
-/* for(i=0;i<=0x1F;i++) */
+ *    //dump
+ *    tsbuck_dprintk("Reg[0x%x]=0x%x,Reg[0x%x]=0x%x,Reg[0x%x]=0x%x\n",
+ *	0x80B2,upmu_get_reg_value(0x80B2),
+ *	0x80A0,upmu_get_reg_value(0x80A0),
+ *	0x8C6C,upmu_get_reg_value(0x8C6C)
+ *	);
+ */
+/* for(i=0;i<=0x1F;i++)
+ */
 	for (i = 0x10; i <= 0x11; i++) {
-		/* 3. set row to read */
+		/* 3. set row to read
+		 */
 		ret = pmic_config_interface(0x8C56, i, 0x1F, 1);
 
 		/* 4. Toggle */
@@ -137,53 +142,73 @@ void tsbuck_read_6332_efuse(void)
 			pr_debug("5. polling Reg[0x61A][0]=0x%x\n", reg_val);
 		}
 
-		udelay(1000);	/* Need to delay at least 1ms for 0x8C70 and than can read 0x8C6E */
+		/* Need to delay at least 1ms for 0x8C70
+		 * and than can read 0x8C6E
+		 */
+		udelay(1000);
 		pr_debug("5. 6332 delay 1 ms\n");
 
 		/* 6. read data */
 		efusevalue[j] = upmu_get_reg_value(0x8C6E);
-		pr_debug("6332_efuse : efusevalue[%d]=0x%x\n", j, efusevalue[j]);
-/*
-*	tsbuck_dprintk("i=0x%x,Reg[0x%x]=0x%x,Reg[0x%x]=0x%x,Reg[0x%x]=0x%x\n",
-*	    i,
-*	    0x8C56,upmu_get_reg_value(0x8C56),
-*	    0x8C70,upmu_get_reg_value(0x8C70),
-*	    0x8C6E,upmu_get_reg_value(0x8C6E)
-*	    );
-*/
+		pr_debug("6332_efuse : efusevalue[%d]=0x%x\n", j,
+							efusevalue[j]);
+		/*
+		 *	tsbuck_dprintk(
+		 *	"i=0x%x,Reg[0x%x]=0x%x,Reg[0x%x]=0x%x,Reg[0x%x]=0x%x\n",
+		 *		i,
+		 *		0x8C56,upmu_get_reg_value(0x8C56),
+		 *		0x8C70,upmu_get_reg_value(0x8C70),
+		 *		0x8C6E,upmu_get_reg_value(0x8C6E)
+		 *	);
+		 */
 		j++;
 	}
 
 	/* 7. Disable efuse ctrl engine clock */
 	ret = pmic_config_interface(0x80A2, 0x0004, 0xFFFF, 0);
 	ret = pmic_config_interface(0x80B4, 0x0010, 0xFFFF, 0);	/* new add */
-/*
-*    //dump
-*    tsbuck_dprintk("Reg[0x%x]=0x%x\n",
-*	0x80A0,upmu_get_reg_value(0x80A0)
-*	);
-*/
+	/*
+	 *    //dump
+	 *    tsbuck_dprintk("Reg[0x%x]=0x%x\n",
+	 *	0x80A0,upmu_get_reg_value(0x80A0)
+	 *	);
+	 */
 
 	g_adc_cali_en = (efusevalue[0]) & 0x1;
 	g_degc_cali = (efusevalue[0] >> 1) & 0x3F;
-	g_o_vts = ((efusevalue[0] >> 7) & 0x1FF) + (((efusevalue[1]) & 0xF) << 9);
+	g_o_vts = ((efusevalue[0] >> 7) & 0x1FF) +
+					(((efusevalue[1]) & 0xF) << 9);
+
 	g_o_slope_sign = (efusevalue[1] >> 4) & 0x1;
 	g_o_slope = (efusevalue[1] >> 5) & 0x3F;
 	g_id = (efusevalue[1] >> 11) & 0x1;
 
-	tsbuck_dprintk("tsbuck_read_6332_efuse: g_o_vts        = %x\n", g_o_vts);
-	tsbuck_dprintk("tsbuck_read_6332_efuse: g_degc_cali    = %x\n", g_degc_cali);
-	tsbuck_dprintk("tsbuck_read_6332_efuse: g_adc_cali_en  = %x\n", g_adc_cali_en);
-	tsbuck_dprintk("tsbuck_read_6332_efuse: g_o_slope      = %x\n", g_o_slope);
-	tsbuck_dprintk("tsbuck_read_6332_efuse: g_o_slope_sign = %x\n", g_o_slope_sign);
-	tsbuck_dprintk("tsbuck_read_6332_efuse: g_id           = %x\n", g_id);
+	tsbuck_dprintk(
+		"%s: g_o_vts        = %x\n", __func__, g_o_vts);
 
-	tsbuck_dprintk("tsbuck_read_6332_efuse: ((efusevalue[0]>>7)&0x1FF) = 0x%x\n",
-		       ((efusevalue[0] >> 7) & 0x1FF));
-	tsbuck_dprintk("tsbuck_read_6332_efuse: (((efusevalue[1])&0xF)<<9) = 0x%x\n",
-		       (((efusevalue[1]) & 0xF) << 9));
+	tsbuck_dprintk(
+		"%s: g_degc_cali    = %x\n", __func__, g_degc_cali);
 
-	tsbuck_dprintk("[tsbuck_read_6332_efuse] Done\n");
+	tsbuck_dprintk(
+		"%s: g_adc_cali_en  = %x\n", __func__, g_adc_cali_en);
+
+	tsbuck_dprintk(
+		"%s: g_o_slope      = %x\n", __func__, g_o_slope);
+
+	tsbuck_dprintk("%s: g_o_slope_sign = %x\n", __func__,
+								g_o_slope_sign);
+
+	tsbuck_dprintk("%s: g_id           = %x\n", __func__, g_id);
+
+	tsbuck_dprintk(
+		"%s: ((efusevalue[0]>>7)&0x1FF) = 0x%x\n", __func__,
+		((efusevalue[0] >> 7) & 0x1FF));
+
+	tsbuck_dprintk(
+		"%s: (((efusevalue[1])&0xF)<<9) = 0x%x\n", __func__,
+		(((efusevalue[1]) & 0xF) << 9));
+
+	tsbuck_dprintk("[%s] Done\n", __func__);
 }
 
 
@@ -225,15 +250,16 @@ static void tsbuck_cali_prepare2(void)
 		g_slope2 = -(171 - g_o_slope);
 
 	vbe_t = (-1) * (((g_o_vts) * 3200) / 4096) * 1000;
-	if (g_o_slope_sign == 0)
-		g_intercept = (vbe_t * 100) / (-(171 + g_o_slope));	/* 0.001 degree */
-	else
-		g_intercept = (vbe_t * 100) / (-(171 - g_o_slope));	/* 0.001 degree */
+	if (g_o_slope_sign == 0)			/* 0.001 degree */
+		g_intercept = (vbe_t * 100) / (-(171 + g_o_slope));
+	else						/* 0.001 degree */
+		g_intercept = (vbe_t * 100) / (-(171 - g_o_slope));
 
-	g_intercept = g_intercept + (g_degc_cali * (1000 / 2));	/* 1000 is for 0.1 degree */
-	pr_debug
-	    ("[Power/PMIC_Thermal] [Thermal calibration] SLOPE1=%d SLOPE2=%d INTERCEPT=%d, Vbe = %d\n",
-	     g_slope1, g_slope2, g_intercept, vbe_t);
+						/* 1000 is for 0.1 degree */
+	g_intercept = g_intercept + (g_degc_cali * (1000 / 2));
+	pr_debug(
+		"[Power/PMIC_Thermal] [Thermal calibration] SLOPE1=%d SLOPE2=%d INTERCEPT=%d, Vbe = %d\n",
+		g_slope1, g_slope2, g_intercept, vbe_t);
 
 }
 
@@ -243,7 +269,7 @@ static __s32 pmic_raw_to_temp(__u32 ret)
 	__s32 t_current;
 
 	t_current = g_intercept + ((g_slope1 * y_curr) / (g_slope2));
-	/* tsbuck_dprintk("[pmic_raw_to_temp] t_current=%d\n",t_current); */
+	/* tsbuck_dprintk("[%s] t_current=%d\n", __func__,t_current); */
 	return t_current;
 }
 
@@ -260,11 +286,13 @@ static int tsbuck_get_hw_temp(void)
 
 
 
-	temp = PMIC_IMM_GetOneChannelValue(AUX_TSENSE_32_AP, y_pmic_repeat_times, 2);
+	temp = PMIC_IMM_GetOneChannelValue(AUX_TSENSE_32_AP,
+					y_pmic_repeat_times, 2);
+
 	temp1 = pmic_raw_to_temp(temp);
 	/* temp2 = pmic_raw_to_temp(675); */
 
-	tsbuck_dprintk("[tsbuck_get_hw_temp] Raw=%d, T=%d\n", temp, temp1);
+	tsbuck_dprintk("[%s] Raw=%d, T=%d\n", __func__, temp, temp1);
 
 
 	if ((temp1 > 100000) || (temp1 < -30000))
@@ -275,13 +303,15 @@ static int tsbuck_get_hw_temp(void)
 		pr_debug("[Power/PMIC_Thermal] drop this data\n");
 		temp1 = pre_temp1;
 	} else if ((PMIC_counter != 0)
-		   && (((pre_temp1 - temp1) > 30000) || ((temp1 - pre_temp1) > 30000))) {
+	&& (((pre_temp1 - temp1) > 30000)
+		|| ((temp1 - pre_temp1) > 30000))) {
 		pr_debug("[Power/PMIC_Thermal] drop this data 2\n");
 		temp1 = pre_temp1;
 	} else {
 		/* update previous temp */
 		pre_temp1 = temp1;
-		tsbuck_dprintk("[Power/PMIC_Thermal] pre_temp1=%d\n", pre_temp1);
+		tsbuck_dprintk("[Power/PMIC_Thermal] pre_temp1=%d\n",
+								pre_temp1);
 
 		if (PMIC_counter == 0)
 			PMIC_counter++;
@@ -294,7 +324,8 @@ static int tsbuck_get_hw_temp(void)
 	return temp1;
 }
 
-static int tsbuck_get_temp(struct thermal_zone_device *thermal, unsigned long *t)
+static int tsbuck_get_temp(
+struct thermal_zone_device *thermal, unsigned long *t)
 {
 	*t = tsbuck_get_hw_temp();
 
@@ -308,106 +339,110 @@ static int tsbuck_get_temp(struct thermal_zone_device *thermal, unsigned long *t
 	return 0;
 }
 
-static int tsbuck_bind(struct thermal_zone_device *thermal, struct thermal_cooling_device *cdev)
+static int tsbuck_bind(
+struct thermal_zone_device *thermal, struct thermal_cooling_device *cdev)
 {
 	int table_val = 0;
 
 	if (!strcmp(cdev->type, g_bind0)) {
 		table_val = 0;
-		tsbuck_dprintk("[tsbuck_bind] %s\n", cdev->type);
+		tsbuck_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind1)) {
 		table_val = 1;
-		tsbuck_dprintk("[tsbuck_bind] %s\n", cdev->type);
+		tsbuck_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind2)) {
 		table_val = 2;
-		tsbuck_dprintk("[tsbuck_bind] %s\n", cdev->type);
+		tsbuck_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind3)) {
 		table_val = 3;
-		tsbuck_dprintk("[tsbuck_bind] %s\n", cdev->type);
+		tsbuck_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind4)) {
 		table_val = 4;
-		tsbuck_dprintk("[tsbuck_bind] %s\n", cdev->type);
+		tsbuck_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind5)) {
 		table_val = 5;
-		tsbuck_dprintk("[tsbuck_bind] %s\n", cdev->type);
+		tsbuck_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind6)) {
 		table_val = 6;
-		tsbuck_dprintk("[tsbuck_bind] %s\n", cdev->type);
+		tsbuck_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind7)) {
 		table_val = 7;
-		tsbuck_dprintk("[tsbuck_bind] %s\n", cdev->type);
+		tsbuck_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind8)) {
 		table_val = 8;
-		tsbuck_dprintk("[tsbuck_bind] %s\n", cdev->type);
+		tsbuck_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind9)) {
 		table_val = 9;
-		tsbuck_dprintk("[tsbuck_bind] %s\n", cdev->type);
+		tsbuck_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else {
 		return 0;
 	}
 
 	if (mtk_thermal_zone_bind_cooling_device(thermal, table_val, cdev)) {
-		tsbuck_dprintk("[tsbuck_bind] error binding cooling dev\n");
+		tsbuck_dprintk("[%s] error binding cooling dev\n", __func__);
 		return -EINVAL;
 	}
 
-	tsbuck_dprintk("[tsbuck_bind] binding OK, %d\n", table_val);
+	tsbuck_dprintk("[%s] binding OK, %d\n", __func__, table_val);
 	return 0;
 }
 
-static int tsbuck_unbind(struct thermal_zone_device *thermal, struct thermal_cooling_device *cdev)
+static int tsbuck_unbind(
+struct thermal_zone_device *thermal, struct thermal_cooling_device *cdev)
 {
 	int table_val = 0;
 
 	if (!strcmp(cdev->type, g_bind0)) {
 		table_val = 0;
-		tsbuck_dprintk("[tsbuck_unbind] %s\n", cdev->type);
+		tsbuck_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind1)) {
 		table_val = 1;
-		tsbuck_dprintk("[tsbuck_unbind] %s\n", cdev->type);
+		tsbuck_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind2)) {
 		table_val = 2;
-		tsbuck_dprintk("[tsbuck_unbind] %s\n", cdev->type);
+		tsbuck_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind3)) {
 		table_val = 3;
-		tsbuck_dprintk("[tsbuck_unbind] %s\n", cdev->type);
+		tsbuck_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind4)) {
 		table_val = 4;
-		tsbuck_dprintk("[tsbuck_unbind] %s\n", cdev->type);
+		tsbuck_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind5)) {
 		table_val = 5;
-		tsbuck_dprintk("[tsbuck_unbind] %s\n", cdev->type);
+		tsbuck_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind6)) {
 		table_val = 6;
-		tsbuck_dprintk("[tsbuck_unbind] %s\n", cdev->type);
+		tsbuck_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind7)) {
 		table_val = 7;
-		tsbuck_dprintk("[tsbuck_unbind] %s\n", cdev->type);
+		tsbuck_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind8)) {
 		table_val = 8;
-		tsbuck_dprintk("[tsbuck_unbind] %s\n", cdev->type);
+		tsbuck_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else if (!strcmp(cdev->type, g_bind9)) {
 		table_val = 9;
-		tsbuck_dprintk("[tsbuck_unbind] %s\n", cdev->type);
+		tsbuck_dprintk("[%s] %s\n", __func__, cdev->type);
 	} else
 		return 0;
 
 	if (thermal_zone_unbind_cooling_device(thermal, table_val, cdev)) {
-		tsbuck_dprintk("[tsbuck_unbind] error unbinding cooling dev\n");
+		tsbuck_dprintk("[%s] error unbinding cooling dev\n", __func__);
 		return -EINVAL;
 	}
 
-	tsbuck_dprintk("[tsbuck_unbind] unbinding OK\n");
+	tsbuck_dprintk("[%s] unbinding OK\n", __func__);
 	return 0;
 }
 
-static int tsbuck_get_mode(struct thermal_zone_device *thermal, enum thermal_device_mode *mode)
+static int tsbuck_get_mode(
+struct thermal_zone_device *thermal, enum thermal_device_mode *mode)
 {
 	*mode = (kernelmode) ? THERMAL_DEVICE_ENABLED : THERMAL_DEVICE_DISABLED;
 	return 0;
 }
 
-static int tsbuck_set_mode(struct thermal_zone_device *thermal, enum thermal_device_mode mode)
+static int tsbuck_set_mode(
+struct thermal_zone_device *thermal, enum thermal_device_mode mode)
 {
 	kernelmode = mode;
 	return 0;
@@ -420,13 +455,15 @@ static int tsbuck_get_trip_type(struct thermal_zone_device *thermal, int trip,
 	return 0;
 }
 
-static int tsbuck_get_trip_temp(struct thermal_zone_device *thermal, int trip, unsigned long *temp)
+static int tsbuck_get_trip_temp(
+struct thermal_zone_device *thermal, int trip, unsigned long *temp)
 {
 	*temp = trip_temp[trip];
 	return 0;
 }
 
-static int tsbuck_get_crit_temp(struct thermal_zone_device *thermal, unsigned long *temperature)
+static int tsbuck_get_crit_temp(
+struct thermal_zone_device *thermal, unsigned long *temperature)
 {
 	*temperature = TSBUCK_TEMP_CRIT;
 	return 0;
@@ -444,19 +481,22 @@ static struct thermal_zone_device_ops tsbuck_dev_ops = {
 	.get_crit_temp = tsbuck_get_crit_temp,
 };
 
-static int tspmic_sysrst_get_max_state(struct thermal_cooling_device *cdev, unsigned long *state)
+static int tspmic_sysrst_get_max_state(
+struct thermal_cooling_device *cdev, unsigned long *state)
 {
 	*state = 1;
 	return 0;
 }
 
-static int tspmic_sysrst_get_cur_state(struct thermal_cooling_device *cdev, unsigned long *state)
+static int tspmic_sysrst_get_cur_state(
+struct thermal_cooling_device *cdev, unsigned long *state)
 {
 	*state = cl_dev_sysrst_state;
 	return 0;
 }
 
-static int tspmic_sysrst_set_cur_state(struct thermal_cooling_device *cdev, unsigned long state)
+static int tspmic_sysrst_set_cur_state(
+struct thermal_cooling_device *cdev, unsigned long state)
 {
 	cl_dev_sysrst_state = state;
 	if (cl_dev_sysrst_state == 1) {
@@ -466,6 +506,9 @@ static int tspmic_sysrst_set_cur_state(struct thermal_cooling_device *cdev, unsi
 		pr_debug("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
 
 		/* arch_reset(0,NULL); */
+		/* To trigger data abort to reset the system
+		 * for thermal protection.
+		 */
 		BUG();
 	}
 	return 0;
@@ -480,18 +523,36 @@ static struct thermal_cooling_device_ops tsbuck_cooling_sysrst_ops = {
 
 static int tsbuck_read(struct seq_file *m, void *v)
 {
-	seq_printf(m, "[ tsbuck_read] trip_0_temp=%d,trip_1_temp=%d,trip_2_temp=%d,trip_3_temp=%d,trip_4_temp=%d,\n",
-		trip_temp[0], trip_temp[1], trip_temp[2], trip_temp[3], trip_temp[4]);
-	seq_printf(m, "trip_5_temp=%d,trip_6_temp=%d,trip_7_temp=%d,trip_8_temp=%d,trip_9_temp=%d,\n",
-		trip_temp[5], trip_temp[6], trip_temp[7], trip_temp[8], trip_temp[9]);
-	seq_printf(m, "g_THERMAL_TRIP_0=%d,g_THERMAL_TRIP_1=%d,g_THERMAL_TRIP_2=%d,g_THERMAL_TRIP_3=%d,\n",
-		g_THERMAL_TRIP[0], g_THERMAL_TRIP[1], g_THERMAL_TRIP[2], g_THERMAL_TRIP[3]);
-	seq_printf(m, "g_THERMAL_TRIP_4=%d,g_THERMAL_TRIP_5=%d,g_THERMAL_TRIP_6=%d,g_THERMAL_TRIP_7=%d,\n",
-		g_THERMAL_TRIP[4], g_THERMAL_TRIP[5], g_THERMAL_TRIP[6], g_THERMAL_TRIP[7]);
-	seq_printf(m, "g_THERMAL_TRIP_8=%d,g_THERMAL_TRIP_9=%d,\n", g_THERMAL_TRIP[8], g_THERMAL_TRIP[9]);
-	seq_printf(m, "cooldev0=%s,cooldev1=%s,cooldev2=%s,cooldev3=%s,cooldev4=%s,\n",
+	seq_printf(m,
+		"[%s] trip_0_temp=%d,trip_1_temp=%d,trip_2_temp=%d,trip_3_temp=%d,trip_4_temp=%d,\n",
+		__func__,
+		trip_temp[0], trip_temp[1], trip_temp[2],
+		trip_temp[3], trip_temp[4]);
+
+	seq_printf(m,
+		"trip_5_temp=%d,trip_6_temp=%d,trip_7_temp=%d,trip_8_temp=%d,trip_9_temp=%d,\n",
+		trip_temp[5], trip_temp[6], trip_temp[7],
+		trip_temp[8], trip_temp[9]);
+
+	seq_printf(m,
+		"g_THERMAL_TRIP_0=%d,g_THERMAL_TRIP_1=%d,g_THERMAL_TRIP_2=%d,g_THERMAL_TRIP_3=%d,\n",
+		g_THERMAL_TRIP[0], g_THERMAL_TRIP[1],
+		g_THERMAL_TRIP[2], g_THERMAL_TRIP[3]);
+
+	seq_printf(m,
+		"g_THERMAL_TRIP_4=%d,g_THERMAL_TRIP_5=%d,g_THERMAL_TRIP_6=%d,g_THERMAL_TRIP_7=%d,\n",
+		g_THERMAL_TRIP[4], g_THERMAL_TRIP[5],
+		g_THERMAL_TRIP[6], g_THERMAL_TRIP[7]);
+
+	seq_printf(m, "g_THERMAL_TRIP_8=%d,g_THERMAL_TRIP_9=%d,\n",
+		g_THERMAL_TRIP[8], g_THERMAL_TRIP[9]);
+
+	seq_printf(m,
+		"cooldev0=%s,cooldev1=%s,cooldev2=%s,cooldev3=%s,cooldev4=%s,\n",
 		g_bind0, g_bind1, g_bind2, g_bind3, g_bind4);
-	seq_printf(m, "cooldev5=%s,cooldev6=%s,cooldev7=%s,cooldev8=%s,cooldev9=%s,time_ms=%d\n",
+
+	seq_printf(m,
+		"cooldev5=%s,cooldev6=%s,cooldev7=%s,cooldev8=%s,cooldev9=%s,time_ms=%d\n",
 		g_bind5, g_bind6, g_bind7, g_bind8, g_bind9, interval * 1000);
 
 	return 0;
@@ -500,8 +561,8 @@ static int tsbuck_read(struct seq_file *m, void *v)
 static int tsbuck_register_thermal(void);
 static void tsbuck_unregister_thermal(void);
 
-static ssize_t tsbuck_write(struct file *file, const char __user *buffer, size_t count,
-			    loff_t *data)
+static ssize_t tsbuck_write(
+struct file *file, const char __user *buffer, size_t count, loff_t *data)
 {
 	int len = 0, time_msec = 0;
 	int trip[10] = { 0 };
@@ -519,21 +580,25 @@ static ssize_t tsbuck_write(struct file *file, const char __user *buffer, size_t
 	desc[len] = '\0';
 
 	if (sscanf
-	    (desc,
-	     "%d %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d",
-	     &num_trip, &trip[0], &t_type[0], bind0, &trip[1], &t_type[1], bind1, &trip[2],
-	     &t_type[2], bind2, &trip[3], &t_type[3], bind3, &trip[4], &t_type[4], bind4, &trip[5],
-	     &t_type[5], bind5, &trip[6], &t_type[6], bind6, &trip[7], &t_type[7], bind7, &trip[8],
-	     &t_type[8], bind8, &trip[9], &t_type[9], bind9, &time_msec) == 32) {
+		(desc,
+		"%d %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d",
+		&num_trip, &trip[0], &t_type[0], bind0,
+		&trip[1], &t_type[1], bind1, &trip[2], &t_type[2], bind2,
+		&trip[3], &t_type[3], bind3, &trip[4], &t_type[4], bind4,
+		&trip[5], &t_type[5], bind5, &trip[6], &t_type[6], bind6,
+		&trip[7], &t_type[7], bind7, &trip[8], &t_type[8], bind8,
+		&trip[9], &t_type[9], bind9, &time_msec) == 32) {
+
 		down(&sem_mutex);
-		tsbuck_dprintk("[tsbuck_write] tsbuck_unregister_thermal\n");
+		tsbuck_dprintk("[%s] tsbuck_unregister_thermal\n", __func__);
 		tsbuck_unregister_thermal();
 
 		for (i = 0; i < num_trip; i++)
 			g_THERMAL_TRIP[i] = t_type[i];
 
-		g_bind0[0] = g_bind1[0] = g_bind2[0] = g_bind3[0] = g_bind4[0] = g_bind5[0] =
-		    g_bind6[0] = g_bind7[0] = g_bind8[0] = g_bind9[0] = '\0';
+		g_bind0[0] = g_bind1[0] = g_bind2[0] = g_bind3[0]
+			= g_bind4[0] = g_bind5[0] = g_bind6[0]
+			= g_bind7[0] = g_bind8[0] = g_bind9[0] = '\0';
 
 		for (i = 0; i < 20; i++) {
 			g_bind0[i] = bind0[i];
@@ -548,16 +613,29 @@ static ssize_t tsbuck_write(struct file *file, const char __user *buffer, size_t
 			g_bind9[i] = bind9[i];
 		}
 
-		tsbuck_dprintk("[tsbuck_write] g_THERMAL_TRIP_0=%d,g_THERMAL_TRIP_1=%d,g_THERMAL_TRIP_2=%d,",
-			g_THERMAL_TRIP[0], g_THERMAL_TRIP[1], g_THERMAL_TRIP[2]);
-		tsbuck_dprintk("g_THERMAL_TRIP_3=%d,g_THERMAL_TRIP_4=%d,g_THERMAL_TRIP_5=%d,g_THERMAL_TRIP_6=%d,",
-			g_THERMAL_TRIP[3], g_THERMAL_TRIP[4], g_THERMAL_TRIP[5], g_THERMAL_TRIP[6]);
-		tsbuck_dprintk("g_THERMAL_TRIP_7=%d,g_THERMAL_TRIP_8=%d,g_THERMAL_TRIP_9=%d,\n",
-			g_THERMAL_TRIP[7], g_THERMAL_TRIP[8], g_THERMAL_TRIP[9]);
+		tsbuck_dprintk(
+			"[%s] g_THERMAL_TRIP_0=%d,g_THERMAL_TRIP_1=%d,g_THERMAL_TRIP_2=%d,"
+			, __func__,
+			g_THERMAL_TRIP[0], g_THERMAL_TRIP[1],
+			g_THERMAL_TRIP[2]);
 
-		tsbuck_dprintk("[tsbuck_write] cooldev0=%s,cooldev1=%s,cooldev2=%s,cooldev3=%s,cooldev4=%s,",
+		tsbuck_dprintk(
+			"g_THERMAL_TRIP_3=%d,g_THERMAL_TRIP_4=%d,g_THERMAL_TRIP_5=%d,g_THERMAL_TRIP_6=%d,",
+			g_THERMAL_TRIP[3], g_THERMAL_TRIP[4],
+			g_THERMAL_TRIP[5], g_THERMAL_TRIP[6]);
+
+		tsbuck_dprintk(
+			"g_THERMAL_TRIP_7=%d,g_THERMAL_TRIP_8=%d,g_THERMAL_TRIP_9=%d,\n",
+			g_THERMAL_TRIP[7], g_THERMAL_TRIP[8],
+			g_THERMAL_TRIP[9]);
+
+		tsbuck_dprintk(
+			"[%s] cooldev0=%s,cooldev1=%s,cooldev2=%s,cooldev3=%s,cooldev4=%s,"
+			, __func__,
 			g_bind0, g_bind1, g_bind2, g_bind3, g_bind4);
-		tsbuck_dprintk("cooldev5=%s,cooldev6=%s,cooldev7=%s,cooldev8=%s,cooldev9=%s\n",
+
+		tsbuck_dprintk(
+			"cooldev5=%s,cooldev6=%s,cooldev7=%s,cooldev8=%s,cooldev9=%s\n",
 			g_bind5, g_bind6, g_bind7, g_bind8, g_bind9);
 
 		for (i = 0; i < num_trip; i++)
@@ -565,37 +643,45 @@ static ssize_t tsbuck_write(struct file *file, const char __user *buffer, size_t
 
 		interval = time_msec / 1000;
 
-		tsbuck_dprintk("[tsbuck_write] trip_0_temp=%d,trip_1_temp=%d,trip_2_temp=%d,trip_3_temp=%d,",
+		tsbuck_dprintk(
+			"[%s] trip_0_temp=%d,trip_1_temp=%d,trip_2_temp=%d,trip_3_temp=%d,"
+			, __func__,
 			trip_temp[0], trip_temp[1], trip_temp[2], trip_temp[3]);
-		tsbuck_dprintk("trip_4_temp=%d,trip_5_temp=%d,trip_6_temp=%d,trip_7_temp=%d,trip_8_temp=%d,",
-			trip_temp[4], trip_temp[5], trip_temp[6], trip_temp[7], trip_temp[8]);
-		tsbuck_dprintk("trip_9_temp=%d,time_ms=%d\n", trip_temp[9], interval * 1000);
 
-		tsbuck_dprintk("[tsbuck_write] tsbuck_register_thermal\n");
+		tsbuck_dprintk(
+			"trip_4_temp=%d,trip_5_temp=%d,trip_6_temp=%d,trip_7_temp=%d,trip_8_temp=%d,",
+			trip_temp[4], trip_temp[5], trip_temp[6],
+			trip_temp[7], trip_temp[8]);
+
+		tsbuck_dprintk("trip_9_temp=%d,time_ms=%d\n",
+					trip_temp[9], interval * 1000);
+
+		tsbuck_dprintk("[%s] tsbuck_register_thermal\n", __func__);
 		tsbuck_register_thermal();
 		up(&sem_mutex);
 
 		return count;
 	}
 
-	tsbuck_dprintk("[tsbuck_write] bad argument\n");
+	tsbuck_dprintk("[%s] bad argument\n", __func__);
 	return -EINVAL;
 }
 
 int tsbuck_register_cooler(void)
 {
-	cl_dev_sysrst = mtk_thermal_cooling_device_register("mtktsbuck-sysrst", NULL,
-							    &tsbuck_cooling_sysrst_ops);
+	cl_dev_sysrst = mtk_thermal_cooling_device_register(
+						"mtktsbuck-sysrst", NULL,
+						&tsbuck_cooling_sysrst_ops);
 	return 0;
 }
 
 static int tsbuck_register_thermal(void)
 {
-	tsbuck_dprintk("[tsbuck_register_thermal]\n");
+	tsbuck_dprintk("[%s]\n", __func__);
 
 	/* trips : trip 0~2 */
 	thz_dev = mtk_thermal_zone_device_register("mtktsbuck", num_trip, NULL,
-						   &tsbuck_dev_ops, 0, 0, 0, interval * 1000);
+				&tsbuck_dev_ops, 0, 0, 0, interval * 1000);
 
 	return 0;
 }
@@ -610,7 +696,7 @@ void tsbuck_unregister_cooler(void)
 
 static void tsbuck_unregister_thermal(void)
 {
-	tsbuck_dprintk("[tsbuck_unregister_thermal]\n");
+	tsbuck_dprintk("[%s]\n", __func__);
 
 	if (thz_dev) {
 		mtk_thermal_zone_device_unregister(thz_dev);
@@ -638,7 +724,7 @@ static int __init tsbuck_init(void)
 	struct proc_dir_entry *entry = NULL;
 	struct proc_dir_entry *tsbuck_dir = NULL;
 
-	tsbuck_dprintk("[tsbuck_init]\n");
+	tsbuck_dprintk("[%s]\n", __func__);
 	tsbuck_cali_prepare();
 	tsbuck_cali_prepare2();
 
@@ -651,10 +737,11 @@ static int __init tsbuck_init(void)
 
 	tsbuck_dir = proc_mkdir("mtktsbuck", NULL);
 	if (!tsbuck_dir) {
-		tsbuck_dprintk("[tsbuck_init]: mkdir /proc/mtktsbuck failed\n");
+		tsbuck_dprintk("[%s]: mkdir /proc/mtktsbuck failed\n"
+			, __func__);
 	} else {
-		entry =
-		    proc_create("mtktsbuck", S_IRUGO | S_IWUSR | S_IWGRP, tsbuck_dir, &tsbuck_fops);
+		entry = proc_create("mtktsbuck", 0644, tsbuck_dir,
+							&tsbuck_fops);
 		if (entry)
 			proc_set_user(entry, uid, gid);
 	}
@@ -668,7 +755,7 @@ err_unreg:
 
 static void __exit tsbuck_exit(void)
 {
-	tsbuck_dprintk("[tsbuck_exit]\n");
+	tsbuck_dprintk("[%s]\n", __func__);
 	tsbuck_unregister_thermal();
 	tsbuck_unregister_cooler();
 }

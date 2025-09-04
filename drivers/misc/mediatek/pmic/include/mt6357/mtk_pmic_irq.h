@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 MediaTek Inc.
+ * Copyright (C) 2017 MediaTek Inc.
 
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -16,9 +16,10 @@
 
 #define PMIC_INT_WIDTH 16
 
-#define PMIC_SP_IRQ_GEN(_used, _name)	\
+#define PMIC_SP_IRQ_GEN(_used, _level_trig, _name)	\
 	{	\
 		.used = _used,	\
+		.level_trig = _level_trig,	\
 		.name = #_name,	\
 	}
 
@@ -36,9 +37,11 @@
 
 struct pmic_sp_irq {
 	unsigned short used;
+	unsigned short level_trig;
 	const char *name;
 	void (*callback)(void);
-	void (*oc_callback)(enum PMIC_IRQ_ENUM intNo, const char *);
+	void (*oc_callback)(enum PMIC_IRQ_ENUM intNo,
+			    const char *name);
 	unsigned int times;
 };
 
@@ -53,10 +56,6 @@ struct pmic_sp_interrupt {
 	unsigned int top_int_bit;
 };
 
-#if defined(MTK_EVB_PLATFORM) || defined(CONFIG_FPGA_EARLY_PORTING)
 #define ENABLE_ALL_OC_IRQ 0
-#else
-#define ENABLE_ALL_OC_IRQ 1
-#endif
 
 #endif /*--PMIC_IRQ_H--*/

@@ -1,4 +1,3 @@
-
 menuconfig ION
 	bool "Ion Memory Manager"
 	depends on HAVE_MEMBLOCK && HAS_DMA && MMU
@@ -17,8 +16,6 @@ config ION_TEST
 	help
 	  Choose this option to create a device that can be used to test the
 	  kernel and device side ION functions.
-	  this file to ion test.
-	  you want to test ion, please uset this option.
 
 config ION_DUMMY
 	bool "Dummy Ion driver"
@@ -35,9 +32,25 @@ config ION_TEGRA
 	depends on ARCH_TEGRA && ION
 	help
 	  Choose this option if you wish to use ion on an nVidia Tegra.
-	  ion for tegra is on an nVidia tegra.
-	  It set in xxxx_defconfig.mk.
-	  default is on.
+
+config ION_HISI
+	tristate "Ion for Hisilicon"
+	depends on ARCH_HISI && ION
+	select ION_OF
+	help
+	  Choose this option if you wish to use ion on Hisilicon Platform.
+
+source "drivers/staging/android/ion/hisilicon/Kconfig"
 
 source "drivers/staging/android/ion/mtk/Kconfig"
 
+config ION_OF
+	bool "Devicetree support for Ion"
+	depends on ION && OF_ADDRESS
+	help
+	  Provides base support for defining Ion heaps in devicetree
+	  and setting them up. Also includes functions for platforms
+	  to parse the devicetree and expand for their own custom
+	  extensions
+
+	  If using Ion and devicetree, you should say Y here

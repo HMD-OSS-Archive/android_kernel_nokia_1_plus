@@ -17,9 +17,9 @@
 #include <linux/soc/mediatek/infracfg.h>
 #include <asm/processor.h>
 
-#define INFRA_TOPAXI_SI1_CTL		0x0204
 #define INFRA_TOPAXI_PROTECTEN		0x0220
 #define INFRA_TOPAXI_PROTECTSTA1	0x0228
+#define INFRA_TOPAXI_SI1_CTL		0x0204
 
 /**
  * mtk_infracfg_set_bus_protection - enable bus protection

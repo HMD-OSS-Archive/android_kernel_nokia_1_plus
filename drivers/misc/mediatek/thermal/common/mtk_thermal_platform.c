@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 MediaTek Inc.
+ * Copyright (C) 2017 MediaTek Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -28,10 +28,8 @@
 #include <linux/mutex.h>
 #include <linux/bug.h>
 #include <linux/workqueue.h>
-#include "mt-plat/mtk_mdm_monitor.h"
 #include <mach/mtk_thermal.h>
 #include <mt-plat/aee.h>
-#include <mtk_gpu_utility.h>
 #include <mt-plat/mtk_thermal_platform.h>
 #include <tscpu_settings.h>
 /* ************************************ */
@@ -41,21 +39,23 @@
 /* Number of CPU CORE */
 #define NUMBER_OF_CORE (8)
 
-/* This function pointer is for GPU LKM to register a function to get GPU loading. */
+/* This function pointer is for GPU LKM to register
+ * a function to get GPU loading.
+ */
 unsigned long (*mtk_thermal_get_gpu_loading_fp)(void) = NULL;
 EXPORT_SYMBOL(mtk_thermal_get_gpu_loading_fp);
 
 bool __attribute__ ((weak))
 mtk_get_gpu_loading(unsigned int *pLoading)
 {
-	pr_err("E_WF: %s doesn't exist\n", __func__);
+	pr_notice("E_WF: %s doesn't exist\n", __func__);
 	return 0;
 }
 
 int __attribute__ ((weak))
 force_get_tbat(void)
 {
-	pr_err("E_WF: %s doesn't exist\n", __func__);
+	pr_notice("E_WF: %s doesn't exist\n", __func__);
 	return 30;
 }
 
@@ -78,12 +78,12 @@ static DEFINE_MUTEX(MTM_SYSINFO_LOCK);
 #define THRML_LOG(fmt, args...) \
 do { \
 	if (enable_ThermalMonitor)\
-		pr_debug("THERMAL/PLATFORM" fmt, ##args); \
+		pr_notice("THERMAL/PLATFORM" fmt, ##args); \
 } while (0)
 
 
 #define THRML_ERROR_LOG(fmt, args...) \
-pr_err("THERMAL/PLATFORM" fmt, ##args)
+	pr_notice("THERMAL/PLATFORM" fmt, ##args)
 
 /* ************************************ */
 /* Define */
@@ -117,7 +117,8 @@ struct gpu_index_st {
 };
 
 #define NO_CPU_CORES (TZCPU_NO_CPU_CORES)
-static struct cpu_index_st cpu_index_list[NO_CPU_CORES];	/* /< 4-Core is maximum */
+				/* /< 4-Core is maximum */
+static struct cpu_index_st cpu_index_list[NO_CPU_CORES];
 static int cpufreqs[NO_CPU_CORES];
 static int cpuloadings[NO_CPU_CORES];
 
@@ -136,7 +137,6 @@ do { \
 /* ********************************************* */
 #include <linux/kernel_stat.h>
 #include <linux/cpumask.h>
-#include <asm/cputime.h>
 #include <linux/sched.h>
 #include <linux/tick.h>
 #include <linux/time.h>
@@ -176,7 +176,7 @@ static u64 get_idle_time(int cpu)
 		/* !NO_HZ or cpu offline so we can rely on cpustat.idle */
 		idle = kcpustat_cpu(cpu).cpustat[CPUTIME_IDLE];
 	else
-		idle = usecs_to_cputime64(idle_time);
+		idle = idle_time * NSEC_PER_USEC;
 
 	return idle;
 }
@@ -192,7 +192,7 @@ static u64 get_iowait_time(int cpu)
 		/* !NO_HZ or cpu offline so we can rely on cpustat.iowait */
 		iowait = kcpustat_cpu(cpu).cpustat[CPUTIME_IOWAIT];
 	else
-		iowait = usecs_to_cputime64(iowait_time);
+		iowait = iowait_time * NSEC_PER_USEC;
 
 	return iowait;
 }
@@ -209,7 +209,8 @@ static int get_sys_cpu_usage_info_ex(void)
 	for_each_online_cpu(nCoreIndex) {
 		if (nCoreIndex >= NO_CPU_CORES) {
 			#ifdef CONFIG_MTK_AEE_FEATURE
-			aee_kernel_warning("thermal", "nCoreIndex %d over NO_CPU_CORES %d\n",
+			aee_kernel_warning("thermal",
+				"nCoreIndex %d over NO_CPU_CORES %d\n",
 				nCoreIndex, NO_CPU_CORES);
 			#endif
 			return 0;
@@ -217,14 +218,22 @@ static int get_sys_cpu_usage_info_ex(void)
 		/* Get CPU Info */
 		cpu_index_list[nCoreIndex].u[CPU_USAGE_CURRENT_FIELD] =
 		    kcpustat_cpu(nCoreIndex).cpustat[CPUTIME_USER];
+
 		cpu_index_list[nCoreIndex].n[CPU_USAGE_CURRENT_FIELD] =
 		    kcpustat_cpu(nCoreIndex).cpustat[CPUTIME_NICE];
+
 		cpu_index_list[nCoreIndex].s[CPU_USAGE_CURRENT_FIELD] =
 		    kcpustat_cpu(nCoreIndex).cpustat[CPUTIME_SYSTEM];
-		cpu_index_list[nCoreIndex].i[CPU_USAGE_CURRENT_FIELD] = get_idle_time(nCoreIndex);
-		cpu_index_list[nCoreIndex].w[CPU_USAGE_CURRENT_FIELD] = get_iowait_time(nCoreIndex);
+
+		cpu_index_list[nCoreIndex].i[CPU_USAGE_CURRENT_FIELD] =
+						get_idle_time(nCoreIndex);
+
+		cpu_index_list[nCoreIndex].w[CPU_USAGE_CURRENT_FIELD] =
+						get_iowait_time(nCoreIndex);
+
 		cpu_index_list[nCoreIndex].q[CPU_USAGE_CURRENT_FIELD] =
 		    kcpustat_cpu(nCoreIndex).cpustat[CPUTIME_IRQ];
+
 		cpu_index_list[nCoreIndex].sq[CPU_USAGE_CURRENT_FIELD] =
 		    kcpustat_cpu(nCoreIndex).cpustat[CPUTIME_SOFTIRQ];
 
@@ -232,22 +241,28 @@ static int get_sys_cpu_usage_info_ex(void)
 		cpu_index_list[nCoreIndex].u[CPU_USAGE_FRAME_FIELD] =
 		    cpu_index_list[nCoreIndex].u[CPU_USAGE_CURRENT_FIELD] -
 		    cpu_index_list[nCoreIndex].u[CPU_USAGE_SAVE_FIELD];
+
 		cpu_index_list[nCoreIndex].n[CPU_USAGE_FRAME_FIELD] =
 		    cpu_index_list[nCoreIndex].n[CPU_USAGE_CURRENT_FIELD] -
 		    cpu_index_list[nCoreIndex].n[CPU_USAGE_SAVE_FIELD];
+
 		cpu_index_list[nCoreIndex].s[CPU_USAGE_FRAME_FIELD] =
 		    cpu_index_list[nCoreIndex].s[CPU_USAGE_CURRENT_FIELD] -
 		    cpu_index_list[nCoreIndex].s[CPU_USAGE_SAVE_FIELD];
+
 		cpu_index_list[nCoreIndex].i[CPU_USAGE_FRAME_FIELD] =
 		    TRIMz_ex(cpu_index_list[nCoreIndex].tz,
-			     (cpu_index_list[nCoreIndex].i[CPU_USAGE_CURRENT_FIELD] -
-			      cpu_index_list[nCoreIndex].i[CPU_USAGE_SAVE_FIELD]));
+			(cpu_index_list[nCoreIndex].i[CPU_USAGE_CURRENT_FIELD] -
+			cpu_index_list[nCoreIndex].i[CPU_USAGE_SAVE_FIELD]));
+
 		cpu_index_list[nCoreIndex].w[CPU_USAGE_FRAME_FIELD] =
 		    cpu_index_list[nCoreIndex].w[CPU_USAGE_CURRENT_FIELD] -
 		    cpu_index_list[nCoreIndex].w[CPU_USAGE_SAVE_FIELD];
+
 		cpu_index_list[nCoreIndex].q[CPU_USAGE_FRAME_FIELD] =
 		    cpu_index_list[nCoreIndex].q[CPU_USAGE_CURRENT_FIELD] -
 		    cpu_index_list[nCoreIndex].q[CPU_USAGE_SAVE_FIELD];
+
 		cpu_index_list[nCoreIndex].sq[CPU_USAGE_FRAME_FIELD] =
 		    cpu_index_list[nCoreIndex].sq[CPU_USAGE_CURRENT_FIELD] -
 		    cpu_index_list[nCoreIndex].sq[CPU_USAGE_SAVE_FIELD];
@@ -266,7 +281,8 @@ static int get_sys_cpu_usage_info_ex(void)
 		if (cpu_index_list[nCoreIndex].tot_frme > 0) {
 			cpuloadings[nCoreIndex] =
 			    (100 -
-			     (((int)cpu_index_list[nCoreIndex].i[CPU_USAGE_FRAME_FIELD] * 100) /
+			(((int)cpu_index_list[nCoreIndex]
+			.i[CPU_USAGE_FRAME_FIELD] * 100) /
 			      (int)cpu_index_list[nCoreIndex].tot_frme));
 		} else {
 			/* CPU unplug case */
@@ -289,14 +305,18 @@ static int get_sys_cpu_usage_info_ex(void)
 		    cpu_index_list[nCoreIndex].sq[CPU_USAGE_CURRENT_FIELD];
 
 		THRML_LOG("CPU%d Frame:%lu USAGE:%d\n", nCoreIndex,
-			  cpu_index_list[nCoreIndex].tot_frme, cpuloadings[nCoreIndex]);
+				cpu_index_list[nCoreIndex].tot_frme,
+				cpuloadings[nCoreIndex]);
 
 		for (i = 0; i < 3; i++) {
-			THRML_LOG
-			    ("Index %d [u:%lu] [n:%lu] [s:%lu] [i:%lu] [w:%lu] [q:%lu] [sq:%lu]\n",
-			     i, cpu_index_list[nCoreIndex].u[i], cpu_index_list[nCoreIndex].n[i],
-			     cpu_index_list[nCoreIndex].s[i], cpu_index_list[nCoreIndex].i[i],
-			     cpu_index_list[nCoreIndex].w[i], cpu_index_list[nCoreIndex].q[i],
+			THRML_LOG(
+				"Index %d [u:%lu] [n:%lu] [s:%lu] [i:%lu] [w:%lu] [q:%lu] [sq:%lu]\n",
+					i, cpu_index_list[nCoreIndex].u[i],
+					cpu_index_list[nCoreIndex].n[i],
+					cpu_index_list[nCoreIndex].s[i],
+					cpu_index_list[nCoreIndex].i[i],
+					cpu_index_list[nCoreIndex].w[i],
+					cpu_index_list[nCoreIndex].q[i],
 			     cpu_index_list[nCoreIndex].sq[i]);
 
 		}
@@ -324,12 +344,16 @@ static int get_sys_all_cpu_freq_info(void)
 	/* TODO: think a way to easy start and stop, and start for only once */
 	if (check_dmips_limit == 1) {
 		if (cpu_total_dmips > mtktscpu_limited_dmips) {
-			THRML_ERROR_LOG("cpu %d over limit %d\n", cpu_total_dmips,
+			THRML_ERROR_LOG("cpu %d over limit %d\n",
+					cpu_total_dmips,
 					mtktscpu_limited_dmips);
+
 			if (dmips_limit_warned == false) {
 				#ifdef CONFIG_MTK_AEE_FEATURE
-				aee_kernel_warning("thermal", "cpu %d over limit %d\n",
-						   cpu_total_dmips, mtktscpu_limited_dmips);
+				aee_kernel_warning("thermal",
+						"cpu %d over limit %d\n",
+						cpu_total_dmips,
+						mtktscpu_limited_dmips);
 				#endif
 				dmips_limit_warned = true;
 			}
@@ -346,8 +370,8 @@ static int mtk_thermal_validation_rd(struct seq_file *m, void *v)
 	return 0;
 }
 
-static ssize_t mtk_thermal_validation_wr(struct file *file, const char __user *buffer,
-					 size_t count, loff_t *data)
+static ssize_t mtk_thermal_validation_wr
+(struct file *file, const char __user *buffer, size_t count, loff_t *data)
 {
 	char desc[32];
 	int check_switch;
@@ -368,7 +392,7 @@ static ssize_t mtk_thermal_validation_wr(struct file *file, const char __user *b
 		}
 		return count;
 	}
-	THRML_ERROR_LOG("[mtk_thermal_validation_wr] bad argument\n");
+	THRML_ERROR_LOG("[%s] bad argument\n", __func__);
 	return -EINVAL;
 }
 
@@ -393,11 +417,12 @@ static int __init mtk_thermal_platform_init(void)
 	int err = 0;
 	struct proc_dir_entry *entry;
 
-	entry = proc_create("driver/tm_validation", S_IRUGO | S_IWUSR, NULL,
+	entry = proc_create("driver/tm_validation", 0644, NULL,
 			&mtk_thermal_validation_fops);
 	if (!entry) {
-		THRML_ERROR_LOG
-		    ("[mtk_thermal_platform_init] Can not create /proc/driver/tm_validation\n");
+		THRML_ERROR_LOG(
+			"[%s] Can not create /proc/driver/tm_validation\n",
+			__func__);
 	}
 
 	return err;
@@ -445,7 +470,7 @@ int mtk_thermal_get_gpu_info(int *nocores, int **gpufreq, int **gpuloading)
 	/* ****************** */
 	/* GPU Index */
 	/* ****************** */
-	THRML_LOG("[mtk_thermal_get_gpu_info]\n");
+	THRML_LOG("[%s]\n", __func__);
 
 	if (nocores)
 		*nocores = NO_GPU_CORES;
@@ -476,12 +501,12 @@ EXPORT_SYMBOL(mtk_thermal_get_gpu_info);
 
 enum {
 /*	TXPWR_MD1 = 0,
-*	TXPWR_MD2 =1,
-*	RFTEMP_2G_MD1 =2,
-*	RFTEMP_2G_MD2 = 3,
-*	RFTEMP_3G_MD1 = 4,
-*	RFTEMP_3G_MD2 = 5,
-*/
+ *	TXPWR_MD2 =1,
+ *	RFTEMP_2G_MD1 =2,
+ *	RFTEMP_2G_MD2 = 3,
+ *	RFTEMP_3G_MD1 = 4,
+ *	RFTEMP_3G_MD2 = 5,
+ */
 	WiFi_TP = 6,
 	Mobile_TP = 7,
 	NO_EXTRA_THERMAL_ATTR
@@ -501,8 +526,10 @@ static unsigned int _thermal_scen;
 
 unsigned int mtk_thermal_set_user_scenarios(unsigned int mask)
 {
-	if ((mask & MTK_THERMAL_SCEN_CALL)) {	/* only one scen is handled now... */
-		set_taklking_flag(true);	/* make mtk_ts_cpu.c aware of call scenario */
+	/* only one scen is handled now... */
+	if ((mask & MTK_THERMAL_SCEN_CALL)) {
+		/* make mtk_ts_cpu.c aware of call scenario */
+		set_taklking_flag(true);
 		_thermal_scen |= (unsigned int)MTK_THERMAL_SCEN_CALL;
 	}
 	return _thermal_scen;
@@ -511,8 +538,10 @@ EXPORT_SYMBOL(mtk_thermal_set_user_scenarios);
 
 unsigned int mtk_thermal_clear_user_scenarios(unsigned int mask)
 {
-	if ((mask & MTK_THERMAL_SCEN_CALL)) {	/* only one scen is handled now... */
-		set_taklking_flag(false);	/* make mtk_ts_cpu.c aware of call scenario */
+	/* only one scen is handled now... */
+	if ((mask & MTK_THERMAL_SCEN_CALL)) {
+		/* make mtk_ts_cpu.c aware of call scenario */
+		set_taklking_flag(false);
 		_thermal_scen &= ~((unsigned int)MTK_THERMAL_SCEN_CALL);
 	}
 	return _thermal_scen;

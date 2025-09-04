@@ -3,14 +3,15 @@
  * 2010 - 2014 Goodix Technology.
  *
  * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be a reference
  * to you, when you are integrating the GOODiX's CTP IC into your system,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
  *
  * Version: 1.0
  * Revision Record:
@@ -22,15 +23,16 @@
 #define _GT1X_CONFIG_H_
 
 /***************************PART2:TODO define**********************************/
-/* TODO: puts the config info corresponded to your TP here, the following is just
- * a sample config, send this config should cause the chip can not work normally
+/* TODO: puts the config info corresponded to your TP here, the following is
+ * just a sample config, send this config should cause the chip can not
+ * work normally
  */
 
 /* TODO define your config for Sensor_ID == 0 here, if needed */
 
 
 #define GTP_CFG_GROUP0 {\
-0x01, 0xD0, 0x02, 0x00, 0x05, 0x05, 0x05, 0x00, 0x01, 0x49, \
+0x20, 0xD0, 0x02, 0x00, 0x05, 0x05, 0x05, 0x00, 0x01, 0x49, \
 0x00, 0x05, 0x50, 0x3C, 0x53, 0x00, 0x00, 0x00, 0x00, 0x00, \
 0x00, 0x00, 0x00, 0x00, 0xC8, 0x00, 0x00, 0x00, 0x00, 0x00, \
 0x00, 0x00, 0x53, 0x00, 0x1E, 0x00, 0x19, 0x84, 0x00, 0x00, \

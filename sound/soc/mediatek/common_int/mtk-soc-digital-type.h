@@ -1,20 +1,19 @@
 /*
-* Copyright (C) 2015 MediaTek Inc.
-*
-* This program is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.
-* If not, see <http://www.gnu.org/licenses/>.
-*/
-
+ * Copyright (C) 2015 MediaTek Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.
+ * If not, see <http://www.gnu.org/licenses/>.
+ */
 
 /*******************************************************************************
  *
@@ -37,7 +36,8 @@
  *------------------------------------------------------------------------------
  *
  *
- *******************************************************************************/
+ ******************************************************************************
+ */
 
 #ifndef _AUDIO_DIGITAL_TYPE_H
 #define _AUDIO_DIGITAL_TYPE_H
@@ -47,7 +47,6 @@
 /*****************************************************************************
  *                ENUM DEFINITION
  *****************************************************************************/
-
 
 enum soc_aud_digital_block {
 	/* memmory interfrace */
@@ -64,7 +63,7 @@ enum soc_aud_digital_block {
 	Soc_Aud_Digital_Block_MEM_VUL_DATA2,
 	Soc_Aud_Digital_Block_MEM_DAI2,
 	Soc_Aud_Digital_Block_MEM_AWB2,
-	Soc_Aud_Digital_Block_MEM_I2S,		/* this is not actually a mem if... */
+	Soc_Aud_Digital_Block_MEM_I2S, /* this is not actually a mem if... */
 	Soc_Aud_Digital_Block_MEM_HDMI,
 	/* ADDA */
 	Soc_Aud_Digital_Block_ADDA_DL,
@@ -80,9 +79,9 @@ enum soc_aud_digital_block {
 	Soc_Aud_Digital_Block_MODEM_PCM_2_O,
 	/* 1st I2S for DAC and ADC */
 	Soc_Aud_Digital_Block_I2S_OUT_DAC,
-	Soc_Aud_Digital_Block_I2S_OUT_DAC_2,	/* 4 channel */
+	Soc_Aud_Digital_Block_I2S_OUT_DAC_2, /* 4 channel */
 	Soc_Aud_Digital_Block_I2S_IN_ADC,
-	Soc_Aud_Digital_Block_I2S_IN_ADC_2,	/* 4 channel */
+	Soc_Aud_Digital_Block_I2S_IN_ADC_2, /* 4 channel */
 	/*  I2S2 input    */
 	Soc_Aud_Digital_Block_I2S_IN,
 	/* 2nd I2S */
@@ -98,7 +97,8 @@ enum soc_aud_digital_block {
 	Soc_Aud_Digital_Block_MRG_I2S_IN,
 	Soc_Aud_Digital_Block_DAI_BT,
 	Soc_Aud_Digital_Block_NUM_OF_DIGITAL_BLOCK,
-	Soc_Aud_Digital_Block_NUM_OF_MEM_INTERFACE = Soc_Aud_Digital_Block_MEM_HDMI + 1
+	Soc_Aud_Digital_Block_NUM_OF_MEM_INTERFACE =
+		Soc_Aud_Digital_Block_MEM_HDMI + 1
 };
 
 enum soc_aud_afe_io_block {
@@ -146,6 +146,11 @@ enum soc_aud_afe_io_block {
 	/* HDMI */
 	Soc_Aud_AFE_IO_Block_HDMI_OUT,
 	Soc_Aud_AFE_IO_Block_HDMI_IN,
+	/* General SRC */
+	Soc_Aud_AFE_IO_Block_GENERAL_SRC_1_OUT,
+	Soc_Aud_AFE_IO_Block_GENERAL_SRC_1_IN,
+	Soc_Aud_AFE_IO_Block_GENERAL_SRC_2_OUT,
+	Soc_Aud_AFE_IO_Block_GENERAL_SRC_2_IN,
 	/* Proximity CIC */
 	Soc_Aud_AFE_IO_Block_PROXIMITY_CIC,
 	/* connection to int main modem */
@@ -171,6 +176,8 @@ enum audio_usage_id {
 	AUDIO_USAGE_SCP_SPK_IV_DATA,
 	AUDIO_USAGE_DEEPBUFFER_PLAYBACK,
 	AUDIO_USAGE_FM_CAPTURE,
+	AUDIO_USAGE_SMART_PA_IN,
+	AUDIO_USAGE_VOW_BARGE_IN,
 };
 
 enum audio_general_asrc_id {
@@ -220,6 +227,10 @@ enum soc_aud_interconnection_input {
 	Soc_Aud_InterConnectionInput_I33,
 	Soc_Aud_InterConnectionInput_I34,
 	Soc_Aud_InterConnectionInput_I35,
+	Soc_Aud_InterConnectionInput_I36,
+	Soc_Aud_InterConnectionInput_I37,
+	Soc_Aud_InterConnectionInput_I38,
+	Soc_Aud_InterConnectionInput_I39,
 	Soc_Aud_InterConnectionInput_Num_Input
 };
 
@@ -264,6 +275,10 @@ enum soc_aud_interconnection_output {
 	Soc_Aud_InterConnectionOutput_O37,
 	Soc_Aud_InterConnectionOutput_O38,
 	Soc_Aud_InterConnectionOutput_O39,
+	Soc_Aud_InterConnectionOutput_O40,
+	Soc_Aud_InterConnectionOutput_O41,
+	Soc_Aud_InterConnectionOutput_O42,
+	Soc_Aud_InterConnectionOutput_O43,
 	Soc_Aud_InterConnectionOutput_Num_Output
 };
 
@@ -299,11 +314,10 @@ enum soc_aud_interconnection_state {
 	Soc_Aud_InterCon_ConnectionShift = 0x2
 };
 
-
 enum stream_status {
-	STREAMSTATUS_STATE_FREE = -1,	/* memory is not allocate */
-	STREAMSTATUS_STATE_STANDBY,	/* memory allocate and ready */
-	STREAMSTATUS_STATE_EXECUTING,	/* stream is running */
+	STREAMSTATUS_STATE_FREE = -1, /* memory is not allocate */
+	STREAMSTATUS_STATE_STANDBY,   /* memory allocate and ready */
+	STREAMSTATUS_STATE_EXECUTING, /* stream is running */
 };
 
 enum Soc_Aud_TopClockType {
@@ -454,6 +468,7 @@ enum Soc_Aud_I2S_SAMPLERATE {
 	Soc_Aud_I2S_SAMPLERATE_I2S_174K = 13,
 	Soc_Aud_I2S_SAMPLERATE_I2S_192K = 14,
 	Soc_Aud_I2S_SAMPLERATE_I2S_260K = 15,
+	Soc_Aud_I2S_SAMPLERATE_I2S_NUM
 };
 
 enum Soc_Aud_I2S {
@@ -479,11 +494,10 @@ enum Soc_Aud_I2S_CLKDIV {
 	Soc_Aud_I2S_CLKDIV_NUMBER
 };
 
-
 enum Soc_Aud_APLL_SOURCE {
 	Soc_Aud_APLL_NOUSE = 0,
-	Soc_Aud_APLL1 = 1,	/* 44.1K base */
-	Soc_Aud_APLL2 = 2,	/* 48base */
+	Soc_Aud_APLL1 = 1, /* 44.1K base */
+	Soc_Aud_APLL2 = 2, /* 48base */
 };
 
 struct audio_digital_i2s {
@@ -494,10 +508,11 @@ struct audio_digital_i2s {
 	bool mI2S_FMT;
 	bool mI2S_WLEN;
 	bool mI2S_EN;
-	bool mI2S_HDEN;	/* TODO: KC: split from this struct */
-	bool mI2S_IN_PAD_SEL;	/* TODO: KC: split from this sturct */
+	bool mI2S_HDEN;       /* TODO: KC: split from this struct */
+	bool mI2S_IN_PAD_SEL; /* TODO: KC: split from this sturct */
 
-	/* her for ADC usage , DAC will not use this */	/* TODO: KC: don't put here */
+	/* her for ADC usage , DAC will not use this */
+	/* TODO: KC: don't put here */
 	int mBuffer_Update_word;
 	bool mloopback;
 	bool mFpga_bit;
@@ -520,8 +535,9 @@ enum Soc_Aud_EXT_MODEM {
 };
 
 enum Soc_Aud_PCM_SYNC_TYPE {
-	Soc_Aud_PCM_SYNC_TYPE_BCK_CYCLE_SYNC = 0,	/* bck sync length = 1 */
-	Soc_Aud_PCM_SYNC_TYPE_EXTEND_BCK_CYCLE_SYNC = 1	/* bck sync length = PCM_INTF_CON1[9:13] */
+	Soc_Aud_PCM_SYNC_TYPE_BCK_CYCLE_SYNC = 0, /* bck sync length = 1 */
+	Soc_Aud_PCM_SYNC_TYPE_EXTEND_BCK_CYCLE_SYNC =
+		1 /* bck sync length = PCM_INTF_CON1[9:13] */
 };
 
 enum Soc_Aud_BT_MODE {
@@ -530,8 +546,10 @@ enum Soc_Aud_BT_MODE {
 };
 
 enum Soc_Aud_BYPASS_SRC {
-	Soc_Aud_BYPASS_SRC_SLAVE_USE_ASRC = 0,	/* slave mode & external modem uses different crystal */
-	Soc_Aud_BYPASS_SRC_SLAVE_USE_ASYNC_FIFO = 1	/* slave mode & external modem uses the same crystal */
+	Soc_Aud_BYPASS_SRC_SLAVE_USE_ASRC =
+		0, /* slave mode & external modem uses different crystal */
+	Soc_Aud_BYPASS_SRC_SLAVE_USE_ASYNC_FIFO =
+		1 /* slave mode & external modem uses the same crystal */
 };
 
 enum Soc_Aud_PCM_CLOCK_SOURCE {
@@ -584,15 +602,9 @@ enum Soc_Aud_DATBT_MODE {
 	Soc_Aud_DATBT_MODE_Mode16K
 };
 
-enum Soc_Aud_DAI_DEL {
-	Soc_Aud_DAI_DEL_HighWord,
-	Soc_Aud_DAI_DEL_LowWord
-};
+enum Soc_Aud_DAI_DEL { Soc_Aud_DAI_DEL_HighWord, Soc_Aud_DAI_DEL_LowWord };
 
-enum Soc_Aud_BTSYNC {
-	Soc_Aud_BTSYNC_Short_Sync,
-	Soc_Aud_BTSYNC_Long_Sync
-};
+enum Soc_Aud_BTSYNC { Soc_Aud_BTSYNC_Short_Sync, Soc_Aud_BTSYNC_Long_Sync };
 
 struct audio_digital_dai_bt {
 	bool mUSE_MRGIF_INPUT;
@@ -699,7 +711,7 @@ struct speech_control {
 
 struct hdmi_clock_control {
 	int SampleRate;
-	int ClkApllSel;		/* 0-5 */
+	int ClkApllSel; /* 0-5 */
 };
 
 enum SPEAKER_CHANNEL {
@@ -717,10 +729,7 @@ enum SOUND_PATH {
 	IN1_IN2_MIX,
 };
 
-enum MIC_ANALOG_SWICTH {
-	MIC_ANA_DEFAULT_PATH = 0,
-	MIC_ANA_SWITCH1_HIGH
-};
+enum MIC_ANALOG_SWICTH { MIC_ANA_DEFAULT_PATH = 0, MIC_ANA_SWITCH1_HIGH };
 enum PolicyParameters {
 	POLICY_LOAD_VOLUME = 0,
 	POLICY_SET_FM_SPEAKER,
@@ -728,12 +737,7 @@ enum PolicyParameters {
 	POLICY_SET_FM_PRESTOP,
 };
 
-enum modem_index_t {
-	MODEM_1 = 0,
-	MODEM_2 = 1,
-	MODEM_EXTERNAL = 2,
-	NUM_MODEM
-};
+enum modem_index_t { MODEM_1 = 0, MODEM_2 = 1, MODEM_EXTERNAL = 2, NUM_MODEM };
 
 enum fetch_format_per_sample {
 	AFE_WLEN_16_BIT = 0,
@@ -746,10 +750,7 @@ enum output_data_format {
 	OUTPUT_DATA_FORMAT_24BIT
 };
 
-enum apll_source_sel {
-	APLL_SOURCE_24576 = 0,
-	APLL_SOURCE_225792 = 1
-};
+enum apll_source_sel { APLL_SOURCE_24576 = 0, APLL_SOURCE_225792 = 1 };
 
 enum hdmi_sdata_channel {
 	HDMI_SDATA0 = 0,
@@ -821,6 +822,13 @@ enum audio_mode {
 	AUDIO_MODE_INCALL,
 	AUDIO_MODE_INCALL2,
 	AUDIO_MODE_INCALL_EXTERNAL,
+};
+
+enum audio_src_param_type {
+	AUDIO_SRC_PARAM_TYPE_FREQ_MODE,
+	AUDIO_SRC_PARAM_TYPE_AUTORST_THRESHOLD_HIGH,
+	AUDIO_SRC_PARAM_TYPE_AUTORST_THRESHOLD_LOW,
+	AUDIO_SRC_PARAM_TYPE_NUM
 };
 
 struct audio_afe_reg_cache {
@@ -1044,33 +1052,33 @@ struct audio_afe_reg_cache {
 	unsigned int REG_AFE_ASRC3_CON13;
 	unsigned int REG_AFE_ASRC3_CON14;
 	/*
-	*unsigned int REG_AFE_ADDA4_TOP_CON0;
-	*unsigned int REG_AFE_ADDA4_UL_SRC_CON0;
-	*unsigned int REG_AFE_ADDA4_UL_SRC_CON1;
-	*unsigned int REG_AFE_ADDA4_NEWIF_CFG0;
-	*unsigned int REG_AFE_ADDA4_NEWIF_CFG1;
-	*unsigned int REG_AFE_ADDA4_ULCF_CFG_02_01;
-	*unsigned int REG_AFE_ADDA4_ULCF_CFG_04_03;
-	*unsigned int REG_AFE_ADDA4_ULCF_CFG_06_05;
-	*unsigned int REG_AFE_ADDA4_ULCF_CFG_08_07;
-	*unsigned int REG_AFE_ADDA4_ULCF_CFG_10_09;
-	*unsigned int REG_AFE_ADDA4_ULCF_CFG_12_11;
-	*unsigned int REG_AFE_ADDA4_ULCF_CFG_14_13;
-	*unsigned int REG_AFE_ADDA4_ULCF_CFG_16_15;
-	*unsigned int REG_AFE_ADDA4_ULCF_CFG_18_17;
-	*unsigned int REG_AFE_ADDA4_ULCF_CFG_20_19;
-	*unsigned int REG_AFE_ADDA4_ULCF_CFG_22_21;
-	*unsigned int REG_AFE_ADDA4_ULCF_CFG_24_23;
-	*unsigned int REG_AFE_ADDA4_ULCF_CFG_26_25;
-	*unsigned int REG_AFE_ADDA4_ULCF_CFG_28_27;
-	*unsigned int REG_AFE_ADDA4_ULCF_CFG_30_29;
-	*/
+	 *unsigned int REG_AFE_ADDA4_TOP_CON0;
+	 *unsigned int REG_AFE_ADDA4_UL_SRC_CON0;
+	 *unsigned int REG_AFE_ADDA4_UL_SRC_CON1;
+	 *unsigned int REG_AFE_ADDA4_NEWIF_CFG0;
+	 *unsigned int REG_AFE_ADDA4_NEWIF_CFG1;
+	 *unsigned int REG_AFE_ADDA4_ULCF_CFG_02_01;
+	 *unsigned int REG_AFE_ADDA4_ULCF_CFG_04_03;
+	 *unsigned int REG_AFE_ADDA4_ULCF_CFG_06_05;
+	 *unsigned int REG_AFE_ADDA4_ULCF_CFG_08_07;
+	 *unsigned int REG_AFE_ADDA4_ULCF_CFG_10_09;
+	 *unsigned int REG_AFE_ADDA4_ULCF_CFG_12_11;
+	 *unsigned int REG_AFE_ADDA4_ULCF_CFG_14_13;
+	 *unsigned int REG_AFE_ADDA4_ULCF_CFG_16_15;
+	 *unsigned int REG_AFE_ADDA4_ULCF_CFG_18_17;
+	 *unsigned int REG_AFE_ADDA4_ULCF_CFG_20_19;
+	 *unsigned int REG_AFE_ADDA4_ULCF_CFG_22_21;
+	 *unsigned int REG_AFE_ADDA4_ULCF_CFG_24_23;
+	 *unsigned int REG_AFE_ADDA4_ULCF_CFG_26_25;
+	 *unsigned int REG_AFE_ADDA4_ULCF_CFG_28_27;
+	 *unsigned int REG_AFE_ADDA4_ULCF_CFG_30_29;
+	 */
 };
 
 /*
-  *  mUser is record for User
-      using substream pointer as reach user
-  */
+ *  mUser is record for User
+ *    using substream pointer as reach user
+ */
 struct audio_sram_block {
 	bool mValid;
 	void *mUser;
@@ -1080,9 +1088,9 @@ struct audio_sram_block {
 };
 
 /*
-  * use memory interface number as block number
-  * todo ?
-  */
+ * use memory interface number as block number
+ * todo ?
+ */
 
 struct audio_sram_manager {
 	dma_addr_t msram_phys_addr;
@@ -1158,9 +1166,11 @@ struct memif_lpbk {
 
 	/* below variable updated by API only */
 	/* -- DMA -- */
-	unsigned char *dma_area;	/* DMA area */
-	dma_addr_t dma_addr;		/* physical bus address (not accessible from main CPU) */
-	size_t dma_bytes;		/* size of DMA area */
+	unsigned char *dma_area; /* DMA area */
+	dma_addr_t dma_addr; /* physical bus address (not accessible from main
+			      * CPU)
+			      */
+	size_t dma_bytes;    /* size of DMA area */
 
 	bool use_dram;
 

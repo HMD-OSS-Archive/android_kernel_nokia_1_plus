@@ -42,8 +42,8 @@
 
 struct musb_register_map {
 	char *name;
-	unsigned offset;
-	unsigned size;
+	unsigned int offset;
+	unsigned int size;
 };
 
 static const struct musb_register_map musb_regmap[] = {
@@ -106,7 +106,7 @@ static struct dentry *musb_debugfs_root;
 static int musb_regdump_show(struct seq_file *s, void *unused)
 {
 	struct musb *musb = s->private;
-	unsigned i;
+	unsigned int i;
 
 	seq_puts(s, "MUSB (M)HDRC Register Dump\n");
 
@@ -114,15 +114,15 @@ static int musb_regdump_show(struct seq_file *s, void *unused)
 		switch (musb_regmap[i].size) {
 		case 8:
 			seq_printf(s, "%-12s: %02x\n", musb_regmap[i].name,
-				   musb_readb(musb->mregs, musb_regmap[i].offset));
+				musb_readb(musb->mregs, musb_regmap[i].offset));
 			break;
 		case 16:
 			seq_printf(s, "%-12s: %04x\n", musb_regmap[i].name,
-				   musb_readw(musb->mregs, musb_regmap[i].offset));
+				musb_readw(musb->mregs, musb_regmap[i].offset));
 			break;
 		case 32:
 			seq_printf(s, "%-12s: %08x\n", musb_regmap[i].name,
-				   musb_readl(musb->mregs, musb_regmap[i].offset));
+				musb_readl(musb->mregs, musb_regmap[i].offset));
 			break;
 		}
 	}
@@ -138,7 +138,7 @@ static int musb_regdump_open(struct inode *inode, struct file *file)
 static int musb_test_mode_show(struct seq_file *s, void *unused)
 {
 	struct musb *musb = s->private;
-	unsigned test;
+	unsigned int test;
 
 	test = musb_readb(musb->mregs, MUSB_TESTMODE);
 
@@ -195,7 +195,8 @@ void musbdebugfs_h_setup(struct usb_ctrlrequest *setup, struct musb *mtk_musb)
 	unsigned short csr0;
 
 	DBG(0, "musb_h_setup++\n");
-	musbdebugfs_otg_write_fifo(sizeof(struct usb_ctrlrequest), (u8 *)setup, mtk_musb);
+	musbdebugfs_otg_write_fifo
+		(sizeof(struct usb_ctrlrequest), (u8 *)setup, mtk_musb);
 	csr0 = musb_readw(mtk_musb->mregs, MUSB_OTG_CSR0);
 	DBG(0, "musb_h_setup,csr0=0x%x\n", csr0);
 	csr0 |= MUSB_CSR0_H_SETUPPKT | MUSB_CSR0_TXPKTRDY;
@@ -205,7 +206,7 @@ void musbdebugfs_h_setup(struct usb_ctrlrequest *setup, struct musb *mtk_musb)
 }
 
 static ssize_t musb_test_mode_write(struct file *file,
-				    const char __user *ubuf, size_t count, loff_t *ppos)
+			const char __user *ubuf, size_t count, loff_t *ppos)
 {
 	struct seq_file *s = file->private_data;
 	struct musb *musb = s->private;
@@ -214,7 +215,8 @@ static ssize_t musb_test_mode_write(struct file *file,
 	unsigned char power;
 	struct usb_ctrlrequest setup_packet;
 
-	setup_packet.bRequestType = USB_DIR_IN|USB_TYPE_STANDARD|USB_RECIP_DEVICE;
+	setup_packet.bRequestType =
+		USB_DIR_IN|USB_TYPE_STANDARD|USB_RECIP_DEVICE;
 	setup_packet.bRequest = USB_REQ_GET_DESCRIPTOR;
 	setup_packet.wIndex = 0;
 	setup_packet.wValue = 0x0100;
@@ -267,8 +269,8 @@ static ssize_t musb_test_mode_write(struct file *file,
 	if (!strncmp(buf, "test get_descripter", 18)) {
 		DBG(0, "SINGLE_STEP_GET_DEVICE_DESCRIPTOR\n");
 		/* the host issues SOFs for 15s allowing the test engineer
-		*to raise the scope trigger just above the SOF voltage level.
-		*/
+		 * to raise the scope trigger just above the SOF voltage level.
+		 */
 		msleep(15000);
 		musbdebugfs_h_setup(&setup_packet, musb);
 		return count;
@@ -316,7 +318,8 @@ static inline int my_isdigit(char c)
 	return (c >= '0' && c <= '9');
 }
 
-static unsigned my_strtoul(const char *nptr, char **endptr, unsigned int base)
+static unsigned my_strtoul
+	(const char *nptr, char **endptr, unsigned int base)
 {
 	const char *s = nptr;
 	unsigned long acc;
@@ -383,9 +386,9 @@ static int musb_regw_show(struct seq_file *s, void *unused)
 {
 	DBG(0, "%s -> Called\n", __func__);
 
-	pr_warn("Uage:\n");
-	pr_warn("Mac Write: echo mac:addr:data > regw\n");
-	pr_warn("Phy Write: echo phy:addr:data > regw\n");
+	pr_notice("Uage:\n");
+	pr_notice("Mac Write: echo mac:addr:data > regw\n");
+	pr_notice("Phy Write: echo phy:addr:data > regw\n");
 
 	return 0;
 }
@@ -395,8 +398,9 @@ static int musb_regw_open(struct inode *inode, struct file *file)
 	return single_open(file, musb_regw_show, inode->i_private);
 }
 
-static ssize_t musb_regw_mode_write(struct file *file,
-				    const char __user *ubuf, size_t count, loff_t *ppos)
+static ssize_t musb_regw_mode_write
+	(struct file *file,	const char __user *ubuf
+	, size_t count, loff_t *ppos)
 {
 	struct seq_file *s = file->private_data;
 	struct musb *musb = s->private;
@@ -404,12 +408,12 @@ static ssize_t musb_regw_mode_write(struct file *file,
 	u8 is_mac = 0;
 	char *tmp1 = NULL;
 	char *tmp2 = NULL;
-	unsigned offset = 0;
+	unsigned int offset = 0;
 	u8 data = 0;
 
 	memset(buf, 0x00, sizeof(buf));
 
-	pr_warn("%s -> Called\n", __func__);
+	pr_notice("%s -> Called\n", __func__);
 
 	if (copy_from_user(buf, ubuf, min_t(size_t, sizeof(buf) - 1, count)))
 		return -EFAULT;
@@ -442,15 +446,18 @@ static ssize_t musb_regw_mode_write(struct file *file,
 	data = my_strtoul(tmp2, NULL, 0);
 
 	if (is_mac == 1) {
-		pr_warn("Mac base adddr 0x%lx, Write 0x%x[0x%x]\n", (unsigned long)musb->mregs, offset, data);
+		pr_notice("Mac base adddr 0x%lx, Write 0x%x[0x%x]\n",
+			(unsigned long)musb->mregs, offset, data);
 		musb_writeb(musb->mregs, offset, data);
 	} else {
 		if ((offset % 4) != 0) {
-			pr_warn("Must use 32bits alignment address\n");
+			pr_err("Must use 32bits alignment address\n");
 			return count;
 		}
-		pr_warn("Phy base adddr 0x%lx, Write 0x%x[0x%x]\n",
-		(unsigned long)((void __iomem *)(((unsigned long)musb->xceiv->io_priv) + 0x800)), offset, data);
+		pr_notice("Phy base adddr 0x%lx, Write 0x%x[0x%x]\n",
+		(unsigned long)((void __iomem *)
+		(((unsigned long)musb->xceiv->io_priv)
+		+ 0x800)), offset, data);
 		USBPHY_WRITE32(offset, data);
 	}
 
@@ -467,11 +474,10 @@ static const struct file_operations musb_regw_fops = {
 
 static int musb_regr_show(struct seq_file *s, void *unused)
 {
-	DBG(0, "%s -> Called\n", __func__);
-
-	pr_warn("Uage:\n");
-	pr_warn("Mac Read: echo mac:addr > regr\n");
-	pr_warn("Phy Read: echo phy:addr > regr\n");
+	DBG(0, "%s -> Called\n"
+			"Uage:\n"
+			"Mac Read: echo mac:addr > regr\n"
+			"Phy Read: echo phy:addr > regr\n", __func__);
 
 	return 0;
 }
@@ -482,18 +488,19 @@ static int musb_regr_open(struct inode *inode, struct file *file)
 }
 
 static ssize_t musb_regr_mode_write(struct file *file,
-				    const char __user *ubuf, size_t count, loff_t *ppos)
+				    const char __user *ubuf,
+				    size_t count, loff_t *ppos)
 {
 	struct seq_file *s = file->private_data;
 	struct musb *musb = s->private;
 	char			buf[20];
 	u8 is_mac = 0;
 	char *tmp = NULL;
-	unsigned offset = 0;
+	unsigned int offset = 0;
 
 	memset(buf, 0x00, sizeof(buf));
 
-	pr_warn("%s -> Called\n", __func__);
+	pr_notice("%s -> Called\n", __func__);
 
 	if (copy_from_user(buf, ubuf, min_t(size_t, sizeof(buf) - 1, count)))
 		return -EFAULT;
@@ -520,15 +527,18 @@ static ssize_t musb_regr_mode_write(struct file *file,
 	offset = my_strtoul(tmp, NULL, 0);
 
 	if (is_mac == 1)
-		pr_warn("Read Mac base adddr 0x%lx, Read 0x%x[0x%x]\n",
-			(unsigned long)musb->mregs, offset, musb_readb(musb->mregs, offset));
+		pr_notice("Read Mac base adddr 0x%lx, Read 0x%x[0x%x]\n",
+			(unsigned long)musb->mregs, offset
+			, musb_readb(musb->mregs, offset));
 	else {
 		if ((offset % 4) != 0) {
-			pr_warn("Must use 32bits alignment address\n");
+			pr_err("Must use 32bits alignment address\n");
 			return count;
 		}
-		pr_warn("Read Phy base adddr 0x%lx, Read 0x%x[0x%x]\n",
-			(unsigned long)((void __iomem *)(((unsigned long)musb->xceiv->io_priv) + 0x800)), offset,
+		pr_notice("Read Phy base adddr 0x%lx, Read 0x%x[0x%x]\n",
+			(unsigned long)((void __iomem *)
+			(((unsigned long)musb->xceiv->io_priv)
+			+ 0x800)), offset,
 			USBPHY_READ32(offset));
 	}
 
@@ -555,25 +565,29 @@ int musb_init_debugfs(struct musb *musb)
 		goto err0;
 	}
 
-	file = debugfs_create_file("regdump", S_IRUGO, root, musb, &musb_regdump_fops);
+	file = debugfs_create_file("regdump", 0444,
+			root, musb, &musb_regdump_fops);
 	if (!file) {
 		ret = -ENOMEM;
 		goto err1;
 	}
 
-	file = debugfs_create_file("testmode", S_IRUGO | S_IWUSR, root, musb, &musb_test_mode_fops);
+	file = debugfs_create_file("testmode", 0644,
+			root, musb, &musb_test_mode_fops);
 	if (!file) {
 		ret = -ENOMEM;
 		goto err1;
 	}
 
-	file = debugfs_create_file("regw", S_IRUGO | S_IWUSR, root, musb, &musb_regw_fops);
+	file = debugfs_create_file("regw", 0644,
+			root, musb, &musb_regw_fops);
 	if (!file) {
 		ret = -ENOMEM;
 		goto err1;
 	}
 
-	file = debugfs_create_file("regr", S_IRUGO | S_IWUSR, root, musb, &musb_regr_fops);
+	file = debugfs_create_file("regr", 0644
+						, root, musb, &musb_regr_fops);
 	if (!file) {
 		ret = -ENOMEM;
 		goto err1;

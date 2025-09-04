@@ -11,11 +11,10 @@
  * GNU General Public License for more details.
  */
 
-
 #include "flashlight-core.h"
 
 #if defined(mt6739)
-#if defined(tb8765ap1_64_bsp) || defined(tb8765ap1_bsp_1g) || defined(tb8765ap1_bsp)
+#if defined(CONFIG_MTK_FLASHLIGHT_LED191)
 	const struct flashlight_device_id flashlight_id[] = {
 		/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
 		{0, 0, 0, "flashlights_led191", 0, 0},
@@ -93,5 +92,6 @@ const struct flashlight_device_id flashlight_id[] = {
 };
 #endif
 
-const int flashlight_device_num = sizeof(flashlight_id) / sizeof(struct flashlight_device_id);
+const int flashlight_device_num =
+	sizeof(flashlight_id) / sizeof(struct flashlight_device_id);
 

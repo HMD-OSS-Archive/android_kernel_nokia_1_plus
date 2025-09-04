@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LINUX_PM_QOS_H
 #define _LINUX_PM_QOS_H
 /* interface for the pm_qos_power infrastructure of the linux kernel.
@@ -6,7 +7,6 @@
  */
 #include <linux/plist.h>
 #include <linux/notifier.h>
-#include <linux/miscdevice.h>
 #include <linux/device.h>
 #include <linux/workqueue.h>
 
@@ -21,10 +21,18 @@ enum {
 	PM_QOS_GPU_MEMORY_BANDWIDTH,
 	PM_QOS_MM_MEMORY_BANDWIDTH,
 	PM_QOS_MD_PERI_MEMORY_BANDWIDTH,
+	PM_QOS_OTHER_MEMORY_BANDWIDTH,
+	PM_QOS_MM0_BANDWIDTH_LIMITER,
+	PM_QOS_MM1_BANDWIDTH_LIMITER,
 
+	PM_QOS_DDR_OPP,
 	PM_QOS_EMI_OPP,
 	PM_QOS_VCORE_OPP,
 	PM_QOS_VCORE_DVFS_FIXED_OPP,
+	PM_QOS_SCP_VCORE_REQUEST,
+	PM_QOS_POWER_MODEL_DDR_REQUEST,
+	PM_QOS_POWER_MODEL_VCORE_REQUEST,
+	PM_QOS_VCORE_DVFS_FORCE_OPP,
 
 	PM_QOS_DISP_FREQ,
 	PM_QOS_MDP_FREQ,
@@ -32,6 +40,10 @@ enum {
 	PM_QOS_VENC_FREQ,
 	PM_QOS_IMG_FREQ,
 	PM_QOS_CAM_FREQ,
+	PM_QOS_DPE_FREQ,
+	PM_QOS_ISP_HRT_BANDWIDTH,
+	PM_QOS_APU_MEMORY_BANDWIDTH,
+	PM_QOS_VVPU_OPP,
 
 	/* insert new class ID */
 	PM_QOS_NUM_CLASSES,
@@ -54,14 +66,24 @@ enum pm_qos_flags_status {
 #define PM_QOS_GPU_MEMORY_BANDWIDTH_DEFAULT_VALUE	0
 #define PM_QOS_MM_MEMORY_BANDWIDTH_DEFAULT_VALUE	0
 #define PM_QOS_MD_PERI_MEMORY_BANDWIDTH_DEFAULT_VALUE	0
+#define PM_QOS_OTHER_MEMORY_BANDWIDTH_DEFAULT_VALUE	0
+#define PM_QOS_MM_BANDWIDTH_LIMITER_DEFAULT_VALUE	0
+#define PM_QOS_DDR_OPP_DEFAULT_VALUE			16
 #define PM_QOS_EMI_OPP_DEFAULT_VALUE	16
 #define PM_QOS_VCORE_OPP_DEFAULT_VALUE	16
 #define PM_QOS_VCORE_DVFS_FIXED_OPP_DEFAULT_VALUE	16
+#define PM_QOS_SCP_VCORE_REQUEST_DEFAULT_VALUE		0
+#define PM_QOS_POWER_MODEL_DDR_REQUEST_DEFAULT_VALUE	0
+#define PM_QOS_POWER_MODEL_VCORE_REQUEST_DEFAULT_VALUE	0
+#define PM_QOS_VCORE_DVFS_FORCE_OPP_DEFAULT_VALUE	32
 #define PM_QOS_MM_FREQ_DEFAULT_VALUE		0
+#define PM_QOS_ISP_HRT_BANDWIDTH_DEFAULT_VALUE         0
+#define PM_QOS_APU_MEMORY_BANDWIDTH_DEFAULT_VALUE      0
 #define PM_QOS_RESUME_LATENCY_DEFAULT_VALUE	0
 #define PM_QOS_LATENCY_TOLERANCE_DEFAULT_VALUE	0
 #define PM_QOS_LATENCY_TOLERANCE_NO_CONSTRAINT	(-1)
 #define PM_QOS_LATENCY_ANY			((s32)(~(__u32)0 >> 1))
+#define PM_QOS_VVPU_OPP_DEFAULT_VALUE			3
 
 #define PM_QOS_FLAG_NO_POWER_OFF	(1 << 0)
 #define PM_QOS_FLAG_REMOTE_WAKEUP	(1 << 1)
@@ -113,6 +135,7 @@ struct pm_qos_constraints {
 	s32 default_value;
 	s32 no_constraint_value;
 	enum pm_qos_type type;
+	struct mutex qos_lock;
 	struct blocking_notifier_head *notifiers;
 };
 
@@ -200,6 +223,12 @@ static inline s32 dev_pm_qos_requested_flags(struct device *dev)
 {
 	return dev->power.qos->flags_req->data.flr.flags;
 }
+
+static inline s32 dev_pm_qos_raw_read_value(struct device *dev)
+{
+	return IS_ERR_OR_NULL(dev->power.qos) ?
+		0 : pm_qos_read_value(&dev->power.qos->resume_latency);
+}
 #else
 static inline enum pm_qos_flags_status __dev_pm_qos_flags(struct device *dev,
 							  s32 mask)
@@ -226,12 +255,6 @@ static inline int dev_pm_qos_add_notifier(struct device *dev,
 			{ return 0; }
 static inline int dev_pm_qos_remove_notifier(struct device *dev,
 					     struct notifier_block *notifier)
-			{ return 0; }
-static inline int dev_pm_qos_add_global_notifier(
-					struct notifier_block *notifier)
-			{ return 0; }
-static inline int dev_pm_qos_remove_global_notifier(
-					struct notifier_block *notifier)
 			{ return 0; }
 static inline void dev_pm_qos_constraints_init(struct device *dev)
 {
@@ -264,6 +287,7 @@ static inline void dev_pm_qos_hide_latency_tolerance(struct device *dev) {}
 
 static inline s32 dev_pm_qos_requested_resume_latency(struct device *dev) { return 0; }
 static inline s32 dev_pm_qos_requested_flags(struct device *dev) { return 0; }
+static inline s32 dev_pm_qos_raw_read_value(struct device *dev) { return 0; }
 #endif
 
 #endif

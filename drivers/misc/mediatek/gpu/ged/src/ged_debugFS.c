@@ -21,13 +21,12 @@
 
 #define GED_DEBUGFS_DIR_NAME "ged"
 
-static struct dentry *gpsDebugFSEntryDir = NULL;
+static struct dentry *gpsDebugFSEntryDir;
 
-typedef struct _GED_DEBUGFS_PRIV_DATA_
-{
+typedef struct _GED_DEBUGFS_PRIV_DATA_ {
 	const struct seq_operations *psReadOps;
-	GED_ENTRY_WRITE_FUNC*   pfnWrite;
-	void*                   pvData;
+	GED_ENTRY_WRITE_FUNC *pfnWrite;
+	void *pvData;
 } GED_DEBUGFS_PRIV_DATA;
 //-----------------------------------------------------------------------------
 static int ged_debugFS_open(struct inode *psINode, struct file *psFile)
@@ -36,12 +35,9 @@ static int ged_debugFS_open(struct inode *psINode, struct file *psFile)
 	int iResult;
 
 	iResult = seq_open(psFile, psPrivData->psReadOps);
-	if (iResult == 0)
-	{
+	if (iResult == 0) {
 		struct seq_file *psSeqFile = psFile->private_data;
-
 		psSeqFile->private = psPrivData->pvData;
-
 		return GED_OK;
 	}
 
@@ -49,24 +45,22 @@ static int ged_debugFS_open(struct inode *psINode, struct file *psFile)
 }
 //-----------------------------------------------------------------------------
 static ssize_t ged_debugFS_write(
-		struct file*        psFile,
-		const char __user*  pszBuffer,
+		struct file        *psFile,
+		const char __user  *pszBuffer,
 		size_t              uiCount,
-		loff_t*             puiPosition)
+		loff_t             *puiPosition)
 {
 	struct inode *psINode = psFile->f_path.dentry->d_inode;
 	GED_DEBUGFS_PRIV_DATA *psPrivData = (GED_DEBUGFS_PRIV_DATA *)psINode->i_private;
 
-	if (psPrivData->pfnWrite == NULL)
-	{
+	if (psPrivData->pfnWrite == NULL) {
 		return -EIO;
 	}
 
 	return psPrivData->pfnWrite(pszBuffer, uiCount, *puiPosition, psPrivData->pvData);
 }
 //-----------------------------------------------------------------------------
-static const struct file_operations gsGEDDebugFSFileOps =
-{
+static const struct file_operations gsGEDDebugFSFileOps = {
 	.owner = THIS_MODULE,
 	.open = ged_debugFS_open,
 	.read = seq_read,
@@ -76,22 +70,21 @@ static const struct file_operations gsGEDDebugFSFileOps =
 };
 //-----------------------------------------------------------------------------
 GED_ERROR ged_debugFS_create_entry(
-		const char*             pszName,
-		void*                   pvDir,
+		const char             *pszName,
+		void                   *pvDir,
 		const struct seq_operations *psReadOps,
-		GED_ENTRY_WRITE_FUNC*   pfnWrite,
-		void*                   pvData,
-		struct dentry**         ppsEntry)
+		GED_ENTRY_WRITE_FUNC   *pfnWrite,
+		void                   *pvData,
+		struct dentry         **ppsEntry)
 {
-	GED_DEBUGFS_PRIV_DATA* psPrivData;
-	struct dentry* psEntry;
+	GED_DEBUGFS_PRIV_DATA *psPrivData;
+	struct dentry *psEntry;
 	umode_t uiMode;
 
 	//assert(gpkDebugFSEntryDir != NULL);
 
 	psPrivData = ged_alloc(sizeof(GED_DEBUGFS_PRIV_DATA));
-	if (psPrivData == NULL)
-	{
+	if (psPrivData == NULL) {
 		return GED_ERROR_OOM;
 	}
 
@@ -101,13 +94,11 @@ GED_ERROR ged_debugFS_create_entry(
 
 	uiMode = S_IFREG;
 
-	if (psReadOps != NULL)
-	{
+	if (psReadOps != NULL) {
 		uiMode |= S_IRUGO;
 	}
 
-	if (pfnWrite != NULL)
-	{
+	if (pfnWrite != NULL) {
 		uiMode |= S_IWUSR | S_IWGRP | S_IWOTH;
 	}
 
@@ -116,8 +107,7 @@ GED_ERROR ged_debugFS_create_entry(
 			(pvDir != NULL) ? (struct dentry *)pvDir : gpsDebugFSEntryDir,
 			psPrivData,
 			&gsGEDDebugFSFileOps);
-	if (IS_ERR(psEntry))
-	{
+	if (IS_ERR(psEntry)) {
 		GED_LOGE("Failed to create '%s' debugfs entry\n", pszName);
 		return GED_ERROR_FAIL;
 	}
@@ -129,8 +119,7 @@ GED_ERROR ged_debugFS_create_entry(
 //-----------------------------------------------------------------------------
 void ged_debugFS_remove_entry(struct dentry *psEntry)
 {
-	if (psEntry->d_inode->i_private != NULL)
-	{
+	if (psEntry->d_inode->i_private != NULL) {
 		ged_free(psEntry->d_inode->i_private, sizeof(GED_DEBUGFS_PRIV_DATA));
 	}
 
@@ -138,20 +127,18 @@ void ged_debugFS_remove_entry(struct dentry *psEntry)
 }
 //-----------------------------------------------------------------------------
 GED_ERROR ged_debugFS_create_entry_dir(
-		const char*     pszName,
-		struct dentry*  psParentDir,
-		struct dentry** ppsDir)
+		const char     *pszName,
+		struct dentry  *psParentDir,
+		struct dentry **ppsDir)
 {
 	struct dentry *psDir;
 
-	if (pszName == NULL || ppsDir == NULL)
-	{
+	if (pszName == NULL || ppsDir == NULL) {
 		return GED_ERROR_INVALID_PARAMS;
 	}
 
 	psDir = debugfs_create_dir(pszName, (psParentDir) ? psParentDir : gpsDebugFSEntryDir);
-	if (psDir == NULL)
-	{
+	if (psDir == NULL) {
 		GED_LOGE("Failed to create '%s' debugfs directory\n", pszName);
 		return GED_ERROR_OOM;
 	}
@@ -171,8 +158,7 @@ GED_ERROR ged_debugFS_init(void)
 	//assert(gpkDebugFSEntryDir == NULL);
 
 	gpsDebugFSEntryDir = debugfs_create_dir(GED_DEBUGFS_DIR_NAME, NULL);
-	if (gpsDebugFSEntryDir == NULL)
-	{
+	if (gpsDebugFSEntryDir == NULL) {
 		GED_LOGE("Failed to create '%s' debugfs root directory\n", GED_DEBUGFS_DIR_NAME);
 		return GED_ERROR_OOM;
 	}

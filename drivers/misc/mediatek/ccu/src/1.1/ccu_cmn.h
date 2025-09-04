@@ -120,10 +120,11 @@ struct ccu_cmd_s_list {
 	struct list_head link;
 };
 
-/* =============================== define in ccu_hw.c  ================================ */
+/* ======================== define in ccu_hw.c  ========================= */
 
 /**
- * ccu_init_hw - init the procedure related to hw, include irq register and enque thread
+ * ccu_init_hw - init the procedure related to hw,
+ *               include irq register and enque thread
  * @device:     the pointer of ccu_device.
  */
 int ccu_init_hw(struct ccu_device_s *device);
@@ -143,6 +144,8 @@ int ccu_mmap_hw(struct file *filp, struct vm_area_struct *vma);
  * @cmd:        the pointer to command
  */
 int ccu_send_command(struct ccu_cmd_s *pCmd);
+int ccu_kenrel_fast_cmd_enque(struct ccu_cmd_s *cmd);
+struct ccu_cmd_s *ccu_kenrel_fast_cmd_deque(void);
 
 /**
  * ccu_power - config ccu power.
@@ -180,7 +183,8 @@ int ccu_flushLog(int argc, int *argv);
  */
 int ccu_i2c_ctrl(unsigned char i2c_write_id, int transfer_len);
 
-int ccu_get_i2c_dma_buf_addr(uint32_t *mva, uint32_t *pa_h, uint32_t *pa_l, uint32_t *i2c_id);
+int ccu_get_i2c_dma_buf_addr(uint32_t *mva, uint32_t *pa_h,
+	uint32_t *pa_l, uint32_t *i2c_id);
 
 int ccu_memcpy(void *dest, void *src, int length);
 
@@ -197,7 +201,7 @@ void ccu_get_sensor_name(char **sensor_name);
 int ccu_query_power_status(void);
 
 
-/* =============================== define in ccu_drv.c  =============================== */
+/* ======================== define in ccu_drv.c  ======================== */
 
 /**
  * ccu_create_user - create ccu user, and add to user list
@@ -228,7 +232,8 @@ int ccu_push_command_to_queue(struct ccu_user_s *user, struct ccu_cmd_s *cmd);
  * @user:       the pointer to user.
  * @rcmd:      return the command to be removed.
  */
-int ccu_pop_command_from_queue(struct ccu_user_s *user, struct ccu_cmd_s **rcmd);
+int ccu_pop_command_from_queue(struct ccu_user_s *user,
+	struct ccu_cmd_s **rcmd);
 
 
 /**
@@ -253,34 +258,47 @@ void ccu_clock_disable(void);
 /* LOG & AEE */
 #define CCU_TAG "[ccu]"
 
-#define LOG_DBG_MUST(format, args...)    pr_debug(CCU_TAG "[%s] " format, __func__, ##args)
-#define LOG_INF_MUST(format, args...)    pr_info(CCU_TAG "[%s] " format, __func__, ##args)
+#define LOG_DBG_MUST(format, args...) \
+	pr_debug(CCU_TAG "[%s] " format, __func__, ##args)
+
+#define LOG_INF_MUST(format, args...) \
+	pr_info(CCU_TAG "[%s] " format, __func__, ##args)
+
 #define LOG_DBG(format, args...)
 #define LOG_INF(format, args...)
-#define LOG_WARN(format, args...)    pr##_##warn(CCU_TAG "[%s] " format, __func__, ##args)
-#define LOG_ERR(format, args...)    pr##_##err(CCU_TAG "[%s] " format, __func__, ##args)
-#define LOG_DERR(device, format, args...)    dev##_##err(device, CCU_TAG "[%s] " format, __func__, ##args)
+
+#define LOG_WARN(format, args...) \
+	pr##_##warn(CCU_TAG "[%s] " format, __func__, ##args)
+
+#define LOG_ERR(format, args...) \
+	pr##_##err(CCU_TAG "[%s] " format, __func__, ##args)
+
+#define LOG_DERR(device, format, args...) \
+	dev##_##err(device, CCU_TAG "[%s] " format, __func__, ##args)
 
 #define ccu_print_seq(seq_file, fmt, args...) \
-		do {\
-			if (seq_file)\
-				seq_printf(seq_file, fmt, ##args);\
-			else\
-				pr_debug(fmt, ##args);\
-		} while (0)
+	do {\
+		if (seq_file)\
+			seq_printf(seq_file, fmt, ##args);\
+		else\
+			pr_debug(fmt, ##args);\
+	} while (0)
 
 #define ccu_error(format, args...) \
-		do {\
-			LOG_ERR(CCU_TAG " error:"format, ##args);  \
-			aee_kernel_exception("CCU", "[CCU] error:"format, ##args);  \
-		} while (0)
+	do {\
+		LOG_ERR(CCU_TAG " error:"format, ##args); \
+		aee_kernel_exception("CCU", "[CCU] error:"format, ##args); \
+	} while (0)
 
 #define ccu_aee(format, args...) \
-		do {\
-			char ccu_name[100];\
-			snprintf(ccu_name, 100, CCU_TAG format, ##args); \
-			aee_kernel_warning_api(__FILE__, __LINE__, DB_OPT_MMPROFILE_BUFFER | DB_OPT_DUMP_DISPLAY, \
-			ccu_name, CCU_TAG "error" format, ##args); \
-			LOG_ERR(CCU_TAG " error:" format, ##args);  \
-		} while (0)
+	do {\
+		char ccu_name[100];\
+		snprintf(ccu_name, 100, CCU_TAG format, ##args); \
+		aee_kernel_warning_api(__FILE__, __LINE__, \
+			DB_OPT_MMPROFILE_BUFFER | DB_OPT_DUMP_DISPLAY, \
+		ccu_name, CCU_TAG "error" format, ##args); \
+		LOG_ERR(CCU_TAG " error:" format, ##args);  \
+	} while (0)
+
+#define IS_KERNEL_32 ((sizeof(uint32_t *) == 4))
 #endif

@@ -16,6 +16,10 @@
 #include "mtk_ftrace.h"
 #include "trace.h"
 
+#ifdef CONFIG_MTK_PERF_TRACKER
+#include <mt-plat/perf_tracker.h>
+#endif
+
 #ifdef CONFIG_MTK_KERNEL_MARKER
 static unsigned long __read_mostly mark_addr;
 static bool kernel_marker_on = true;
@@ -167,6 +171,10 @@ bool boot_ftrace_check(unsigned long trace_en)
 }
 
 #include <linux/rtc.h>
+#include <linux/sched.h>
+#include <linux/sched/clock.h>
+#include <linux/sched/stat.h>
+
 
 void print_enabled_events(struct trace_buffer *buf, struct seq_file *m)
 {
@@ -225,9 +233,6 @@ static void ftrace_events_enable(int enable)
 		trace_set_clr_event(NULL, "sched_switch", 1);
 		trace_set_clr_event(NULL, "sched_wakeup", 1);
 		trace_set_clr_event(NULL, "sched_wakeup_new", 1);
-		trace_set_clr_event(NULL, "softirq_entry", 1);
-		trace_set_clr_event(NULL, "softirq_exit", 1);
-		trace_set_clr_event(NULL, "softirq_raise", 1);
 #ifdef CONFIG_SMP
 		trace_set_clr_event(NULL, "sched_migrate_task", 1);
 #endif
@@ -243,18 +248,29 @@ static void ftrace_events_enable(int enable)
 		trace_set_clr_event(NULL, "block_rq_requeue", 1);
 		trace_set_clr_event(NULL, "debug_allocate_large_pages", 1);
 		trace_set_clr_event(NULL, "dump_allocate_large_pages", 1);
-#ifdef CONFIG_MTK_SCHED_MONITOR
-		trace_set_clr_event(NULL, "sched_mon_msg", 1);
-#endif
 		trace_set_clr_event("mtk_events", NULL, 1);
+
 		if (boot_trace) {
 			trace_set_clr_event("android_fs", NULL, 1);
 			trace_set_clr_event(NULL, "sched_blocked_reason", 1);
+			/*trace_set_clr_event(NULL, "sched_waking", 1);*/
 		} else {
 			trace_set_clr_event("ipi", NULL, 1);
+			trace_set_clr_event(NULL, "softirq_entry", 1);
+			trace_set_clr_event(NULL, "softirq_exit", 1);
+			trace_set_clr_event(NULL, "softirq_raise", 1);
+			trace_set_clr_event(NULL, "irq_handler_entry", 1);
+			trace_set_clr_event(NULL, "irq_handler_exit", 1);
+#ifdef CONFIG_MTK_SCHED_MONITOR
+			trace_set_clr_event(NULL, "sched_mon_msg", 1);
+#endif
+#ifdef CONFIG_LOCKDEP
+			trace_set_clr_event(NULL, "lock_dbg", 1);
+			trace_set_clr_event(NULL, "lock_monitor_msg", 1);
+#endif
+			trace_set_clr_event("met_bio", NULL, 1);
+			trace_set_clr_event("met_fuse", NULL, 1);
 		}
-		trace_set_clr_event("met_bio", NULL, 1);
-		trace_set_clr_event("met_fuse", NULL, 1);
 
 		tracing_on();
 	} else {
@@ -269,10 +285,17 @@ static __init int boot_ftrace(void)
 	int ret;
 
 	if (boot_trace) {
+#ifdef CONFIG_MTK_PERF_TRACKER
+		perf_tracker_enable(1);
+#endif
 		tr = top_trace_array();
 		ret = tracing_update_buffers();
 		if (ret != 0)
 			pr_debug("unable to expand buffer, ret=%d\n", ret);
+#ifdef CONFIG_SCHEDSTATS
+		force_schedstat_enabled();
+#endif
+
 		ftrace_events_enable(1);
 		set_tracer_flag(tr, TRACE_ITER_OVERWRITE, 0);
 		pr_debug("[ftrace]boot-time profiling...\n");
@@ -309,43 +332,3 @@ late_initcall(enable_ftrace);
 #endif
 #endif
 
-#if defined(CONFIG_MTK_SCHED_TRACERS) && defined(CONFIG_HOTPLUG_CPU)
-#include <linux/cpu.h>
-#include <trace/events/mtk_events.h>
-
-static DEFINE_PER_CPU(unsigned long long, last_event_ts);
-static struct notifier_block hotplug_event_notifier;
-
-static int
-hotplug_event_notify(struct notifier_block *self,
-		     unsigned long action, void *hcpu)
-{
-	long cpu = (long)hcpu;
-
-	switch (action) {
-	case CPU_STARTING:
-	case CPU_STARTING_FROZEN:
-		trace_cpu_hotplug(cpu, 1, per_cpu(last_event_ts, cpu));
-		per_cpu(last_event_ts, cpu) = ns2usecs(ftrace_now(cpu));
-		break;
-	case CPU_DYING:
-	case CPU_DYING_FROZEN:
-		trace_cpu_hotplug(cpu, 0, per_cpu(last_event_ts, cpu));
-		per_cpu(last_event_ts, cpu) = ns2usecs(ftrace_now(cpu));
-		break;
-	default:
-		break;
-	}
-	return NOTIFY_OK;
-}
-
-static __init int hotplug_events_init(void)
-{
-	hotplug_event_notifier.notifier_call = hotplug_event_notify;
-	hotplug_event_notifier.priority = 0;
-	register_cpu_notifier(&hotplug_event_notifier);
-	return 0;
-}
-
-early_initcall(hotplug_events_init);
-#endif

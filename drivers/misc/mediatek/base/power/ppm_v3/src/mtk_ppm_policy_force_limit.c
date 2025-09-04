@@ -59,10 +59,12 @@ static void ppm_forcelimit_update_limit_cb(void)
 		ppm_clear_policy_limit(&forcelimit_policy);
 
 		for (i = 0; i < req->cluster_num; i++) {
-			req->limit[i].min_cpu_core = (forcelimit_data.limit[i].min_core_num == -1)
+			req->limit[i].min_cpu_core =
+				(forcelimit_data.limit[i].min_core_num == -1)
 				? req->limit[i].min_cpu_core
 				: forcelimit_data.limit[i].min_core_num;
-			req->limit[i].max_cpu_core = (forcelimit_data.limit[i].max_core_num == -1)
+			req->limit[i].max_cpu_core =
+				(forcelimit_data.limit[i].max_core_num == -1)
 				? req->limit[i].max_cpu_core
 				: forcelimit_data.limit[i].max_core_num;
 		}
@@ -75,12 +77,13 @@ static void ppm_forcelimit_status_change_cb(bool enable)
 {
 	FUNC_ENTER(FUNC_LV_POLICY);
 
-	ppm_ver("@%s: forcelimit policy status changed to %d\n", __func__, enable);
+	ppm_ver("forcelimit policy status changed to %d\n", enable);
 
 	FUNC_EXIT(FUNC_LV_POLICY);
 }
 
-unsigned int mt_ppm_forcelimit_cpu_core(unsigned int cluster_num, struct ppm_limit_data *data)
+unsigned int mt_ppm_forcelimit_cpu_core(unsigned int cluster_num,
+	struct ppm_limit_data *data)
 {
 	int i = 0;
 	int min_core, max_core;
@@ -88,7 +91,7 @@ unsigned int mt_ppm_forcelimit_cpu_core(unsigned int cluster_num, struct ppm_lim
 
 	/* Error check */
 	if (cluster_num > NR_PPM_CLUSTERS) {
-		ppm_err("@%s: Invalid cluster num = %d\n", __func__, cluster_num);
+		ppm_err("Invalid cluster num = %d\n", cluster_num);
 		return -1;
 	}
 
@@ -102,12 +105,16 @@ unsigned int mt_ppm_forcelimit_cpu_core(unsigned int cluster_num, struct ppm_lim
 		max_core = data[i].max;
 
 		/* invalid input check */
-		if (min_core != -1 && min_core < (int)get_cluster_min_cpu_core(i)) {
-			ppm_err("@%s: Invalid input! min_core for cluster %d = %d\n", __func__, i, min_core);
+		if (min_core != -1
+			&& min_core < (int)get_cluster_min_cpu_core(i)) {
+			ppm_err("Invalid input! min_core for cluster%d = %d\n",
+				i, min_core);
 			return -1;
 		}
-		if (max_core != -1 && max_core > (int)get_cluster_max_cpu_core(i)) {
-			ppm_err("@%s: Invalid input! max_core for cluster %d = %d\n", __func__, i, max_core);
+		if (max_core != -1
+			&& max_core > (int)get_cluster_max_cpu_core(i)) {
+			ppm_err("Invalid input! max_core for cluster%d = %d\n",
+				i, max_core);
 			return -1;
 		}
 
@@ -122,7 +129,7 @@ unsigned int mt_ppm_forcelimit_cpu_core(unsigned int cluster_num, struct ppm_lim
 
 	ppm_lock(&forcelimit_policy.lock);
 	if (!forcelimit_policy.is_enabled) {
-		ppm_warn("@%s: forcelimit policy is not enabled!\n", __func__);
+		ppm_warn("forcelimit policy is not enabled!\n");
 		ppm_unlock(&forcelimit_policy.lock);
 		return -1;
 	}
@@ -136,7 +143,7 @@ unsigned int mt_ppm_forcelimit_cpu_core(unsigned int cluster_num, struct ppm_lim
 			max_core != forcelimit_data.limit[i].max_core_num) {
 			forcelimit_data.limit[i].min_core_num = min_core;
 			forcelimit_data.limit[i].max_core_num = max_core;
-			ppm_info("update forcelimit min/max core for cluster %d = %d/%d\n",
+			ppm_info("forcelimit min/max core for cl%d=%d/%d\n",
 				i, min_core, max_core);
 		}
 	}
@@ -150,20 +157,22 @@ unsigned int mt_ppm_forcelimit_cpu_core(unsigned int cluster_num, struct ppm_lim
 	return 0;
 }
 
-static int ppm_forcelimit_cpu_core_proc_show(struct seq_file *m, void *v)
+static int ppm_forcelimit_cpu_core_proc_show(
+	struct seq_file *m, void *v)
 {
 	int i;
 
 	for (i = 0; i < forcelimit_policy.req.cluster_num; i++) {
-		seq_printf(m, "cluster %d: min_core_num = %d, max_core_num = %d\n",
-			i, forcelimit_data.limit[i].min_core_num, forcelimit_data.limit[i].max_core_num);
+		seq_printf(m, "cl%d: min_core_num = %d, max_core_num = %d\n",
+			i, forcelimit_data.limit[i].min_core_num,
+			forcelimit_data.limit[i].max_core_num);
 	}
 
 	return 0;
 }
 
-static ssize_t ppm_forcelimit_cpu_core_proc_write(struct file *file, const char __user *buffer,
-					size_t count,	loff_t *pos)
+static ssize_t ppm_forcelimit_cpu_core_proc_write(struct file *file,
+	const char __user *buffer, size_t count, loff_t *pos)
 {
 	int i = 0, data;
 	struct ppm_limit_data core_limit[NR_PPM_CLUSTERS];
@@ -177,7 +186,7 @@ static ssize_t ppm_forcelimit_cpu_core_proc_write(struct file *file, const char 
 	tmp = buf;
 	while ((tok = strsep(&tmp, " ")) != NULL) {
 		if (i == arg_num) {
-			ppm_err("@%s: number of arguments > %d!\n", __func__, arg_num);
+			ppm_err("number of arguments > %d!\n", arg_num);
 			goto out;
 		}
 
@@ -195,7 +204,7 @@ static ssize_t ppm_forcelimit_cpu_core_proc_write(struct file *file, const char 
 	}
 
 	if (i < arg_num)
-		ppm_err("@%s: number of arguments < %d!\n", __func__, arg_num);
+		ppm_err("number of arguments < %d!\n", arg_num);
 	else
 		mt_ppm_forcelimit_cpu_core(NR_PPM_CLUSTERS, core_limit);
 
@@ -223,14 +232,17 @@ static int __init ppm_forcelimit_policy_init(void)
 
 	/* create procfs */
 	for (i = 0; i < ARRAY_SIZE(entries); i++) {
-		if (!proc_create(entries[i].name, S_IRUGO | S_IWUSR | S_IWGRP, policy_dir, entries[i].fops)) {
-			ppm_err("%s(), create /proc/ppm/policy/%s failed\n", __func__, entries[i].name);
+		if (!proc_create(entries[i].name, 0644,
+			policy_dir, entries[i].fops)) {
+			ppm_err("%s(), create /proc/ppm/policy/%s failed\n",
+				__func__, entries[i].name);
 			ret = -EINVAL;
 			goto out;
 		}
 	}
 
-	forcelimit_data.limit = kcalloc(ppm_main_info.cluster_num, sizeof(*forcelimit_data.limit), GFP_KERNEL);
+	forcelimit_data.limit = kcalloc(ppm_main_info.cluster_num,
+		sizeof(*forcelimit_data.limit), GFP_KERNEL);
 	if (!forcelimit_data.limit) {
 		ret = -ENOMEM;
 		goto out;

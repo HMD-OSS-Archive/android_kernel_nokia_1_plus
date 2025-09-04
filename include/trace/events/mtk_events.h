@@ -42,7 +42,8 @@ TRACE_EVENT(tracing_on,
 
 TRACE_EVENT(cpu_hotplug,
 
-	TP_PROTO(unsigned int cpu_id, unsigned int state, unsigned long long ts),
+	TP_PROTO(unsigned int cpu_id, unsigned int state,
+		unsigned long long ts),
 
 	TP_ARGS(cpu_id, state, ts),
 
@@ -145,6 +146,34 @@ TRACE_EVENT(ppm_update,
 		__entry->root, __get_str(limits))
 );
 
+TRACE_EVENT(ppm_user_setting,
+
+		TP_PROTO(unsigned int policy_mask,
+			int cid,
+			unsigned int min_idx,
+			unsigned int max_idx),
+
+		TP_ARGS(policy_mask, cid, min_idx, max_idx),
+
+		TP_STRUCT__entry(
+			__field(unsigned int, mask)
+			__field(int, cid)
+			__field(unsigned int, min_idx)
+			__field(unsigned int, max_idx)
+			),
+
+		TP_fast_assign(
+			__entry->mask = policy_mask;
+			__entry->cid = cid;
+			__entry->min_idx = min_idx;
+			__entry->max_idx = max_idx;
+			),
+
+		TP_printk("policy=%d cid=%d min=%d max=%d",
+				__entry->mask, __entry->cid,
+				__entry->min_idx, __entry->max_idx)
+);
+
 TRACE_EVENT(ppm_hica,
 
 	TP_PROTO(const char *cur_state,
@@ -184,7 +213,8 @@ TRACE_EVENT(ppm_hica,
 		__entry->result = result;
 	),
 
-	TP_printk("%s->%s(%s), usage=%ld, capacity=%ld, big_tsk=%d/%d, heavy_tsk=%d, freq=%d",
+	TP_printk
+("%s->%s(%s), usage=%ld, capacity=%ld, big_tsk=%d/%d, heavy_tsk=%d, freq=%d",
 		__get_str(cur), __get_str(target),
 		(__entry->result) ? "O" : "X",
 		__entry->usage, __entry->capacity,
@@ -235,7 +265,8 @@ TRACE_EVENT(ppm_limit_callback_update,
 		__entry->max_cpu_core = max_cpu_core;
 	),
 
-	TP_printk("ppm_limit_callback -> cluster%d: has_advise_core = %d, [%d, %d]\n",
+	TP_printk
+	("ppm_limit_callback -> cluster%d: has_advise_core = %d, [%d, %d]\n",
 		__entry->i, __entry->has_advise_core,
 		__entry->min_cpu_core, __entry->max_cpu_core)
 );
@@ -256,8 +287,8 @@ TRACE_EVENT(hps_update,
 		 unsigned int rush_cnt,
 		 char *target),
 
-	TP_ARGS(actionID, online, cur_load, cur_tlp, cur_iowait, hvytsk, limit, base,
-		up_avg, down_avg, tlp_avg, rush_cnt, target),
+	TP_ARGS(actionID, online, cur_load, cur_tlp, cur_iowait, hvytsk,
+		limit, base, up_avg, down_avg, tlp_avg, rush_cnt, target),
 
 	TP_STRUCT__entry(
 		__field(unsigned int, actionID)
@@ -290,10 +321,12 @@ TRACE_EVENT(hps_update,
 		__entry->rush_cnt = rush_cnt;
 		__assign_str(target, target);),
 
-	TP_printk("(0x%X)%s action end (%u)(%u)(%u) %s %s%s (%u)(%u)(%u)(%u) %s",
-		__entry->actionID, __get_str(online), __entry->cur_load, __entry->cur_tlp,
-		__entry->cur_iowait, __get_str(hvytsk), __get_str(limit), __get_str(base),
-		__entry->up_avg, __entry->down_avg, __entry->tlp_avg, __entry->rush_cnt,
+	TP_printk
+	("(0x%X)%s action end (%u)(%u)(%u) %s %s%s (%u)(%u)(%u)(%u) %s",
+		__entry->actionID, __get_str(online), __entry->cur_load,
+		__entry->cur_tlp, __entry->cur_iowait, __get_str(hvytsk),
+		__get_str(limit), __get_str(base), __entry->up_avg,
+		__entry->down_avg, __entry->tlp_avg, __entry->rush_cnt,
 		__get_str(target))
 );
 
@@ -327,8 +360,9 @@ TRACE_EVENT(sched_update,
 		__entry->sched_info_3 = sched_info_cpu3;
 	),
 
-	TP_printk("(%d)(0x%x)(0x%x)(0x%x)(0x%x)", __entry->root_cpu, __entry->sched_info_0,
-		__entry->sched_info_1, __entry->sched_info_2, __entry->sched_info_3)
+	TP_printk("(%d)(0x%x)(0x%x)(0x%x)(0x%x)",
+	__entry->root_cpu, __entry->sched_info_0,
+	__entry->sched_info_1, __entry->sched_info_2, __entry->sched_info_3)
 );
 #else
 TRACE_EVENT(sched_update,
@@ -376,10 +410,198 @@ TRACE_EVENT(sspm_ipi,
 		__entry->ipi_opt = ipi_opt;
 	),
 
-	TP_printk("start=%d, id=%d, opt=%d", __entry->start, __entry->ipi_id, __entry->ipi_opt)
+	TP_printk("start=%d, id=%d, opt=%d",
+	__entry->start, __entry->ipi_id, __entry->ipi_opt)
+);
+
+TRACE_EVENT(trigger_lowmem_hint,
+	TP_PROTO(
+		long mm_free,
+		long mm_thrash
+	),
+
+	TP_ARGS(mm_free, mm_thrash),
+
+	TP_STRUCT__entry(
+		__field(long, mm_free)
+		__field(long, mm_thrash)
+	),
+
+	TP_fast_assign(
+		__entry->mm_free = mm_free;
+		__entry->mm_thrash = mm_thrash;
+	),
+
+	TP_printk("free=%ld thrash=%ld",
+		__entry->mm_free, __entry->mm_thrash
+	)
+);
+
+TRACE_EVENT(lowmem_hint_uevent,
+	TP_PROTO(
+		int ret
+	),
+
+	TP_ARGS(ret),
+
+	TP_STRUCT__entry(
+		__field(int, ret)
+	),
+
+	TP_fast_assign(
+		__entry->ret = ret;
+	),
+
+	TP_printk("ret=%d",
+		__entry->ret
+	)
+);
+
+TRACE_EVENT(perf_index_s,
+	TP_PROTO(
+		unsigned int sf0,
+		unsigned int sf1,
+		unsigned int sf2,
+		int dram_freq,
+		int bw_c,
+		int bw_g,
+		int bw_mm,
+		int bw_total
+	),
+
+	TP_ARGS(sf0, sf1, sf2, dram_freq, bw_c, bw_g, bw_mm, bw_total),
+
+	TP_STRUCT__entry(
+		__field(unsigned int, sf0)
+		__field(unsigned int, sf1)
+		__field(unsigned int, sf2)
+		__field(int, dram_freq)
+		__field(int, bw_c)
+		__field(int, bw_g)
+		__field(int, bw_mm)
+		__field(int, bw_total)
+	),
+
+	TP_fast_assign(
+		__entry->sf0       = sf0;
+		__entry->sf1       = sf1;
+		__entry->sf2       = sf2;
+		__entry->dram_freq = dram_freq;
+		__entry->bw_c      = bw_c;
+		__entry->bw_g      = bw_g;
+		__entry->bw_mm     = bw_mm;
+		__entry->bw_total  = bw_total;
+	),
+
+	TP_printk("sched_freq=%d|%d|%d dram_freq=%d bw=%d|%d|%d|%d",
+		__entry->sf0,
+		__entry->sf1,
+		__entry->sf2,
+		__entry->dram_freq,
+		__entry->bw_c,
+		__entry->bw_g,
+		__entry->bw_mm,
+		__entry->bw_total)
+);
+
+
+	TRACE_EVENT(perf_index_l,
+
+	TP_PROTO(
+		long free_mem,
+		long avail_mem,
+		int io_wl,
+		int io_req_r,
+		int io_all_r,
+		int io_reqsz_r,
+		int io_reqc_r,
+		int io_req_w,
+		int io_all_w,
+		int io_reqsz_w,
+		int io_reqc_w,
+		int io_dur,
+		int io_q_dept,
+		int *stall
+	),
+
+	TP_ARGS(free_mem,
+		avail_mem,
+		io_wl,
+		io_req_r, io_all_r, io_reqsz_r, io_reqc_r,
+		io_req_w, io_all_w, io_reqsz_w, io_reqc_w,
+		io_dur,
+		io_q_dept,
+		stall
+),
+
+	TP_STRUCT__entry(
+		__field(long, free_mem)
+		__field(long, avail_mem)
+		__field(int, io_wl)
+		__field(int, io_req_r)
+		__field(int, io_all_r)
+		__field(int, io_reqsz_r)
+		__field(int, io_reqc_r)
+		__field(int, io_req_w)
+		__field(int, io_all_w)
+		__field(int, io_reqsz_w)
+		__field(int, io_reqc_w)
+		__field(int, io_dur)
+		__field(int, io_q_dept)
+		__array(int, stall, 8)
+	),
+
+	TP_fast_assign(
+		__entry->free_mem   = free_mem;
+		__entry->avail_mem  = avail_mem;
+		__entry->io_wl      = io_wl;
+		__entry->io_req_r   = io_req_r;
+		__entry->io_all_r   = io_all_r;
+		__entry->io_reqsz_r = io_reqsz_r;
+		__entry->io_reqc_r  = io_reqc_r;
+		__entry->io_req_w   = io_req_w;
+		__entry->io_all_w   = io_all_w;
+		__entry->io_reqsz_w = io_reqsz_w;
+		__entry->io_reqc_w  = io_reqc_w;
+		__entry->io_dur     = io_dur;
+		__entry->io_q_dept  = io_q_dept;
+		memcpy(__entry->stall, stall, sizeof(int)*8);
+	),
+
+	TP_printk(
+		"free_mem=%ld avail_mem=%ld iostats=%d|%d|%d|%d|%d|%d|%d|%d|%d|%d|%d stall=%d|%d|%d|%d|%d|%d|%d|%d",
+		__entry->free_mem,
+		__entry->avail_mem,
+		__entry->io_wl,
+		__entry->io_req_r, __entry->io_all_r,
+		__entry->io_reqsz_r, __entry->io_reqc_r,
+		__entry->io_req_w, __entry->io_all_w,
+		__entry->io_reqsz_w, __entry->io_reqc_w,
+		__entry->io_dur,  __entry->io_q_dept,
+		__entry->stall[0], __entry->stall[1],
+		__entry->stall[2], __entry->stall[3],
+		__entry->stall[4], __entry->stall[5],
+		__entry->stall[6], __entry->stall[7])
 );
 
 #endif /* _TRACE_MTK_EVENTS_H */
+
+TRACE_EVENT(swpm_power,
+
+	TP_PROTO(char *power),
+
+	TP_ARGS(power),
+
+	TP_STRUCT__entry(
+		 __string(power_str, power)
+	),
+
+	TP_fast_assign(
+		__assign_str(power_str, power);
+	),
+
+	TP_printk("%s", __get_str(power_str))
+);
 
 /* This part must be outside protection */
 #include <trace/define_trace.h>

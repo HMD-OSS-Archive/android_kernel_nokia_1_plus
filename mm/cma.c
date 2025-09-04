@@ -36,16 +36,12 @@
 #include <linux/highmem.h>
 #include <linux/io.h>
 #include <trace/events/cma.h>
-#include <linux/debugfs.h>
-#include <linux/seq_file.h>
-#include <linux/swap.h>
 
 #include "cma.h"
 
 struct cma cma_areas[MAX_CMA_AREAS];
 unsigned cma_area_count;
 static DEFINE_MUTEX(cma_mutex);
-static unsigned long cma_usage;
 
 phys_addr_t cma_get_base(const struct cma *cma)
 {
@@ -55,6 +51,11 @@ phys_addr_t cma_get_base(const struct cma *cma)
 unsigned long cma_get_size(const struct cma *cma)
 {
 	return cma->count << PAGE_SHIFT;
+}
+
+const char *cma_get_name(const struct cma *cma)
+{
+	return cma->name ? cma->name : "(undefined)";
 }
 
 /* Get all cma range */
@@ -128,8 +129,10 @@ static int __init cma_activate_area(struct cma *cma)
 
 	cma->bitmap = kzalloc(bitmap_size, GFP_KERNEL);
 
-	if (!cma->bitmap)
+	if (!cma->bitmap) {
+		cma->count = 0;
 		return -ENOMEM;
+	}
 
 	WARN_ON_ONCE(!pfn_valid(pfn));
 	zone = page_zone(pfn_to_page(pfn));
@@ -147,7 +150,7 @@ static int __init cma_activate_area(struct cma *cma)
 			 * to be in the same zone.
 			 */
 			if (page_zone(pfn_to_page(pfn)) != zone)
-				goto err;
+				goto not_in_zone;
 		}
 		init_cma_reserved_pageblock(pfn_to_page(base_pfn));
 	} while (--i);
@@ -161,7 +164,8 @@ static int __init cma_activate_area(struct cma *cma)
 
 	return 0;
 
-err:
+not_in_zone:
+	pr_err("CMA area %s could not be activated\n", cma->name);
 	kfree(cma->bitmap);
 	cma->count = 0;
 	return -EINVAL;
@@ -214,6 +218,7 @@ core_initcall(cma_init_reserved_areas);
  */
 int __init cma_init_reserved_mem(phys_addr_t base, phys_addr_t size,
 				 unsigned int order_per_bit,
+				 const char *name,
 				 struct cma **res_cma)
 {
 	struct cma *cma;
@@ -244,6 +249,13 @@ int __init cma_init_reserved_mem(phys_addr_t base, phys_addr_t size,
 	 * subsystems (like slab allocator) are available.
 	 */
 	cma = &cma_areas[cma_area_count];
+	if (name) {
+		cma->name = name;
+	} else {
+		cma->name = kasprintf(GFP_KERNEL, "cma%d\n", cma_area_count);
+		if (!cma->name)
+			return -ENOMEM;
+	}
 	cma->base_pfn = PFN_DOWN(base);
 	cma->count = size >> PAGE_SHIFT;
 	cma->order_per_bit = order_per_bit;
@@ -275,24 +287,19 @@ int __init cma_init_reserved_mem(phys_addr_t base, phys_addr_t size,
 int __init cma_declare_contiguous(phys_addr_t base,
 			phys_addr_t size, phys_addr_t limit,
 			phys_addr_t alignment, unsigned int order_per_bit,
-			bool fixed, struct cma **res_cma)
+			bool fixed, const char *name, struct cma **res_cma)
 {
 	phys_addr_t memblock_end = memblock_end_of_DRAM();
 	phys_addr_t highmem_start;
 	int ret = 0;
 
-#ifdef CONFIG_X86
 	/*
-	 * high_memory isn't direct mapped memory so retrieving its physical
-	 * address isn't appropriate.  But it would be useful to check the
-	 * physical address of the highmem boundary so it's justifiable to get
-	 * the physical address from it.  On x86 there is a validation check for
-	 * this case, so the following workaround is needed to avoid it.
+	 * We can't use __pa(high_memory) directly, since high_memory
+	 * isn't a valid direct map VA, and DEBUG_VIRTUAL will (validly)
+	 * complain. Find the boundary by adding one to the last valid
+	 * address.
 	 */
-	highmem_start = __pa_nodebug(high_memory);
-#else
-	highmem_start = __pa(high_memory);
-#endif
+	highmem_start = __pa(high_memory - 1) + 1;
 	pr_debug("%s(size %pa, base %pa, limit %pa alignment %pa)\n",
 		__func__, &size, &base, &limit, &alignment);
 
@@ -315,6 +322,12 @@ int __init cma_declare_contiguous(phys_addr_t base,
 	 */
 	alignment = max(alignment,  (phys_addr_t)PAGE_SIZE <<
 			  max_t(unsigned long, MAX_ORDER - 1, pageblock_order));
+	if (fixed && base & (alignment - 1)) {
+		ret = -EINVAL;
+		pr_err("Region at %pa must be aligned to %pa bytes\n",
+			&base, &alignment);
+		goto err;
+	}
 	base = ALIGN(base, alignment);
 	size = ALIGN(size, alignment);
 	limit &= ~(alignment - 1);
@@ -344,6 +357,13 @@ int __init cma_declare_contiguous(phys_addr_t base,
 	 */
 	if (limit == 0 || limit > memblock_end)
 		limit = memblock_end;
+
+	if (base + size > limit) {
+		ret = -EINVAL;
+		pr_err("Size (%pa) of region at %pa exceeds limit (%pa)\n",
+			&size, &base, &limit);
+		goto err;
+	}
 
 	/* Reserve memory */
 	if (fixed) {
@@ -382,22 +402,53 @@ int __init cma_declare_contiguous(phys_addr_t base,
 		 * kmemleak scans/reads tracked objects for pointers to other
 		 * objects but this address isn't mapped and accessible
 		 */
-		kmemleak_ignore(phys_to_virt(addr));
+		kmemleak_ignore_phys(addr);
 		base = addr;
 	}
 
-	ret = cma_init_reserved_mem(base, size, order_per_bit, res_cma);
+	ret = cma_init_reserved_mem(base, size, order_per_bit, name, res_cma);
 	if (ret)
-		goto err;
+		goto free_mem;
 
 	pr_info("Reserved %ld MiB at %pa\n", (unsigned long)size / SZ_1M,
 		&base);
 	return 0;
 
+free_mem:
+	memblock_free(base, size);
 err:
 	pr_err("Failed to reserve %ld MiB\n", (unsigned long)size / SZ_1M);
 	return ret;
 }
+
+#ifdef CONFIG_CMA_DEBUG
+static void cma_debug_show_areas(struct cma *cma)
+{
+	unsigned long next_zero_bit, next_set_bit, nr_zero;
+	unsigned long start = 0;
+	unsigned long nr_part, nr_total = 0;
+	unsigned long nbits = cma_bitmap_maxno(cma);
+
+	mutex_lock(&cma->lock);
+	pr_info("number of available pages: ");
+	for (;;) {
+		next_zero_bit = find_next_zero_bit(cma->bitmap, nbits, start);
+		if (next_zero_bit >= nbits)
+			break;
+		next_set_bit = find_next_bit(cma->bitmap, nbits, next_zero_bit);
+		nr_zero = next_set_bit - next_zero_bit;
+		nr_part = nr_zero << cma->order_per_bit;
+		pr_cont("%s%lu@%lu", nr_total ? "+" : "", nr_part,
+			next_zero_bit);
+		nr_total += nr_part;
+		start = next_zero_bit + nr_zero;
+	}
+	pr_cont("=> %lu free of %lu total pages\n", nr_total, cma->count);
+	mutex_unlock(&cma->lock);
+}
+#else
+static inline void cma_debug_show_areas(struct cma *cma) { }
+#endif
 
 /**
  * cma_alloc() - allocate pages from contiguous area
@@ -408,14 +459,15 @@ err:
  * This function allocates part of contiguous memory on specific
  * contiguous memory area.
  */
-struct page *cma_alloc(struct cma *cma, size_t count, unsigned int align)
+struct page *cma_alloc(struct cma *cma, size_t count, unsigned int align,
+		       gfp_t gfp_mask)
 {
 	unsigned long mask, offset;
 	unsigned long pfn = -1;
 	unsigned long start = 0;
 	unsigned long bitmap_maxno, bitmap_no, bitmap_count;
 	struct page *page = NULL;
-	int ret;
+	int ret = -ENOMEM;
 
 	if (!cma || !cma->count)
 		return NULL;
@@ -430,6 +482,9 @@ struct page *cma_alloc(struct cma *cma, size_t count, unsigned int align)
 	offset = cma_bitmap_aligned_offset(cma, align);
 	bitmap_maxno = cma_bitmap_maxno(cma);
 	bitmap_count = cma_bitmap_pages_to_bits(cma, count);
+
+	if (bitmap_count > bitmap_maxno)
+		return NULL;
 
 	for (;;) {
 		mutex_lock(&cma->lock);
@@ -450,14 +505,10 @@ struct page *cma_alloc(struct cma *cma, size_t count, unsigned int align)
 
 		pfn = cma->base_pfn + (bitmap_no << cma->order_per_bit);
 		mutex_lock(&cma_mutex);
-		ret = alloc_contig_range(pfn, pfn + count, MIGRATE_CMA);
+		ret = alloc_contig_range(pfn, pfn + count, MIGRATE_CMA,
+					 gfp_mask);
 		mutex_unlock(&cma_mutex);
 		if (ret == 0) {
-
-			mutex_lock(&cma_mutex);
-			cma_usage += count;
-			mutex_unlock(&cma_mutex);
-
 			page = pfn_to_page(pfn);
 			break;
 		}
@@ -473,6 +524,12 @@ struct page *cma_alloc(struct cma *cma, size_t count, unsigned int align)
 	}
 
 	trace_cma_alloc(pfn, page, count, align);
+
+	if (ret && !(gfp_mask & __GFP_NOWARN)) {
+		pr_info("%s: alloc failed, req-size: %zu pages, ret: %d\n",
+			__func__, count, ret);
+		cma_debug_show_areas(cma);
+	}
 
 	pr_debug("%s(): returned %p\n", __func__, page);
 	return page;
@@ -508,134 +565,19 @@ bool cma_release(struct cma *cma, const struct page *pages, unsigned int count)
 	cma_clear_bitmap(cma, pfn, count);
 	trace_cma_release(pfn, pages, count);
 
-	mutex_lock(&cma_mutex);
-	cma_usage -= count;
-	mutex_unlock(&cma_mutex);
-
 	return true;
 }
 
-#define MAX_SHRINK_PAGES  ((unsigned long)40*1024*1024/4096)
-
-/*
- * Make sure we have at least @pages of free memory
- * return number of pages freed
- */
-static unsigned long try_shrink_memory(unsigned long pages)
+int cma_for_each_area(int (*it)(struct cma *cma, void *data), void *data)
 {
-	unsigned long free = nr_free_pages(), tfree = 0, ofree, alloc;
-	int max_retries;
-	unsigned long start, end;
+	int i;
 
-	start = sched_clock();
+	for (i = 0; i < cma_area_count; i++) {
+		int ret = it(&cma_areas[i], data);
 
-	ofree = free;
-	max_retries = pages / MAX_SHRINK_PAGES + 5;
-	while (pages > free && max_retries--) {
-		/*
-		 * When shrinking large numbers of pages at once, vmscan
-		 * tends to free too much pages and using lots of time.
-		 *
-		 * Only shrink a maximum number of page at a time.
-		 */
-		alloc = min(MAX_SHRINK_PAGES, pages - free);
-		tfree += shrink_all_memory_no_swap(alloc);
-		free = nr_free_pages();
-	}
-
-	end = sched_clock();
-	pr_info("%s: free pages %lu, current free %lu, takes %lu us\n",
-		__func__, tfree, nr_free_pages(), end-start);
-
-	return tfree;
-}
-
-/**
- * cma_alloc_large() - Allocate large chunk of memory from the cma zone.
- * @cma:   Contiguous memory region for which the allocation is performed.
- * @count: Requested number of pages.
- * @align: Requested alignment of pages (in PAGE_SIZE order).
- *
- * Normal cma_alloc will easily to fail and/or take lots of time when user
- * trying to allocate large chunk of memory from it. Add helper function
- * to improve this usage.
- *
- * return first page of allocated memory.
- */
-struct page *cma_alloc_large(struct cma *cma, int count, unsigned int align)
-{
-	struct page *page;
-	struct zone *zone;
-	unsigned long wmark_low = 0;
-	struct zone *zones = NODE_DATA(numa_node_id())->node_zones;
-	int retries = 0;
-
-	for_each_zone(zone)
-		if (zone != &zones[ZONE_MOVABLE])
-			wmark_low += zone->watermark[WMARK_LOW];
-
-	/*
-	 * Make sure we have enough free memory to fullfil this request.
-	 *
-	 * This helps to trigger memory shrinker faster and make sure cma_alloc
-	 * below will success.
-	 * Without this, pages migrate out from CMA ares might be freed when
-	 * CMA tries to make room to migrate more pages. This also reduces
-	 * pages CMA need to handle by freeing them first.
-	 *
-	 * Kernel will start memory reclaim when free memory is lower than
-	 * low watermark. To avoid this while we do cma_alloc, we should make
-	 * sure free memory is more than count + wmark_low
-	 */
-	try_shrink_memory(count + wmark_low);
-
-	for (retries = 0; retries < 3; retries++) {
-		page = cma_alloc(cma, count, align);
-		if (page)
-			return page;
+		if (ret)
+			return ret;
 	}
 
 	return 0;
 }
-
-static int cma_usage_show(struct seq_file *m, void *v)
-{
-	unsigned char *fmt = "%-10s: %10lu kB\n";
-
-	seq_printf(m, fmt, "CMA usage", cma_usage*4);
-
-	return 0;
-}
-
-static int cma_usage_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, &cma_usage_show, NULL);
-}
-
-static const struct file_operations memory_ssvp_fops = {
-	.open		= cma_usage_open,
-	.read		= seq_read,
-	.release	= single_release,
-};
-
-/**
- * Provide CMA memory allocation usage
- * cat /sys/kernel/debug/cmainfo
- */
-static int __init cma_debug_init(void)
-{
-	int ret = 0;
-
-	struct dentry *dentry;
-
-	dentry = debugfs_create_file("cmainfo", S_IRUGO, NULL, NULL,
-					&memory_ssvp_fops);
-	if (!dentry)
-		pr_warn("Failed to create debugfs cmainfo file\n");
-	else
-		pr_info("cma usage create success.");
-
-	return ret;
-}
-
-late_initcall(cma_debug_init);

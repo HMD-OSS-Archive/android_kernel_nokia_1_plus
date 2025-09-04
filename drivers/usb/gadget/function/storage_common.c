@@ -42,7 +42,6 @@ fsg_otg_desc = {
 	.bcdOTG = cpu_to_le16(0x200),
 };
 #endif
-
 /* There is only one interface. */
 
 struct usb_interface_descriptor fsg_intf_desc = {
@@ -98,9 +97,7 @@ EXPORT_SYMBOL_GPL(fsg_fs_function);
  * USB 2.0 devices need to expose both high speed and full speed
  * descriptors, unless they only run at full speed.
  *
- * That means alternate endpoint descriptors (bigger packets)
- * and a "device qualifier" ... plus more construction options
- * for the configuration descriptor.
+ * That means alternate endpoint descriptors (bigger packets).
  */
 struct usb_endpoint_descriptor fsg_hs_bulk_in_desc = {
 	.bLength =		USB_DT_ENDPOINT_SIZE,
@@ -392,6 +389,12 @@ ssize_t fsg_show_removable(struct fsg_lun *curlun, char *buf)
 }
 EXPORT_SYMBOL_GPL(fsg_show_removable);
 
+ssize_t fsg_show_inquiry_string(struct fsg_lun *curlun, char *buf)
+{
+	return sprintf(buf, "%s\n", curlun->inquiry_string);
+}
+EXPORT_SYMBOL_GPL(fsg_show_inquiry_string);
+
 /*
  * The caller must hold fsg->filesem for reading when calling this function.
  */
@@ -457,25 +460,25 @@ ssize_t fsg_store_file(struct fsg_lun *curlun, struct rw_semaphore *filesem,
 {
 	int		rc = 0;
 
-#if !defined(CONFIG_USB_G_ANDROID)
 	if (curlun->prevent_medium_removal && fsg_lun_is_open(curlun)) {
 		LDBG(curlun, "eject attempt prevented\n");
 		return -EBUSY;				/* "Door is locked" */
 	}
-#endif
-
-	pr_notice("fsg_store_file file=%s, count=%d, curlun->cdrom=%d\n", buf, (int)count, curlun->cdrom);
+	pr_notice("%s file=%s, count=%d, curlun->cdrom=%d\n",
+			__func__, buf, (int)count, curlun->cdrom);
 
 	/*
 	 * WORKAROUND:VOLD would clean the file path after switching to bicr.
-	 * So when the lun is being a CD-ROM a.k.a. BICR. Dont clean the file path to empty.
+	 * So when the lun is being a CD-ROM a.k.a. BICR.
+	 * Dont clean the file path to empty.
 	 */
 	if (curlun->cdrom == 1 && count == 1)
 		return count;
 
 	/*
-	 * WORKAROUND:Should be closed the fsg lun for virtual cd-rom, when switch to
-	 * other usb functions. Use the special keyword "off", because the init can
+	 * WORKAROUND:Should be closed the fsg lun for virtual cd-rom,
+	 * when switch to other usb functions.
+	 * Use the special keyword "off", because the init can
 	 * not parse the char '\n' in rc file and write into the sysfs.
 	 */
 	if (count == 3 &&
@@ -543,5 +546,23 @@ ssize_t fsg_store_removable(struct fsg_lun *curlun, const char *buf,
 	return count;
 }
 EXPORT_SYMBOL_GPL(fsg_store_removable);
+
+ssize_t fsg_store_inquiry_string(struct fsg_lun *curlun, const char *buf,
+				 size_t count)
+{
+	const size_t len = min(count, sizeof(curlun->inquiry_string));
+
+	if (len == 0 || buf[0] == '\n') {
+		curlun->inquiry_string[0] = 0;
+	} else {
+		snprintf(curlun->inquiry_string,
+			 sizeof(curlun->inquiry_string), "%-28s", buf);
+		if (curlun->inquiry_string[len-1] == '\n')
+			curlun->inquiry_string[len-1] = ' ';
+	}
+
+	return count;
+}
+EXPORT_SYMBOL_GPL(fsg_store_inquiry_string);
 
 MODULE_LICENSE("GPL");

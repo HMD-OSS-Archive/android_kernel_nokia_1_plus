@@ -14,7 +14,7 @@
 #ifndef _MT_PPM_IPI_
 #define _MT_PPM_IPI_
 
-#include "mach/mtk_ppm_api.h"
+#include "mtk_ppm_api.h"
 #include "mtk_ppm_platform.h"
 
 
@@ -32,7 +32,9 @@ enum {
 
 /* IPI Msg data structure */
 struct ppm_ipi_data {
+	/* 1 int for opcode */
 	unsigned int cmd;
+	/* 6 int for ipi data */
 	union {
 		struct {
 			unsigned int efuse_val;
@@ -44,9 +46,8 @@ struct ppm_ipi_data {
 				unsigned char min_cpufreq_idx;
 				unsigned char max_cpufreq_idx;
 				unsigned char max_cpu_core;
-				unsigned char advise_cpufreq_idx;
+				unsigned char advise_freq_idx;
 			} cluster_limit[NR_PPM_CLUSTERS];
-			unsigned int reserved[PPM_D_LEN-NR_PPM_CLUSTERS-1];
 		} update_limit;
 		struct {
 			unsigned int budget;
@@ -54,6 +55,7 @@ struct ppm_ipi_data {
 		struct {
 			unsigned int activate;
 		} ptpod_test;
+		/* padding to 6 int */
 		struct {
 			unsigned int ppm_data[6];
 		};

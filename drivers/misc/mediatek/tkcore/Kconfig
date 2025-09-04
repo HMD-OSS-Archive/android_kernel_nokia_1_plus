@@ -21,7 +21,8 @@ config TRUSTKERNEL_TEE_SUPPORT
 
 config TRUSTKERNEL_TEE_FP_SUPPORT
 	bool "TrustKernel Trusted Execution Environment Finger Print Support"
-	default n
+	depends on TRUSTKERNEL_TEE_SUPPORT
+	default y
 	---help---
 	  Enable TrustKernel TEE clock management mechanism.
 	  This feature allows TEE OS to manage clock already
@@ -31,6 +32,7 @@ config TRUSTKERNEL_TEE_FP_SUPPORT
 
 config TRUSTKERNEL_TEE_RPMB_SUPPORT
 	bool "TrustKernel Trusted Execution Environment RPMB Support"
+	depends on TRUSTKERNEL_TEE_SUPPORT
 	default n
 	---help---
 	  Enable the access of Replay Protected Memory Block

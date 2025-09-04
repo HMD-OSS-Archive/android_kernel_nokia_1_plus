@@ -1,31 +1,31 @@
 /*
-* HDMI support
-*
-* Copyright (C) 2013 ITE Tech. Inc.
-* Author: Hermes Wu <hermes.wu@ite.com.tw>
-*
-* HDMI TX driver for IT66121
-*
-*
-* This program is free software; you can redistribute it and/or modify it
-* under the terms of the GNU General Public License version 2 as published by
-* the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful, but WITHOUT
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
-* more details.
-*
-* You should have received a copy of the GNU General Public License along with
-* this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ * HDMI support
+ *
+ * Copyright (C) 2013 ITE Tech. Inc.
+ * Author: Hermes Wu <hermes.wu@ite.com.tw>
+ *
+ * HDMI TX driver for IT66121
+ *
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #ifndef _HDMITX_SYS_H_
 #define _HDMITX_SYS_H_
 
-#include "itx_typedef.h"
-#include "hdmi_drv.h"
 #include "extd_hdmi.h"
+#include "hdmi_drv.h"
+#include "itx_typedef.h"
 #define I2S 0
 #define SPDIF 1
 
@@ -45,45 +45,45 @@ void InitHDMITX_Variable(void);
 void HDMITX_SetOutput(void);
 void HDMITX_DevLoopProc(void);
 
-extern struct switch_dev hdmi_switch_data;
+/*extern struct switch_dev hdmi_switch_data;*/
 extern void switch_host_interface_timing(int out);
 extern void init_hdmi_disp_path(int out);
 /* extern int start_output; */
 
 #ifndef I2S_FORMAT
-#define I2S_FORMAT 0x01		/* 32bit audio */
+#define I2S_FORMAT 0x01 /* 32bit audio */
 #endif
 
 #ifndef INPUT_SAMPLE_FREQ
 #define INPUT_SAMPLE_FREQ AUDFS_48KHz
-#endif				/* INPUT_SAMPLE_FREQ */
+#endif /* INPUT_SAMPLE_FREQ */
 
 #ifndef INPUT_SAMPLE_FREQ_HZ
 #define INPUT_SAMPLE_FREQ_HZ 48000L
-#endif				/* INPUT_SAMPLE_FREQ_HZ */
+#endif /* INPUT_SAMPLE_FREQ_HZ */
 
 #ifndef OUTPUT_CHANNEL
 #define OUTPUT_CHANNEL 2
-#endif				/* OUTPUT_CHANNEL */
+#endif /* OUTPUT_CHANNEL */
 
 #ifndef CNOFIG_INPUT_AUDIO_TYPE
 #define CNOFIG_INPUT_AUDIO_TYPE T_AUDIO_LPCM
-    /* #define CNOFIG_INPUT_AUDIO_TYPE T_AUDIO_NLPCM */
-    /* #define CNOFIG_INPUT_AUDIO_TYPE T_AUDIO_HBR */
-#endif				/* CNOFIG_INPUT_AUDIO_TYPE */
+/* #define CNOFIG_INPUT_AUDIO_TYPE T_AUDIO_NLPCM */
+/* #define CNOFIG_INPUT_AUDIO_TYPE T_AUDIO_HBR */
+#endif /* CNOFIG_INPUT_AUDIO_TYPE */
 
 #ifndef CONFIG_INPUT_AUDIO_SPDIF
 #define CONFIG_INPUT_AUDIO_SPDIF I2S
-    /* #define CONFIG_INPUT_AUDIO_SPDIF  SPDIF */
-#endif				/* CONFIG_INPUT_AUDIO_SPDIF */
+/* #define CONFIG_INPUT_AUDIO_SPDIF  SPDIF */
+#endif /* CONFIG_INPUT_AUDIO_SPDIF */
 
 #ifndef INPUT_SIGNAL_TYPE
-#define INPUT_SIGNAL_TYPE 0	/* 24 bit sync separate */
+#define INPUT_SIGNAL_TYPE 0 /* 24 bit sync separate */
 #endif
 
-/* ////////////////////////////////////////////////////////////////////////////// */
+
 /* Internal Data Type */
-/* ////////////////////////////////////////////////////////////////////////////// */
+
 
 enum _HDMI_Video_Type {
 	HDMI_Unknown = 0,
@@ -109,23 +109,13 @@ enum _HDMI_Video_Type {
 };
 #define HDMI_Video_Type enum _HDMI_Video_Type
 
-enum _HDMI_Aspec {
-	HDMI_4x3,
-	HDMI_16x9
-};
+enum _HDMI_Aspec { HDMI_4x3, HDMI_16x9 };
 #define HDMI_Aspec enum _HDMI_Aspec
 
-enum _HDMI_OutputColorMode {
-	HDMI_RGB444,
-	HDMI_YUV444,
-	HDMI_YUV422
-};
+enum _HDMI_OutputColorMode { HDMI_RGB444, HDMI_YUV444, HDMI_YUV422 };
 #define HDMI_OutputColorMode enum _HDMI_OutputColorMode
 
-enum _HDMI_Colorimetry {
-	HDMI_ITU601,
-	HDMI_ITU709
-};
+enum _HDMI_Colorimetry { HDMI_ITU601, HDMI_ITU709 };
 #define HDMI_Colorimetry enum _HDMI_Colorimetry
 
 struct VideoTiming {
@@ -134,8 +124,6 @@ struct VideoTiming {
 	unsigned char pixelrep;
 	unsigned char outputVideoMode;
 };
-
-
 
 enum _TXVideo_State_Type {
 	TXVSTATE_Unplug = 0,
@@ -162,10 +150,10 @@ enum _TXAudio_State_Type {
 /* RX Capability. */
 /* /////////////////////////////////////// */
 struct _LPCM_BitWidth {
-	unsigned char b16bit:1;
-	unsigned char b20bit:1;
-	unsigned char b24bit:1;
-	unsigned char Rsrv:5;
+	unsigned char b16bit : 1;
+	unsigned char b20bit : 1;
+	unsigned char b24bit : 1;
+	unsigned char Rsrv : 5;
 };
 #define LPCM_BitWidth struct _LPCM_BitWidth
 
@@ -191,18 +179,18 @@ enum _AUDIO_FORMAT_CODE {
 
 union _AUDDESCRIPTOR {
 	struct {
-		unsigned char channel:3;
-		unsigned char AudioFormatCode:4;
-		unsigned char Rsrv1:1;
+		unsigned char channel : 3;
+		unsigned char AudioFormatCode : 4;
+		unsigned char Rsrv1 : 1;
 
-		unsigned char b32KHz:1;
-		unsigned char b44_1KHz:1;
-		unsigned char b48KHz:1;
-		unsigned char b88_2KHz:1;
-		unsigned char b96KHz:1;
-		unsigned char b176_4KHz:1;
-		unsigned char b192KHz:1;
-		unsigned char Rsrv2:1;
+		unsigned char b32KHz : 1;
+		unsigned char b44_1KHz : 1;
+		unsigned char b48KHz : 1;
+		unsigned char b88_2KHz : 1;
+		unsigned char b96KHz : 1;
+		unsigned char b176_4KHz : 1;
+		unsigned char b192KHz : 1;
+		unsigned char Rsrv2 : 1;
 		unsigned char ucCode;
 	} s;
 	unsigned char uc[3];
@@ -211,43 +199,42 @@ union _AUDDESCRIPTOR {
 
 union _SPK_ALLOC {
 	struct {
-		unsigned char FL_FR:1;
-		unsigned char LFE:1;
-		unsigned char FC:1;
-		unsigned char RL_RR:1;
-		unsigned char RC:1;
-		unsigned char FLC_FRC:1;
-		unsigned char RLC_RRC:1;
-		unsigned char Reserve:1;
+		unsigned char FL_FR : 1;
+		unsigned char LFE : 1;
+		unsigned char FC : 1;
+		unsigned char RL_RR : 1;
+		unsigned char RC : 1;
+		unsigned char FLC_FRC : 1;
+		unsigned char RLC_RRC : 1;
+		unsigned char Reserve : 1;
 		unsigned char Unuse[2];
 	} s;
 	unsigned char uc[3];
 };
 #define SPK_ALLOC union _SPK_ALLOC
 
-#define CEA_SUPPORT_UNDERSCAN (1<<7)
-#define CEA_SUPPORT_AUDIO (1<<6)
-#define CEA_SUPPORT_YUV444 (1<<5)
-#define CEA_SUPPORT_YUV422 (1<<4)
+#define CEA_SUPPORT_UNDERSCAN (1 << 7)
+#define CEA_SUPPORT_AUDIO (1 << 6)
+#define CEA_SUPPORT_YUV444 (1 << 5)
+#define CEA_SUPPORT_YUV422 (1 << 4)
 #define CEA_NATIVE_MASK 0xF
 
-
-#define HDMI_DC_SUPPORT_AI (1<<7)
-#define HDMI_DC_SUPPORT_48 (1<<6)
-#define HDMI_DC_SUPPORT_36 (1<<5)
-#define HDMI_DC_SUPPORT_30 (1<<4)
-#define HDMI_DC_SUPPORT_Y444 (1<<3)
+#define HDMI_DC_SUPPORT_AI (1 << 7)
+#define HDMI_DC_SUPPORT_48 (1 << 6)
+#define HDMI_DC_SUPPORT_36 (1 << 5)
+#define HDMI_DC_SUPPORT_30 (1 << 4)
+#define HDMI_DC_SUPPORT_Y444 (1 << 3)
 #define HDMI_DC_SUPPORT_DVI_DUAL 1
 
 union _DCSUPPORT {
 	struct {
-		unsigned char DVI_Dual:1;
-		unsigned char Rsvd:2;
-		unsigned char DC_Y444:1;
-		unsigned char DC_30Bit:1;
-		unsigned char DC_36Bit:1;
-		unsigned char DC_48Bit:1;
-		unsigned char SUPPORT_AI:1;
+		unsigned char DVI_Dual : 1;
+		unsigned char Rsvd : 2;
+		unsigned char DC_Y444 : 1;
+		unsigned char DC_30Bit : 1;
+		unsigned char DC_36Bit : 1;
+		unsigned char DC_48Bit : 1;
+		unsigned char SUPPORT_AI : 1;
 	} info;
 	unsigned char uc;
 };
@@ -255,9 +242,9 @@ union _DCSUPPORT {
 
 union _LATENCY_SUPPORT {
 	struct {
-		unsigned char Rsvd:6;
-		unsigned char I_Latency_Present:1;
-		unsigned char Latency_Present:1;
+		unsigned char Rsvd : 6;
+		unsigned char I_Latency_Present : 1;
+		unsigned char Latency_Present : 1;
 	} info;
 	unsigned char uc;
 };
@@ -279,9 +266,9 @@ struct _RX_CAP {
 	unsigned char MaxTMDSClock;
 	LATENCY_SUPPORT lsupport;
 	SPK_ALLOC SpeakerAllocBlk;
-	unsigned char ValidCEA:1;
-	unsigned char ValidHDMI:1;
-	unsigned char Valid3D:1;
+	unsigned char ValidCEA : 1;
+	unsigned char ValidHDMI : 1;
+	unsigned char Valid3D : 1;
 };
 #define RX_CAP struct _RX_CAP
 
@@ -298,23 +285,21 @@ struct _RX_CAP {
 #define F_MODE_CSC_ITU709 1
 
 void InitHDMITX_Variable(void);
-void HDMITX_ChangeDisplayOption(HDMI_Video_Type VideoMode, HDMI_OutputColorMode OutputColorMode);
+void HDMITX_ChangeDisplayOption(HDMI_Video_Type VideoMode,
+				HDMI_OutputColorMode OutputColorMode);
 void HDMITX_SetOutput(void);
 void HDMITX_DevLoopProc(void);
 void ConfigfHdmiVendorSpecificInfoFrame(unsigned char _3D_Stru);
-void HDMITX_ChangeAudioOption(unsigned char Option, unsigned char channelNum, unsigned char AudioFs);
+void HDMITX_ChangeAudioOption(unsigned char Option, unsigned char channelNum,
+			      unsigned char AudioFs);
 void HDMITX_SetAudioOutput(void);
 void HDMITX_ChangeColorDepth(unsigned char colorDepth);
-void HDMITX_ChangeDisplayOption(HDMI_Video_Type VideoMode, HDMI_OutputColorMode OutputColorMode);
 
-
-enum _HDMI_PLUG_STATE {
-	HDMI_PLUG_NO_DEVICE,
-	HDMI_PLUG_ACTIVE
-};
+enum _HDMI_PLUG_STATE { HDMI_PLUG_NO_DEVICE, HDMI_PLUG_ACTIVE };
 #define HDMI_PLUG_STATE enum _HDMI_PLUG_STATE
 extern unsigned char HPDStatus;
 extern unsigned int sink_support_resolution;
 extern struct HDMI_UTIL_FUNCS hdmi_util;
 extern void ite66121_AppGetEdidInfo(struct _HDMI_EDID_T *pv_get_info);
-#endif				/* _HDMITX_SYS_H_ */
+extern void hdmi_invoke_cable_callbacks(enum HDMI_STATE state);
+#endif /* _HDMITX_SYS_H_ */

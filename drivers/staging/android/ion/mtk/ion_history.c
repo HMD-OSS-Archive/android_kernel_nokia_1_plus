@@ -23,14 +23,17 @@
 #include "ion_priv.h"
 #include <linux/slab.h>
 #include <linux/mutex.h>
-#include <mmprofile.h>
-#include <mmprofile_function.h>
+//#include <mmprofile.h>
+//#include <mmprofile_function.h>
 #include <linux/debugfs.h>
 #include <linux/kthread.h>
+#include <linux/sched/signal.h>
+#include <linux/sched/clock.h>
+#include <uapi/linux/sched/types.h>
 #include "ion_profile.h"
 #include "ion_drv_priv.h"
 #include "mtk/ion_drv.h"
-
+#include "mtk_ion.h"
 #include <linux/delay.h>
 #include <linux/time.h>
 
@@ -44,7 +47,7 @@ struct history_record {
 	unsigned int record_size;
 	unsigned int top;
 	unsigned int wrapped;
-	spinlock_t lock; /*protect ion record info*/
+	spinlock_t lock;	/*protect ion record info */
 	const char *name;
 	struct dentry *debug_file;
 	int (*show)(struct seq_file *seq, void *record, void *priv);
@@ -53,36 +56,42 @@ struct history_record {
 	unsigned long bitmap_busy[0];
 };
 
-static inline unsigned long history_record_test_busy(
-		struct history_record *history_record, unsigned int index) {
+static inline unsigned long history_rec_test_busy(struct history_record
+						  *history_record,
+						  unsigned int index)
+{
 	unsigned long *p = history_record->bitmap_busy + index / BITS_PER_LONG;
 	int bit_mask = 1UL << (index % BITS_PER_LONG);
 
 	return *p & bit_mask;
 }
 
-static inline void history_record_set_busy(
-		struct history_record *history_record, unsigned int index) {
+static inline void history_rec_set_busy(struct history_record
+					*history_record, unsigned int index)
+{
 	unsigned long *p = history_record->bitmap_busy + index / BITS_PER_LONG;
 	int bit_mask = 1UL << (index % BITS_PER_LONG);
 	*p |= bit_mask;
 }
 
-static inline void history_record_clear_busy(
-		struct history_record *history_record, unsigned int index) {
+static inline void history_rec_clear_busy(struct history_record
+					  *history_record, unsigned int index)
+{
 	unsigned long *p = history_record->bitmap_busy + index / BITS_PER_LONG;
 	int bit_mask = 1UL << (index % BITS_PER_LONG);
 	*p &= ~bit_mask;
 }
 
-static inline void history_record_dump_busy(struct seq_file *seq,
-					    struct history_record *history_record) {
+static inline void history_rec_dump_busy(struct seq_file *seq,
+					 struct history_record *history_record)
+{
 	unsigned long longs = BITS_TO_LONGS(history_record->record_num);
 	unsigned long i;
 
 	for (i = 0; i < longs; i++) {
 		if (seq)
-			seq_printf(seq, "0x%lx, ", history_record->bitmap_busy[i]);
+			seq_printf(seq, "0x%lx, ",
+				   history_record->bitmap_busy[i]);
 		else
 			IONMSG("0x%lx, ", history_record->bitmap_busy[i]);
 	}
@@ -92,7 +101,7 @@ static inline void history_record_dump_busy(struct seq_file *seq,
 		IONMSG("\n");
 }
 
-void *history_record_get_record(struct history_record *history_record)
+void *history_rec_get_record(struct history_record *history_record)
 {
 	unsigned int index;
 	void *record;
@@ -106,9 +115,10 @@ void *history_record_get_record(struct history_record *history_record)
 		history_record->wrapped = 1;
 	}
 
-	if (history_record_test_busy(history_record, index)) {
-		IONMSG("%s: error to get record %d, bitmap is:\n", __func__, index);
-		history_record_dump_busy(NULL, history_record);
+	if (history_rec_test_busy(history_record, index)) {
+		IONMSG("%s: error to get record %d, bitmap is:\n", __func__,
+		       index);
+		history_rec_dump_busy(NULL, history_record);
 		spin_unlock(&history_record->lock);
 		return NULL;
 	}
@@ -118,19 +128,19 @@ void *history_record_get_record(struct history_record *history_record)
 	if (history_record->wrapped && history_record->destroy_record)
 		history_record->destroy_record(record, history_record->private);
 
-	history_record_set_busy(history_record, index);
+	history_rec_set_busy(history_record, index);
 
 	spin_unlock(&history_record->lock);
 
 	return record;
 }
 
-void history_record_put_record(struct history_record *history_record,
-			       void *record) {
+void history_rec_put_record(struct history_record *history_record, void *record)
+{
 	unsigned int index = (record - history_record->record)
-			/ history_record->record_size;
+	    / history_record->record_size;
 	spin_lock(&history_record->lock);
-	history_record_clear_busy(history_record, index);
+	history_rec_clear_busy(history_record, index);
 	spin_unlock(&history_record->lock);
 }
 
@@ -140,15 +150,15 @@ struct history_seq_priv {
 	unsigned int num;
 };
 
-int history_record_show(struct seq_file *seq, void *record)
+int history_rec_show(struct seq_file *seq, void *record)
 {
 	struct history_seq_priv *seq_priv = seq->private;
 	struct history_record *history_record = seq_priv->history_record;
 	unsigned int index = (record - history_record->record)
-			/ history_record->record_size;
+	    / history_record->record_size;
 	spin_lock(&history_record->lock);
 
-	if (history_record_test_busy(history_record, index)) {
+	if (history_rec_test_busy(history_record, index)) {
 		spin_unlock(&history_record->lock);
 		return 0;
 	}
@@ -209,13 +219,13 @@ static void history_seq_stop(struct seq_file *p, void *v)
 }
 
 static const struct seq_operations seq_op = {
-				.start = history_seq_start,
-				.next = history_seq_next,
-				.stop = history_seq_stop,
-				.show = history_record_show,
-		};
+	.start = history_seq_start,
+	.next = history_seq_next,
+	.stop = history_seq_stop,
+	.show = history_rec_show,
+};
 
-static int history_record_open(struct inode *inode, struct file *file)
+static int history_rec_open(struct inode *inode, struct file *file)
 {
 	struct history_record *history_record = inode->i_private;
 	struct history_seq_priv *seq_priv;
@@ -223,47 +233,57 @@ static int history_record_open(struct inode *inode, struct file *file)
 
 	res = seq_open(file, &seq_op);
 	if (res) {
-		IONMSG("%s fail\n", __func__);
+		IONMSG("%s fail of open file\n", __func__);
 		return res;
 	}
 
 	seq_priv = kzalloc(sizeof(*seq_priv), GFP_KERNEL);
+	if (!seq_priv) {
+		IONMSG("%s fail of allocation\n", __func__);
+		return -ENOMEM;
+	}
+
 	seq_priv->history_record = history_record;
 	((struct seq_file *)file->private_data)->private = seq_priv;
 
 	return 0;
 }
 
-static int history_record_release(struct inode *inode, struct file *file)
+static int history_rec_release(struct inode *inode, struct file *file)
 {
 	struct history_seq_priv *seq_priv =
-			((struct seq_file *)file->private_data)->private;
+	    ((struct seq_file *)file->private_data)->private;
 
 	kfree(seq_priv);
 
 	return seq_release(inode, file);
 }
 
-static const struct file_operations history_record_fops = {
-		.open = history_record_open,
-		.read = seq_read,
-		.llseek = seq_lseek,
-		.release = history_record_release,
+static const struct file_operations history_rec_fops = {
+	.open = history_rec_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = history_rec_release,
 };
 
-struct history_record *history_record_create(unsigned int record_num,
-					     unsigned int record_size,
-		int (*show)(struct seq_file *seq, void *record, void *priv),
-		int (*destroy_record)(void *record, void *priv), void *priv,
-		const char *name, struct dentry *debugfs_parent) {
+struct history_record *history_rec_create(unsigned int record_num,
+					  unsigned int record_size,
+					  int (*show)(struct seq_file *seq,
+						      void *record,
+						      void *priv),
+					  int (*destroy_record)(void *record,
+								void *priv),
+					  void *priv, const char *name,
+					  struct dentry *debugfs_parent)
+{
 	struct history_record *history_record;
 	int num_align;
 	size_t size_align;
 	int bitmap_bytes;
 
-	/*	as vmalloc is page align.*/
-	/*we will enlarge record_num to num_align*/
-	/*to get the utmost of memory allocated*/
+	/*      as vmalloc is page align. */
+	/*we will enlarge record_num to num_align */
+	/*to get the utmost of memory allocated */
 
 	size_align = record_num * record_size;
 	size_align = ALIGN(size_align, PAGE_SIZE);
@@ -293,16 +313,18 @@ struct history_record *history_record_create(unsigned int record_num,
 	history_record->name = name;
 	spin_lock_init(&history_record->lock);
 
-	history_record->debug_file = debugfs_create_file(name, 0644, debugfs_parent,
-			history_record, &history_record_fops);
+	history_record->debug_file =
+	    debugfs_create_file(name, 0644, debugfs_parent, history_record,
+				&history_rec_fops);
 
 	return history_record;
 }
 
-void history_record_destroy(struct history_record *history_record)
+void history_rec_destroy(struct history_record *history_record)
 {
 	int busy;
-	unsigned int i, bitmap_longs = BITS_TO_LONGS(history_record->record_num);
+	unsigned int i, bitmap_longs =
+	    BITS_TO_LONGS(history_record->record_num);
 	unsigned int end;
 
 	debugfs_remove(history_record->debug_file);
@@ -314,7 +336,8 @@ void history_record_destroy(struct history_record *history_record)
 		for (i = 0; i < bitmap_longs; i++) {
 			if (history_record->bitmap_busy[i]) {
 				/* busy ! */
-				IONMSG("warning: %s when busy %d\n", __func__, i);
+				IONMSG("warning: %s when busy %d\n", __func__,
+				       i);
 				busy = 1;
 				cond_resched();
 				break;
@@ -330,9 +353,9 @@ void history_record_destroy(struct history_record *history_record)
 		end = history_record->record_num;
 
 	for (i = 0; i < end; i++)
-		history_record->destroy_record(
-				history_record->record + i * history_record->record_num,
-				history_record->private);
+		history_record->destroy_record(history_record->record +
+					       i * history_record->record_num,
+					       history_record->private);
 
 	vfree(history_record->record);
 	history_record->record = NULL;
@@ -430,7 +453,8 @@ int string_hash_debug_show(struct seq_file *seq, void *unused)
 		head = &ion_str_hash[hash];
 		num = 0;
 		hlist_for_each_entry(string, head, list) {
-			seq_printf(seq, "\t%s : %d\n", string->str, string->ref);
+			seq_printf(seq, "\t%s : %d\n", string->str,
+				   string->ref);
 			num++;
 		}
 		seq_printf(seq, "hash %d : %d strings\n", hash, num);
@@ -446,10 +470,10 @@ static int string_hash_debug_open(struct inode *inode, struct file *file)
 }
 
 static const struct file_operations string_hash_debug_fops = {
-		.open = string_hash_debug_open,
-		.read = seq_read,
-		.llseek = seq_lseek,
-		.release = single_release,
+	.open = string_hash_debug_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
 };
 
 /* ===== ion client history  ======= */
@@ -470,7 +494,8 @@ struct ion_client_record {
 };
 
 static int ion_client_record_show(struct seq_file *seq, void *record,
-				  void *priv) {
+				  void *priv)
+{
 	struct ion_client_record *client_record = record;
 
 	if (client_record->address > CLIENT_ADDRESS_FLAG_MAX) {
@@ -480,8 +505,9 @@ static int ion_client_record_show(struct seq_file *seq, void *record,
 			client_name = client_record->client_name->str;
 		if (client_record->dbg_name)
 			dbg_name = client_record->dbg_name->str;
-		seq_printf(seq, "%16.s(%16.s) %16zu 0x%p\n", client_name, dbg_name,
-			   client_record->size, client_record->address);
+		seq_printf(seq, "%16.s(%16.s) %16zu 0x%p\n", client_name,
+			   dbg_name, client_record->size,
+			   client_record->address);
 	} else {
 		unsigned long long rem_ns, t;
 		char *name;
@@ -517,11 +543,13 @@ static int ion_client_destroy_record(void *record, void *priv)
 }
 
 static int ion_client_write_record(struct history_record *client_history,
-				   const char *client_name, const char *dbg_name, size_t size,
-		void *address) {
+				   const char *client_name,
+				   const char *dbg_name, size_t size,
+				   void *address)
+{
 	struct ion_client_record *record;
 
-	record = history_record_get_record(client_history);
+	record = history_rec_get_record(client_history);
 	if (!record)
 		return -1;
 
@@ -536,7 +564,7 @@ static int ion_client_write_record(struct history_record *client_history,
 		record->time = local_clock();
 	}
 
-	history_record_put_record(client_history, record);
+	history_rec_put_record(client_history, record);
 
 	return 0;
 }
@@ -547,16 +575,18 @@ struct task_struct *ion_history_kthread;
 wait_queue_head_t ion_history_wq;
 atomic_t ion_history_event = ATOMIC_INIT(0);
 
-#define ION_HISTORY_TIME_INTERVAL (HZ) /* 1s */
+#define ION_HISTORY_TIME_INTERVAL (HZ)	/* 1s */
 
 static int write_mm_page_pool(int high, int order, int cache, size_t size)
 {
 	char name[50];
 
-	snprintf(name, sizeof(name), "%smem order_%d pool", high ? "high" : "low", order);
+	snprintf(name, sizeof(name), "%smem order_%d pool",
+		 high ? "high" : "low", order);
 	if (size)
 		ion_client_write_record(g_client_history, name,
-					cache ? "cache" : "nocache", size, CLIENT_ADDRESS_FLAG_MAX + 1);
+					cache ? "cache" : "nocache", size,
+					CLIENT_ADDRESS_FLAG_MAX + 1);
 	return 0;
 }
 
@@ -566,6 +596,8 @@ static int ion_history_record(void *data)
 	struct rb_node *n;
 	size_t old_total_size = 0;
 	size_t total_size = 0;
+	int heap_id = 0;
+	int ret = 0;
 
 	while (1) {
 		if (kthread_should_stop()) {
@@ -573,7 +605,12 @@ static int ion_history_record(void *data)
 			break;
 		}
 
-		wait_event_interruptible(ion_history_wq, atomic_read(&ion_history_event));
+		ret = wait_event_interruptible(ion_history_wq,
+					       atomic_read(&ion_history_event));
+		if (ret) {
+			IONMSG("%s wait event error:%d\n", __func__, ret);
+			continue;
+		}
 		msleep(500);
 		atomic_set(&ion_history_event, 0);
 
@@ -588,8 +625,13 @@ static int ion_history_record(void *data)
 			mutex_lock(&dev->buffer_lock);
 			for (n = rb_first(&dev->buffers); n; n = rb_next(n)) {
 				struct ion_buffer
-				*buffer = rb_entry(n, struct ion_buffer,
-						node);
+				*buffer = rb_entry(n, struct ion_buffer, node);
+				heap_id = buffer->heap->id;
+				if (heap_id ==
+					ION_HEAP_TYPE_MULTIMEDIA_MAP_MVA ||
+					heap_id ==
+					ION_HEAP_TYPE_MULTIMEDIA_PA2MVA)
+					continue;
 				total_size += buffer->size;
 				if (!buffer->handle_count)
 					total_orphaned_size += buffer->size;
@@ -600,15 +642,22 @@ static int ion_history_record(void *data)
 				continue;
 
 			if (g_client_history) {
+				int ret = -1;
 				/* record page pool info */
-				ion_mm_heap_for_each_pool(write_mm_page_pool);
+				ret = ion_mm_heap_for_each_pool(
+					write_mm_page_pool);
+				if (ret < 0)
+					continue;
 
 				if (total_orphaned_size)
-					ion_client_write_record(g_client_history, NULL, NULL,
-								total_orphaned_size, CLIENT_ADDRESS_ORPHAN);
+					ion_client_write_record
+					    (g_client_history, NULL, NULL,
+					     total_orphaned_size,
+					     CLIENT_ADDRESS_ORPHAN);
 				/* total size with time stamp */
-				ion_client_write_record(g_client_history, NULL, NULL,
-							total_size, CLIENT_ADDRESS_TOTAL);
+				ion_client_write_record(g_client_history, NULL,
+							NULL, total_size,
+							CLIENT_ADDRESS_TOTAL);
 			}
 		}
 
@@ -624,9 +673,12 @@ static int ion_history_record(void *data)
 				struct rb_node *nh;
 
 				mutex_lock(&client->lock);
-				for (nh = rb_first(&client->handles); nh; nh = rb_next(nh)) {
+				for (nh = rb_first(&client->handles); nh;
+				     nh = rb_next(nh)) {
 					struct ion_handle
-					*handle = rb_entry(nh, struct ion_handle, node);
+					*handle =
+					    rb_entry(nh, struct ion_handle,
+						     node);
 					size += handle->buffer->size;
 				}
 				mutex_unlock(&client->lock);
@@ -638,15 +690,20 @@ static int ion_history_record(void *data)
 
 					get_task_comm(task_comm, client->task);
 
-					ion_client_write_record(g_client_history, task_comm,
-								client->dbg_name, size, client);
+					ion_client_write_record
+					    (g_client_history, task_comm,
+					     (*client->dbg_name) ?
+						 client->dbg_name :
+						 client->name,
+					     size, client);
 				} else {
-					ion_client_write_record(g_client_history, client->name, "kernel", size, client);
+					ion_client_write_record
+					    (g_client_history, client->name,
+					     "kernel", size, client);
 				}
 			}
 			up_read(&dev->lock);
 		}
-
 	}
 
 	return 0;
@@ -654,12 +711,15 @@ static int ion_history_record(void *data)
 
 int ion_history_init(void)
 {
-	struct sched_param param = { .sched_priority = 0 };
+	struct sched_param param = {.sched_priority = 0 };
 
-	g_client_history = history_record_create(3072,
-						 sizeof(struct ion_client_record), ion_client_record_show,
-			ion_client_destroy_record, NULL, "client_history",
-			g_ion_device->debug_root);
+	g_client_history = history_rec_create(3072,
+					      sizeof(struct
+						     ion_client_record),
+					      ion_client_record_show,
+					      ion_client_destroy_record,
+					      NULL, "client_history",
+					      g_ion_device->debug_root);
 
 	if (IS_ERR_OR_NULL(g_client_history)) {
 		IONMSG("create client history fail\n");

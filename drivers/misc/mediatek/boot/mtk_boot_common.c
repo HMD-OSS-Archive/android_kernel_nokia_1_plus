@@ -55,26 +55,24 @@ struct tag_bootmode {
 	u32 bootmode;
 	u32 boottype;
 };
-static int __init dt_get_boot_common(unsigned long node, const char *uname, int depth, void *data)
+static int __init dt_get_boot_common(unsigned long node, const char *uname,
+	int depth, void *data)
 {
 	struct tag_bootmode *tags = NULL;
 
-	if (depth != 1 || (strcmp(uname, "chosen") != 0 && strcmp(uname, "chosen@0") != 0))
+	if (depth != 1 || (strcmp(uname, "chosen") != 0 &&
+		strcmp(uname, "chosen@0") != 0))
 		return 0;
 
-	tags = (struct tag_bootmode *)of_get_flat_dt_prop(node, "atag,boot", NULL);
+	tags = (struct tag_bootmode *)of_get_flat_dt_prop(node,
+		"atag,boot", NULL);
 
 	if (tags) {
 		g_boot_mode = tags->bootmode;
-
-#if defined(CONFIG_MTK_EMMC_SUPPORT)
-		g_boot_type = BOOTDEV_SDMMC;
-#elif defined(CONFIG_MTK_UFS_SUPPORT)
-		g_boot_type = BOOTDEV_UFS;
-#else
-		g_boot_type = BOOTDEV_NAND;
-#endif
-
+		g_boot_type = tags->boottype;
+		/* Add default value if no lk pass storage type */
+		if ((g_boot_type > 2) || (g_boot_type < 0))
+			g_boot_type = BOOTDEV_SDMMC;
 		atomic_set(&g_boot_status, 1);
 	} else {
 		pr_warn("'atag,boot' is not found\n");
@@ -92,8 +90,8 @@ static void __init init_boot_common(unsigned int line)
 	int rc;
 
 	if (atomic_read(&g_boot_init) == BM_INITIALIZING) {
-		pr_warn("%s (%d) state(%d,%d)\n", __func__, line, atomic_read(&g_boot_init),
-			g_boot_mode);
+		pr_notice("%s (%d) state(%d,%d)\n", __func__, line,
+			atomic_read(&g_boot_init), g_boot_mode);
 		atomic_inc(&g_boot_errcnt);
 		return;
 	}
@@ -105,17 +103,20 @@ static void __init init_boot_common(unsigned int line)
 
 	if (g_boot_mode != UNKNOWN_BOOT) {
 		atomic_set(&g_boot_init, BM_INITIALIZED);
-		pr_warn("%s (%d) boot_mode = %d\n", __func__, line, g_boot_mode);
+		pr_notice("%s (%d) boot_mode = %d\n",
+			__func__, line, g_boot_mode);
 		return;
 	}
 
-	pr_debug("%s %d %d %d\n", __func__, line, g_boot_mode, atomic_read(&g_boot_init));
+	pr_debug("%s %d %d %d\n", __func__, line, g_boot_mode,
+		atomic_read(&g_boot_init));
 	rc = of_scan_flat_dt(dt_get_boot_common, NULL);
 	if (rc != 0)
 		atomic_set(&g_boot_init, BM_INITIALIZED);
 	else
-		pr_warn("of_scan_flat_dt() = %d", rc);
-	pr_debug("%s %d %d %d\n", __func__, line, g_boot_mode, atomic_read(&g_boot_init));
+		pr_warn("fail, of_scan_flat_dt() = %d", rc);
+	pr_debug("%s %d %d %d\n", __func__, line, g_boot_mode,
+		atomic_read(&g_boot_init));
 #endif
 }
 
@@ -123,8 +124,8 @@ static void __init init_boot_common(unsigned int line)
 unsigned int get_boot_mode(void)
 {
 	if (atomic_read(&g_boot_init) != BM_INITIALIZED) {
-		pr_warn("%s (%d) state(%d,%d)\n", __func__, __LINE__, atomic_read(&g_boot_init),
-			g_boot_mode);
+		pr_warn("fail, %s (%d) state(%d,%d)\n", __func__, __LINE__,
+			atomic_read(&g_boot_init), g_boot_mode);
 	}
 	return g_boot_mode;
 }
@@ -144,8 +145,8 @@ EXPORT_SYMBOL(get_boot_type);
 bool is_meta_mode(void)
 {
 	if (atomic_read(&g_boot_init) != BM_INITIALIZED) {
-		pr_warn("%s (%d) state(%d,%d)\n", __func__, __LINE__, atomic_read(&g_boot_init),
-			g_boot_mode);
+		pr_warn("fail, %s (%d) state(%d,%d)\n", __func__, __LINE__,
+			atomic_read(&g_boot_init), g_boot_mode);
 	}
 
 	if (g_boot_mode == META_BOOT)
@@ -158,8 +159,8 @@ EXPORT_SYMBOL(is_meta_mode);
 bool is_advanced_meta_mode(void)
 {
 	if (atomic_read(&g_boot_init) != BM_INITIALIZED) {
-		pr_warn("%s (%d) state(%d,%d)\n", __func__, __LINE__, atomic_read(&g_boot_init),
-			g_boot_mode);
+		pr_warn("fail, %s (%d) state(%d,%d)\n", __func__, __LINE__,
+			atomic_read(&g_boot_init), g_boot_mode);
 	}
 
 	if (g_boot_mode == ADVMETA_BOOT)
@@ -179,7 +180,8 @@ static ssize_t boot_show(struct kobject *kobj, struct attribute *a, char *buf)
 		return sprintf(buf, "0\n");
 }
 
-static ssize_t boot_store(struct kobject *kobj, struct attribute *a, const char *buf, size_t count)
+static ssize_t boot_store(struct kobject *kobj, struct attribute *a,
+	const char *buf, size_t count)
 {
 	return count;
 }
@@ -248,14 +250,16 @@ static int __init create_sysfs(void)
 		return -1;
 	}
 
-	boot_device = device_create(boot_class, NULL, boot_dev_num, NULL, BOOT_DEV_NAME);
+	boot_device = device_create(boot_class, NULL, boot_dev_num, NULL,
+					BOOT_DEV_NAME);
 	if (IS_ERR(boot_device)) {
 		pr_warn("fail to create device\n");
 		return -1;
 	}
 
 	/* add kobject */
-	ret = kobject_init_and_add(&boot_kobj, &boot_ktype, &(boot_device->kobj), BOOT_SYSFS);
+	ret = kobject_init_and_add(&boot_kobj, &boot_ktype,
+			&(boot_device->kobj), BOOT_SYSFS);
 	if (ret < 0) {
 		pr_warn("fail to add kobject\n");
 		return ret;
@@ -312,7 +316,8 @@ static int __init boot_common_core(void)
 {
 	init_boot_common(__LINE__);
 	/* create proc entry at /proc/boot_mode */
-	if (proc_create_data("boot_mode", S_IRUGO, NULL, &boot_mode_proc_fops, NULL) == NULL)
+	if (proc_create_data("boot_mode", 0444, NULL,
+		&boot_mode_proc_fops, NULL) == NULL)
 		pr_warn("create procfs fail");
 
 	/* create sysfs entry at /sys/class/BOOT/BOOT/boot */

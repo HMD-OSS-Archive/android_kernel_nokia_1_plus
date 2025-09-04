@@ -13,7 +13,7 @@
 
 #ifndef __CCCI_IPC_TASK_ID_H__
 #define __CCCI_IPC_TASK_ID_H__
-/* Priority   -->   Local module ID -->     External ID     --> Max sent message */
+/* Priority --> Local module ID --> External ID --> Max sent message */
 /* X_IPC_MODULE_CONF(1,M_SSDBG1,0,1)     //TASK_ID_1 */
 /* X_IPC_MODULE_CONF(1,AP_SSDBG2,1,1)     //TASK_ID_2 */
 #ifdef __IPC_ID_TABLE
@@ -39,6 +39,7 @@
 #define    MD_MOD_UFPM    10
 #define    MD_MOD_USBCLASS 11
 #define    MD_MOD_WAAL     12
+#define    MD_MOD_GMMGR    13
 
 #define    AP_IPC_AGPS   0
 #define    AP_IPC_DHCP   1
@@ -75,6 +76,7 @@ X_IPC_MODULE_CONF(1, MD_MOD_IPCORE, MD_UNIFY_ID_FLAG | MD_MOD_IPCORE, 1)
 X_IPC_MODULE_CONF(1, MD_MOD_MDT, MD_UNIFY_ID_FLAG | MD_MOD_MDT, 1)
 X_IPC_MODULE_CONF(1, MD_MOD_UFPM, MD_UNIFY_ID_FLAG | MD_MOD_UFPM, 1)
 X_IPC_MODULE_CONF(1, MD_MOD_WAAL, MD_UNIFY_ID_FLAG | MD_MOD_WAAL, 1)
+X_IPC_MODULE_CONF(1, MD_MOD_GMMGR, MD_UNIFY_ID_FLAG | MD_MOD_GMMGR, 1)
 
 /* -------------------------------------------------------------------------- */
 X_IPC_MODULE_CONF(1, AP_IPC_AGPS, AP_UNIFY_ID_FLAG | AP_IPC_AGPS, 1)

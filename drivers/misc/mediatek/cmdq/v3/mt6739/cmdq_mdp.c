@@ -300,7 +300,8 @@ mtk_iommu_callback_ret_t cmdq_TranslationFault_callback(int port, unsigned	int	m
 	return MTK_IOMMU_CALLBACK_HANDLED;
 }
 #elif defined(CONFIG_MTK_M4U)
-m4u_callback_ret_t cmdq_TranslationFault_callback(int port, unsigned	int	mva, void *data)
+enum m4u_callback_ret_t cmdq_TranslationFault_callback(
+			int port, unsigned int mva, void *data)
 {
 	char dispatchModel[MDP_DISPATCH_KEY_STR_LEN] = "MDP";
 
@@ -431,7 +432,7 @@ void cmdq_mdp_enable_clock(bool enable, enum CMDQ_ENG_ENUM engine)
 		break;
 	case CMDQ_ENG_MDP_WROT0:
 		if (enable)
-			smi_bus_enable(SMI_LARB_MMSYS0, "MDPSRAM");
+			smi_bus_prepare_enable(SMI_LARB0, "MDPSRAM");
 		cmdq_mdp_enable_clock_MDP_WROT0(enable);
 		if (true == enable) {
 			/* Set MDP_WROT0 DCM enable */
@@ -442,7 +443,7 @@ void cmdq_mdp_enable_clock(bool enable, enum CMDQ_ENG_ENUM engine)
 			CMDQ_REG_SET32(register_address, register_value);
 		}
 		if (!enable)
-			smi_bus_disable(SMI_LARB_MMSYS0, "MDPSRAM");
+			smi_bus_disable_unprepare(SMI_LARB0, "MDPSRAM");
 		break;
 	case CMDQ_ENG_MDP_TDSHP0:
 		cmdq_mdp_enable_clock_MDP_TDSHP0(enable);
@@ -846,7 +847,7 @@ uint32_t cmdq_mdp_wdma_get_reg_offset_dst_addr(void)
 	return 0xF00;
 }
 
-const char *cmdq_mdp_parse_error_module(const struct TaskStruct *task)
+const char *cmdq_mdp_parse_error_module(const struct cmdqRecStruct *task)
 {
 	const char *module = NULL;
 	const u32 ISP_ONLY[2] = {
@@ -946,7 +947,7 @@ static void cmdq_mdp_enable_common_clock(bool enable)
 #ifdef CMDQ_PWR_AWARE
 	if (enable) {
 		/* Use SMI clock API */
-		smi_bus_enable(SMI_LARB_MMSYS0, "MDP");
+		smi_bus_prepare_enable(SMI_LARB0, "MDP");
 
 		/* reset ovl engine to avoid
 		 * ovl eof event always set and block bus
@@ -955,7 +956,7 @@ static void cmdq_mdp_enable_common_clock(bool enable)
 		cmdq_mdp_enable_clock_DISP_OVL0(false);
 	} else {
 		/* disable, reverse the sequence */
-		smi_bus_disable(SMI_LARB_MMSYS0, "MDP");
+		smi_bus_disable_unprepare(SMI_LARB0, "MDP");
 	}
 #endif	/* CMDQ_PWR_AWARE */
 }

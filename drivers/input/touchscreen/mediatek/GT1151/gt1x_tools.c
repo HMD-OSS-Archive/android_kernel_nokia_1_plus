@@ -25,9 +25,10 @@
 #include <generated/utsrelease.h>
 #include "include/gt1x_tpd_common.h"
 
-static ssize_t gt1x_tool_read(struct file *filp, char __user *buffer, size_t count, loff_t *ppos);
-static ssize_t gt1x_tool_write(struct file *filp, const char *buffer, size_t count, loff_t *ppos);
-
+static ssize_t gt1x_tool_read(struct file *filp, char __user *buffer,
+					size_t count, loff_t *ppos);
+static ssize_t gt1x_tool_write(struct file *filp, const char *buffer,
+					size_t count, loff_t *ppos);
 static s32 gt1x_tool_release(struct inode *inode, struct file *filp);
 static s32 gt1x_tool_open(struct inode *inode, struct file *file);
 
@@ -81,7 +82,8 @@ static void set_tool_node_name(char *procname)
 int gt1x_init_tool_node(void)
 {
 	memset(&cmd_head, 0, sizeof(cmd_head));
-	cmd_head.wr = 1;	/*if the first operation is read, will return fail.*/
+	/*if the first operation is read, will return fail.*/
+	cmd_head.wr = 1;
 	cmd_head.data = kzalloc(DATA_LENGTH_UINT, GFP_KERNEL);
 	if (cmd_head.data == NULL) {
 		GTP_ERROR("Apply for memory failed.");
@@ -92,7 +94,8 @@ int gt1x_init_tool_node(void)
 
 	set_tool_node_name(procname);
 
-	gt1x_tool_proc_entry = proc_create(procname, 0664, NULL, &gt1x_tool_fops);
+	gt1x_tool_proc_entry =
+		proc_create(procname, 0664, NULL, &gt1x_tool_fops);
 	if (gt1x_tool_proc_entry == NULL) {
 		GTP_ERROR("Couldn't create proc entry!");
 		return -1;
@@ -137,7 +140,8 @@ static u8 relation(u8 src, u8 dst, u8 rlt)
 
 	case 1:
 		ret = (src == dst) ? true : false;
-		GTP_DEBUG("equal:src:0x%02x   dst:0x%02x   ret:%d.", src, dst, (s32) ret);
+		GTP_DEBUG("equal:src:0x%02x   dst:0x%02x   ret:%d.",
+				src, dst, (s32) ret);
 		break;
 
 	case 2:
@@ -185,8 +189,11 @@ static u8 comfirm(void)
 			return -1;
 		}
 
-		if (true == relation(buf[GTP_ADDR_LENGTH], cmd_head.flag_val, cmd_head.flag_relation)) {
-			GTP_DEBUG("value at flag addr:0x%02x.", buf[GTP_ADDR_LENGTH]);
+		if (true == relation(buf[GTP_ADDR_LENGTH],
+					cmd_head.flag_val,
+					cmd_head.flag_relation)) {
+			GTP_DEBUG("value at flag addr:0x%02x.",
+					buf[GTP_ADDR_LENGTH]);
 			GTP_DEBUG("flag value:0x%02x.", cmd_head.flag_val);
 			break;
 		}
@@ -210,7 +217,8 @@ static u8 comfirm(void)
  *Output:
  *   Return write length.
  ********************************************************/
-static ssize_t gt1x_tool_write(struct file *filp, const char __user *buff, size_t len, loff_t *data)
+static ssize_t gt1x_tool_write(struct file *filp, const char __user *buff,
+					size_t len, loff_t *data)
 {
 	u64 ret = 0;
 	u8 *pre_data_p;
@@ -226,13 +234,15 @@ static ssize_t gt1x_tool_write(struct file *filp, const char __user *buff, size_
 	post_data_p = cmd_head.data;
 	if (pre_data_p != post_data_p) {
 		GTP_ERROR("pointer is overwritten! %p, %p, %p, %p, %dx\n",
-			pre_data_p, post_data_p, &cmd_head, &cmd_head.data, (int)CMD_HEAD_LENGTH);
+			pre_data_p, post_data_p,
+			&cmd_head, &cmd_head.data, (int)CMD_HEAD_LENGTH);
 	}
 
 	GTP_DEBUG("wr  :0x%02x.", cmd_head.wr);
 	/*
 	 * GTP_DEBUG("flag:0x%02x.", cmd_head.flag);
-	 *  GTP_DEBUG("flag addr:0x%02x%02x.", cmd_head.flag_addr[0], cmd_head.flag_addr[1]);
+	 *  GTP_DEBUG("flag addr:0x%02x%02x.", cmd_head.flag_addr[0],
+	 *                           cmd_head.flag_addr[1]);
 	 *  GTP_DEBUG("flag val:0x%02x.", cmd_head.flag_val);
 	 *  GTP_DEBUG("flag rel:0x%02x.", cmd_head.flag_relation);
 	 *  GTP_DEBUG("circle  :%d.", (s32)cmd_head.circle);
@@ -256,8 +266,8 @@ static ssize_t gt1x_tool_write(struct file *filp, const char __user *buff, size_
 		if (cmd_head.flag == 1) {
 			if (comfirm()) {
 				GTP_ERROR("[WRITE]Comfirm fail!");
-				mutex_unlock(&rw_mutex);
-				return -1;
+				ret = -1;
+				goto out;
 			}
 		} else if (cmd_head.flag == 2) {
 			/*Need interrupt!*/
@@ -268,21 +278,24 @@ static ssize_t gt1x_tool_write(struct file *filp, const char __user *buff, size_
 		pos = 0;
 		while (data_len > 0) {
 			len = data_len > DATA_LENGTH ? DATA_LENGTH : data_len;
-			ret = copy_from_user(&cmd_head.data[GTP_ADDR_LENGTH], &buff[CMD_HEAD_LENGTH + pos], len);
+			ret = copy_from_user(&cmd_head.data[GTP_ADDR_LENGTH],
+						&buff[CMD_HEAD_LENGTH + pos],
+						len);
 			if (ret) {
 				GTP_ERROR("[WRITE]copy_from_user failed.");
-				mutex_unlock(&rw_mutex);
-				return -1;
+				ret = -1;
+				goto out;
 			}
 			cmd_head.data[0] = ((addr >> 8) & 0xFF);
 			cmd_head.data[1] = (addr & 0xFF);
 
 			GTP_DEBUG_ARRAY(cmd_head.data, len + GTP_ADDR_LENGTH);
 
-			if (tool_i2c_write(cmd_head.data, len + GTP_ADDR_LENGTH) <= 0) {
+			if (tool_i2c_write(cmd_head.data,
+						len + GTP_ADDR_LENGTH) <= 0) {
 				GTP_ERROR("[WRITE]Write data failed!");
-				mutex_unlock(&rw_mutex);
-				return -1;
+				ret = -1;
+				goto out;
 			}
 			addr += len;
 			pos += len;
@@ -294,17 +307,13 @@ static ssize_t gt1x_tool_write(struct file *filp, const char __user *buff, size_
 		mutex_unlock(&rw_mutex);
 		return cmd_head.data_len + CMD_HEAD_LENGTH;
 	} else if (cmd_head.wr == 3) {	/*gt1x unused*/
-		u16 data_len;
 
-		data_len = cmd_head.data_len > sizeof(IC_TYPE) ? sizeof(IC_TYPE) : cmd_head.data_len;
-		ret = copy_from_user(IC_TYPE, &buff[CMD_HEAD_LENGTH], data_len);
-		if (ret) {
-			GTP_ERROR("[%s:%d]copy_from_user failed.", __func__, __LINE__);
-			mutex_unlock(&rw_mutex);
-			return -1;
-		}
-		mutex_unlock(&rw_mutex);
-		return data_len + CMD_HEAD_LENGTH;
+		cmd_head.data_len =
+			cmd_head.data_len > sizeof(IC_TYPE) ?
+				sizeof(IC_TYPE) : cmd_head.data_len;
+		memcpy(IC_TYPE, cmd_head.data, cmd_head.data_len);
+		ret = cmd_head.data_len + CMD_HEAD_LENGTH;
+		goto out;
 	} else if (cmd_head.wr == 5) {
 
 		/*memcpy(IC_TYPE, cmd_head.data, cmd_head.data_len);*/
@@ -315,21 +324,23 @@ static ssize_t gt1x_tool_write(struct file *filp, const char __user *buff, size_
 #ifdef CONFIG_GTP_ESD_PROTECT
 		gt1x_esd_switch(SWITCH_OFF);
 #endif
-		mutex_unlock(&rw_mutex);
-		return CMD_HEAD_LENGTH;
+		ret = CMD_HEAD_LENGTH;
+		goto out;
 	} else if (cmd_head.wr == 9) {	/*enable irq!*/
 		gt1x_irq_enable();
 #ifdef CONFIG_GTP_ESD_PROTECT
 		gt1x_esd_switch(SWITCH_ON);
 #endif
-		mutex_unlock(&rw_mutex);
-		return CMD_HEAD_LENGTH;
+		ret = CMD_HEAD_LENGTH;
+		goto out;
 	} else if (cmd_head.wr == 17) {
-		ret = copy_from_user(&cmd_head.data[GTP_ADDR_LENGTH], &buff[CMD_HEAD_LENGTH], cmd_head.data_len);
+		ret = copy_from_user(&cmd_head.data[GTP_ADDR_LENGTH],
+					&buff[CMD_HEAD_LENGTH],
+					cmd_head.data_len);
 		if (ret) {
 			GTP_DEBUG("copy_from_user failed.");
-			mutex_unlock(&rw_mutex);
-			return -1;
+			ret = -1;
+			goto out;
 		}
 
 		if (cmd_head.data[GTP_ADDR_LENGTH]) {
@@ -339,29 +350,32 @@ static ssize_t gt1x_tool_write(struct file *filp, const char __user *buff, size_
 			gt1x_rawdiff_mode = false;
 			GTP_DEBUG("gtp leave rawdiff.");
 		}
-		mutex_unlock(&rw_mutex);
-		return CMD_HEAD_LENGTH;
+		ret = CMD_HEAD_LENGTH;
+		goto out;
 	} else if (cmd_head.wr == 11) {
 		gt1x_enter_update_mode();
 	} else if (cmd_head.wr == 13) {
 		gt1x_leave_update_mode();
 	} else if (cmd_head.wr == 15) {
 		memset(cmd_head.data, 0, cmd_head.data_len + 1);
-		ret = copy_from_user(cmd_head.data, &buff[CMD_HEAD_LENGTH], cmd_head.data_len);
+		ret = copy_from_user(cmd_head.data,
+				&buff[CMD_HEAD_LENGTH], cmd_head.data_len);
 		if (ret) {
 			GTP_DEBUG("copy_from_user failed.");
-			mutex_unlock(&rw_mutex);
-			return -1;
+			ret = -1;
+			goto out;
 		}
 		GTP_DEBUG("update firmware, filename: %s", cmd_head.data);
 		ret = gt1x_update_firmware((void *)cmd_head.data);
 		if (ret) {
-			mutex_unlock(&rw_mutex);
-			return -1;
+			ret = -1;
+			goto out;
 		}
 	}
+	ret = CMD_HEAD_LENGTH;
+out:
 	mutex_unlock(&rw_mutex);
-	return CMD_HEAD_LENGTH;
+	return ret;
 }
 
 static u8 devicecount;
@@ -391,8 +405,11 @@ static s32 gt1x_tool_release(struct inode *inode, struct file *filp)
  * Output:
  *   Return read length.
  ********************************************************/
-static ssize_t gt1x_tool_read(struct file *filp, char __user *buffer, size_t count, loff_t *ppos)
+static ssize_t gt1x_tool_read(struct file *filp, char __user *buffer,
+					size_t count, loff_t *ppos)
 {
+	u64 ret;
+
 	GTP_DEBUG_FUNC();
 	if (*ppos) {
 		GTP_DEBUG("[PARAM]size: %d, *ppos: %d", (int)count, (int)*ppos);
@@ -405,16 +422,16 @@ static ssize_t gt1x_tool_read(struct file *filp, char __user *buffer, size_t cou
 	mutex_lock(&rw_mutex);
 	if (cmd_head.wr % 2) {
 		GTP_ERROR("[READ] invaild operator fail!");
-		mutex_unlock(&rw_mutex);
-		return -1;
+		ret = -1;
+		goto out;
 	} else if (!cmd_head.wr) {
 		u16 addr, data_len, len, loc;
 
 		if (cmd_head.flag == 1) {
 			if (comfirm()) {
 				GTP_ERROR("[READ]Comfirm fail!");
-				mutex_unlock(&rw_mutex);
-				return -1;
+				ret = -1;
+				goto out;
 			}
 		} else if (cmd_head.flag == 2) {
 			/*Need interrupt!*/
@@ -436,13 +453,15 @@ static ssize_t gt1x_tool_read(struct file *filp, char __user *buffer, size_t cou
 			cmd_head.data[1] = (addr & 0xFF);
 			if (tool_i2c_read(cmd_head.data, len) <= 0) {
 				GTP_ERROR("[READ]Read data failed!");
-				mutex_unlock(&rw_mutex);
-				return -1;
+				ret = -1;
+				goto out;
 			}
-			if (copy_to_user(&buffer[loc], &cmd_head.data[GTP_ADDR_LENGTH], len)) {
+			if (copy_to_user(&buffer[loc],
+					&cmd_head.data[GTP_ADDR_LENGTH],
+					len)) {
 				GTP_ERROR("[READ]copy_to_user failed!");
-				mutex_unlock(&rw_mutex);
-				return -1;
+				ret = -1;
+				goto out;
 			}
 			data_len -= len;
 			addr += len;
@@ -450,12 +469,13 @@ static ssize_t gt1x_tool_read(struct file *filp, char __user *buffer, size_t cou
 			GTP_DEBUG_ARRAY(&cmd_head.data[GTP_ADDR_LENGTH], len);
 		}
 		*ppos += cmd_head.data_len;
-		mutex_unlock(&rw_mutex);
-		return cmd_head.data_len;
+		ret = cmd_head.data_len;
+		goto out;
 	} else if (cmd_head.wr == 2) {
-		GTP_DEBUG("Return ic type:%s len:%d.", buffer, (s32) cmd_head.data_len);
-		mutex_unlock(&rw_mutex);
-		return -1;
+		GTP_DEBUG("Return ic type:%s len:%d.",
+				buffer, (s32) cmd_head.data_len);
+		ret = -1;
+		goto out;
 	} else if (cmd_head.wr == 4) {
 		u8 val[4];
 
@@ -465,32 +485,39 @@ static ssize_t gt1x_tool_read(struct file *filp, char __user *buffer, size_t cou
 		val[3] = update_info.max_progress & 0xff;
 		if (copy_to_user(buffer, val, sizeof(val))) {
 			GTP_ERROR("[READ]copy_to_user failed!");
-			mutex_unlock(&rw_mutex);
-			return -1;
+			ret = cmd_head.data_len;
+		goto out;
 		}
 		*ppos += 4;
-		mutex_unlock(&rw_mutex);
-		return 4;
+		ret = 4;
+		goto out;
 	} else if (cmd_head.wr == 6) {
 		/*Read error code!*/
-		mutex_unlock(&rw_mutex);
-		return -1;
+		ret = -1;
+		goto out;
 	} else if (cmd_head.wr == 8) {	/*Read driver version*/
 		s32 tmp_len = strlen(GTP_DRIVER_VERSION) + 1;
-		char *drv_ver = kzalloc(tmp_len, GFP_ATOMIC);
+		char *drv_ver = NULL;
+
+		if (count < tmp_len) {
+			ret = -1;
+			goto out;
+		}
+		drv_ver = kzalloc(tmp_len, GFP_ATOMIC);
 
 		if (drv_ver == NULL) {
 			GTP_ERROR("Allocate %d buffer fail\n", tmp_len);
-			mutex_unlock(&rw_mutex);
-			return -1;
+			ret = -1;
+			goto out;
 		}
-		strncpy(drv_ver, GTP_DRIVER_VERSION, strlen(GTP_DRIVER_VERSION));
+		strncpy(drv_ver, GTP_DRIVER_VERSION,
+			strlen(GTP_DRIVER_VERSION));
 		drv_ver[strlen(GTP_DRIVER_VERSION)] = 0;
-		if (copy_to_user(&buffer, drv_ver, tmp_len)) {
+		if (copy_to_user(buffer, drv_ver, tmp_len)) {
 			GTP_ERROR("[READ]copy_to_user failed");
 			kfree(drv_ver);
-			mutex_unlock(&rw_mutex);
-			return -1;
+			ret = -1;
+			goto out;
 		}
 		*ppos += tmp_len;
 		kfree(drv_ver);
@@ -498,6 +525,8 @@ static ssize_t gt1x_tool_read(struct file *filp, char __user *buffer, size_t cou
 		return tmp_len;
 	}
 	*ppos += cmd_head.data_len;
+	ret = cmd_head.data_len;
+out:
 	mutex_unlock(&rw_mutex);
-	return cmd_head.data_len;
+	return ret;
 }

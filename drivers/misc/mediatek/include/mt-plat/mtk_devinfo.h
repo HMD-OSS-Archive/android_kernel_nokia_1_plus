@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 MediaTek Inc.
+ * Copyright (C) 2017 MediaTek Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -16,7 +16,7 @@
 
 #include <linux/types.h>
 
- /*****************************************************************************
+/*****************************************************************************
  * HRID RET CODE DEFINITION
  *****************************************************************************/
 #define E_SUCCESS                 0x00000000
@@ -24,10 +24,10 @@
 #define E_BUF_ZERO_OR_NULL        0x20000000
 #define E_BUF_SIZE_ZERO_OR_NULL   0x40000000
 
- /*****************************************************************************
+/*****************************************************************************
  * DEVINFO AND HRID APIS
  *****************************************************************************/
-extern u32 get_devinfo_with_index(u32 index);
+extern u32 get_devinfo_with_index(unsigned int index);
 extern u32 devinfo_ready(void);
 extern u32 devinfo_get_size(void);
 extern u32 get_hrid_size(void);

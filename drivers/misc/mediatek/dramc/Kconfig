@@ -6,14 +6,3 @@ config MTK_DRAMC
 	  incude the following API
 	  PASR
 	  DVFS
-
-
-config MTK_DRAMC_PASR
-	bool "Mediatek DRAMC PASR control"
-	default n
-	help
-	  Mediatek(R) PASR HW control.
-	  This controls the setting of DRAM mode register
-	  for PASR(Partial Array Self-Refresh).
-	  Caller needs to prepare bit-mask setting of DRAM
-	  segment to trigger PASR.

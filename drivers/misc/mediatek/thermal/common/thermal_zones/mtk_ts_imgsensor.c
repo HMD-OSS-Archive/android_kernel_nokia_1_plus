@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 MediaTek Inc.
+ * Copyright (C) 2017 MediaTek Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -38,10 +38,14 @@
  *=============================================================
  */
 MUINT32 __attribute__ ((weak))
-Get_Camera_Temperature(CAMERA_DUAL_CAMERA_SENSOR_ENUM senDevId, MUINT8 *invalid, MINT32 *temp)
+Get_Camera_Temperature(
+enum CAMERA_DUAL_CAMERA_SENSOR_ENUM senDevId, MUINT8 *valid, MUINT32 *temp)
 {
-	pr_err("[Thermal/TZ/IMGS] E_WF: %s doesn't exist\n", __func__);
-	return 0;
+	*valid = SENSOR_TEMPERATURE_CANNOT_SEARCH_SENSOR;
+	*temp = -127;
+	pr_notice("[Thermal/TZ/IMGS] E_WF: %s doesn't exist\n", __func__);
+
+	return -1;
 }
 
 /*=============================================================
@@ -58,12 +62,12 @@ Get_Camera_Temperature(CAMERA_DUAL_CAMERA_SENSOR_ENUM senDevId, MUINT8 *invalid,
 #define mtk_imgs_dprintk(fmt, args...)   \
 	do {                                    \
 		if (mtk_imgs_debug_log) {                \
-			pr_err("[Thermal/TZ/IMGS]" fmt, ##args);\
+			pr_notice("[Thermal/TZ/IMGS]" fmt, ##args);\
 		}                                   \
 	} while (0)
 
 #define mtk_imgs_printk(fmt, args...)   \
-	pr_err("[Thermal/TZ/IMGS]" fmt, ##args)
+	pr_notice("[Thermal/TZ/IMGS]" fmt, ##args)
 /*=============================================================
  * Function prototype
  *=============================================================
@@ -91,7 +95,8 @@ struct thz_data {
 
 static struct thz_data g_tsData[RESERVED_TZS];
 
-static int mtk_imgs_debug_log;	/* 0: disable debug logs, Not 0: enable debug logs */
+/* 0: disable debug logs, Not 0: enable debug logs */
+static int mtk_imgs_debug_log;
 
 struct cooler_data {
 	struct thermal_cooling_device *cl_dev;
@@ -104,7 +109,8 @@ static int g_img_max; /* Number of image sensors in this platform */
 
 /**
  * If curr_temp >= polling_trip_temp1, use interval
- * else if cur_temp >= polling_trip_temp2 && curr_temp < polling_trip_temp1, use interval*polling_factor1
+ * else if cur_temp >= polling_trip_temp2 && curr_temp < polling_trip_temp1,
+ *	use interval*polling_factor1
  * else, use interval*polling_factor2
  */
 static int polling_trip_temp1 = 40000;
@@ -143,8 +149,8 @@ static int mtk_imgs_get_num_imgs(int *num)
  * Debug switch
  *=============================================================
  */
-static ssize_t mtk_imgs_write_log(struct file *file, const char __user *buffer, size_t count,
-			       loff_t *data)
+static ssize_t mtk_imgs_write_log(
+struct file *file, const char __user *buffer, size_t count, loff_t *data)
 {
 	char desc[32];
 	int log_switch;
@@ -266,12 +272,14 @@ static int mtk_imgs_get_temp(struct thermal_zone_device *thermal, int *t)
 		 */
 		curr_temp = mtk_imgs_get_max_temp();
 	} else {
-		ret = Get_Camera_Temperature(1 << (index - 1), &invalid, &curr_temp);
+		ret = Get_Camera_Temperature(
+				1 << (index - 1), &invalid, &curr_temp);
 
 		curr_temp *= 1000;
 
 		if ((invalid & SENSOR_TEMPERATURE_UNKNOWN_STATUS) != 0) {
-			mtk_imgs_dprintk("Invalid 0x%x: Image sensor %d status unknown\n",
+			mtk_imgs_dprintk(
+				"Invalid 0x%x: Image sensor %d status unknown\n",
 				invalid,  1 << (index - 1));
 			/* In sensor init state
 			 * report the invalid temp
@@ -279,8 +287,10 @@ static int mtk_imgs_get_temp(struct thermal_zone_device *thermal, int *t)
 			curr_temp = -127000;
 
 			set_image_sensor_state(index, power_on);
-		} else if ((invalid & SENSOR_TEMPERATURE_CANNOT_SEARCH_SENSOR) != 0) {
-			mtk_imgs_dprintk("Invalid 0x%x: Cannot serach the image sensor %d\n",
+		} else if ((invalid & SENSOR_TEMPERATURE_CANNOT_SEARCH_SENSOR)
+		!= 0) {
+			mtk_imgs_dprintk(
+				"Invalid 0x%x: Cannot serach the image sensor %d\n",
 				invalid,  1 << (index - 1));
 			/* The sensor doesn't exist in this project,
 			 * Assign the invalid temp, and stop polling
@@ -293,7 +303,8 @@ static int mtk_imgs_get_temp(struct thermal_zone_device *thermal, int *t)
 			set_image_sensor_state(index, power_off);
 			return 0;
 		} else if ((invalid & SENSOR_TEMPERATURE_NOT_POWER_ON) != 0) {
-			mtk_imgs_dprintk("Invalid 0x%x: Image sensor %d not power on\n",
+			mtk_imgs_dprintk(
+				"Invalid 0x%x: Image sensor %d not power on\n",
 				invalid,  1 << (index - 1));
 			/* The camera doesn't power on
 			 * report the invalid temp
@@ -301,15 +312,18 @@ static int mtk_imgs_get_temp(struct thermal_zone_device *thermal, int *t)
 			curr_temp = -127000;
 			set_image_sensor_state(index, power_off);
 		} else if ((invalid & SENSOR_TEMPERATURE_NOT_POWER_ON) == 0) {
-			if ((invalid & SENSOR_TEMPERATURE_NOT_SUPPORT_THERMAL) != 0) {
-				mtk_imgs_dprintk("Invalid 0x%x: Image sensor %d doesn't support power meter\n",
+			if ((invalid & SENSOR_TEMPERATURE_NOT_SUPPORT_THERMAL)
+			!= 0) {
+				mtk_imgs_dprintk(
+					"Invalid 0x%x: Image sensor %d doesn't support power meter\n",
 					invalid,  1 << (index - 1));
 				/* The camera doesn't support power meter
 				 * report the invalid temp
 				 */
 				curr_temp = -127000;
 			} else if ((invalid & SENSOR_TEMPERATURE_VALID) == 0) {
-				mtk_imgs_dprintk("Invalid 0x%x: Image sensor %d reports invalid temp temporarily\n",
+				mtk_imgs_dprintk(
+					"Invalid 0x%x: Image sensor %d reports invalid temp temporarily\n",
 					invalid,  1 << (index - 1));
 				/* Report the previous temp */
 				curr_temp = g_tsData[index].cTemp;
@@ -326,7 +340,7 @@ static int mtk_imgs_get_temp(struct thermal_zone_device *thermal, int *t)
 		}
 	}
 
-	mtk_imgs_dprintk("mtk_imgs_get_temp ts%d =%d\n", index, curr_temp);
+	mtk_imgs_dprintk("%s ts%d =%d\n", __func__, index, curr_temp);
 
 	g_tsData[index].cTemp = curr_temp;
 	*t = curr_temp;
@@ -334,19 +348,22 @@ static int mtk_imgs_get_temp(struct thermal_zone_device *thermal, int *t)
 	if ((int)*t >= polling_trip_temp1)
 		thermal->polling_delay = g_tsData[index].interval;
 	else if ((int)*t < polling_trip_temp2)
-		thermal->polling_delay = g_tsData[index].interval * polling_factor2;
+		thermal->polling_delay = g_tsData[index].interval *
+							polling_factor2;
 	else
-		thermal->polling_delay = g_tsData[index].interval * polling_factor1;
+		thermal->polling_delay = g_tsData[index].interval *
+							polling_factor1;
 
 	return 0;
 }
 
-static int mtk_imgs_bind(struct thermal_zone_device *thermal, struct thermal_cooling_device *cdev)
+static int mtk_imgs_bind(
+struct thermal_zone_device *thermal, struct thermal_cooling_device *cdev)
 {
 	int table_val = -1, index, i;
 
 	index = mtk_imgs_get_index(thermal);
-	mtk_imgs_dprintk("[mtk_imgs_bind ts%d]\n", index);
+	mtk_imgs_dprintk("[%s ts%d]\n", __func__, index);
 
 	for (i = 0; i < 10; i++) {
 		if (!strcmp(cdev->type, g_tsData[index].bind[i])) {
@@ -358,23 +375,28 @@ static int mtk_imgs_bind(struct thermal_zone_device *thermal, struct thermal_coo
 	if (table_val == -1)
 		return 0;
 
-	mtk_imgs_dprintk("[mtk_imgs_bind ts %d] %s\n", index, cdev->type);
+	mtk_imgs_dprintk("[%s ts %d] %s\n", __func__, index, cdev->type);
 
 	if (mtk_thermal_zone_bind_cooling_device(thermal, table_val, cdev)) {
-		mtk_imgs_dprintk("[mtk_imgs_bind ts %d] error binding cooling dev\n", index);
+		mtk_imgs_dprintk(
+			"[%s ts %d] error binding cooling dev\n", __func__,
+			index);
 		return -EINVAL;
 	}
 
-	mtk_imgs_dprintk("[mtk_imgs_bind ts %d] binding OK, %d\n", index, table_val);
+	mtk_imgs_dprintk("[%s ts %d] binding OK, %d\n", __func__,
+						index, table_val);
+
 	return 0;
 }
 
-static int mtk_imgs_unbind(struct thermal_zone_device *thermal, struct thermal_cooling_device *cdev)
+static int mtk_imgs_unbind(
+struct thermal_zone_device *thermal, struct thermal_cooling_device *cdev)
 {
 	int table_val = -1, index, i;
 
 	index = mtk_imgs_get_index(thermal);
-	mtk_imgs_dprintk("[mtk_imgs_unbind ts%d]\n", index);
+	mtk_imgs_dprintk("[%s ts%d]\n", __func__, index);
 
 	for (i = 0; i < 10; i++) {
 		if (!strcmp(cdev->type, g_tsData[index].bind[i])) {
@@ -386,28 +408,33 @@ static int mtk_imgs_unbind(struct thermal_zone_device *thermal, struct thermal_c
 	if (table_val == -1)
 		return 0;
 
-	mtk_imgs_dprintk("[mtk_imgs_unbind ts %d] %s\n", index, cdev->type);
+	mtk_imgs_dprintk("[%s ts %d] %s\n", __func__, index, cdev->type);
 
 	if (thermal_zone_unbind_cooling_device(thermal, table_val, cdev)) {
-		mtk_imgs_dprintk("[mtk_imgs_unbind ts %d] error unbinding cooling dev\n", index);
+		mtk_imgs_dprintk(
+			"[%s ts %d] error unbinding cooling dev\n", __func__,
+									index);
 		return -EINVAL;
 	}
 
-	mtk_imgs_dprintk("[mtk_imgs_unbind ts %d] unbinding OK\n", index);
+	mtk_imgs_dprintk("[%s ts %d] unbinding OK\n", __func__, index);
 	return 0;
 }
 
-static int mtk_imgs_get_mode(struct thermal_zone_device *thermal, enum thermal_device_mode *mode)
+static int mtk_imgs_get_mode(
+struct thermal_zone_device *thermal, enum thermal_device_mode *mode)
 {
 	int index;
 
 	index = mtk_imgs_get_index(thermal);
 
-	*mode = (g_tsData[index].kernelmode) ? THERMAL_DEVICE_ENABLED : THERMAL_DEVICE_DISABLED;
+	*mode = (g_tsData[index].kernelmode) ?
+			THERMAL_DEVICE_ENABLED : THERMAL_DEVICE_DISABLED;
 	return 0;
 }
 
-static int mtk_imgs_set_mode(struct thermal_zone_device *thermal, enum thermal_device_mode mode)
+static int mtk_imgs_set_mode(
+struct thermal_zone_device *thermal, enum thermal_device_mode mode)
 {
 	int index;
 
@@ -427,7 +454,8 @@ static int mtk_imgs_get_trip_type(struct thermal_zone_device *thermal, int trip,
 	return 0;
 }
 
-static int mtk_imgs_get_trip_temp(struct thermal_zone_device *thermal, int trip, int *temp)
+static int mtk_imgs_get_trip_temp(
+struct thermal_zone_device *thermal, int trip, int *temp)
 {
 	int index;
 
@@ -436,7 +464,8 @@ static int mtk_imgs_get_trip_temp(struct thermal_zone_device *thermal, int trip,
 	return 0;
 }
 
-static int mtk_imgs_get_crit_temp(struct thermal_zone_device *thermal, int *temperature)
+static int mtk_imgs_get_crit_temp(
+struct thermal_zone_device *thermal, int *temperature)
 {
 	*temperature = MTK_IMGS_TEMP_CRIT;
 	return 0;
@@ -469,11 +498,13 @@ static void mtkts_allts_start_timer(void)
 			continue;
 
 
+
 		if (down_trylock(&g_tsData[i].sem_mutex))
 			continue;
 
 		if (g_tsData[i].thz_dev != NULL && g_tsData[i].interval != 0) {
-			mod_delayed_work(system_freezable_power_efficient_wq, &(g_tsData[i].thz_dev->poll_queue),
+			mod_delayed_work(system_freezable_power_efficient_wq,
+				&(g_tsData[i].thz_dev->poll_queue),
 				round_jiffies(msecs_to_jiffies(1000)));
 			g_tsData[i].isTimerCancelled = 0;
 		}
@@ -500,19 +531,22 @@ static int tz ## num ## _proc_read(struct seq_file *m, void *v)	\
 	int i;	\
 \
 	for (i = 0; i < 10; i++) {	\
-		seq_printf(m, "Trip_%d_temp=%d ", i, g_tsData[num].trip_temp[i]);	\
+		seq_printf(m, "Trip_%d_temp=%d ", i,	\
+			g_tsData[num].trip_temp[i]);	\
 		if ((i + 1) % 5 == 0)	\
 			seq_printf(m, "\n");	\
 	}	\
 \
 	for (i = 0; i < 10; i++) {	\
-		seq_printf(m, "Trip_type%d=%d ", i, g_tsData[num].trip_type[i]);	\
+		seq_printf(m, "Trip_type%d=%d ", i,	\
+			g_tsData[num].trip_type[i]);	\
 		if ((i + 1) % 5 == 0)	\
 			seq_printf(m, "\n");	\
 	}	\
 \
 	for (i = 0; i < 10; i++) {	\
-		seq_printf(m, "Cool_dev%d=%s ", i,  g_tsData[num].bind[i]);	\
+		seq_printf(m, "Cool_dev%d=%s ", i,	\
+			g_tsData[num].bind[i]);	\
 		if ((i + 1) % 5 == 0)	\
 			seq_printf(m, "\n");	\
 	}	\
@@ -520,7 +554,8 @@ static int tz ## num ## _proc_read(struct seq_file *m, void *v)	\
 	return 0;	\
 }	\
 \
-static ssize_t tz ## num ## _proc_write(struct file *file, const char __user *buffer, size_t count,	\
+static ssize_t tz ## num ## _proc_write(	\
+struct file *file, const char __user *buffer, size_t count,	\
 			     loff_t *data)	\
 {	\
 	int len = 0, i, j;	\
@@ -540,7 +575,8 @@ static ssize_t tz ## num ## _proc_write(struct file *file, const char __user *bu
 	if (pTempD == NULL)	\
 		return -ENOMEM;	\
 \
-	len = (count < (sizeof(pTempD->desc) - 1)) ? count : (sizeof(pTempD->desc) - 1);	\
+	len = (count < (sizeof(pTempD->desc) - 1)) ?	\
+				count : (sizeof(pTempD->desc) - 1);	\
 	if (copy_from_user(pTempD->desc, buffer, len)) {	\
 		kfree(pTempD);	\
 		return 0;	\
@@ -549,7 +585,8 @@ static ssize_t tz ## num ## _proc_write(struct file *file, const char __user *bu
 	pTempD->desc[len] = '\0';\
 \
 	i = sscanf(pTempD->desc,	\
-"%d %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d",\
+"%d %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d "	\
+"%d %19s %d %d %19s %d %d %19s %d %d %19s %d %d %19s %d",\
 		&pTempD->num_trip,	\
 		&pTempD->trip[0], &pTempD->t_type[0], pTempD->bind[0],	\
 		&pTempD->trip[1], &pTempD->t_type[1], pTempD->bind[1],	\
@@ -565,17 +602,22 @@ static ssize_t tz ## num ## _proc_write(struct file *file, const char __user *bu
 \
 	if (i == 32) {	\
 		down(&g_tsData[num].sem_mutex);	\
-		mtk_imgs_dprintk("[mtk_imgs_write_"__stringify(num)"] thermal unregister\n");	\
+		mtk_imgs_dprintk(	\
+	"[mtk_imgs_write_"__stringify(num)"] thermal unregister\n");	\
 \
 		if (g_tsData[num].thz_dev) {	\
-			mtk_thermal_zone_device_unregister(g_tsData[num].thz_dev);	\
+			mtk_thermal_zone_device_unregister(	\
+			g_tsData[num].thz_dev);	\
 			g_tsData[num].thz_dev = NULL;	\
 		}	\
 \
 		if (pTempD->num_trip < 0 || pTempD->num_trip > 10) {	\
-			aee_kernel_warning_api(__FILE__, __LINE__, DB_OPT_DEFAULT,	\
-				"[mtk_imgs_write_"__stringify(num)"]", "Bad argument");	\
-			mtk_imgs_dprintk("[mtk_imgs_write1] bad argument\n");	\
+			aee_kernel_warning_api(__FILE__, __LINE__,	\
+				DB_OPT_DEFAULT,	\
+				"[mtk_imgs_write_"__stringify(num)"]",	\
+				"Bad argument");	\
+			mtk_imgs_dprintk(	\
+				"[mtk_imgs_write1] bad argument\n");	\
 			kfree(pTempD);	\
 			up(&g_tsData[num].sem_mutex);	\
 			return -EINVAL;	\
@@ -591,37 +633,46 @@ static ssize_t tz ## num ## _proc_write(struct file *file, const char __user *bu
 		for (i = 0; i < 10; i++) {	\
 			g_tsData[num].bind[i][0] = '\0';	\
 			for (j = 0; j < 20; j++)	\
-				g_tsData[num].bind[i][j] = pTempD->bind[i][j];	\
+				g_tsData[num].bind[i][j] =	\
+						pTempD->bind[i][j];	\
 		}	\
 \
 		g_tsData[num].interval = pTempD->time_msec;	\
 \
 		if (mtk_imgs_debug_log) {	\
 			for (i = 0; i < 10; i++) {	\
-				mtk_imgs_printk("Trip_%d_temp=%d ", i, g_tsData[num].trip_temp[i]);	\
+				mtk_imgs_printk("Trip_%d_temp=%d ",	\
+					i, g_tsData[num].trip_temp[i]);	\
 				if ((i + 1) % 5 == 0)	\
 					mtk_imgs_printk("\n");	\
 			}	\
 \
 			for (i = 0; i < 10; i++) {	\
-				mtk_imgs_printk("Trip_type%d=%d ", i, g_tsData[num].trip_type[i]);	\
+				mtk_imgs_printk("Trip_type%d=%d ", i,	\
+					g_tsData[num].trip_type[i]);	\
 				if ((i + 1) % 5 == 0)	\
 					mtk_imgs_printk("\n");	\
 			}	\
 \
 			for (i = 0; i < 10; i++) {	\
-				mtk_imgs_printk("Cool_dev%d=%s ", i,  g_tsData[num].bind[i]);	\
+				mtk_imgs_printk("Cool_dev%d=%s ", i,	\
+					g_tsData[num].bind[i]);	\
 				if ((i + 1) % 5 == 0)	\
 					mtk_imgs_printk("\n");	\
 			}	\
-			mtk_imgs_printk("Time_ms=%d\n", g_tsData[num].interval);	\
+			mtk_imgs_printk("Time_ms=%d\n",	\
+					g_tsData[num].interval);	\
 		}	\
 \
-		mtk_imgs_dprintk("[mtk_imgs_write_"__stringify(num)"] thermal register\n");	\
+		mtk_imgs_dprintk(	\
+	"[mtk_imgs_write_"__stringify(num)"] thermal register\n");	\
 		if (g_tsData[num].thz_dev == NULL) {	\
-			g_tsData[num].thz_dev = mtk_thermal_zone_device_register(g_tsData[num].thz_name,\
-							g_tsData[num].num_trip, NULL, &mtk_imgs_dev_ops, 0,\
-							0, 0, g_tsData[num].interval);	\
+			g_tsData[num].thz_dev =	\
+			mtk_thermal_zone_device_register(	\
+				g_tsData[num].thz_name,\
+				g_tsData[num].num_trip, NULL,	\
+				&mtk_imgs_dev_ops, 0,\
+				0, 0, g_tsData[num].interval);	\
 		}	\
 		up(&g_tsData[num].sem_mutex);	\
 \
@@ -629,13 +680,16 @@ static ssize_t tz ## num ## _proc_write(struct file *file, const char __user *bu
 		return count;	\
 	}	\
 \
-	mtk_imgs_dprintk("[mtk_imgs_write_"__stringify(num)"] bad argument\n");	\
-	aee_kernel_warning_api(__FILE__, __LINE__, DB_OPT_DEFAULT, "[mtk_imgs_write_"__stringify(num)"]", \
+	mtk_imgs_dprintk(	\
+		"[mtk_imgs_write_"__stringify(num)"] bad argument\n");	\
+	aee_kernel_warning_api(__FILE__, __LINE__, DB_OPT_DEFAULT,	\
+			"[mtk_imgs_write_"__stringify(num)"]", \
 			"Bad argument");	\
 	kfree(pTempD);	\
 	return -EINVAL;	\
 }	\
-static int tz ## num ## _proc_open(struct inode *inode, struct file *file)	\
+static int tz ## num ## _proc_open(	\
+struct inode *inode, struct file *file)	\
 {	\
 	return single_open(file, tz ## num ## _proc_read,	\
 			PDE_DATA(inode));	\
@@ -692,13 +746,15 @@ static int mtk_imgs_cooler_get_index(struct thermal_cooling_device *cdev)
 	return index;
 }
 
-static int mtk_imgs_sysrst_get_max_state(struct thermal_cooling_device *cdev, unsigned long *state)
+static int mtk_imgs_sysrst_get_max_state(
+struct thermal_cooling_device *cdev, unsigned long *state)
 {
 	*state = 1;
 	return 0;
 }
 
-static int mtk_imgs_sysrst_get_cur_state(struct thermal_cooling_device *cdev, unsigned long *state)
+static int mtk_imgs_sysrst_get_cur_state(
+struct thermal_cooling_device *cdev, unsigned long *state)
 {
 	int index;
 
@@ -709,7 +765,8 @@ static int mtk_imgs_sysrst_get_cur_state(struct thermal_cooling_device *cdev, un
 	return 0;
 }
 
-static int mtk_imgs_sysrst_set_cur_state(struct thermal_cooling_device *cdev, unsigned long state)
+static int mtk_imgs_sysrst_set_cur_state(
+struct thermal_cooling_device *cdev, unsigned long state)
 {
 	int index;
 
@@ -717,11 +774,16 @@ static int mtk_imgs_sysrst_set_cur_state(struct thermal_cooling_device *cdev, un
 	g_clData[index].sysrst_state = state;
 
 	if (g_clData[index].sysrst_state == 1) {
-		pr_debug("%s: reset, reset, reset!!!\n", g_clData[index].cl_name);
+		pr_debug("%s: reset, reset, reset!!!\n",
+						g_clData[index].cl_name);
+
 		pr_debug("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
 		pr_debug("*****************************************\n");
 		pr_debug("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
 
+		/* To trigger data abort to reset the system
+		 * for thermal protection.
+		 */
 		BUG();
 	}
 	return 0;
@@ -770,7 +832,8 @@ static int __init mtk_imgs_init(void)
 	mtk_imgs_dir = mtk_thermal_get_proc_drv_therm_dir_entry();
 
 	if (!mtk_imgs_dir) {
-		mtk_imgs_dprintk("[%s]: mkdir /proc/driver/thermal failed\n", __func__);
+		mtk_imgs_dprintk("[%s]: mkdir /proc/driver/thermal failed\n",
+								__func__);
 		return 0;
 	}
 
@@ -792,29 +855,34 @@ static int __init mtk_imgs_init(void)
 
 	/* Create proc nodes */
 	for (i = 0; i < g_img_max; i++) {
-		entry = proc_create(g_tsData[i].thz_name, S_IRUGO | S_IWUSR | S_IWGRP,
-				mtk_imgs_dir, thz_fops[i]);
+		entry = proc_create(g_tsData[i].thz_name, 0664, mtk_imgs_dir,
+								thz_fops[i]);
 		if (entry)
 			proc_set_user(entry, uid, gid);
 	}
 
-	entry = proc_create("tzimgs_debug", S_IRUGO | S_IWUSR, mtk_imgs_dir, &mtk_imgs_log_fops);
+	entry = proc_create("tzimgs_debug", 0644, mtk_imgs_dir,
+							&mtk_imgs_log_fops);
 
 	/* Register coolers */
 	for (i = 0; i < g_img_max; i++) {
-		g_clData[i].cl_dev = mtk_thermal_cooling_device_register(g_clData[i].cl_name, NULL,
-				&mtk_imgs_cooling_sysrst_ops);
+		g_clData[i].cl_dev = mtk_thermal_cooling_device_register(
+						g_clData[i].cl_name, NULL,
+						&mtk_imgs_cooling_sysrst_ops);
 	}
 
 	/* Register thermal zones */
 	for (i = 0; i < g_img_max; i++) {
-		g_tsData[i].thz_dev = mtk_thermal_zone_device_register(g_tsData[i].thz_name,
-							g_tsData[i].num_trip, NULL, &mtk_imgs_dev_ops, 0,
-							0, 0, g_tsData[i].interval);
+		g_tsData[i].thz_dev = mtk_thermal_zone_device_register(
+						g_tsData[i].thz_name,
+						g_tsData[i].num_trip, NULL,
+						&mtk_imgs_dev_ops, 0, 0, 0,
+						g_tsData[i].interval);
 	}
 
 	/* Register timers */
-	mtkTTimer_register("mtk_imgs", mtkts_allts_start_timer, mtkts_allts_cancel_timer);
+	mtkTTimer_register("mtk_imgs", mtkts_allts_start_timer,
+						mtkts_allts_cancel_timer);
 	return 0;
 }
 
@@ -834,7 +902,9 @@ static void __exit mtk_imgs_exit(void)
 	/* Unregister coolers */
 	for (i = 0; i < g_img_max; i++) {
 		if (g_clData[i].cl_dev) {
-			mtk_thermal_cooling_device_unregister(g_clData[i].cl_dev);
+			mtk_thermal_cooling_device_unregister(
+							g_clData[i].cl_dev);
+
 			g_clData[i].cl_dev = NULL;
 		}
 	}

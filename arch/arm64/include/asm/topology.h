@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __ASM_TOPOLOGY_H
 #define __ASM_TOPOLOGY_H
 
@@ -7,50 +8,58 @@ struct cpu_topology {
 	int thread_id;
 	int core_id;
 	int cluster_id;
-	unsigned int partno;
 	cpumask_t thread_sibling;
 	cpumask_t core_sibling;
 };
 
 extern struct cpu_topology cpu_topology[NR_CPUS];
-extern unsigned long arch_get_max_cpu_capacity(int);
-extern unsigned long arch_get_cur_cpu_capacity(int);
-
-extern unsigned long cpufreq_scale_max_freq_capacity(int cpu);
 
 #define topology_physical_package_id(cpu)	(cpu_topology[cpu].cluster_id)
 #define topology_core_id(cpu)		(cpu_topology[cpu].core_id)
 #define topology_core_cpumask(cpu)	(&cpu_topology[cpu].core_sibling)
 #define topology_sibling_cpumask(cpu)	(&cpu_topology[cpu].thread_sibling)
-#define topology_max_cpu_capacity(cpu) (arch_get_max_cpu_capacity(cpu))
-#define topology_cur_cpu_capacity(cpu) (arch_get_cur_cpu_capacity(cpu))
 
 void init_cpu_topology(void);
 void store_cpu_topology(unsigned int cpuid);
 const struct cpumask *cpu_coregroup_mask(int cpu);
 
+#ifdef CONFIG_NUMA
+
+struct pci_bus;
+int pcibus_to_node(struct pci_bus *bus);
+#define cpumask_of_pcibus(bus)	(pcibus_to_node(bus) == -1 ?		\
+				 cpu_all_mask :				\
+				 cpumask_of_node(pcibus_to_node(bus)))
+
+#endif /* CONFIG_NUMA */
+
+#include <linux/arch_topology.h>
+
+/* Replace task scheduler's default frequency-invariant accounting */
+#define arch_scale_freq_capacity topology_get_freq_scale
+
+/* Replace task scheduler's default max-frequency-invariant accounting */
+#define arch_scale_max_freq_capacity topology_get_max_freq_scale
+
+/* Replace task scheduler's default cpu-invariant accounting */
+#define arch_scale_cpu_capacity topology_get_cpu_scale
+
+/* Enable topology flag updates */
+#define arch_update_cpu_topology topology_update_cpu_topology
+
+/* Arch max frequency */
+#define arch_max_cpu_freq topology_get_max_cpu_freq
+
+/* Ceiling/floor frequency sacle */
+#define arch_max_freq_scale topology_get_max_freq_scale
+#define arch_min_freq_scale topology_get_min_freq_scale
+
 /* Extras of CPU & Cluster functions */
-extern int arch_cpu_is_big(unsigned int cpu);
-extern int arch_cpu_is_little(unsigned int cpu);
-extern int arch_is_multi_cluster(void);
-extern int arch_is_smp(void);
-extern int arch_get_nr_clusters(void);
-extern int arch_get_cluster_id(unsigned int cpu);
-extern void arch_get_cluster_cpus(struct cpumask *cpus, int cluster_id);
-extern int arch_better_capacity(unsigned int cpu);
-
-#ifdef CONFIG_MTK_CPU_TOPOLOGY
+int arch_is_multi_cluster(void);
+int arch_is_smp(void);
+int arch_get_nr_clusters(void);
+int arch_get_cluster_id(unsigned int cpu);
 void arch_build_cpu_topology_domain(void);
-#endif
-
-#ifdef CONFIG_MTK_SCHED_EAS_POWER_SUPPORT
-extern inline
-int mtk_idle_power(int idle_state, int cid, void *argu, int);
-
-extern inline
-int mtk_busy_power(int cpu, void *argu, int);
-#endif
-
 
 #include <asm-generic/topology.h>
 

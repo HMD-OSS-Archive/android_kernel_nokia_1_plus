@@ -27,11 +27,11 @@
 
 /* #define LCM_DEBUG */
 
-/* --------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------- */
 /* Local Variables */
-/* --------------------------------------------------------------------------- */
-static LCM_DTS _LCM_DTS;
-static LCM_UTIL_FUNCS lcm_util;
+/* ------------------------------------------------------------------------- */
+static struct LCM_DTS _LCM_DTS;
+static struct LCM_UTIL_FUNCS lcm_util;
 
 #define FRAME_WIDTH  _LCM_DTS.params.width
 #define FRAME_HEIGHT  _LCM_DTS.params.height
@@ -41,27 +41,27 @@ static LCM_UTIL_FUNCS lcm_util;
 #define read_reg_v2(cmd, buffer, buffer_size) \
 		lcm_util.dsi_dcs_read_lcm_reg_v2(cmd, buffer, buffer_size)
 
-/* --------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------- */
 /* LCM Driver Implementations */
-/* --------------------------------------------------------------------------- */
-void lcm_common_parse_dts(const LCM_DTS *DTS, unsigned char force_update)
+/* ------------------------------------------------------------------------- */
+void lcm_common_parse_dts(const struct LCM_DTS *DTS, unsigned char force_update)
 {
-	LCM_PARAMS *dts_params = &_LCM_DTS.params;
-	LCM_DATA *dts_init = &(_LCM_DTS.init[0]);
-	LCM_DATA *dts_compare_id = &(_LCM_DTS.compare_id[0]);
-	LCM_DATA *dts_suspend = &(_LCM_DTS.suspend[0]);
-	LCM_DATA *dts_backlight = &(_LCM_DTS.backlight[0]);
-	LCM_DATA *dts_backlight_cmdq = &(_LCM_DTS.backlight_cmdq[0]);
+	struct LCM_PARAMS *dts_params = &_LCM_DTS.params;
+	struct LCM_DATA *dts_init = &(_LCM_DTS.init[0]);
+	struct LCM_DATA *dts_compare_id = &(_LCM_DTS.compare_id[0]);
+	struct LCM_DATA *dts_suspend = &(_LCM_DTS.suspend[0]);
+	struct LCM_DATA *dts_backlight = &(_LCM_DTS.backlight[0]);
+	struct LCM_DATA *dts_backlight_cmdq = &(_LCM_DTS.backlight_cmdq[0]);
 
 
 	if ((_LCM_DTS.parsing != 0) && (force_update == 0)) {
 		pr_debug("[LCM][ERROR] %s/%d: DTS has been parsed or non-force update: %d, %d\n",
-		       __func__, __LINE__, _LCM_DTS.parsing, force_update);
+			__func__, __LINE__, _LCM_DTS.parsing, force_update);
 		return;
 	}
 #if defined(LCM_DEBUG)
 	/* LCM DTS parameter set */
-	memset(dts_params, 0, sizeof(LCM_PARAMS));
+	memset(dts_params, 0, sizeof(struct LCM_PARAMS));
 	dts_params->type = LCM_TYPE_DSI;
 	dts_params->width = 720;
 	dts_params->height = 1280;
@@ -84,51 +84,62 @@ void lcm_common_parse_dts(const LCM_DTS *DTS, unsigned char force_update)
 	dts_params->dsi.lcm_esd_check_table[0].count = 0x01;
 	dts_params->dsi.lcm_esd_check_table[0].para_list[0] = 0x24;
 #else
-	memset(dts_params, 0, sizeof(LCM_PARAMS));
-	memcpy(dts_params, &(DTS->params), sizeof(LCM_PARAMS));
+	memset(dts_params, 0, sizeof(struct LCM_PARAMS));
+	memcpy(dts_params, &(DTS->params), sizeof(struct LCM_PARAMS));
 #endif
 
 #if defined(LCM_DEBUG)
-	if (memcmp
-	    ((unsigned char *)dts_params, (unsigned char *)(&(DTS->params)),
-	     sizeof(LCM_PARAMS)) != 0x0) {
-		pr_debug("[LCM][ERROR] %s/%d: DTS compare error\n", __func__, __LINE__);
+	if (memcmp((unsigned char *)dts_params,
+	    (unsigned char *)(&(DTS->params)),
+	     sizeof(struct LCM_PARAMS)) != 0x0) {
+		pr_debug("[LCM][ERROR] %s/%d: DTS compare error\n",
+			__func__, __LINE__);
 
 		pr_debug("[LCM][ERROR] dts_params:\n");
 		tmp = (unsigned char *)dts_params;
 		tmp2 = (unsigned char *)(&(DTS->params));
-		for (i = 0; i < sizeof(LCM_PARAMS); i += 8) {
+		for (i = 0; i < sizeof(struct LCM_PARAMS); i += 8) {
 			if (*(tmp + i) != *(tmp2 + i))
-				pr_debug("data: 0x%x 0x%x, index: %d\n", *(tmp + i), *(tmp2 + i), i);
+				pr_debug("data: 0x%x 0x%x, index: %d\n",
+					*(tmp + i), *(tmp2 + i), i);
 			if (*(tmp + i + 1) != *(tmp2 + i + 1))
-				pr_debug("data: 0x%x 0x%x, index: %d\n", *(tmp + i + 1),
-				       *(tmp2 + i + 1), i + 1);
+				pr_debug("data: 0x%x 0x%x, index: %d\n",
+					*(tmp + i + 1),
+					*(tmp2 + i + 1), i + 1);
 			if (*(tmp + i + 2) != *(tmp2 + i + 2))
-				pr_debug("data: 0x%x 0x%x, index: %d\n", *(tmp + i + 2),
-				       *(tmp2 + i + 2), i + 2);
+				pr_debug("data: 0x%x 0x%x, index: %d\n",
+					*(tmp + i + 2),
+					*(tmp2 + i + 2), i + 2);
 			if (*(tmp + i + 3) != *(tmp2 + i + 3))
-				pr_debug("data: 0x%x 0x%x, index: %d\n", *(tmp + i + 3),
-				       *(tmp2 + i + 3), i + 3);
+				pr_debug("data: 0x%x 0x%x, index: %d\n",
+					*(tmp + i + 3),
+					*(tmp2 + i + 3), i + 3);
 			if (*(tmp + i + 4) != *(tmp2 + i + 4))
-				pr_debug("data: 0x%x 0x%x, index: %d\n", *(tmp + i + 4),
-				       *(tmp2 + i + 4), i + 4);
+				pr_debug("data: 0x%x 0x%x, index: %d\n",
+					*(tmp + i + 4),
+					*(tmp2 + i + 4), i + 4);
 			if (*(tmp + i + 5) != *(tmp2 + i + 5))
-				pr_debug("data: 0x%x 0x%x, index: %d\n", *(tmp + i + 5),
-				       *(tmp2 + i + 5), i + 5);
+				pr_debug("data: 0x%x 0x%x, index: %d\n",
+					*(tmp + i + 5),
+					*(tmp2 + i + 5), i + 5);
 			if (*(tmp + i + 6) != *(tmp2 + i + 6))
-				pr_debug("data: 0x%x 0x%x, index: %d\n", *(tmp + i + 6),
-				       *(tmp2 + i + 6), i + 6);
+				pr_debug("data: 0x%x 0x%x, index: %d\n",
+					*(tmp + i + 6),
+					*(tmp2 + i + 6), i + 6);
 			if (*(tmp + i + 7) != *(tmp2 + i + 7))
-				pr_debug("data: 0x%x 0x%x, index: %d\n", *(tmp + i + 7),
-				       *(tmp2 + i + 7), i + 7);
+				pr_debug("data: 0x%x 0x%x, index: %d\n",
+					*(tmp + i + 7),
+					*(tmp2 + i + 7), i + 7);
 		}
 
 		pr_debug("[LCM][ERROR] DTS->params:\n");
 		tmp = (unsigned char *)(&(DTS->params));
-		for (i = 0; i < sizeof(LCM_PARAMS); i += 8) {
-			pr_debug("0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x\n", *(tmp + i),
-			       *(tmp + i + 1), *(tmp + i + 2), *(tmp + i + 3), *(tmp + i + 4),
-			       *(tmp + i + 5), *(tmp + i + 6), *(tmp + i + 7));
+		for (i = 0; i < sizeof(struct LCM_PARAMS); i += 8) {
+			pr_debug("0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x\n",
+				*(tmp + i),	*(tmp + i + 1), *(tmp + i + 2),
+				*(tmp + i + 3), *(tmp + i + 4),
+				*(tmp + i + 5), *(tmp + i + 6),
+				*(tmp + i + 7));
 		}
 
 		return;
@@ -138,7 +149,7 @@ void lcm_common_parse_dts(const LCM_DTS *DTS, unsigned char force_update)
 #if defined(LCM_DEBUG)
 	/* LCM DTS init data set */
 	_LCM_DTS.init_size = 0;
-	memset(dts_init, 0, sizeof(LCM_DATA) * INIT_SIZE);
+	memset(dts_init, 0, sizeof(struct LCM_DATA) * INIT_SIZE);
 	dts_init->func = LCM_FUNC_UTIL;
 	dts_init->type = LCM_UTIL_RESET;
 	dts_init->size = 1;
@@ -607,33 +618,38 @@ void lcm_common_parse_dts(const LCM_DTS *DTS, unsigned char force_update)
 	dts_init = dts_init + 1;
 	_LCM_DTS.init_size = _LCM_DTS.init_size + 1;
 #else
-	memset(dts_init, 0, sizeof(LCM_DATA) * (DTS->init_size));
-	memcpy(dts_init, &(DTS->init[0]), sizeof(LCM_DATA) * (DTS->init_size));
+	memset(dts_init, 0, sizeof(struct LCM_DATA) * (DTS->init_size));
+	memcpy(dts_init, &(DTS->init[0]),
+		sizeof(struct LCM_DATA) * (DTS->init_size));
 	_LCM_DTS.init_size = DTS->init_size;
 #endif
 
 #if defined(LCM_DEBUG)
 	dts_init = &(_LCM_DTS.init[0]);
-	if (memcmp((unsigned char *)dts_init, (unsigned char *)(&(DTS->init[0])), sizeof(LCM_DATA))
+	if (memcmp((unsigned char *)dts_init,
+		(unsigned char *)(&(DTS->init[0])), sizeof(struct LCM_DATA))
 	    != 0x0) {
-		pr_debug("[LCM][ERROR] %s/%d: DTS compare error\n", __func__, __LINE__);
+		pr_debug("[LCM][ERROR] %s/%d: DTS compare error\n",
+			__func__, __LINE__);
 
 		pr_debug("[LCM][ERROR] dts_init:\n");
 		tmp = (unsigned char *)dts_init;
 		for (i = 0; i < _LCM_DTS.init_size; i++) {
-			pr_debug("0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x\n", *(tmp), *(tmp + 1),
-			       *(tmp + 2), *(tmp + 3), *(tmp + 4), *(tmp + 5), *(tmp + 6),
-			       *(tmp + 7));
-			tmp = tmp + sizeof(LCM_DATA);
+			pr_debug("0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x\n",
+				*(tmp), *(tmp + 1),	*(tmp + 2), *(tmp + 3),
+				*(tmp + 4), *(tmp + 5), *(tmp + 6),
+				*(tmp + 7));
+			tmp = tmp + sizeof(struct LCM_DATA);
 		}
 
 		pr_debug("[LCM][ERROR] DTS->init:\n");
 		tmp = (unsigned char *)(&(DTS->init[0]));
 		for (i = 0; i < DTS->init_size; i++) {
-			pr_debug("0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x\n", *(tmp), *(tmp + 1),
-			       *(tmp + 2), *(tmp + 3), *(tmp + 4), *(tmp + 5), *(tmp + 6),
-			       *(tmp + 7));
-			tmp = tmp + sizeof(LCM_DATA);
+			pr_debug("0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x\n",
+				*(tmp), *(tmp + 1),	*(tmp + 2), *(tmp + 3),
+				*(tmp + 4), *(tmp + 5), *(tmp + 6),
+				*(tmp + 7));
+			tmp = tmp + sizeof(struct LCM_DATA);
 		}
 
 		return;
@@ -643,7 +659,7 @@ void lcm_common_parse_dts(const LCM_DTS *DTS, unsigned char force_update)
 #if defined(LCM_DEBUG)
 	/* LCM DTS compare_id data set */
 	_LCM_DTS.compare_id_size = 0;
-	memset(dts_compare_id, 0, sizeof(LCM_DATA) * COMPARE_ID_SIZE);
+	memset(dts_compare_id, 0, sizeof(struct LCM_DATA) * COMPARE_ID_SIZE);
 	dts_compare_id->func = LCM_FUNC_CMD;
 	dts_compare_id->type = LCM_UTIL_WRITE_CMD_V1;
 	dts_compare_id->size = 5;
@@ -664,15 +680,17 @@ void lcm_common_parse_dts(const LCM_DTS *DTS, unsigned char force_update)
 	dts_compare_id = dts_compare_id + 1;
 	_LCM_DTS.compare_id_size = _LCM_DTS.compare_id_size + 1;
 #else
-	memset(dts_compare_id, 0, sizeof(LCM_DATA) * (DTS->compare_id_size));
-	memcpy(dts_compare_id, &(DTS->compare_id[0]), sizeof(LCM_DATA) * (DTS->compare_id_size));
+	memset(dts_compare_id, 0,
+		sizeof(struct LCM_DATA) * (DTS->compare_id_size));
+	memcpy(dts_compare_id, &(DTS->compare_id[0]),
+		sizeof(struct LCM_DATA) * (DTS->compare_id_size));
 	_LCM_DTS.compare_id_size = DTS->compare_id_size;
 #endif
 
 #if defined(LCM_DEBUG)
 	/* LCM DTS suspend data set */
 	_LCM_DTS.suspend_size = 0;
-	memset(dts_suspend, 0, sizeof(LCM_DATA) * SUSPEND_SIZE);
+	memset(dts_suspend, 0, sizeof(struct LCM_DATA) * SUSPEND_SIZE);
 	dts_suspend->func = LCM_FUNC_CMD;
 	dts_suspend->type = LCM_UTIL_WRITE_CMD_V2;
 	dts_suspend->size = 2;
@@ -688,15 +706,17 @@ void lcm_common_parse_dts(const LCM_DTS *DTS, unsigned char force_update)
 	dts_suspend = dts_suspend + 1;
 	_LCM_DTS.suspend_size = _LCM_DTS.suspend_size + 1;
 #else
-	memset(dts_suspend, 0, sizeof(LCM_DATA) * (DTS->suspend_size));
-	memcpy(dts_suspend, &(DTS->suspend[0]), sizeof(LCM_DATA) * (DTS->suspend_size));
+	memset(dts_suspend, 0,
+		sizeof(struct LCM_DATA) * (DTS->suspend_size));
+	memcpy(dts_suspend, &(DTS->suspend[0]),
+		sizeof(struct LCM_DATA) * (DTS->suspend_size));
 	_LCM_DTS.suspend_size = DTS->suspend_size;
 #endif
 
 #if defined(LCM_DEBUG)
 	/* LCM DTS backlight data set */
 	_LCM_DTS.backlight_size = 0;
-	memset(dts_backlight, 0, sizeof(LCM_DATA) * BACKLIGHT_SIZE);
+	memset(dts_backlight, 0, sizeof(struct LCM_DATA) * BACKLIGHT_SIZE);
 	dts_backlight->func = LCM_FUNC_CMD;
 	dts_backlight->type = LCM_UTIL_WRITE_CMD_V2;
 	dts_backlight->size = 3;
@@ -706,15 +726,18 @@ void lcm_common_parse_dts(const LCM_DTS *DTS, unsigned char force_update)
 	dts_backlight = dts_backlight + 1;
 	_LCM_DTS.backlight_size = _LCM_DTS.backlight_size + 1;
 #else
-	memset(dts_backlight, 0, sizeof(LCM_DATA) * (DTS->backlight_size));
-	memcpy(dts_backlight, &(DTS->backlight[0]), sizeof(LCM_DATA) * (DTS->backlight_size));
+	memset(dts_backlight, 0,
+		sizeof(struct LCM_DATA) * (DTS->backlight_size));
+	memcpy(dts_backlight, &(DTS->backlight[0]),
+		sizeof(struct LCM_DATA) * (DTS->backlight_size));
 	_LCM_DTS.backlight_size = DTS->backlight_size;
 #endif
 
 #if defined(LCM_DEBUG)
 	/* LCM DTS backlight cmdq data set */
 	_LCM_DTS.backlight_cmdq_size = 0;
-	memset(dts_backlight_cmdq, 0, sizeof(LCM_DATA) * BACKLIGHT_CMDQ_SIZE);
+	memset(dts_backlight_cmdq, 0,
+		sizeof(struct LCM_DATA) * BACKLIGHT_CMDQ_SIZE);
 	dts_backlight_cmdq->func = LCM_FUNC_CMD;
 	dts_backlight_cmdq->type = LCM_UTIL_WRITE_CMD_V2;
 	dts_backlight_cmdq->size = 3;
@@ -724,9 +747,10 @@ void lcm_common_parse_dts(const LCM_DTS *DTS, unsigned char force_update)
 	dts_backlight_cmdq = dts_backlight_cmdq + 1;
 	_LCM_DTS.backlight_cmdq_size = _LCM_DTS.backlight_cmdq_size + 1;
 #else
-	memset(dts_backlight_cmdq, 0, sizeof(LCM_DATA) * (DTS->backlight_cmdq_size));
+	memset(dts_backlight_cmdq, 0,
+		sizeof(struct LCM_DATA) * (DTS->backlight_cmdq_size));
 	memcpy(dts_backlight_cmdq, &(DTS->backlight_cmdq[0]),
-	       sizeof(LCM_DATA) * (DTS->backlight_cmdq_size));
+	       sizeof(struct LCM_DATA) * (DTS->backlight_cmdq_size));
 	_LCM_DTS.backlight_cmdq_size = DTS->backlight_cmdq_size;
 #endif
 
@@ -734,24 +758,26 @@ void lcm_common_parse_dts(const LCM_DTS *DTS, unsigned char force_update)
 }
 
 
-void lcm_common_set_util_funcs(const LCM_UTIL_FUNCS *util)
+void lcm_common_set_util_funcs(const struct LCM_UTIL_FUNCS *util)
 {
-	memcpy(&lcm_util, util, sizeof(LCM_UTIL_FUNCS));
+	memcpy(&lcm_util, util, sizeof(struct LCM_UTIL_FUNCS));
 }
 
 
-void lcm_common_get_params(LCM_PARAMS *params)
+void lcm_common_get_params(struct LCM_PARAMS *params)
 {
 	if (params == NULL) {
-		pr_debug("[LCM][ERROR] %s/%d: NULL parameter\n", __func__, __LINE__);
+		pr_debug("[LCM][ERROR] %s/%d: NULL parameter\n",
+			__func__, __LINE__);
 		return;
 	}
 
 	if (_LCM_DTS.parsing != 0) {
-		memset(params, 0, sizeof(LCM_PARAMS));
-		memcpy(params, &(_LCM_DTS.params), sizeof(LCM_PARAMS));
+		memset(params, 0, sizeof(struct LCM_PARAMS));
+		memcpy(params, &(_LCM_DTS.params), sizeof(struct LCM_PARAMS));
 	} else {
-		pr_debug("[LCM][ERROR] %s/%d: DTS is not parsed\n", __func__, __LINE__);
+		pr_debug("[LCM][ERROR] %s/%d: DTS is not parsed\n",
+			__func__, __LINE__);
 		return;
 	}
 }
@@ -759,113 +785,122 @@ void lcm_common_get_params(LCM_PARAMS *params)
 
 void lcm_common_init(void)
 {
+	unsigned int i;
+	struct LCM_DATA *init;
+
 	if (_LCM_DTS.init_size > INIT_SIZE) {
-		pr_debug("[LCM][ERROR] %s/%d: Init table overflow %d\n", __func__, __LINE__,
-		       _LCM_DTS.init_size);
+		pr_debug("[LCM][ERROR] %s/%d: Init table overflow %d\n",
+			__func__, __LINE__, _LCM_DTS.init_size);
 		return;
 	}
 
-	if (_LCM_DTS.parsing != 0) {
-		unsigned int i;
-		LCM_DATA *init;
+	if (_LCM_DTS.parsing == 0) {
+		pr_debug("[LCM][ERROR] %s/%d: DTS is not parsed\n",
+			__func__, __LINE__);
+		return;
+	}
 
-		for (i = 0; i < _LCM_DTS.init_size; i++) {
-			init = &(_LCM_DTS.init[i]);
-			switch (init->func) {
-			case LCM_FUNC_GPIO:
-				lcm_gpio_set_data(init->type, &init->data_t1);
+	for (i = 0; i < _LCM_DTS.init_size; i++) {
+		init = &(_LCM_DTS.init[i]);
+		switch (init->func) {
+		case LCM_FUNC_GPIO:
+			lcm_gpio_set_data(init->type, &init->data_t1);
+			break;
+
+		case LCM_FUNC_I2C:
+			lcm_i2c_set_data(init->type, &init->data_t2);
+			break;
+
+		case LCM_FUNC_UTIL:
+			lcm_util_set_data(&lcm_util,
+				init->type, &init->data_t1);
+			break;
+
+		case LCM_FUNC_CMD:
+			switch (init->type) {
+			case LCM_UTIL_WRITE_CMD_V1:
+				lcm_util_set_write_cmd_v1(&lcm_util,
+					&init->data_t5, 1);
 				break;
 
-			case LCM_FUNC_I2C:
-				lcm_i2c_set_data(init->type, &init->data_t2);
-				break;
-
-			case LCM_FUNC_UTIL:
-				lcm_util_set_data(&lcm_util, init->type, &init->data_t1);
-				break;
-
-			case LCM_FUNC_CMD:
-				switch (init->type) {
-				case LCM_UTIL_WRITE_CMD_V1:
-					lcm_util_set_write_cmd_v1(&lcm_util, &init->data_t5, 1);
-					break;
-
-				case LCM_UTIL_WRITE_CMD_V2:
-					lcm_util_set_write_cmd_v2(&lcm_util, &init->data_t3, 1);
-					break;
-
-				default:
-					pr_debug("[LCM][ERROR] %s/%d: %d\n", __func__, __LINE__,
-					       init->type);
-					return;
-				}
+			case LCM_UTIL_WRITE_CMD_V2:
+				lcm_util_set_write_cmd_v2(&lcm_util,
+					&init->data_t3, 1);
 				break;
 
 			default:
-				pr_debug("[LCM][ERROR] %s/%d: %d\n", __func__, __LINE__, init->func);
+				pr_debug("[LCM][ERROR] %s/%d: %d\n",
+					__func__, __LINE__, init->type);
 				return;
 			}
+			break;
+
+		default:
+			pr_debug("[LCM][ERROR] %s/%d: %d\n",
+				__func__, __LINE__, init->func);
+			return;
 		}
-	} else {
-		pr_debug("[LCM][ERROR] %s/%d: DTS is not parsed\n", __func__, __LINE__);
-		return;
 	}
 }
 
 
 void lcm_common_suspend(void)
 {
+	unsigned int i;
+	struct LCM_DATA *suspend;
+
 	if (_LCM_DTS.suspend_size > SUSPEND_SIZE) {
-		pr_debug("[LCM][ERROR] %s/%d: Suspend table overflow %d\n", __func__, __LINE__,
-		       _LCM_DTS.suspend_size);
+		pr_debug("[LCM][ERROR] %s/%d: Suspend table overflow %d\n",
+			__func__, __LINE__, _LCM_DTS.suspend_size);
 		return;
 	}
 
-	if (_LCM_DTS.parsing != 0) {
-		unsigned int i;
-		LCM_DATA *suspend;
+	if (_LCM_DTS.parsing == 0) {
+		pr_debug("[LCM][ERROR] %s/%d: DTS is not parsed\n",
+			__func__, __LINE__);
+		return;
+	}
 
-		for (i = 0; i < _LCM_DTS.suspend_size; i++) {
-			suspend = &(_LCM_DTS.suspend[i]);
-			switch (suspend->func) {
-			case LCM_FUNC_GPIO:
-				lcm_gpio_set_data(suspend->type, &suspend->data_t1);
+	for (i = 0; i < _LCM_DTS.suspend_size; i++) {
+		suspend = &(_LCM_DTS.suspend[i]);
+		switch (suspend->func) {
+		case LCM_FUNC_GPIO:
+			lcm_gpio_set_data(suspend->type, &suspend->data_t1);
+			break;
+
+		case LCM_FUNC_I2C:
+			lcm_i2c_set_data(suspend->type, &suspend->data_t2);
+			break;
+
+		case LCM_FUNC_UTIL:
+			lcm_util_set_data(&lcm_util, suspend->type,
+				&suspend->data_t1);
+			break;
+
+		case LCM_FUNC_CMD:
+			switch (suspend->type) {
+			case LCM_UTIL_WRITE_CMD_V1:
+				lcm_util_set_write_cmd_v1(&lcm_util,
+					&suspend->data_t5, 1);
 				break;
 
-			case LCM_FUNC_I2C:
-				lcm_i2c_set_data(suspend->type, &suspend->data_t2);
-				break;
-
-			case LCM_FUNC_UTIL:
-				lcm_util_set_data(&lcm_util, suspend->type, &suspend->data_t1);
-				break;
-
-			case LCM_FUNC_CMD:
-				switch (suspend->type) {
-				case LCM_UTIL_WRITE_CMD_V1:
-					lcm_util_set_write_cmd_v1(&lcm_util, &suspend->data_t5, 1);
-					break;
-
-				case LCM_UTIL_WRITE_CMD_V2:
-					lcm_util_set_write_cmd_v2(&lcm_util, &suspend->data_t3, 1);
-					break;
-
-				default:
-					pr_debug("[LCM][ERROR] %s/%d: %d\n", __func__, __LINE__,
-					       suspend->type);
-					return;
-				}
+			case LCM_UTIL_WRITE_CMD_V2:
+				lcm_util_set_write_cmd_v2(&lcm_util,
+					&suspend->data_t3, 1);
 				break;
 
 			default:
-				pr_debug("[LCM][ERROR] %s/%d: %d\n", __func__, __LINE__,
-				       suspend->func);
+				pr_debug("[LCM][ERROR] %s/%d: %d\n",
+					__func__, __LINE__, suspend->type);
 				return;
 			}
+			break;
+
+		default:
+			pr_debug("[LCM][ERROR] %s/%d: %d\n",
+				__func__, __LINE__, suspend->func);
+			return;
 		}
-	} else {
-		pr_debug("[LCM][ERROR] %s/%d: DTS is not parsed\n", __func__, __LINE__);
-		return;
 	}
 }
 
@@ -892,51 +927,51 @@ void lcm_common_updatebycmdq(unsigned int x, unsigned int y
 	unsigned char y1_MSB = ((y1 >> 8) & 0xFF);
 	unsigned char y1_LSB = (y1 & 0xFF);
 
-	LCM_DATA update;
-	LCM_DATA_T5 *data_t5 = &(update.data_t5);
-	LCM_PARAMS *dts_params = &_LCM_DTS.params;
+	struct LCM_DATA update;
+	struct LCM_DATA_T5 *data_t5 = &(update.data_t5);
+	struct LCM_PARAMS *dts_params = &_LCM_DTS.params;
 
-	if (_LCM_DTS.parsing != 0) {
-		if (dts_params->dsi.mode == CMD_MODE) {
-			data_t5->size = 3;
-			data_t5->cmd[0] = 0x02;
-			data_t5->cmd[1] = 0x39;
-			data_t5->cmd[2] = 0x05;
-			data_t5->cmd[3] = 0x00;
+	if (_LCM_DTS.parsing == 0 || dts_params->dsi.mode != CMD_MODE)
+		return;
 
-			data_t5->cmd[4] = 0x2a;
-			data_t5->cmd[5] = x0_MSB;
-			data_t5->cmd[6] = x0_LSB;
-			data_t5->cmd[7] = x1_MSB;
+	data_t5->size = 3;
+	data_t5->cmd[0] = 0x02;
+	data_t5->cmd[1] = 0x39;
+	data_t5->cmd[2] = 0x05;
+	data_t5->cmd[3] = 0x00;
 
-			data_t5->cmd[8] = x1_LSB;
-			data_t5->cmd[9] = 0x00;
-			data_t5->cmd[10] = 0x00;
-			data_t5->cmd[11] = 0x00;
-			lcm_util_set_write_cmd_v11(&lcm_util, data_t5, 1, cmdq);
+	data_t5->cmd[4] = 0x2a;
+	data_t5->cmd[5] = x0_MSB;
+	data_t5->cmd[6] = x0_LSB;
+	data_t5->cmd[7] = x1_MSB;
 
-			data_t5->size = 3;
-			data_t5->cmd[0] = 0x02;
-			data_t5->cmd[1] = 0x39;
-			data_t5->cmd[2] = 0x05;
-			data_t5->cmd[3] = 0x00;
+	data_t5->cmd[8] = x1_LSB;
+	data_t5->cmd[9] = 0x00;
+	data_t5->cmd[10] = 0x00;
+	data_t5->cmd[11] = 0x00;
+	lcm_util_set_write_cmd_v11(&lcm_util, data_t5, 1, cmdq);
 
-			data_t5->cmd[4] = 0x2b;
-			data_t5->cmd[5] = y0_MSB;
-			data_t5->cmd[6] = y0_LSB;
-			data_t5->cmd[7] = y1_MSB;
+	data_t5->size = 3;
+	data_t5->cmd[0] = 0x02;
+	data_t5->cmd[1] = 0x39;
+	data_t5->cmd[2] = 0x05;
+	data_t5->cmd[3] = 0x00;
 
-			data_t5->cmd[8] = y1_LSB;
-			data_t5->cmd[9] = 0x00;
-			data_t5->cmd[10] = 0x00;
-			data_t5->cmd[11] = 0x00;
-			lcm_util_set_write_cmd_v11(&lcm_util, data_t5, 1, cmdq);
-		}
-	}
+	data_t5->cmd[4] = 0x2b;
+	data_t5->cmd[5] = y0_MSB;
+	data_t5->cmd[6] = y0_LSB;
+	data_t5->cmd[7] = y1_MSB;
+
+	data_t5->cmd[8] = y1_LSB;
+	data_t5->cmd[9] = 0x00;
+	data_t5->cmd[10] = 0x00;
+	data_t5->cmd[11] = 0x00;
+	lcm_util_set_write_cmd_v11(&lcm_util, data_t5, 1, cmdq);
 }
 
 
-void lcm_common_update(unsigned int x, unsigned int y, unsigned int width, unsigned int height)
+void lcm_common_update(unsigned int x, unsigned int y, unsigned int width,
+	unsigned int height)
 {
 	unsigned int x0 = x;
 	unsigned int y0 = y;
@@ -952,54 +987,53 @@ void lcm_common_update(unsigned int x, unsigned int y, unsigned int width, unsig
 	unsigned char y1_MSB = ((y1 >> 8) & 0xFF);
 	unsigned char y1_LSB = (y1 & 0xFF);
 
-	LCM_DATA update;
-	LCM_DATA_T5 *data_t5 = &(update.data_t5);
-	LCM_PARAMS *dts_params = &_LCM_DTS.params;
+	struct LCM_DATA update;
+	struct LCM_DATA_T5 *data_t5 = &(update.data_t5);
+	struct LCM_PARAMS *dts_params = &_LCM_DTS.params;
 
-	if (_LCM_DTS.parsing != 0) {
-		if (dts_params->dsi.mode == CMD_MODE) {
-			data_t5->size = 3;
-			data_t5->cmd[0] = 0x02;
-			data_t5->cmd[1] = 0x39;
-			data_t5->cmd[2] = 0x05;
-			data_t5->cmd[3] = 0x00;
+	if (_LCM_DTS.parsing == 0 || dts_params->dsi.mode != CMD_MODE)
+		return;
 
-			data_t5->cmd[4] = 0x2a;
-			data_t5->cmd[5] = x0_MSB;
-			data_t5->cmd[6] = x0_LSB;
-			data_t5->cmd[7] = x1_MSB;
+	data_t5->size = 3;
+	data_t5->cmd[0] = 0x02;
+	data_t5->cmd[1] = 0x39;
+	data_t5->cmd[2] = 0x05;
+	data_t5->cmd[3] = 0x00;
 
-			data_t5->cmd[8] = x1_LSB;
-			data_t5->cmd[9] = 0x00;
-			data_t5->cmd[10] = 0x00;
-			data_t5->cmd[11] = 0x00;
-			lcm_util_set_write_cmd_v1(&lcm_util, data_t5, 1);
+	data_t5->cmd[4] = 0x2a;
+	data_t5->cmd[5] = x0_MSB;
+	data_t5->cmd[6] = x0_LSB;
+	data_t5->cmd[7] = x1_MSB;
 
-			data_t5->size = 3;
-			data_t5->cmd[0] = 0x02;
-			data_t5->cmd[1] = 0x39;
-			data_t5->cmd[2] = 0x05;
-			data_t5->cmd[3] = 0x00;
+	data_t5->cmd[8] = x1_LSB;
+	data_t5->cmd[9] = 0x00;
+	data_t5->cmd[10] = 0x00;
+	data_t5->cmd[11] = 0x00;
+	lcm_util_set_write_cmd_v1(&lcm_util, data_t5, 1);
 
-			data_t5->cmd[4] = 0x2b;
-			data_t5->cmd[5] = y0_MSB;
-			data_t5->cmd[6] = y0_LSB;
-			data_t5->cmd[7] = y1_MSB;
+	data_t5->size = 3;
+	data_t5->cmd[0] = 0x02;
+	data_t5->cmd[1] = 0x39;
+	data_t5->cmd[2] = 0x05;
+	data_t5->cmd[3] = 0x00;
 
-			data_t5->cmd[8] = y1_LSB;
-			data_t5->cmd[9] = 0x00;
-			data_t5->cmd[10] = 0x00;
-			data_t5->cmd[11] = 0x00;
-			lcm_util_set_write_cmd_v1(&lcm_util, data_t5, 1);
+	data_t5->cmd[4] = 0x2b;
+	data_t5->cmd[5] = y0_MSB;
+	data_t5->cmd[6] = y0_LSB;
+	data_t5->cmd[7] = y1_MSB;
 
-			data_t5->size = 1;
-			data_t5->cmd[0] = 0x09;
-			data_t5->cmd[1] = 0x39;
-			data_t5->cmd[2] = 0x2c;
-			data_t5->cmd[3] = 0x00;
-			lcm_util_set_write_cmd_v1(&lcm_util, data_t5, 0);
-		}
-	}
+	data_t5->cmd[8] = y1_LSB;
+	data_t5->cmd[9] = 0x00;
+	data_t5->cmd[10] = 0x00;
+	data_t5->cmd[11] = 0x00;
+	lcm_util_set_write_cmd_v1(&lcm_util, data_t5, 1);
+
+	data_t5->size = 1;
+	data_t5->cmd[0] = 0x09;
+	data_t5->cmd[1] = 0x39;
+	data_t5->cmd[2] = 0x2c;
+	data_t5->cmd[3] = 0x00;
+	lcm_util_set_write_cmd_v1(&lcm_util, data_t5, 0);
 }
 
 
@@ -1007,76 +1041,80 @@ void lcm_common_setbacklight(unsigned int level)
 {
 	unsigned int default_level = 145;
 	unsigned int mapped_level = 0;
+	unsigned int i;
+	struct LCM_DATA *backlight;
+	struct LCM_DATA_T3 *backlight_data_t3;
 
 	/* for LGE backlight IC mapping table */
 	if (level > 255)
 		level = 255;
 
 	if (level > 0)
-		mapped_level = default_level + (level) * (255 - default_level) / (255);
+		mapped_level = default_level +
+			(level) * (255 - default_level) / (255);
 	else
 		mapped_level = 0;
 
 	if (_LCM_DTS.backlight_size > BACKLIGHT_SIZE) {
-		pr_debug("[LCM][ERROR] %s/%d: Backlight table overflow %d\n", __func__, __LINE__,
-		       _LCM_DTS.backlight_size);
+		pr_debug("[LCM][ERROR] %s/%d: Backlight table overflow %d\n",
+			__func__, __LINE__, _LCM_DTS.backlight_size);
 		return;
 	}
 
-	if (_LCM_DTS.parsing != 0) {
-		unsigned int i;
-		LCM_DATA *backlight;
-		LCM_DATA_T3 *backlight_data_t3;
+	if (_LCM_DTS.parsing == 0) {
+		pr_debug("[LCM][ERROR] %s/%d: DTS is not parsed\n",
+			__func__, __LINE__);
+		return;
+	}
 
-		for (i = 0; i < _LCM_DTS.backlight_size; i++) {
-			if (i == (_LCM_DTS.backlight_size - 1)) {
-				backlight = &(_LCM_DTS.backlight[i]);
-				backlight_data_t3 = &(backlight->data_t3);
-				backlight_data_t3->data[i] = mapped_level;
-			} else
-				backlight = &(_LCM_DTS.backlight[i]);
+	for (i = 0; i < _LCM_DTS.backlight_size; i++) {
+		if (i == (_LCM_DTS.backlight_size - 1)) {
+			backlight = &(_LCM_DTS.backlight[i]);
+			backlight_data_t3 = &(backlight->data_t3);
+			backlight_data_t3->data[i] = mapped_level;
+		} else
+			backlight = &(_LCM_DTS.backlight[i]);
 
-			switch (backlight->func) {
-			case LCM_FUNC_GPIO:
-				lcm_gpio_set_data(backlight->type, &backlight->data_t1);
+		switch (backlight->func) {
+		case LCM_FUNC_GPIO:
+			lcm_gpio_set_data(backlight->type, &backlight->data_t1);
+			break;
+
+		case LCM_FUNC_I2C:
+			lcm_i2c_set_data(backlight->type, &backlight->data_t2);
+			break;
+
+		case LCM_FUNC_UTIL:
+			lcm_util_set_data(&lcm_util, backlight->type,
+				&backlight->data_t1);
+			break;
+
+		case LCM_FUNC_CMD:
+			switch (backlight->type) {
+			case LCM_UTIL_WRITE_CMD_V1:
+				lcm_util_set_write_cmd_v1(&lcm_util,
+					&backlight->data_t5, 1);
 				break;
 
-			case LCM_FUNC_I2C:
-				lcm_i2c_set_data(backlight->type, &backlight->data_t2);
-				break;
-
-			case LCM_FUNC_UTIL:
-				lcm_util_set_data(&lcm_util, backlight->type, &backlight->data_t1);
-				break;
-
-			case LCM_FUNC_CMD:
-				switch (backlight->type) {
-				case LCM_UTIL_WRITE_CMD_V1:
-					lcm_util_set_write_cmd_v1(&lcm_util, &backlight->data_t5,
-								  1);
-					break;
-
-				case LCM_UTIL_WRITE_CMD_V2:
-					lcm_util_set_write_cmd_v2(&lcm_util, &backlight->data_t3,
-								  1);
-					break;
-
-				default:
-					pr_debug("[LCM][ERROR] %s/%d: %d\n", __func__, __LINE__,
-					       (unsigned int)backlight->type);
-					return;
-				}
+			case LCM_UTIL_WRITE_CMD_V2:
+				lcm_util_set_write_cmd_v2(&lcm_util,
+					&backlight->data_t3, 1);
 				break;
 
 			default:
-				pr_debug("[LCM][ERROR] %s/%d: %d\n", __func__, __LINE__,
-				       (unsigned int)backlight->func);
+				pr_debug("[LCM][ERROR] %s/%d: %d\n",
+					__func__, __LINE__,
+					(unsigned int)backlight->type);
 				return;
 			}
+			break;
+
+		default:
+			pr_debug("[LCM][ERROR] %s/%d: %d\n",
+				__func__, __LINE__,
+				(unsigned int)backlight->func);
+			return;
 		}
-	} else {
-		pr_debug("[LCM][ERROR] %s/%d: DTS is not parsed\n", __func__, __LINE__);
-		return;
 	}
 }
 
@@ -1085,66 +1123,68 @@ unsigned int lcm_common_compare_id(void)
 {
 	/* default: skip compare id */
 	unsigned int compare = 1;
+	unsigned int i;
+	struct LCM_DATA *compare_id;
 
 	if (_LCM_DTS.compare_id_size > COMPARE_ID_SIZE) {
-		pr_debug("[LCM][ERROR] %s/%d: Compare table overflow %d\n", __func__, __LINE__,
-		       _LCM_DTS.compare_id_size);
+		pr_debug("[LCM][ERROR] %s/%d: Compare table overflow %d\n",
+			__func__, __LINE__, _LCM_DTS.compare_id_size);
 		return 0;
 	}
 
-	if (_LCM_DTS.parsing != 0) {
-		unsigned int i;
-		LCM_DATA *compare_id;
+	if (_LCM_DTS.parsing == 0) {
+		pr_debug("[LCM][ERROR] %s/%d: DTS is not parsed\n",
+			__func__, __LINE__);
+		return 0;
+	}
 
-		for (i = 0; i < _LCM_DTS.compare_id_size; i++) {
-			compare_id = &(_LCM_DTS.compare_id[i]);
-			switch (compare_id->func) {
-			case LCM_FUNC_GPIO:
-				lcm_gpio_set_data(compare_id->type, &compare_id->data_t1);
+	for (i = 0; i < _LCM_DTS.compare_id_size; i++) {
+		compare_id = &(_LCM_DTS.compare_id[i]);
+		switch (compare_id->func) {
+		case LCM_FUNC_GPIO:
+			lcm_gpio_set_data(compare_id->type,
+				&compare_id->data_t1);
+			break;
+
+		case LCM_FUNC_I2C:
+			lcm_i2c_set_data(compare_id->type,
+				&compare_id->data_t2);
+			break;
+
+		case LCM_FUNC_UTIL:
+			lcm_util_set_data(&lcm_util, compare_id->type,
+					  &compare_id->data_t1);
+			break;
+
+		case LCM_FUNC_CMD:
+			switch (compare_id->type) {
+			case LCM_UTIL_WRITE_CMD_V1:
+				lcm_util_set_write_cmd_v1(&lcm_util,
+					&compare_id->data_t5, 1);
 				break;
 
-			case LCM_FUNC_I2C:
-				lcm_i2c_set_data(compare_id->type, &compare_id->data_t2);
+			case LCM_UTIL_WRITE_CMD_V2:
+				lcm_util_set_write_cmd_v2(&lcm_util,
+					&compare_id->data_t3, 1);
 				break;
 
-			case LCM_FUNC_UTIL:
-				lcm_util_set_data(&lcm_util, compare_id->type,
-						  &compare_id->data_t1);
-				break;
-
-			case LCM_FUNC_CMD:
-				switch (compare_id->type) {
-				case LCM_UTIL_WRITE_CMD_V1:
-					lcm_util_set_write_cmd_v1(&lcm_util, &compare_id->data_t5,
-								  1);
-					break;
-
-				case LCM_UTIL_WRITE_CMD_V2:
-					lcm_util_set_write_cmd_v2(&lcm_util, &compare_id->data_t3,
-								  1);
-					break;
-
-				case LCM_UTIL_READ_CMD_V2:
-					lcm_util_set_read_cmd_v2(&lcm_util, &compare_id->data_t4,
-								 &compare);
-					break;
-
-				default:
-					pr_debug("[LCM][ERROR] %s/%d: %d\n", __func__, __LINE__,
-					       compare_id->type);
-					return 0;
-				}
+			case LCM_UTIL_READ_CMD_V2:
+				lcm_util_set_read_cmd_v2(&lcm_util,
+					&compare_id->data_t4, &compare);
 				break;
 
 			default:
-				pr_debug("[LCM][ERROR] %s/%d: %d\n", __func__, __LINE__,
-				       compare_id->func);
+				pr_debug("[LCM][ERROR] %s/%d: %d\n",
+					__func__, __LINE__, compare_id->type);
 				return 0;
 			}
+			break;
+
+		default:
+			pr_debug("[LCM][ERROR] %s/%d: %d\n",
+				__func__, __LINE__, compare_id->func);
+			return 0;
 		}
-	} else {
-		pr_debug("[LCM][ERROR] %s/%d: DTS is not parsed\n", __func__, __LINE__);
-		return 0;
 	}
 
 	return compare;
@@ -1161,62 +1201,67 @@ unsigned int lcm_common_ata_check(unsigned char *buffer)
 
 void lcm_common_setbacklight_cmdq(void *handle, unsigned int level)
 {
+	unsigned int i;
+	struct LCM_DATA *backlight_cmdq;
+	struct LCM_DATA_T3 *backlight_cmdq_data_t3;
+
 	if (_LCM_DTS.backlight_cmdq_size > BACKLIGHT_CMDQ_SIZE) {
-		pr_debug("[LCM][ERROR] %s/%d: Backlight cmdq table overflow %d\n", __func__, __LINE__,
-			 _LCM_DTS.backlight_cmdq_size);
+		pr_debug("[LCM][ERROR] %s/%d: Backlight cmdq table overflow %d\n",
+			__func__, __LINE__, _LCM_DTS.backlight_cmdq_size);
 		return;
 	}
 
-	if (_LCM_DTS.parsing != 0) {
-		unsigned int i;
-		LCM_DATA *backlight_cmdq;
-		LCM_DATA_T3 *backlight_cmdq_data_t3;
+	if (_LCM_DTS.parsing == 0) {
+		pr_debug("[LCM][ERROR] %s/%d: DTS is not parsed\n",
+			__func__, __LINE__);
+		return;
+	}
 
-		for (i = 0; i < _LCM_DTS.backlight_cmdq_size; i++) {
-			if (i == (_LCM_DTS.backlight_cmdq_size - 1)) {
-				backlight_cmdq = &(_LCM_DTS.backlight_cmdq[i]);
-				backlight_cmdq_data_t3 = &(backlight_cmdq->data_t3);
-				backlight_cmdq_data_t3->data[i] = level;
-			} else
-				backlight_cmdq = &(_LCM_DTS.backlight_cmdq[i]);
+	for (i = 0; i < _LCM_DTS.backlight_cmdq_size; i++) {
+		if (i == (_LCM_DTS.backlight_cmdq_size - 1)) {
+			backlight_cmdq = &(_LCM_DTS.backlight_cmdq[i]);
+			backlight_cmdq_data_t3 = &(backlight_cmdq->data_t3);
+			backlight_cmdq_data_t3->data[i] = level;
+		} else
+			backlight_cmdq = &(_LCM_DTS.backlight_cmdq[i]);
 
-			switch (backlight_cmdq->func) {
-			case LCM_FUNC_GPIO:
-				lcm_gpio_set_data(backlight_cmdq->type, &backlight_cmdq->data_t1);
-				break;
+		switch (backlight_cmdq->func) {
+		case LCM_FUNC_GPIO:
+			lcm_gpio_set_data(backlight_cmdq->type,
+				&backlight_cmdq->data_t1);
+			break;
 
-			case LCM_FUNC_I2C:
-				lcm_i2c_set_data(backlight_cmdq->type, &backlight_cmdq->data_t2);
-				break;
+		case LCM_FUNC_I2C:
+			lcm_i2c_set_data(backlight_cmdq->type,
+				&backlight_cmdq->data_t2);
+			break;
 
-			case LCM_FUNC_UTIL:
-				lcm_util_set_data(&lcm_util, backlight_cmdq->type,
-						  &backlight_cmdq->data_t1);
-				break;
+		case LCM_FUNC_UTIL:
+			lcm_util_set_data(&lcm_util, backlight_cmdq->type,
+					  &backlight_cmdq->data_t1);
+			break;
 
-			case LCM_FUNC_CMD:
-				switch (backlight_cmdq->type) {
-				case LCM_UTIL_WRITE_CMD_V23:
-					lcm_util_set_write_cmd_v23(&lcm_util, handle,
-								   &backlight_cmdq->data_t3, 1);
-					break;
-
-				default:
-					pr_debug("[LCM][ERROR] %s/%d: %d\n", __func__, __LINE__,
-						 (unsigned int)backlight_cmdq->type);
-					return;
-				}
+		case LCM_FUNC_CMD:
+			switch (backlight_cmdq->type) {
+			case LCM_UTIL_WRITE_CMD_V23:
+				lcm_util_set_write_cmd_v23(&lcm_util, handle,
+					&backlight_cmdq->data_t3, 1);
 				break;
 
 			default:
-				pr_debug("[LCM][ERROR] %s/%d: %d\n", __func__, __LINE__,
-					 (unsigned int)backlight_cmdq->func);
+				pr_debug("[LCM][ERROR] %s/%d: %d\n",
+					__func__, __LINE__,
+					(unsigned int)backlight_cmdq->type);
 				return;
 			}
+			break;
+
+		default:
+			pr_debug("[LCM][ERROR] %s/%d: %d\n",
+				__func__, __LINE__,
+				(unsigned int)backlight_cmdq->func);
+			return;
 		}
-	} else {
-		pr_debug("[LCM][ERROR] %s/%d: DTS is not parsed\n", __func__, __LINE__);
-		return;
 	}
 }
 
@@ -1227,9 +1272,9 @@ void lcm_common_setroi(int x, int y, int width, int height, void *handle)
 }
 
 
-void lcm_common_scale(void *handle, LCM_SCALE_TYPE scale)
+void lcm_common_scale(void *handle, enum LCM_SCALE_TYPE scale)
 {
-	LCM_DATA_T3 cmd;
+	struct LCM_DATA_T3 cmd;
 
 	if (scale == LCM_Hx2_Vx2)
 		lcm_common_updatebycmdq(0, 0, 1440, 2560, handle);
@@ -1409,7 +1454,7 @@ static void r63419_lcm_validate_roi(int *x, int *y, int *width, int *height)
 		}
 		h = y2 - y1 + 1;
 	}
-	/* LCD_DEBUG("roi(%d,%d,%d,%d) to (%d,%d,%d,%d)\n",*/
+	/* pr_debug("roi(%d,%d,%d,%d) to (%d,%d,%d,%d)\n",*/
 	/* *x, *y, *width, *height, x1, y1, w, h);	 */
 	*x = x1;
 	*y = y1;
@@ -1418,7 +1463,7 @@ static void r63419_lcm_validate_roi(int *x, int *y, int *width, int *height)
 }
 #endif
 
-LCM_DRIVER lcm_common_drv = {
+struct LCM_DRIVER lcm_common_drv = {
 	.name = NULL,
 	.set_util_funcs = lcm_common_set_util_funcs,
 	.get_params = lcm_common_get_params,

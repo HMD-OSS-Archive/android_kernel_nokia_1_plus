@@ -26,7 +26,8 @@ enum charger_type {
 	WIRELESS_CHARGER,
 };
 
-#if defined(CONFIG_USB_MTK_HDRC) || defined(CONFIG_USB_MU3D_DRV)
+#if defined(CONFIG_USB_MTK_HDRC) || defined(CONFIG_USB_MU3D_DRV) \
+	|| defined(CONFIG_EXTCON_MTK_USB)
 extern void mt_usb_connect(void);
 extern void mt_usb_disconnect(void);
 #else
@@ -44,5 +45,9 @@ extern int register_charger_det_callback(int (*func)(int));
 extern bool is_usb_rdy(void);
 extern bool mt_usb_is_device(void);
 extern int is_otg_en(void);
+
+#ifndef CONFIG_MTK_EXTERNAL_CHARGER_TYPE_DETECT
+extern void mtk_pmic_enable_chr_type_det(bool en);
+#endif
 
 #endif /* __MTK_CHARGER_TYPE_H__ */

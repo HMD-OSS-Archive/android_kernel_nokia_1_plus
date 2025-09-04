@@ -25,9 +25,7 @@ int __conn_md_log_print(const char *str, ...)
 	vsnprintf(temp_sring, DBG_LOG_STR_SIZE, str, args);
 	va_end(args);
 
-	pr_err("%s", temp_sring);
-
-/* print(KERN_INFO "%s",temp_sring); */
+	pr_info("%s", temp_sring);
 
 	return 0;
 }
@@ -51,12 +49,14 @@ int conn_md_log_set_lvl(int log_lvl)
 	g_conn_md_dbg_lvl = log_lvl;
 
 	if (g_conn_md_dbg_lvl > CONN_MD_LOG_LOUD) {
-		CONN_MD_ERR_FUNC("log_lvl(%d) is too big, round to %d\n", log_lvl, CONN_MD_LOG_LOUD);
+		CONN_MD_ERR_FUNC("log_lvl(%d) is too big, round to %d\n",
+				log_lvl, CONN_MD_LOG_LOUD);
 		g_conn_md_dbg_lvl = CONN_MD_LOG_LOUD;
 	}
 
 	if (g_conn_md_dbg_lvl < CONN_MD_LOG_ERR) {
-		CONN_MD_ERR_FUNC("log_lvl(%d) is too small, round to %d\n", log_lvl, CONN_MD_LOG_ERR);
+		CONN_MD_ERR_FUNC("log_lvl(%d) is too small, round to %d\n",
+				log_lvl, CONN_MD_LOG_ERR);
 		g_conn_md_dbg_lvl = CONN_MD_LOG_ERR;
 	}
 

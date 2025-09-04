@@ -14,15 +14,41 @@
 #ifndef __MTK_MCDI_COMMON_H__
 #define __MTK_MCDI_COMMON_H__
 
-#if defined(CONFIG_MACH_MT6763) || defined(CONFIG_MACH_MT6758) \
-	|| defined(CONFIG_MACH_MT6771) || defined(CONFIG_MACH_MT6775)
+enum {
+	SYSTEM_IDLE_HINT_USER_MCDI_TEST = 0,
+	SYSTEM_IDLE_HINT_USER_BLUE_TOOTH,
+	SYSTEM_IDLE_HINT_USER_AUDIO,
+	NF_SYSTEM_IDLE_HINT
+};
 
-#include "mcdi_v1/mtk_mcdi_api.h"
+enum {
+	MCDI_PAUSE_BY_HOTPLUG = 1,
+	MCDI_PAUSE_BY_EEM,
+	MCDI_PAUSE_BY_GZ,
 
-#elif defined(CONFIG_MACH_MT6739)
+	NF_MCDI_PAUSE
+};
 
-#include "mcdi_v2/mtk_mcdi_api.h"
+void __attribute__((weak))
+mcdi_cpu_iso_mask(unsigned int iso_mask)
+{
 
-#endif
+}
 
+bool __attribute__((weak))
+mcdi_task_pause(bool paused)
+{
+	return true;
+}
+
+bool __attribute__((weak))
+system_idle_hint_request(unsigned int id, bool value)
+{
+	return false;
+}
+
+void __attribute__((weak))
+mcdi_pause(unsigned int id, bool paused)
+{
+}
 #endif /* __MTK_MCDI_COMMON_H__ */

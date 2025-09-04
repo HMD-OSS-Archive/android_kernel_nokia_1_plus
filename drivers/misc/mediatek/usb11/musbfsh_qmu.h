@@ -31,5 +31,6 @@ extern void musbfsh_restart_qmu(struct musbfsh *musbfsh, u32 ep_num, u8 isRx);
 extern bool musbfsh_is_qmu_stop(u32 ep_num, u8 isRx);
 extern void musbfsh_tx_zlp_qmu(struct musbfsh *musbfsh, u32 ep_num);
 extern void mtk11_qmu_enable(struct musbfsh *musbfsh, u8 EP_Num, u8 isRx);
-extern int mtk11_kick_CmdQ(struct musbfsh *musbfsh, int isRx, struct musbfsh_qh *qh, struct urb *urb);
+extern int mtk11_kick_CmdQ(struct musbfsh *musbfsh, int isRx,
+	struct musbfsh_qh *qh, struct urb *urb);
 #endif

@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2015 MediaTek Inc.
+# Copyright (C) 2019 MediaTek Inc.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
@@ -11,5 +11,5 @@
 # GNU General Public License for more details.
 #
 
-obj-$(CONFIG_MTK_IRTX_PWM_SUPPORT) += $(subst ",,$(CONFIG_MTK_PLATFORM))/
+obj-$(CONFIG_MTK_IRTX_PWM_SUPPORT) := mtk_irtx_pwm.o
 

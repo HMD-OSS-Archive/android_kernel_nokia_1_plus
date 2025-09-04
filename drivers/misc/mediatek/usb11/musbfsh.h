@@ -72,7 +72,7 @@ struct musbfsh_hdrc_eps_bits {
 
 struct musbfsh_hdrc_config {
 	struct musbfsh_fifo_cfg *fifo_cfg;	/* board fifo configuration */
-	unsigned fifo_cfg_size;		/* size of the fifo configuration */
+	unsigned int fifo_cfg_size; /* size of the fifo configuration */
 
 	/* MUSB configuration-specific details */
 	unsigned multipoint:1;			/* multipoint device */

@@ -1039,7 +1039,7 @@ static int musb_gadget_queue(struct usb_ep *ep, struct usb_request *req, gfp_t g
 
 	/* don't queue if the ep is down */
 	if (!musb_ep->desc) {
-		dev_dbg(musb->controller, "req %p queued to %s while ep %s\n",
+		os_printk(K_DEBUG, "req %p queued to %s while ep %s\n",
 			req, ep->name, "disabled");
 		status = -ESHUTDOWN;
 		goto cleanup;
@@ -1657,7 +1657,7 @@ static struct musb *mu3d_clk_off_musb;
 static void do_mu3d_clk_off_work(struct work_struct *work)
 {
 	os_printk(K_NOTICE, "do_mu3d_clk_off_work, issue connection work\n");
-	queue_delayed_work(mu3d_clk_off_musb->st_wq, &mu3d_clk_off_musb->connection_work, 0);
+	mt_usb_reconnect();
 }
 
 void set_usb_rdy(void)
@@ -1668,7 +1668,7 @@ void set_usb_rdy(void)
 	/* yield CPU to make queued connection work exection */
 	msleep(200);
 
-#if defined(CONFIG_MTK_SMART_BATTERY)
+#if defined(CONFIG_MTK_CHARGER)
 	wake_up_bat();
 #endif
 }

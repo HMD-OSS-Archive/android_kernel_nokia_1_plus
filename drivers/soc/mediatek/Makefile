@@ -1,17 +1,11 @@
-#
-# Copyright (C) 2016 MediaTek Inc.
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License version 2 as
-# published by the Free Software Foundation.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
-#
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/include
 
+obj-$(CONFIG_MTK_CMDQ) += mtk-cmdq-helper.o
 obj-$(CONFIG_MTK_INFRACFG) += mtk-infracfg.o
-obj-$(CONFIG_MTK_SCPSYS_MT8167) += mtk-scpsys-mt8167.o mtk-scpsys-bringup.o
-obj-$(CONFIG_MTK_SCPSYS_MT8173) += mtk-scpsys.o
 obj-$(CONFIG_MTK_PMIC_WRAP) += mtk-pmic-wrap.o
+obj-$(CONFIG_MTK_SCPSYS) += mtk-scpsys.o
+obj-$(CONFIG_MTK_SCPSYS_MT8167) += mtk-scpsys-mt8167.o
+obj-$(CONFIG_MTK_CMDQ_MBOX) += mtk-cmdq-helper.o
+obj-$(CONFIG_MTK_MBOX) += mtk-mbox.o
+obj-$(CONFIG_MTK_IPI) += mtk_tinysys_ipi.o
+obj-$(CONFIG_MTK_LPM) += mtk-lpm.o

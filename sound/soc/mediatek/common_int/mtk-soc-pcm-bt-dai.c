@@ -1,20 +1,19 @@
 /*
-* Copyright (C) 2015 MediaTek Inc.
-*
-* This program is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.
-* If not, see <http://www.gnu.org/licenses/>.
-*/
-
+ * Copyright (C) 2015 MediaTek Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.
+ * If not, see <http://www.gnu.org/licenses/>.
+ */
 
 /*******************************************************************************
  *
@@ -36,24 +35,23 @@
  *
  *------------------------------------------------------------------------------
  *
- *******************************************************************************/
-
+ ******************************************************************************
+ */
 
 /*****************************************************************************
  *                     C O M P I L E R   F L A G S
  *****************************************************************************/
 
-
 /*****************************************************************************
  *                E X T E R N A L   R E F E R E N C E S
  *****************************************************************************/
 
-#include <linux/dma-mapping.h>
 #include "mtk-soc-pcm-common.h"
 #include "mtk-soc-pcm-platform.h"
+#include <linux/dma-mapping.h>
 
 /* information about */
-static struct afe_mem_control_t  *Bt_Dai_Control_context;
+static struct afe_mem_control_t *Bt_Dai_Control_context;
 static struct snd_dma_buffer *Bt_Dai_Capture_dma_buf;
 
 static DEFINE_SPINLOCK(auddrv_BTDaiInCtl_lock);
@@ -69,28 +67,29 @@ static int mtk_asoc_bt_dai_probe(struct snd_soc_platform *platform);
 
 static struct snd_pcm_hardware mtk_btdai_hardware = {
 	.info = (SNDRV_PCM_INFO_INTERLEAVED),
-	.formats =      SND_SOC_STD_MT_FMTS,
-	.rates =           SOC_NORMAL_USE_RATE,
-	.rate_min =     SOC_NORMAL_USE_RATE_MIN,
-	.rate_max =     SOC_NORMAL_USE_RATE_MAX,
-	.channels_min =     SOC_NORMAL_USE_CHANNELS_MIN,
-	.channels_max =     SOC_NORMAL_USE_CHANNELS_MAX,
+	.formats = SND_SOC_STD_MT_FMTS,
+	.rates = SOC_NORMAL_USE_RATE,
+	.rate_min = SOC_NORMAL_USE_RATE_MIN,
+	.rate_max = SOC_NORMAL_USE_RATE_MAX,
+	.channels_min = SOC_NORMAL_USE_CHANNELS_MIN,
+	.channels_max = SOC_NORMAL_USE_CHANNELS_MAX,
 	.buffer_bytes_max = BT_DAI_MAX_BUFFER_SIZE,
 	.period_bytes_max = BT_DAI_MAX_BUFFER_SIZE,
-	.periods_min =      SOC_NORMAL_USE_PERIODS_MIN,
-	.periods_max =      SOC_NORMAL_USE_PERIODS_MAX,
-	.fifo_size =        0,
+	.periods_min = SOC_NORMAL_USE_PERIODS_MIN,
+	.periods_max = SOC_NORMAL_USE_PERIODS_MAX,
+	.fifo_size = 0,
 };
 
 static void StopAudioBtDaiHardware(struct snd_pcm_substream *substream)
 {
-	pr_warn("StopAudioBtDaiHardware\n");
-
 	/* here to set interrupt */
-	irq_remove_user(substream, irq_request_number(Soc_Aud_Digital_Block_MEM_DAI));
+	irq_remove_user(substream,
+			irq_request_number(Soc_Aud_Digital_Block_MEM_DAI));
 
 	/* here to turn off digital part */
-	SetIntfConnection(Soc_Aud_InterCon_DisConnect, Soc_Aud_AFE_IO_Block_DAI_BT_IN, Soc_Aud_AFE_IO_Block_MEM_DAI);
+	SetIntfConnection(Soc_Aud_InterCon_DisConnect,
+			  Soc_Aud_AFE_IO_Block_DAI_BT_IN,
+			  Soc_Aud_AFE_IO_Block_MEM_DAI);
 
 	EnableAfe(false);
 }
@@ -106,9 +105,12 @@ static bool SetVoipDAIBTAttribute(int sample_rate)
 #else
 	daibt_attribute.mUSE_MRGIF_INPUT = Soc_Aud_BT_DAI_INPUT_FROM_MGRIF;
 #endif
-	daibt_attribute.mDAI_BT_MODE = (sample_rate == 8000) ? Soc_Aud_DATBT_MODE_Mode8K : Soc_Aud_DATBT_MODE_Mode16K;
-	daibt_attribute.mDAI_DEL = Soc_Aud_DAI_DEL_HighWord; /* suggest always HighWord */
-	daibt_attribute.mBT_LEN  = 0;
+	daibt_attribute.mDAI_BT_MODE = (sample_rate == 8000)
+					       ? Soc_Aud_DATBT_MODE_Mode8K
+					       : Soc_Aud_DATBT_MODE_Mode16K;
+	daibt_attribute.mDAI_DEL =
+		Soc_Aud_DAI_DEL_HighWord; /* suggest always HighWord */
+	daibt_attribute.mBT_LEN = 0;
 	daibt_attribute.mDATA_RDY = true;
 	daibt_attribute.mBT_SYNC = Soc_Aud_BTSYNC_Short_Sync;
 	daibt_attribute.mBT_ON = true;
@@ -117,23 +119,20 @@ static bool SetVoipDAIBTAttribute(int sample_rate)
 	return true;
 }
 
-
 static void StartAudioBtDaiHardware(struct snd_pcm_substream *substream)
 {
-	pr_warn("StartAudioBtDaiHardware period_size = %d\n", (unsigned int)(substream->runtime->period_size));
-
 	/* here to set interrupt */
 	irq_add_user(substream,
 		     irq_request_number(Soc_Aud_Digital_Block_MEM_DAI),
-		     substream->runtime->rate,
-		     substream->runtime->period_size);
+		     substream->runtime->rate, substream->runtime->period_size);
 
 	SetSampleRate(Soc_Aud_Digital_Block_MEM_DAI, substream->runtime->rate);
 	SetMemoryPathEnable(Soc_Aud_Digital_Block_MEM_DAI, true);
 
 	/* here to turn off digital part */
 	SetIntfConnection(Soc_Aud_InterCon_Connection,
-			Soc_Aud_AFE_IO_Block_DAI_BT_IN, Soc_Aud_AFE_IO_Block_MEM_DAI);
+			  Soc_Aud_AFE_IO_Block_DAI_BT_IN,
+			  Soc_Aud_AFE_IO_Block_MEM_DAI);
 
 	if (GetMemoryPathEnable(Soc_Aud_Digital_Block_DAI_BT) == false) {
 		SetMemoryPathEnable(Soc_Aud_Digital_Block_DAI_BT, true);
@@ -148,16 +147,11 @@ static void StartAudioBtDaiHardware(struct snd_pcm_substream *substream)
 
 static int mtk_bt_dai_pcm_prepare(struct snd_pcm_substream *substream)
 {
-	pr_warn("mtk_bt_dai_pcm_prepare substream->rate = %d  substream->channels = %d\n",
-		substream->runtime->rate, substream->runtime->channels);
 	return 0;
 }
 
 static int mtk_bt_dai_alsa_stop(struct snd_pcm_substream *substream)
 {
-	/* struct afe_block_t *Dai_Block = &(Bt_Dai_Control_context->rBlock); */
-	pr_warn("mtk_bt_dai_alsa_stop\n");
-
 	SetMemoryPathEnable(Soc_Aud_Digital_Block_MEM_DAI, false);
 
 	SetMemoryPathEnable(Soc_Aud_Digital_Block_DAI_BT, false);
@@ -169,12 +163,12 @@ static int mtk_bt_dai_alsa_stop(struct snd_pcm_substream *substream)
 	return 0;
 }
 
-static snd_pcm_uframes_t mtk_bt_dai_pcm_pointer(struct snd_pcm_substream *substream)
+static snd_pcm_uframes_t
+mtk_bt_dai_pcm_pointer(struct snd_pcm_substream *substream)
 {
 	struct afe_block_t *Dai_Block = &(Bt_Dai_Control_context->rBlock);
 	kal_uint32 Frameidx = 0;
 
-	PRINTK_AUD_DAI("mtk_bt_dai_pcm_pointer Dai_Block->u4DMAReadIdx;= 0x%x\n", Dai_Block->u4WriteIdx);
 	/* get total bytes to copy */
 	Frameidx = audio_bytes_to_frame(substream, Dai_Block->u4WriteIdx);
 	return Frameidx;
@@ -187,28 +181,27 @@ static int mtk_bt_dai_pcm_hw_params(struct snd_pcm_substream *substream,
 	struct snd_dma_buffer *dma_buf = &substream->dma_buffer;
 	int ret = 0;
 
-	pr_warn("mtk_bt_dai_pcm_hw_params\n");
-
 	dma_buf->dev.type = SNDRV_DMA_TYPE_DEV;
 	dma_buf->dev.dev = substream->pcm->card->dev;
 	dma_buf->private_data = NULL;
 
 	if (Bt_Dai_Capture_dma_buf->area) {
-		pr_warn("mtk_bt_dai_pcm_hw_params Bt_Dai_Capture_dma_buf->area\n");
+		pr_debug("Bt_Dai_Capture_dma_buf->area\n");
 		runtime->dma_bytes = params_buffer_bytes(hw_params);
 		runtime->dma_area = Bt_Dai_Capture_dma_buf->area;
 		runtime->dma_addr = Bt_Dai_Capture_dma_buf->addr;
-		SetHighAddr(Soc_Aud_Digital_Block_MEM_DAI, true, runtime->dma_addr);
+		SetHighAddr(Soc_Aud_Digital_Block_MEM_DAI, true,
+			    runtime->dma_addr);
 	} else {
-		pr_warn("mtk_bt_dai_pcm_hw_params snd_pcm_lib_malloc_pages\n");
-		ret =  snd_pcm_lib_malloc_pages(substream, params_buffer_bytes(hw_params));
+		pr_debug("snd_pcm_lib_malloc_pages\n");
+		ret = snd_pcm_lib_malloc_pages(substream,
+					       params_buffer_bytes(hw_params));
 	}
-	pr_warn("mtk_bt_dai_pcm_hw_params dma_bytes = %zu dma_area = %p dma_addr = 0x%lx\n",
-	       runtime->dma_bytes, runtime->dma_area, (long)runtime->dma_addr);
+	pr_debug("dma_bytes = %zu dma_area = %p dma_addr = 0x%lx\n",
+		runtime->dma_bytes, runtime->dma_area, (long)runtime->dma_addr);
 
-	pr_warn("runtime->hw.buffer_bytes_max = %zu\n", runtime->hw.buffer_bytes_max);
-	set_mem_block(substream, hw_params,
-		Bt_Dai_Control_context, Soc_Aud_Digital_Block_MEM_DAI);
+	set_mem_block(substream, hw_params, Bt_Dai_Control_context,
+		      Soc_Aud_Digital_Block_MEM_DAI);
 
 	AudDrv_Emi_Clk_On();
 
@@ -217,8 +210,6 @@ static int mtk_bt_dai_pcm_hw_params(struct snd_pcm_substream *substream,
 
 static int mtk_bt_dai_capture_pcm_hw_free(struct snd_pcm_substream *substream)
 {
-	pr_warn("mtk_bt_dai_capture_pcm_hw_free\n");
-
 	AudDrv_Emi_Clk_Off();
 
 	if (Bt_Dai_Capture_dma_buf->area)
@@ -226,7 +217,6 @@ static int mtk_bt_dai_capture_pcm_hw_free(struct snd_pcm_substream *substream)
 	else
 		return snd_pcm_lib_free_pages(substream);
 }
-
 
 static struct snd_pcm_hw_constraint_list bt_dai_constraints_sample_rates = {
 	.count = ARRAY_SIZE(soc_voice_supported_sample_rates),
@@ -238,17 +228,20 @@ static int mtk_bt_dai_pcm_open(struct snd_pcm_substream *substream)
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	int ret = 0;
 
-	pr_warn("mtk_bt_dai_pcm_open, stream %d\n", substream->stream);
+	pr_debug("stream %d\n", substream->stream);
 
-	Bt_Dai_Control_context = Get_Mem_ControlT(Soc_Aud_Digital_Block_MEM_DAI);
+	Bt_Dai_Control_context =
+		Get_Mem_ControlT(Soc_Aud_Digital_Block_MEM_DAI);
 	runtime->hw = mtk_btdai_hardware;
-	memcpy((void *)(&(runtime->hw)), (void *)&mtk_btdai_hardware, sizeof(struct snd_pcm_hardware));
+	memcpy((void *)(&(runtime->hw)), (void *)&mtk_btdai_hardware,
+	       sizeof(struct snd_pcm_hardware));
 	ret = snd_pcm_hw_constraint_list(runtime, 0, SNDRV_PCM_HW_PARAM_RATE,
 					 &bt_dai_constraints_sample_rates);
-	ret = snd_pcm_hw_constraint_integer(runtime, SNDRV_PCM_HW_PARAM_PERIODS);
+	ret = snd_pcm_hw_constraint_integer(runtime,
+					    SNDRV_PCM_HW_PARAM_PERIODS);
 
 	if (ret < 0)
-		pr_err("snd_pcm_hw_constraint_integer failed\n");
+		pr_debug("failed\n");
 
 	AudDrv_Clk_On();
 
@@ -257,11 +250,10 @@ static int mtk_bt_dai_pcm_open(struct snd_pcm_substream *substream)
 	runtime->hw.info |= SNDRV_PCM_INFO_NONINTERLEAVED;
 
 	if (ret < 0) {
-		pr_err("mtk_bt_dai_pcm_close\n");
+		pr_err("bt_dai_pcm_close\n");
 		mtk_bt_dai_pcm_close(substream);
 		return ret;
 	}
-	pr_warn("mtk_bt_dai_pcm_open return\n");
 	return 0;
 }
 
@@ -273,7 +265,6 @@ static int mtk_bt_dai_pcm_close(struct snd_pcm_substream *substream)
 
 static int mtk_bt_dai_alsa_start(struct snd_pcm_substream *substream)
 {
-	pr_warn("mtk_bt_dai_alsa_start\n");
 	SetMemifSubStream(Soc_Aud_Digital_Block_MEM_DAI, substream);
 	StartAudioBtDaiHardware(substream);
 	return 0;
@@ -295,26 +286,27 @@ static int mtk_bt_dai_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 static bool CheckNullPointer(void *pointer)
 {
 	if (pointer == NULL) {
-		pr_err("CheckNullPointer pointer = NULL");
+		pr_err("%s(), pointer = NULL\n", __func__);
 		return true;
 	}
 	return false;
 }
 
-static int mtk_bt_dai_pcm_copy(struct snd_pcm_substream *substream,
-			       int channel, snd_pcm_uframes_t pos,
-			       void __user *dst, snd_pcm_uframes_t count)
+static int mtk_bt_dai_pcm_copy(struct snd_pcm_substream *substream, int channel,
+			       unsigned long pos, void __user *dst,
+			       unsigned long count)
 {
 	struct afe_mem_control_t *pDAI_MEM_ConTrol = NULL;
-	struct afe_block_t  *Dai_Block = NULL;
+	struct afe_block_t *Dai_Block = NULL;
 	char *Read_Data_Ptr = (char *)dst;
 	ssize_t DMA_Read_Ptr = 0, read_size = 0, read_count = 0;
 	unsigned long flags;
 
-	PRINTK_AUD_DAI("%s  pos = %lu count = %lu\n", __func__, pos, count);
-
+#if defined(AUD_DEBUG_LOG)
+	pr_debug("%s  pos = %lu count = %lu\n", __func__, pos, count);
+#endif
 	/* get total bytes to copy */
-	count = word_size_align(audio_frame_to_bytes(substream, count));
+	count = word_size_align(count);
 
 	/* check which memif nned to be write */
 	pDAI_MEM_ConTrol = Bt_Dai_Control_context;
@@ -332,20 +324,21 @@ static int mtk_bt_dai_pcm_copy(struct snd_pcm_substream *substream,
 	}
 
 	if (CheckNullPointer((void *)Dai_Block->pucVirtBufAddr)) {
-		pr_err("CheckNullPointer  pucVirtBufAddr = %p\n", Dai_Block->pucVirtBufAddr);
+		pr_err("CheckNullPointer  pucVirtBufAddr = %p\n",
+		       Dai_Block->pucVirtBufAddr);
 		return 0;
 	}
 
 	spin_lock_irqsave(&auddrv_BTDaiInCtl_lock, flags);
 	if (Dai_Block->u4DataRemained > Dai_Block->u4BufferSize) {
 		pr_warn("%s(), u4DataRemained 0x%x > u4BufferSize 0x%x",
-			__func__,
-			Dai_Block->u4DataRemained, Dai_Block->u4BufferSize);
+			__func__, Dai_Block->u4DataRemained,
+			Dai_Block->u4BufferSize);
 		Dai_Block->u4DataRemained = 0;
-		Dai_Block->u4DMAReadIdx   = Dai_Block->u4WriteIdx;
+		Dai_Block->u4DMAReadIdx = Dai_Block->u4WriteIdx;
 	}
 
-	if (count >  Dai_Block->u4DataRemained)
+	if (count > Dai_Block->u4DataRemained)
 		read_size = Dai_Block->u4DataRemained;
 	else
 		read_size = count;
@@ -353,24 +346,23 @@ static int mtk_bt_dai_pcm_copy(struct snd_pcm_substream *substream,
 	DMA_Read_Ptr = Dai_Block->u4DMAReadIdx;
 	spin_unlock_irqrestore(&auddrv_BTDaiInCtl_lock, flags);
 
-	PRINTK_AUD_DAI("%s finish0, read_count:0x%x, read:0x%x, Remained:0x%x,DMAReadIdx:0x%x, WriteIdx:0x%x \r\n",
-		       __func__, read_count, read_size, Dai_Block->u4DataRemained,
-		       Dai_Block->u4DMAReadIdx, Dai_Block->u4WriteIdx);
-
 	if (DMA_Read_Ptr + read_size < Dai_Block->u4BufferSize) {
 		if (DMA_Read_Ptr != Dai_Block->u4DMAReadIdx) {
-			pr_warn("%s 1, read_size:%zu, DataRemained:0x%x,DMA_Read_Ptr:%zu, DMAReadIdx:0x%x \r\n",
-			       __func__, read_size, Dai_Block->u4DataRemained,
-			       DMA_Read_Ptr, Dai_Block->u4DMAReadIdx);
+			pr_warn("%s 1, rsize:%zu, Remained:0x%x,Read_Ptr:%zu,DIdx:%x\n",
+				__func__, read_size, Dai_Block->u4DataRemained,
+				DMA_Read_Ptr, Dai_Block->u4DMAReadIdx);
 		}
 
-		if (copy_to_user((void __user *)Read_Data_Ptr, (Dai_Block->pucVirtBufAddr + DMA_Read_Ptr), read_size)) {
+		if (copy_to_user((void __user *)Read_Data_Ptr,
+				 (Dai_Block->pucVirtBufAddr + DMA_Read_Ptr),
+				 read_size)) {
 
 			pr_err("%s Fail 1 copy to user Read_Data_Ptr:%p, pucVirtBufAddr:%p, u4DMAReadIdx:0x%x",
-				__func__, Read_Data_Ptr, Dai_Block->pucVirtBufAddr,
-				Dai_Block->u4DMAReadIdx);
+			       __func__, Read_Data_Ptr,
+			       Dai_Block->pucVirtBufAddr,
+			       Dai_Block->u4DMAReadIdx);
 			pr_err("%s Fail 1 copy to user DMA_Read_Ptr:%zu,read_size:%zu",
-				__func__, DMA_Read_Ptr, read_size);
+			       __func__, DMA_Read_Ptr, read_size);
 			return 0;
 		}
 
@@ -384,10 +376,12 @@ static int mtk_bt_dai_pcm_copy(struct snd_pcm_substream *substream,
 
 		Read_Data_Ptr += read_size;
 		count -= read_size;
-
-		PRINTK_AUD_DAI("%s finish1, copy size:0x%x,u4DMAReadIdx:0x%x, u4WriteIdx:0x%x, DataRemained:0x%x \r\n",
-			       __func__, read_size, Dai_Block->u4DMAReadIdx,
-			       Dai_Block->u4WriteIdx, Dai_Block->u4DataRemained);
+#if defined(AUD_DEBUG_LOG)
+		pr_debug(
+			"%s f 1,size:%zd,RIdx:%x,WIdx:%x,Remain%x\n",
+			__func__, read_size, Dai_Block->u4DMAReadIdx,
+			Dai_Block->u4WriteIdx, Dai_Block->u4DataRemained);
+#endif
 	}
 
 	else {
@@ -395,17 +389,19 @@ static int mtk_bt_dai_pcm_copy(struct snd_pcm_substream *substream,
 		unsigned int size_2 = read_size - size_1;
 
 		if (DMA_Read_Ptr != Dai_Block->u4DMAReadIdx) {
-
 			pr_warn("%s 2, read_size1:0x%x,DataRemained:0x%x, DMA_Read_Ptr:%zu, DMAReadIdx:0x%x \r\n",
-			       __func__, size_1, Dai_Block->u4DataRemained,
-			       DMA_Read_Ptr, Dai_Block->u4DMAReadIdx);
+				__func__, size_1, Dai_Block->u4DataRemained,
+				DMA_Read_Ptr, Dai_Block->u4DMAReadIdx);
 		}
 		if (copy_to_user((void __user *)Read_Data_Ptr,
-			(Dai_Block->pucVirtBufAddr + DMA_Read_Ptr), size_1)) {
+				 (Dai_Block->pucVirtBufAddr + DMA_Read_Ptr),
+				 size_1)) {
 
 			pr_warn("%s Fail 2 copy to user Ptr:%p,VirtAddr:%p, ReadIdx:0x%x, Read_Ptr:%zu,read_size:%zu",
-			       __func__, Read_Data_Ptr, Dai_Block->pucVirtBufAddr,
-			       Dai_Block->u4DMAReadIdx, DMA_Read_Ptr, read_size);
+				__func__, Read_Data_Ptr,
+				Dai_Block->pucVirtBufAddr,
+				Dai_Block->u4DMAReadIdx, DMA_Read_Ptr,
+				read_size);
 			return 0;
 		}
 
@@ -417,22 +413,27 @@ static int mtk_bt_dai_pcm_copy(struct snd_pcm_substream *substream,
 		DMA_Read_Ptr = Dai_Block->u4DMAReadIdx;
 		spin_unlock(&auddrv_BTDaiInCtl_lock);
 
-		PRINTK_AUD_DAI("%s finish2, copy size_1:0x%x,u4DMAReadIdx:0x%x, u4WriteIdx:0x%x, Remained:0x%x \r\n",
-			       __func__, size_1, Dai_Block->u4DMAReadIdx,
-			       Dai_Block->u4WriteIdx, Dai_Block->u4DataRemained);
-
+#if defined(AUD_DEBUG_LOG)
+		pr_debug(
+			"%s finish2, copy size_1:0x%x,u4DMAReadIdx:0x%x, u4WriteIdx:0x%x, Remained:0x%x \r\n",
+			__func__, size_1, Dai_Block->u4DMAReadIdx,
+			Dai_Block->u4WriteIdx, Dai_Block->u4DataRemained);
+#endif
 		if (DMA_Read_Ptr != Dai_Block->u4DMAReadIdx) {
 
 			pr_warn("%s 3, read_size2:%x,Remained:%x, Read_Ptr:%zu, ReadIdx:%x \r\n",
-			       __func__, size_2, Dai_Block->u4DataRemained,
-			       DMA_Read_Ptr, Dai_Block->u4DMAReadIdx);
+				__func__, size_2, Dai_Block->u4DataRemained,
+				DMA_Read_Ptr, Dai_Block->u4DMAReadIdx);
 		}
 		if (copy_to_user((void __user *)(Read_Data_Ptr + size_1),
-			(Dai_Block->pucVirtBufAddr + DMA_Read_Ptr), size_2)) {
+				 (Dai_Block->pucVirtBufAddr + DMA_Read_Ptr),
+				 size_2)) {
 
 			pr_warn("%s Fail 3 copy to user Ptr:%p,VirtAddr:%p, ReadIdx:0x%x , Ptr:%zu,read_size:%zu",
-				__func__, Read_Data_Ptr, Dai_Block->pucVirtBufAddr,
-				Dai_Block->u4DMAReadIdx, DMA_Read_Ptr, read_size);
+				__func__, Read_Data_Ptr,
+				Dai_Block->pucVirtBufAddr,
+				Dai_Block->u4DMAReadIdx, DMA_Read_Ptr,
+				read_size);
 			return read_count << 2;
 		}
 
@@ -445,99 +446,83 @@ static int mtk_bt_dai_pcm_copy(struct snd_pcm_substream *substream,
 
 		count -= read_size;
 		Read_Data_Ptr += read_size;
-
-		PRINTK_AUD_DAI("%s finish3, copy size_2:0x%x,ReadIdx:0x%x, WriteIdx:0x%x Remained:0x%x \r\n",
-			       __func__, size_2, Dai_Block->u4DMAReadIdx,
-			       Dai_Block->u4WriteIdx, Dai_Block->u4DataRemained);
+#if defined(AUD_DEBUG_LOG)
+		pr_debug(
+			"%s finish3, copy size_2:0x%x,ReadIdx:0x%x, WriteIdx:0x%x Remained:0x%x \r\n",
+			__func__, size_2, Dai_Block->u4DMAReadIdx,
+			Dai_Block->u4WriteIdx, Dai_Block->u4DataRemained);
+#endif
 	}
 
-	return audio_bytes_to_frame(substream, count);
+	return 0;
 }
-
-static int mtk_bt_dai_capture_pcm_silence(struct snd_pcm_substream *substream,
-					  int channel, snd_pcm_uframes_t pos,
-					  snd_pcm_uframes_t count)
-{
-	pr_warn("dummy_pcm_silence\n");
-	return 0; /* do nothing */
-}
-
 
 static void *dummy_page[2];
 
-static struct page *mtk_bt_dai_capture_pcm_page(struct snd_pcm_substream *substream,
-						unsigned long offset)
+static struct page *
+mtk_bt_dai_capture_pcm_page(struct snd_pcm_substream *substream,
+			    unsigned long offset)
 {
-	pr_warn("dummy_pcm_page\n");
 	return virt_to_page(dummy_page[substream->stream]); /* the same page */
 }
 
-
 static struct snd_pcm_ops mtk_bt_dai_ops = {
-	.open =     mtk_bt_dai_pcm_open,
-	.close =    mtk_bt_dai_pcm_close,
-	.ioctl =    snd_pcm_lib_ioctl,
-	.hw_params =    mtk_bt_dai_pcm_hw_params,
-	.hw_free =  mtk_bt_dai_capture_pcm_hw_free,
-	.prepare =  mtk_bt_dai_pcm_prepare,
-	.trigger =  mtk_bt_dai_pcm_trigger,
-	.pointer =  mtk_bt_dai_pcm_pointer,
-	.copy =     mtk_bt_dai_pcm_copy,
-	.silence =  mtk_bt_dai_capture_pcm_silence,
-	.page =     mtk_bt_dai_capture_pcm_page,
+	.open = mtk_bt_dai_pcm_open,
+	.close = mtk_bt_dai_pcm_close,
+	.ioctl = snd_pcm_lib_ioctl,
+	.hw_params = mtk_bt_dai_pcm_hw_params,
+	.hw_free = mtk_bt_dai_capture_pcm_hw_free,
+	.prepare = mtk_bt_dai_pcm_prepare,
+	.trigger = mtk_bt_dai_pcm_trigger,
+	.pointer = mtk_bt_dai_pcm_pointer,
+	.page = mtk_bt_dai_capture_pcm_page,
+	.copy_user = mtk_bt_dai_pcm_copy,
 };
 
 static struct snd_soc_platform_driver mtk_bt_dai_soc_platform = {
-	.ops        = &mtk_bt_dai_ops,
-	.probe      = mtk_asoc_bt_dai_probe,
+	.ops = &mtk_bt_dai_ops, .probe = mtk_asoc_bt_dai_probe,
 };
 
 static int mtk_bt_dai_probe(struct platform_device *pdev)
 {
-	pr_warn("mtk_bt_dai_probe\n");
-
-	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(64);
-	if (!pdev->dev.dma_mask)
-		pdev->dev.dma_mask = &pdev->dev.coherent_dma_mask;
-
 	if (pdev->dev.of_node)
 		dev_set_name(&pdev->dev, "%s", MT_SOC_VOIP_BT_IN);
 
-	pr_warn("%s: dev name %s\n", __func__, dev_name(&pdev->dev));
-	return snd_soc_register_platform(&pdev->dev,
-					 &mtk_bt_dai_soc_platform);
+	pr_debug("%s: dev name %s\n", __func__, dev_name(&pdev->dev));
+	return snd_soc_register_platform(&pdev->dev, &mtk_bt_dai_soc_platform);
 }
 
 static int mtk_asoc_bt_dai_probe(struct snd_soc_platform *platform)
 {
-	pr_warn("mtk_asoc_bt_dai_probe\n");
-	AudDrv_Allocate_mem_Buffer(platform->dev, Soc_Aud_Digital_Block_MEM_DAI, BT_DAI_MAX_BUFFER_SIZE);
-	Bt_Dai_Capture_dma_buf =  Get_Mem_Buffer(Soc_Aud_Digital_Block_MEM_DAI);
+	AudDrv_Allocate_mem_Buffer(platform->dev, Soc_Aud_Digital_Block_MEM_DAI,
+				   BT_DAI_MAX_BUFFER_SIZE);
+	Bt_Dai_Capture_dma_buf = Get_Mem_Buffer(Soc_Aud_Digital_Block_MEM_DAI);
 	return 0;
 }
 
 static int mtk_bt_dai_remove(struct platform_device *pdev)
 {
-	pr_debug("%s\n", __func__);
 	snd_soc_unregister_platform(&pdev->dev);
 	return 0;
 }
 
 #ifdef CONFIG_OF
 static const struct of_device_id mt_soc_pcm_bt_dai_of_ids[] = {
-	{ .compatible = "mediatek,mt_soc_pcm_bt_dai", },
-	{}
-};
+	{
+		.compatible = "mediatek,mt_soc_pcm_bt_dai",
+	},
+	{} };
 #endif
 
 static struct platform_driver mtk_bt_dai_capture_driver = {
 	.driver = {
-		.name = MT_SOC_VOIP_BT_IN,
-		.owner = THIS_MODULE,
+
+			.name = MT_SOC_VOIP_BT_IN,
+			.owner = THIS_MODULE,
 #ifdef CONFIG_OF
-		.of_match_table = mt_soc_pcm_bt_dai_of_ids,
+			.of_match_table = mt_soc_pcm_bt_dai_of_ids,
 #endif
-	},
+		},
 	.probe = mtk_bt_dai_probe,
 	.remove = mtk_bt_dai_remove,
 };
@@ -550,7 +535,7 @@ static int __init mtk_soc_bt_dai_platform_init(void)
 {
 	int ret = 0;
 
-	pr_warn("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 #ifndef CONFIG_OF
 	soc_bt_dai_capture_dev = platform_device_alloc(MT_SOC_VOIP_BT_IN, -1);
 	if (!soc_bt_dai_capture_dev)
@@ -568,10 +553,8 @@ static int __init mtk_soc_bt_dai_platform_init(void)
 
 static void __exit mtk_soc_bt_dai_platform_exit(void)
 {
-	pr_warn("%s\n", __func__);
 	platform_driver_unregister(&mtk_bt_dai_capture_driver);
 }
-
 module_init(mtk_soc_bt_dai_platform_init);
 module_exit(mtk_soc_bt_dai_platform_exit);
 

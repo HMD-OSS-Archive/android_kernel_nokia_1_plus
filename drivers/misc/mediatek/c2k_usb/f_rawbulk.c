@@ -1,26 +1,22 @@
 /*
- * Rawbulk Gadget Function Driver from VIA Telecom
+ * Copyright (C) 2017 MediaTek Inc.
  *
- * Copyright (C) 2011 VIA Telecom, Inc.
- * Author: Juelun Guo (jlguo@via-telecom.com)
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
+
 
 #define DRIVER_AUTHOR   "jlguo <jlguo@via-telecom.com>"
 #define DRIVER_DESC     "Rawbulk Gadget - transport data from CP to Gadget"
 #define DRIVER_VERSION  "1.0.2"
 
 #include <linux/err.h>
-#include <linux/wakelock.h>
 #include <linux/interrupt.h>
 #include <linux/delay.h>
 #include <linux/wait.h>
@@ -66,14 +62,14 @@ int rawbulk_function_setup(struct usb_function *f, const struct
 
 
 	if (ctrl->bRequest) {
-		C2K_NOTE("ctrl->bRequestType = %0x  ctrl->bRequest = %0x\n", ctrl->bRequestType,
-			 ctrl->bRequest);
+		C2K_NOTE("ctrl->bRequestType = %0x  ctrl->bRequest = %0x\n",
+			ctrl->bRequestType, ctrl->bRequest);
 	}
 	switch (ctrl->bRequest) {
 	case 0x01:
-		if (ctrl->bRequestType == (USB_DIR_OUT | USB_TYPE_VENDOR)) {	/* 0x40 */
-			/* set/clear DTR */
-			C2K_NOTE("setdtr = %d, w_value =%d\n", setdtr, w_value);
+		if (ctrl->bRequestType == (USB_DIR_OUT | USB_TYPE_VENDOR)) {
+			/* set/clear DTR 0x40 */
+			C2K_NOTE("setdtr = %d, wvalue =%d\n", setdtr, w_value);
 			if (fn->activated) {
 				setdtr = w_value & 0x01;
 				/* schedule_work(&flow_control); */
@@ -84,8 +80,8 @@ int rawbulk_function_setup(struct usb_function *f, const struct
 		}
 		break;
 	case 0x02:
-		if (ctrl->bRequestType == (USB_DIR_IN | USB_TYPE_VENDOR)) {	/* 0xC0 */
-			/* DSR | CD109 */
+		if (ctrl->bRequestType == (USB_DIR_IN | USB_TYPE_VENDOR)) {
+			/* DSR | CD109 0xC0 */
 			/* schedule_work(&dtr_status); */
 			data_connect = modem_dcd_state();
 			/* modem_dtr_query(&data_connect, 0); */
@@ -96,17 +92,19 @@ int rawbulk_function_setup(struct usb_function *f, const struct
 
 				} else {
 					*((unsigned char *)req->buf) = 0x2;
-					C2K_NOTE("disconnect=%d, setdtr=%d\n", data_connect,
-						 setdtr);
+					C2K_NOTE("disconnect=%d, setdtr=%d\n",
+					data_connect, setdtr);
 				}
-			} else	/* set CD CSR state to 0 if modem bypass not inactive */
+			} else	/* set CD CSR state to 0 if modem bypass not
+				 * inactive
+				 */
 				*((unsigned char *)req->buf) = 0x0;
 			value = 1;
 		}
 		break;
 	case 0x03:
-		if (ctrl->bRequestType == (USB_DIR_OUT | USB_TYPE_VENDOR)) {	/* 0x40 */
-			/* xcvr */
+		if (ctrl->bRequestType == (USB_DIR_OUT | USB_TYPE_VENDOR)) {
+			/* xcvr 0x40 */
 			C2K_NOTE("CTRL SET XCVR 0x%02x\n", w_value);
 			value = 0;
 		}
@@ -123,8 +121,8 @@ int rawbulk_function_setup(struct usb_function *f, const struct
 		}
 		break;
 	case 0x05:
-		if (ctrl->bRequestType == (USB_DIR_IN | USB_TYPE_VENDOR)) {	/* 0xC0 */
-			/* connect status */
+		if (ctrl->bRequestType == (USB_DIR_IN | USB_TYPE_VENDOR)) {
+			/* connect status 0xC0 */
 			C2K_NOTE("CTRL CONNECT STATUS\n");
 			*((unsigned char *)req->buf) = 0x0;
 			value = 1;
@@ -132,7 +130,8 @@ int rawbulk_function_setup(struct usb_function *f, const struct
 		break;
 	default:
 		C2K_NOTE("invalid control req%02x.%02x v%04x i%04x l%d\n",
-			 ctrl->bRequestType, ctrl->bRequest, w_value, w_index, w_length);
+			 ctrl->bRequestType, ctrl->bRequest, w_value, w_index,
+			w_length);
 	}
 
 	/* respond with data transfer or status phase? */
@@ -161,7 +160,8 @@ static void rawbulk_auto_reconnect(int transfer_id)
 	if (rawbulk_check_enable(fn) && fn->activated) {
 		C2K_ERR("start %s again automatically.\n", fn->longname);
 		rc = rawbulk_start_transactions(transfer_id, fn->nups,
-						fn->ndowns, fn->upsz, fn->downsz);
+						fn->ndowns, fn->upsz,
+						fn->downsz);
 		if (rc < 0)
 			rawbulk_disable_function(fn);
 	}
@@ -216,14 +216,17 @@ int rawbulk_function_bind(struct usb_configuration *c, struct
 		return -ENOMEM;
 
 	if (gadget_is_dualspeed(gadget)) {
-		fn->hs_bulkin_endpoint.bEndpointAddress = fn->fs_bulkin_endpoint.bEndpointAddress;
-		fn->hs_bulkout_endpoint.bEndpointAddress = fn->fs_bulkout_endpoint.bEndpointAddress;
+		fn->hs_bulkin_endpoint.bEndpointAddress =
+				fn->fs_bulkin_endpoint.bEndpointAddress;
+		fn->hs_bulkout_endpoint.bEndpointAddress =
+				fn->fs_bulkout_endpoint.bEndpointAddress;
 	}
 
 	fn->cdev = c->cdev;
 	fn->activated = 0;
 
-	return rawbulk_bind_function(fn->transfer_id, f, ep_out, ep_in, rawbulk_auto_reconnect);
+	return rawbulk_bind_function(fn->transfer_id, f, ep_out, ep_in,
+				rawbulk_auto_reconnect);
 
 }
 
@@ -242,16 +245,17 @@ void rawbulk_function_unbind(struct usb_configuration *c, struct
 
 static void do_activate(struct work_struct *data)
 {
-	struct rawbulk_function *fn = container_of(data, struct rawbulk_function,
-						   activator);
+	struct rawbulk_function *fn = container_of(data,
+					struct rawbulk_function, activator);
 	int rc;
 	struct usb_function *functionp = &(fn->function);
 
-	C2K_ERR("%s usb state %s, <%d>\n", __func__, (fn->activated ? "connect" : "disconnect"),
-	       fn->transfer_id);
+	C2K_ERR("%s usb state %s, <%d>\n", __func__,
+		(fn->activated ? "connect" : "disconnect"), fn->transfer_id);
 	if (fn->activated) {	/* enumerated */
 		/* enabled endpoints */
-		rc = config_ep_by_speed(fn->cdev->gadget, functionp, fn->bulk_out);
+		rc = config_ep_by_speed(fn->cdev->gadget, functionp,
+					fn->bulk_out);
 		if (rc < 0) {
 			C2K_ERR("failed to config speed rawbulk %s %d\n",
 			       fn->bulk_out->name, rc);
@@ -259,11 +263,13 @@ static void do_activate(struct work_struct *data)
 		}
 		rc = usb_ep_enable(fn->bulk_out);
 		if (rc < 0) {
-			C2K_ERR("failed to enable rawbulk %s %d\n", fn->bulk_out->name, rc);
+			C2K_ERR("failed to enable rawbulk %s %d\n",
+				fn->bulk_out->name, rc);
 			return;
 		}
 
-		rc = config_ep_by_speed(fn->cdev->gadget, functionp, fn->bulk_in);
+		rc = config_ep_by_speed(fn->cdev->gadget, functionp,
+					fn->bulk_in);
 		if (rc < 0) {
 			C2K_ERR("failed to config speed rawbulk %s %d\n",
 			       fn->bulk_in->name, rc);
@@ -271,26 +277,29 @@ static void do_activate(struct work_struct *data)
 		}
 		rc = usb_ep_enable(fn->bulk_in);
 		if (rc < 0) {
-			C2K_ERR("failed to enable rawbulk %s %d\n", fn->bulk_in->name, rc);
+			C2K_ERR("failed to enable rawbulk %s %d\n",
+				fn->bulk_in->name, rc);
 			usb_ep_disable(fn->bulk_out);
 			return;
 		}
 
 		/* start rawbulk if enabled */
 		if (rawbulk_check_enable(fn)) {
-			wake_lock(&fn->keep_awake);
-			rc = rawbulk_start_transactions(fn->transfer_id, fn->nups,
-							fn->ndowns, fn->upsz, fn->downsz);
+			__pm_stay_awake(&fn->keep_awake);
+			rc = rawbulk_start_transactions(fn->transfer_id,
+							fn->nups, fn->ndowns,
+							fn->upsz, fn->downsz);
 			if (rc < 0)
 				/* rawbulk_disable_function(fn); */
-				C2K_ERR("%s: failed to  bypass, channel id = %d\n",
+				C2K_ERR("%s: failed bypass, channel id = %d\n",
 				       __func__, fn->transfer_id);
 		}
 
 	} else {		/* disconnect */
 		if (rawbulk_check_enable(fn)) {
 			if (fn->transfer_id == RAWBULK_TID_MODEM) {
-				/* this in interrupt, but DTR need be set firstly then clear it
+				/* this in interrupt, but DTR need be set
+				 * firstly then clear it
 				 */
 				modem_dtr_set(1, 1);
 				modem_dtr_set(0, 1);
@@ -299,9 +308,11 @@ static void do_activate(struct work_struct *data)
 			}
 
 			rawbulk_stop_transactions(fn->transfer_id);
-			/* keep the enable state, so we can enable again in next time */
+			/* keep the enable state, so we can enable again in
+			 * next time
+			 */
 			/* set_enable_state(fn, 0); */
-			wake_unlock(&fn->keep_awake);
+			__pm_relax(&fn->keep_awake);
 		}
 
 
@@ -325,7 +336,8 @@ int rawbulk_usb_state_check(void)
 }
 EXPORT_SYMBOL_GPL(rawbulk_usb_state_check);
 
-static int rawbulk_function_setalt(struct usb_function *f, unsigned intf, unsigned alt)
+static int rawbulk_function_setalt(struct usb_function *f, unsigned int intf,
+				unsigned int alt)
 {
 	struct rawbulk_function *fn = function_to_rbf(f);
 
@@ -436,7 +448,7 @@ struct usb_function_instance *alloc_inst_rawbulk(int transfer_id)
 }
 
 static struct usb_function *rawbulk_alloc(struct usb_function_instance *fi,
-								int transfer_id)
+							int transfer_id)
 {
 	struct rawbulk_function *fn = rawbulk_lookup_function(transfer_id);
 

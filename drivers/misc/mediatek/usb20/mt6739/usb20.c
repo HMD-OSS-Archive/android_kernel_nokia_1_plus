@@ -23,6 +23,7 @@
 #include "usb20.h"
 
 #include <mt-plat/mtk_boot_common.h>
+#include <charger_type.h>
 
 #ifdef CONFIG_FPGA_EARLY_PORTING
 #include <linux/i2c.h>
@@ -419,14 +420,11 @@ void trigger_disconnect_check_work(void)
 }
 
 #define CONN_WORK_DELAY 50
-#define USB_PROPERTY_GAP_MS 3000
 static struct delayed_work connection_work;
 void do_connection_work(struct work_struct *data)
 {
 	unsigned long flags = 0;
 	bool usb_in = false;
-	/* 0 to enable, 1 to disable, disable currently */
-	static int exceed_gap = 1;
 	int usb_clk_state = NO_CHANGE;
 
 	if (!mtk_musb->is_ready) {
@@ -437,28 +435,6 @@ void do_connection_work(struct work_struct *data)
 				mtk_musb->power);
 		queue_delayed_work(mtk_musb->st_wq, &connection_work, msecs_to_jiffies(CONN_WORK_DELAY));
 		return;
-	} else if (!exceed_gap) {
-#ifndef CONFIG_FPGA_EARLY_PORTING
-		s64 diff_time;
-		ktime_t ktime_now;
-
-		ktime_now = ktime_get();
-		diff_time = ktime_to_ms(ktime_sub(ktime_now, ktime_ready));
-
-		/* only normal mode could suffer rapid config switch at boot time */
-		if (get_boot_mode() == NORMAL_BOOT && diff_time < USB_PROPERTY_GAP_MS) {
-			/* re issue work */
-			DBG_LIMIT(3, "diff<%lld>, retrigger after %d ms, is_host<%d>, power<%d>",
-					diff_time,
-					CONN_WORK_DELAY,
-					mtk_musb->is_host,
-					mtk_musb->power);
-			queue_delayed_work(mtk_musb->st_wq, &connection_work, msecs_to_jiffies(CONN_WORK_DELAY));
-			return;
-		}
-		DBG(0, "exceed_gap to 1, diff_time<%lld>\n", diff_time);
-#endif
-		exceed_gap = 1;
 	}
 
 	DBG(0, "is_host<%d>, power<%d>\n",
@@ -488,12 +464,12 @@ void do_connection_work(struct work_struct *data)
 
 	if (!mtk_musb->power && (usb_in == true)) {
 		/* enable usb */
-		if (!wake_lock_active(&mtk_musb->usb_lock)) {
-			wake_lock(&mtk_musb->usb_lock);
+		if (!mtk_musb->usb_lock.active) {
+			__pm_stay_awake(&mtk_musb->usb_lock);
 			DBG(0, "lock\n");
-		} else {
+		} else
 			DBG(0, "already lock\n");
-		}
+
 		/* note this already put SOFTCON */
 		musb_start(mtk_musb);
 		usb_clk_state = OFF_TO_ON;
@@ -501,9 +477,9 @@ void do_connection_work(struct work_struct *data)
 	} else if (mtk_musb->power && (usb_in == false)) {
 		/* disable usb */
 		musb_stop(mtk_musb);
-		if (wake_lock_active(&mtk_musb->usb_lock)) {
+		if (mtk_musb->usb_lock.active) {
 			DBG(0, "unlock\n");
-			wake_unlock(&mtk_musb->usb_lock);
+			__pm_relax(&mtk_musb->usb_lock);
 		} else {
 			DBG(0, "lock not active\n");
 		}
@@ -555,7 +531,7 @@ void mt_usb_disconnect(void)
 #endif
 
 /* to avoid build error due to PMIC module not ready */
-#ifndef CONFIG_MTK_SMART_BATTERY
+#ifndef CONFIG_MTK_CHARGER
 #define BYPASS_PMIC_LINKAGE
 #endif
 static enum charger_type musb_hal_get_charger_type(void)
@@ -618,23 +594,23 @@ static void do_usb20_test_connect_work(struct work_struct *work)
 }
 void mt_usb_connect_test(int start)
 {
-	static struct wake_lock device_test_wakelock;
+	static struct wakeup_source device_test_wakelock;
 	static int wake_lock_inited;
 
 	if (!wake_lock_inited) {
 		DBG(0, "%s wake_lock_init\n", __func__);
-		wake_lock_init(&device_test_wakelock, WAKE_LOCK_SUSPEND, "device.test.lock");
+		wakeup_source_init(&device_test_wakelock, "device.test.lock");
 		wake_lock_inited = 1;
 	}
 
 	if (start) {
-		wake_lock(&device_test_wakelock);
+		__pm_stay_awake(&device_test_wakelock);
 		usb20_test_connect = 1;
 		INIT_DELAYED_WORK(&usb20_test_connect_work, do_usb20_test_connect_work);
 		schedule_delayed_work(&usb20_test_connect_work, 0);
 	} else {
 		usb20_test_connect = 0;
-		wake_unlock(&device_test_wakelock);
+		__pm_relax(&device_test_wakelock);
 	}
 }
 
@@ -743,7 +719,7 @@ void musb_sync_with_bat(struct musb *musb, int usb_state)
 #ifndef CONFIG_FPGA_EARLY_PORTING
 
 	DBG(0, "BATTERY_SetUSBState, state=%d\n", usb_state);
-#ifdef CONFIG_MTK_SMART_BATTERY
+#ifdef CONFIG_MTK_CHARGER
 	BATTERY_SetUSBState(usb_state);
 	wake_up_bat();
 #endif
@@ -1371,7 +1347,7 @@ static int __init mt_usb_init(struct musb *musb)
 	musb->usb_rev6_setting = usb_rev6_setting;
 #endif
 
-	wake_lock_init(&musb->usb_lock, WAKE_LOCK_SUSPEND, "USB suspend lock");
+	wakeup_source_init(&musb->usb_lock, "USB suspend lock");
 
 #ifndef CONFIG_FPGA_EARLY_PORTING
 	reg_vusb = regulator_get(musb->controller, "vusb33");

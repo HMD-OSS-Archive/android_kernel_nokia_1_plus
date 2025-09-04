@@ -18,16 +18,11 @@ else
 MAIN_DT_NAMES := $(subst $\",,$(CONFIG_BUILD_ARM_APPENDED_DTB_IMAGE_NAMES))
 endif
 
-ifeq ($(strip $(CONFIG_MTK_DTBO_FEATURE)), y)
 ifeq ($(strip $(CONFIG_ARM64)), y)
 PROJ_DT_NAMES := $(subst $\",,$(CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES))
 else
 PROJ_DT_NAMES := $(subst $\",,$(CONFIG_BUILD_ARM_DTB_OVERLAY_IMAGE_NAMES))
 endif
-else #DTBO is not enabled, there is only one dtb
-PROJ_DT_NAMES := $(MAIN_DT_NAMES)
-endif #CONFIG_MTK_DTBO_FEATURE
-
 
 MAIN_DTB_NAMES := $(addsuffix .dtb,$(MAIN_DT_NAMES))
 PROJ_DTB_NAMES := $(addsuffix .dtb,$(PROJ_DT_NAMES))
@@ -35,6 +30,7 @@ MAIN_DTB_FILES := $(addprefix $(objtree)/arch/$(SRCARCH)/boot/dts/, $(MAIN_DTB_N
 PROJ_DTB_FILES := $(addprefix $(objtree)/arch/$(SRCARCH)/boot/dts/, $(PROJ_DTB_NAMES))
 PROJ_DTS_FILES := $(addsuffix .dts,$(addprefix $(srctree)/arch/$(SRCARCH)/boot/dts/, $(PROJ_DT_NAMES)))
 ABS_DTB_FILES := $(abspath $(addsuffix .dtb,$(addprefix $(objtree)/arch/$(SRCARCH)/boot/dts/,$(PROJ_DT_NAMES))))
+ABS_DTB2_FILES := $(abspath $(addprefix $(objtree)/arch/$(SRCARCH)/boot/,mtk.dtb))
 
 export PROJ_DTB_FILES
 export PROJ_DTS_FILES
@@ -82,7 +78,15 @@ echo " id=$(my_dtbo_id)" >>$(2);\
 $(eval my_dtbo_id:=$(shell echo $$(($(my_dtbo_id)+1))))
 endef
 
-dtbs: $(objtree)/dtboimg.cfg
+dtbs: $(objtree)/dtboimg.cfg $(objtree)/dtbimg.cfg
+
+my_dtb_id := 0
+define mk_dtbimg_cfg
+echo $(1) >>$(2);\
+echo " id=$(my_dtb_id)" >>$(2);\
+$(eval my_dtb_id:=$(shell echo $$(($(my_dtb_id)+1))))
+endef
+
 $(objtree)/dtboimg.cfg: FORCE
 	rm -f $@.tmp
 	$(foreach f,$(ABS_DTB_FILES),$(call mk_dtboimg_cfg,$(f),$@.tmp))
@@ -91,5 +95,17 @@ $(objtree)/dtboimg.cfg: FORCE
 	else \
 		rm $@.tmp; \
 	fi
+
+$(objtree)/dtbimg.cfg: FORCE
+	rm -f $@.tmp
+	$(foreach f,$(ABS_DTB2_FILES),$(call mk_dtbimg_cfg,$(f),$@.tmp))
+	if ! cmp -s $@.tmp $@; then \
+		mv $@.tmp $@; \
+	else \
+		rm $@.tmp; \
+fi
+
+else
+dtbo_check:
 
 endif#MTK_PLATFORM

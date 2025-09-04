@@ -92,8 +92,8 @@ static void release_urb_ctx(struct snd_urb_ctx *u)
 	if (u->buffer_size) {
 		if (!ep->databuf_sram)
 			usb_free_coherent(u->ep->chip->dev, u->buffer_size,
-				  u->urb->transfer_buffer,
-				  u->urb->transfer_dma);
+					  u->urb->transfer_buffer,
+					  u->urb->transfer_dma);
 	}
 	usb_free_urb(u->urb);
 	u->urb = NULL;
@@ -167,7 +167,7 @@ int snd_usb_endpoint_next_packet_size(struct snd_usb_endpoint *ep)
 static void retire_outbound_urb(struct snd_usb_endpoint *ep,
 				struct snd_urb_ctx *urb_ctx)
 {
-	if (ep->retire_data_urb && ep->data_subs)
+	if (ep->retire_data_urb)
 		ep->retire_data_urb(ep->data_subs, urb_ctx->urb);
 }
 
@@ -217,19 +217,20 @@ static void prepare_silent_urb(struct snd_usb_endpoint *ep,
 		urb->iso_frame_desc[i].length = length + extra;
 		if (extra) {
 			packet_length = cpu_to_le32(length);
-			if (ep->databuf_sram)
+			if (ep->databuf_sram) {
 				memcpy_toio(urb->transfer_buffer + offset,
-					   &packet_length, sizeof(packet_length));
-			else
+					&packet_length, sizeof(packet_length));
+			} else {
 				memcpy(urb->transfer_buffer + offset,
-					   &packet_length, sizeof(packet_length));
+					&packet_length, sizeof(packet_length));
+			}
 		}
 		if (ep->databuf_sram)
 			memset_io(urb->transfer_buffer + offset + extra,
-				   ep->silence_value, length);
+				ep->silence_value, length);
 		else
 			memset(urb->transfer_buffer + offset + extra,
-				   ep->silence_value, length);
+				ep->silence_value, length);
 		offs += counts;
 	}
 
@@ -481,7 +482,7 @@ struct snd_usb_endpoint *snd_usb_add_endpoint(struct snd_usb_audio *chip,
 		}
 	}
 
-	usb_audio_dbg(chip, "Creating new %s %s endpoint #%x\n",
+	usb_audio_info(chip, "Creating new %s %s endpoint #%x\n",
 		    is_playback ? "playback" : "capture",
 		    type == SND_USB_ENDPOINT_TYPE_DATA ? "data" : "sync",
 		    ep_num);
@@ -519,12 +520,10 @@ struct snd_usb_endpoint *snd_usb_add_endpoint(struct snd_usb_audio *chip,
 
 		ep->syncmaxsize = le16_to_cpu(get_endpoint(alts, 1)->wMaxPacketSize);
 
-		if (chip->usb_id == USB_ID(0x0644, 0x8038) /* TEAC UD-H01 */ &&
-		    ep->syncmaxsize == 4)
-			ep->udh01_fb_quirk = 1;
 
 		/* let controller driver to know endpoint type */
-		get_endpoint(alts, 1)->bmAttributes |= USB_ENDPOINT_USAGE_FEEDBACK;
+		get_endpoint(alts, 1)->bmAttributes |=
+			USB_ENDPOINT_USAGE_FEEDBACK;
 	}
 
 	list_add_tail(&ep->list, &chip->ep_list);
@@ -632,7 +631,7 @@ static void release_urbs(struct snd_usb_endpoint *ep, int force)
 			mtk_usb_free_sram(USB_AUDIO_DATA_SYNC);
 		else
 			usb_free_coherent(ep->chip->dev, SYNC_URBS * 4,
-				  ep->syncbuf, ep->sync_dma);
+				       ep->syncbuf, ep->sync_dma);
 	}
 
 	ep->syncbuf = NULL;
@@ -658,7 +657,7 @@ static int data_ep_set_params(struct snd_usb_endpoint *ep,
 	unsigned int max_packs_per_period, urbs_per_period, urb_packs;
 	unsigned int max_urbs, i;
 	int frame_bits = snd_pcm_format_physical_width(pcm_format) * channels;
-	unsigned max_queue;
+	unsigned int max_queue;
 	int tx_length_quirk = (ep->chip->tx_length_quirk &&
 			       usb_pipeout(ep->pipe));
 
@@ -673,10 +672,24 @@ static int data_ep_set_params(struct snd_usb_endpoint *ep,
 
 	ep->datainterval = fmt->datainterval;
 	ep->stride = frame_bits >> 3;
-	ep->silence_value = pcm_format == SNDRV_PCM_FORMAT_U8 ? 0x80 : 0;
 
-	/* assume max. frequency is 25% higher than nominal */
-	ep->freqmax = ep->freqn + (ep->freqn >> 2);
+	switch (pcm_format) {
+	case SNDRV_PCM_FORMAT_U8:
+		ep->silence_value = 0x80;
+		break;
+	case SNDRV_PCM_FORMAT_DSD_U8:
+	case SNDRV_PCM_FORMAT_DSD_U16_LE:
+	case SNDRV_PCM_FORMAT_DSD_U32_LE:
+	case SNDRV_PCM_FORMAT_DSD_U16_BE:
+	case SNDRV_PCM_FORMAT_DSD_U32_BE:
+		ep->silence_value = 0x69;
+		break;
+	default:
+		ep->silence_value = 0;
+	}
+
+	/* assume max. frequency is 50% higher than nominal */
+	ep->freqmax = ep->freqn + (ep->freqn >> 1);
 	/* Round up freqmax to nearest integer in order to calculate maximum
 	 * packet size, which must represent a whole number of frames.
 	 * This is accomplished by adding 0x0.ffff before converting the
@@ -739,9 +752,6 @@ static int data_ep_set_params(struct snd_usb_endpoint *ep,
 			snd_usb_endpoint_implicit_feedback_sink(ep)) {
 
 		urb_packs = packs_per_ms;
-
-		pr_info("UL: packs_per_ms, packs_per_ms =%d\n",
-			   packs_per_ms);
 		/*
 		 * Wireless devices can poll at a max rate of once per 4ms.
 		 * For dataintervals less than 5, increase the packet count to
@@ -761,8 +771,12 @@ static int data_ep_set_params(struct snd_usb_endpoint *ep,
 			urb_packs >>= 1;
 		ep->nurbs = MAX_URBS;
 
-		pr_info("UL: max_packs_per_urb=%d, urb_packs =%d, nurbs=%d\n",
-			   max_packs_per_urb, urb_packs, ep->nurbs);
+		usb_audio_info(ep->chip,
+			"in: frames_per_period=%d, packs_per_ms=%d\n",
+			frames_per_period, packs_per_ms);
+		usb_audio_info(ep->chip,
+			"in: nurbs=%d, urb_packs=%d, periods_per_buffer=%d\n",
+			ep->nurbs, urb_packs, periods_per_buffer);
 
 	/*
 	 * Playback endpoints without implicit sync are adjusted so that
@@ -771,9 +785,6 @@ static int data_ep_set_params(struct snd_usb_endpoint *ep,
 	 * ALSA buffer, subject to the MAX_URBS and MAX_QUEUE limits.
 	 */
 	} else {
-
-		pr_info("freqn=%d, datainterval=%d frame_bits=%d\n",
-			   ep->freqn, ep->datainterval, frame_bits);
 		/* determine how small a packet can be */
 		minsize = (ep->freqn >> (16 - ep->datainterval)) *
 				(frame_bits >> 3);
@@ -795,27 +806,30 @@ static int data_ep_set_params(struct snd_usb_endpoint *ep,
 		/* how many URBs will contain a period? */
 		urbs_per_period = DIV_ROUND_UP(max_packs_per_period,
 				max_packs_per_urb);
-		pr_info("max_packs_per_period=%d, max_packs_per_urb=%d\n",
-			   max_packs_per_period, max_packs_per_urb);
-
 		/* how many packets are needed in each URB? */
 		urb_packs = DIV_ROUND_UP(max_packs_per_period, urbs_per_period);
 
 		/* limit the number of frames in a single URB */
 		ep->max_urb_frames = DIV_ROUND_UP(frames_per_period,
 					urbs_per_period);
-		pr_info("frames_per_period=%d, urbs_per_period=%d\n",
-				frames_per_period, urbs_per_period);
+
 		/* try to use enough URBs to contain an entire ALSA buffer */
 		max_urbs = min((unsigned) MAX_URBS,
 				max_queue * packs_per_ms / urb_packs);
 
-		pr_info("packs_per_ms=%d, urb_packs=%d\n", packs_per_ms, urb_packs);
 		ep->nurbs = min(max_urbs, urbs_per_period * periods_per_buffer);
 		if (ep->nurbs < 2)
 			ep->nurbs++;
-		pr_info("nurbs=%d, urbs_per_period=%d, periods_per_buffer=%d\n",
-			   ep->nurbs, urbs_per_period, periods_per_buffer);
+
+		usb_audio_info(ep->chip,
+			"interval=%d, frames_per_period=%d, urbs_per_period=%d\n",
+			ep->datainterval, frames_per_period, urbs_per_period);
+		usb_audio_info(ep->chip,
+			"max_packs_per_period=%d, max_packs_per_urb=%d\n",
+			max_packs_per_period, max_packs_per_urb);
+		usb_audio_info(ep->chip,
+			"nurbs=%d, urbs_per_period=%d, periods_per_buffer=%d\n",
+			ep->nurbs, urbs_per_period, periods_per_buffer);
 	}
 
 	/* allocate and initialize data urbs */
@@ -842,13 +856,16 @@ static int data_ep_set_params(struct snd_usb_endpoint *ep,
 			goto out_of_memory;
 
 		if (ep->databuf_sram) {
-			u->urb->transfer_buffer = ep->databuf + i * u->buffer_size;
-			u->urb->transfer_dma = ep->data_dma + i * u->buffer_size;
+			u->urb->transfer_buffer = ep->databuf +
+				i * u->buffer_size;
+			u->urb->transfer_dma = ep->data_dma +
+				i * u->buffer_size;
 		} else {
 			/* re-allocate buffer */
-		u->urb->transfer_buffer =
-			usb_alloc_coherent(ep->chip->dev, u->buffer_size,
-					   GFP_KERNEL, &u->urb->transfer_dma);
+			u->urb->transfer_buffer =
+				usb_alloc_coherent(ep->chip->dev,
+					u->buffer_size, GFP_KERNEL,
+					&u->urb->transfer_dma);
 		}
 
 		if (!u->urb->transfer_buffer)
@@ -883,8 +900,8 @@ static int sync_ep_set_params(struct snd_usb_endpoint *ep)
 	if (ep->syncbuf) {
 		ep->syncbuf_sram = 1;
 	} else {
-	ep->syncbuf = usb_alloc_coherent(ep->chip->dev, SYNC_URBS * 4,
-					 GFP_KERNEL, &ep->sync_dma);
+		ep->syncbuf = usb_alloc_coherent(ep->chip->dev, SYNC_URBS * 4,
+			       GFP_KERNEL, &ep->sync_dma);
 	}
 
 	if (!ep->syncbuf)
@@ -1066,6 +1083,11 @@ int snd_usb_endpoint_start(struct snd_usb_endpoint *ep)
 		set_bit(i, &ep->active_mask);
 	}
 
+	usb_audio_info(ep->chip, "start %s %s endpoint #%x\n",
+		    usb_pipeout(ep->pipe) ? "out" : "in",
+		    ep->type == SND_USB_ENDPOINT_TYPE_DATA ? "data" : "sync",
+		    ep->ep_num);
+
 	return 0;
 
 __error:
@@ -1100,6 +1122,11 @@ void snd_usb_endpoint_stop(struct snd_usb_endpoint *ep)
 	if (--ep->use_count == 0) {
 		deactivate_urbs(ep, false);
 		set_bit(EP_FLAG_STOPPING, &ep->flags);
+
+		usb_audio_info(ep->chip, "stop %s %s endpoint #%x\n",
+		    usb_pipeout(ep->pipe) ? "out" : "in",
+		    ep->type == SND_USB_ENDPOINT_TYPE_DATA ? "data" : "sync",
+		    ep->ep_num);
 	}
 }
 
@@ -1256,15 +1283,16 @@ void snd_usb_handle_sync_urb(struct snd_usb_endpoint *ep,
 	if (f == 0)
 		return;
 
-	if (unlikely(sender->udh01_fb_quirk)) {
+	if (unlikely(sender->tenor_fb_quirk)) {
 		/*
-		 * The TEAC UD-H01 firmware sometimes changes the feedback value
+		 * Devices based on Tenor 8802 chipsets (TEAC UD-H01
+		 * and others) sometimes change the feedback value
 		 * by +/- 0x1.0000.
 		 */
 		if (f < ep->freqn - 0x8000)
-			f += 0x10000;
+			f += 0xf000;
 		else if (f > ep->freqn + 0x8000)
-			f -= 0x10000;
+			f -= 0xf000;
 	} else if (unlikely(ep->freqshift == INT_MIN)) {
 		/*
 		 * The first time we see a feedback value, determine its format

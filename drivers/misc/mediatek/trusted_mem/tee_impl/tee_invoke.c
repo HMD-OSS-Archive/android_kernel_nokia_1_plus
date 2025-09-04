@@ -33,8 +33,11 @@
 #include "private/tmem_device.h"
 #include "private/tmem_error.h"
 #include "private/tmem_utils.h"
-#include "tee_impl/tee_priv.h"
-#include "tee_impl/tee_common.h"
+#ifdef TCORE_UT_TESTS_SUPPORT
+#include "tests/ut_common.h"
+#endif
+#include "tee_impl/tee_ops.h"
+#include "tee_impl/tee_regions.h"
 
 #define TEE_CMD_LOCK() mutex_lock(&tee_lock)
 #define TEE_CMD_UNLOCK() mutex_unlock(&tee_lock)
@@ -77,3 +80,91 @@ int tee_directly_invoke_cmd(struct trusted_driver_cmd_params *invoke_params)
 
 	return ret;
 }
+
+#if defined(CONFIG_MTK_SECURE_MEM_SUPPORT)                                     \
+	&& defined(CONFIG_MTK_CAM_SECURITY_SUPPORT)
+int secmem_fr_set_prot_shared_region(u64 pa, u32 size, int remote_region_type)
+{
+	struct trusted_driver_cmd_params cmd_params = {0};
+
+	cmd_params.cmd = CMD_SEC_MEM_SET_PROT_REGION;
+	cmd_params.param0 = pa;
+	cmd_params.param1 = size;
+	cmd_params.param2 = remote_region_type;
+
+#ifdef TCORE_UT_TESTS_SUPPORT
+	if (is_multi_type_alloc_multithread_test_locked()) {
+		pr_debug("%s:%d return for UT purpose!\n", __func__, __LINE__);
+		return TMEM_OK;
+	}
+#endif
+
+	return tee_directly_invoke_cmd(&cmd_params);
+}
+
+int secmem_fr_dump_info(void)
+{
+	struct trusted_driver_cmd_params cmd_params = {0};
+
+	cmd_params.cmd = CMD_SEC_MEM_DUMP_MEM_INFO;
+	return tee_directly_invoke_cmd(&cmd_params);
+}
+#endif
+
+#if defined(CONFIG_MTK_MTEE_MULTI_CHUNK_SUPPORT)
+int secmem_set_mchunks_region(u64 pa, u32 size, int remote_region_type)
+{
+	struct trusted_driver_cmd_params cmd_params = {0};
+
+	cmd_params.cmd = CMD_SEC_MEM_SET_MCHUNKS_REGION;
+	cmd_params.param0 = pa;
+	cmd_params.param1 = size;
+	cmd_params.param2 = remote_region_type;
+
+#ifdef TCORE_UT_TESTS_SUPPORT
+	if (is_multi_type_alloc_multithread_test_locked()) {
+		pr_debug("%s:%d return for UT purpose!\n", __func__, __LINE__);
+		return TMEM_OK;
+	}
+#endif
+
+	return tee_directly_invoke_cmd(&cmd_params);
+}
+#endif
+
+#if defined(CONFIG_MTK_SECURE_MEM_SUPPORT)
+int secmem_svp_dump_info(void)
+{
+	struct trusted_driver_cmd_params cmd_params = {0};
+
+	cmd_params.cmd = CMD_SEC_MEM_DUMP_MEM_INFO;
+	return tee_directly_invoke_cmd(&cmd_params);
+}
+
+int secmem_dynamic_debug_control(bool enable_dbg)
+{
+	struct trusted_driver_cmd_params cmd_params = {0};
+
+	cmd_params.cmd = CMD_SEC_MEM_DYNAMIC_DEBUG_CONFIG;
+	cmd_params.param2 = enable_dbg;
+	return tee_directly_invoke_cmd(&cmd_params);
+}
+
+int secmem_force_hw_protection(void)
+{
+	struct trusted_driver_cmd_params cmd_params = {0};
+
+	cmd_params.cmd = CMD_SEC_MEM_FORCE_HW_PROTECTION;
+	return tee_directly_invoke_cmd(&cmd_params);
+}
+#endif
+
+#if defined(CONFIG_MTK_WFD_SMEM_SUPPORT)
+int wfd_smem_dump_info(void)
+{
+	struct trusted_driver_cmd_params cmd_params = {0};
+
+	cmd_params.cmd = CMD_WFD_SMEM_DUMP_MEM_INFO;
+	return tee_directly_invoke_cmd(&cmd_params);
+}
+#endif

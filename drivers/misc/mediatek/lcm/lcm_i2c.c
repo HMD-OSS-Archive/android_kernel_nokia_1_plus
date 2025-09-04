@@ -92,7 +92,8 @@ static struct i2c_client *_lcm_i2c_client;
 /*****************************************************************************
  * Function Prototype
  *****************************************************************************/
-static int _lcm_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id);
+static int _lcm_i2c_probe(struct i2c_client *client,
+	const struct i2c_device_id *id);
 static int _lcm_i2c_remove(struct i2c_client *client);
 
 
@@ -140,10 +141,12 @@ static struct i2c_driver _lcm_i2c_driver = {
 /*****************************************************************************
  * Function
  *****************************************************************************/
-static int _lcm_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
+static int _lcm_i2c_probe(struct i2c_client *client,
+	const struct i2c_device_id *id)
 {
-	pr_debug("[LCM][I2C] _lcm_i2c_probe\n");
-	pr_debug("[LCM][I2C] NT: info==>name=%s addr=0x%x\n", client->name, client->addr);
+	pr_debug("[LCM][I2C] %s\n", __func__);
+	pr_debug("[LCM][I2C] NT: info==>name=%s addr=0x%x\n",
+		client->name, client->addr);
 	_lcm_i2c_client = client;
 	return 0;
 }
@@ -151,7 +154,7 @@ static int _lcm_i2c_probe(struct i2c_client *client, const struct i2c_device_id 
 
 static int _lcm_i2c_remove(struct i2c_client *client)
 {
-	pr_debug("[LCM][I2C] _lcm_i2c_remove\n");
+	pr_debug("[LCM][I2C] %s\n", __func__);
 	_lcm_i2c_client = NULL;
 	i2c_unregister_device(client);
 	return 0;
@@ -173,7 +176,7 @@ static int _lcm_i2c_write_bytes(unsigned char addr, unsigned char value)
 	write_data[1] = value;
 	ret = i2c_master_send(client, write_data, 2);
 	if (ret < 0)
-		pr_err("[LCM][ERROR] _lcm_i2c write data fail !!\n");
+		pr_info("[LCM][ERROR] _lcm_i2c write data fail !!\n");
 
 	return ret;
 }
@@ -184,13 +187,13 @@ static int _lcm_i2c_write_bytes(unsigned char addr, unsigned char value)
  */
 static int __init _lcm_i2c_init(void)
 {
-	pr_debug("[LCM][I2C] _lcm_i2c_init\n");
+	pr_debug("[LCM][I2C] %s\n", __func__);
 #ifdef CONFIG_MTK_LEGACY
 	i2c_register_board_info(LCM_I2C_BUSNUM, &_lcm_i2c_board_info, 1);
-	pr_debug("[LCM][I2C] _lcm_i2c_init2\n");
+	pr_debug("[LCM][I2C] %s2\n", __func__);
 #endif
 	i2c_add_driver(&_lcm_i2c_driver);
-	pr_debug("[LCM][I2C] _lcm_i2c_init success\n");
+	pr_debug("[LCM][I2C] %s success\n", __func__);
 
 	return 0;
 }
@@ -198,27 +201,30 @@ static int __init _lcm_i2c_init(void)
 
 static void __exit _lcm_i2c_exit(void)
 {
-	pr_debug("[LCM][I2C] _lcm_i2c_exit\n");
+	pr_debug("[LCM][I2C] %s\n", __func__);
 	i2c_del_driver(&_lcm_i2c_driver);
 }
 
 
-static LCM_STATUS _lcm_i2c_check_data(char type, const LCM_DATA_T2 *t2)
+static enum LCM_STATUS _lcm_i2c_check_data(char type,
+	const struct LCM_DATA_T2 *t2)
 {
 	switch (type) {
 	case LCM_I2C_WRITE:
 		if (t2->cmd > 0xFF) {
-			pr_err("[LCM][ERROR] %s/%d: %d\n", __func__, __LINE__, t2->cmd);
+			pr_info("[LCM][ERROR] %s/%d: %d\n",
+				__func__, __LINE__, t2->cmd);
 			return LCM_STATUS_ERROR;
 		}
 		if (t2->data > 0xFF) {
-			pr_err("[LCM][ERROR] %s/%d: %d\n", __func__, __LINE__, t2->data);
+			pr_info("[LCM][ERROR] %s/%d: %d\n",
+				__func__, __LINE__, t2->data);
 			return LCM_STATUS_ERROR;
 		}
 		break;
 
 	default:
-		pr_err("[LCM][ERROR] %s/%d: %d\n", __func__, __LINE__, type);
+		pr_info("[LCM][ERROR] %s/%d: %d\n", __func__, __LINE__, type);
 		return LCM_STATUS_ERROR;
 	}
 
@@ -227,7 +233,7 @@ static LCM_STATUS _lcm_i2c_check_data(char type, const LCM_DATA_T2 *t2)
 #endif
 
 
-LCM_STATUS lcm_i2c_set_data(char type, const LCM_DATA_T2 *t2)
+enum LCM_STATUS lcm_i2c_set_data(char type, const struct LCM_DATA_T2 *t2)
 {
 #ifndef CONFIG_FPGA_EARLY_PORTING
 	unsigned int ret_code = 0;
@@ -236,24 +242,27 @@ LCM_STATUS lcm_i2c_set_data(char type, const LCM_DATA_T2 *t2)
 	if (_lcm_i2c_check_data(type, t2) == LCM_STATUS_OK) {
 		switch (type) {
 		case LCM_I2C_WRITE:
-			pr_debug("[LCM][I2C] %s/%d: %d, 0x%x, 0x%x\n", __func__, __LINE__, type,
-				 t2->cmd, t2->data);
+			pr_debug("[LCM][I2C] %s/%d: %d, 0x%x, 0x%x\n",
+				__func__, __LINE__, type, t2->cmd, t2->data);
 			ret_code =
-			    _lcm_i2c_write_bytes((unsigned char)t2->cmd, (unsigned char)t2->data);
+			    _lcm_i2c_write_bytes((unsigned char)t2->cmd,
+			    (unsigned char)t2->data);
 			break;
 		default:
-			pr_err("[LCM][ERROR] %s/%d: %d\n", __func__, __LINE__, type);
+			pr_info("[LCM][ERROR] %s/%d: %d\n",
+				__func__, __LINE__, type);
 			return LCM_STATUS_ERROR;
 		}
 	} else {
-		pr_err("[LCM][ERROR] %s/%d: %d, 0x%x, 0x%x\n", __func__, __LINE__, type, t2->cmd,
-		       t2->data);
+		pr_info("[LCM][ERROR] %s/%d: %d, 0x%x, 0x%x\n",
+			__func__, __LINE__, type, t2->cmd, t2->data);
 		return LCM_STATUS_ERROR;
 	}
 
 	if (ret_code < 0) {
-		pr_err("[LCM][ERROR] %s/%d: 0x%x, 0x%x, %d\n", __func__, __LINE__,
-		       (unsigned int)t2->cmd, (unsigned int)t2->data, ret_code);
+		pr_info("[LCM][ERROR] %s/%d: 0x%x, 0x%x, %d\n",
+			__func__, __LINE__, (unsigned int)t2->cmd,
+			(unsigned int)t2->data, ret_code);
 		return LCM_STATUS_ERROR;
 	}
 #endif
@@ -270,4 +279,7 @@ MODULE_AUTHOR("Joey Pan");
 MODULE_DESCRIPTION("MTK LCM I2C Driver");
 MODULE_LICENSE("GPL");
 #endif
+
+#else
+struct i2c_client *_lcm_i2c_client;
 #endif

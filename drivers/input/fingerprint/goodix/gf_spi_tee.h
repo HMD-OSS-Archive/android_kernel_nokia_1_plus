@@ -42,12 +42,14 @@
 extern u8 g_debug_level;
 #define gf_debug(level, fmt, args...) do { \
 			if (g_debug_level >= level) {\
-				pr_warn("[gf] " fmt, ##args); \
+				pr_info("[gf] " fmt, ##args); \
 			} \
 		} while (0)
 
-#define FUNC_ENTRY()  gf_debug(DEBUG_LOG, "%s, %d, enter\n", __func__, __LINE__)
-#define FUNC_EXIT()  gf_debug(DEBUG_LOG, "%s, %d, exit\n", __func__, __LINE__)
+#define FUNC_ENTRY()  \
+	gf_debug(DEBUG_LOG, "%s, %d, enter\n", __func__, __LINE__)
+#define FUNC_EXIT()  \
+	gf_debug(DEBUG_LOG, "%s, %d, exit\n", __func__, __LINE__)
 
 /**********************IO Magic**********************/
 #define GF_IOC_MAGIC	'g'
@@ -67,7 +69,7 @@ extern u8 g_debug_level;
 #define GF_KEY_INPUT_POWER		KEY_POWER
 #define GF_KEY_INPUT_CAMERA		KEY_CAMERA
 
-typedef enum gf_nav_event {
+enum gf_nav_event_t {
 	GF_NAV_NONE = 0,
 	GF_NAV_FINGER_UP,
 	GF_NAV_FINGER_DOWN,
@@ -79,19 +81,19 @@ typedef enum gf_nav_event {
 	GF_NAV_HEAVY,
 	GF_NAV_LONG_PRESS,
 	GF_NAV_DOUBLE_CLICK,
-} gf_nav_event_t;
+};
 
-typedef enum gf_key_event {
+enum gf_key_event_t {
 	GF_KEY_NONE = 0,
 	GF_KEY_HOME,
 	GF_KEY_POWER,
 	GF_KEY_MENU,
 	GF_KEY_BACK,
 	GF_KEY_CAMERA,
-} gf_key_event_t;
+};
 
 struct gf_key {
-	enum gf_key_event key;
+	enum gf_key_event_t key;
 	uint32_t value;   /* key down = 1, key up = 0 */
 };
 
@@ -140,18 +142,18 @@ enum gf_spi_cpha {
 	GF_SPI_CPHA_1
 };
 
-typedef struct {
+struct gf_spi_cfg_t {
 	unsigned int cs_setuptime;
 	unsigned int cs_holdtime;
 	unsigned int cs_idletime;
 	unsigned int speed_hz; /* spi clock rate */
 	/* The time ratio of active level in a period. Default value is 50.
-	* that means high time and low time is same.
-	*/
+	 * that means high time and low time is same.
+	 */
 	unsigned int duty_cycle;
 	enum gf_spi_cpol cpol;
 	enum gf_spi_cpol cpha;
-} gf_spi_cfg_t;
+};
 
 /* define commands */
 #define GF_IOC_INIT			_IOR(GF_IOC_MAGIC, 0, u8)
@@ -167,7 +169,7 @@ typedef struct {
 #define GF_IOC_ENABLE_POWER		_IO(GF_IOC_MAGIC, 7)
 #define GF_IOC_DISABLE_POWER		_IO(GF_IOC_MAGIC, 8)
 
-#define GF_IOC_INPUT_KEY_EVENT		_IOW(GF_IOC_MAGIC, 9, struct gf_key)
+#define GF_IOC_INPUT_KEY_EVENT	_IOW(GF_IOC_MAGIC, 9, struct gf_key)
 
 /* fp sensor has change to sleep mode while screen off */
 #define GF_IOC_ENTER_SLEEP_MODE		_IO(GF_IOC_MAGIC, 10)
@@ -175,12 +177,15 @@ typedef struct {
 #define GF_IOC_REMOVE		_IO(GF_IOC_MAGIC, 12)
 #define GF_IOC_CHIP_INFO	_IOW(GF_IOC_MAGIC, 13, struct gf_ioc_chip_info)
 
-#define GF_IOC_NAV_EVENT	_IOW(GF_IOC_MAGIC, 14, gf_nav_event_t)
+#define GF_IOC_NAV_EVENT	_IOW(GF_IOC_MAGIC, 14, enum gf_nav_event_t)
 
 /* for SPI REE transfer */
-#define GF_IOC_TRANSFER_CMD		_IOWR(GF_IOC_MAGIC, 15, struct gf_ioc_transfer)
-#define GF_IOC_TRANSFER_RAW_CMD	_IOWR(GF_IOC_MAGIC, 16, struct gf_ioc_transfer_raw)
-#define GF_IOC_SPI_INIT_CFG_CMD	_IOW(GF_IOC_MAGIC, 17, gf_spi_cfg_t)
+#define GF_IOC_TRANSFER_CMD \
+	_IOWR(GF_IOC_MAGIC, 15, struct gf_ioc_transfer)
+#define GF_IOC_TRANSFER_RAW_CMD \
+	_IOWR(GF_IOC_MAGIC, 16, struct gf_ioc_transfer_raw)
+#define GF_IOC_SPI_INIT_CFG_CMD \
+	_IOW(GF_IOC_MAGIC, 17, struct gf_spi_cfg_t)
 
 #define  GF_IOC_MAXNR    18  /* THIS MACRO IS NOT USED NOW... */
 
@@ -221,7 +226,13 @@ struct gf_device {
 	u8 irq_count;
 
 	/* bit24-bit32 of signal count */
-	/* bit16-bit23 of event type, 1: key down; 2: key up; 3: fp data ready; 4: home key */
+	/*
+	 * bit16-bit23 of event type:
+	 * 1: key down;
+	 * 2: key up;
+	 * 3: fp data ready;
+	 * 4: home key
+	 */
 	/* bit0-bit15 of event type, buffer status register */
 	u32 event_type;
 	u8 sig_count;
@@ -236,10 +247,15 @@ struct gf_device {
 	u32 irq;
 
 #ifdef CONFIG_OF
-	struct pinctrl *pinctrl_gpios;
+	struct pinctrl *pinctrl_gpio;
 	struct pinctrl_state *pins_default;
-	struct pinctrl_state *pins_miso_spi, *pins_miso_pullhigh, *pins_miso_pulllow;
-	struct pinctrl_state *pins_reset_high, *pins_reset_low;
+	struct pinctrl_state *pins_miso_spi;
+	struct pinctrl_state *miso_pullhigh;
+	struct pinctrl_state *miso_pulllow;
+	struct pinctrl_state *rst_high;
+	struct pinctrl_state *rst_low;
+	struct pinctrl_state *eint_init;
+	//struct pinctrl_state *pins_reset_high, *pins_reset_low;
 #endif
 };
 
@@ -262,13 +278,17 @@ struct gf_device {
 
 /**********************function defination**********************/
 #ifndef CONFIG_SPI_MT65XX
-void gf_spi_setup_conf_ree(struct gf_device *gf_dev, u32 speed, enum spi_transfer_mode mode);
+void gf_spi_setup_conf_ree(struct gf_device *gf_dev, u32 speed,
+					enum spi_transfer_mode mode);
 #endif
-int gf_spi_read_bytes_ree(struct gf_device *gf_dev, u16 addr, u32 data_len, u8 *rx_buf);
-int gf_spi_write_bytes_ree(struct gf_device *gf_dev, u16 addr, u32 data_len, u8 *tx_buf);
+int gf_spi_read_bytes_ree(struct gf_device *gf_dev, u16 addr,
+u32				 data_len, u8 *rx_buf);
+int gf_spi_write_bytes_ree(struct gf_device *gf_dev, u16 addr,
+				u32 data_len, u8 *tx_buf);
 int gf_spi_read_byte_ree(struct gf_device *gf_dev, u16 addr, u8 *value);
 int gf_spi_write_byte_ree(struct gf_device *gf_dev, u16 addr, u8 value);
-int gf_ioctl_transfer_raw_cmd(struct gf_device *gf_dev, unsigned long arg, unsigned int bufsiz);
+int gf_ioctl_transfer_raw_cmd(struct gf_device *gf_dev, unsigned long arg,
+					unsigned int bufsiz);
 #ifndef CONFIG_SPI_MT65XX
 int  gf_ioctl_spi_init_cfg_cmd(struct mt_chip_conf *mcc, unsigned long arg);
 #endif
@@ -279,8 +299,10 @@ extern void mt_spi_disable_master_clk(struct spi_device *spidev);
 
 #ifdef SUPPORT_REE_MILAN_A
 #ifndef CONFIG_TRUSTONIC_TEE_SUPPORT
-int gf_spi_read_bytes_ree_new(struct gf_device *gf_dev, u16 addr, u32 data_len, u8 *buf);
-int gf_spi_write_bytes_ree_new(struct gf_device *gf_dev, u16 addr, u32 data_len, u8 *buf);
+int gf_spi_read_bytes_ree_new(struct gf_device *gf_dev, u16 addr,
+					u32 data_len, u8 *buf);
+int gf_spi_write_bytes_ree_new(struct gf_device *gf_dev, u16 addr,
+					u32 data_len, u8 *buf);
 int gf_milan_a_series_init_process(struct gf_device *gf_dev);
 #endif
 #endif

@@ -38,14 +38,14 @@
 
 
 
-kal_uint32 _jpeg_enc_int_status;
+unsigned int _jpeg_enc_int_status;
 
 
 int jpeg_isr_enc_lisr(void)
 {
 	unsigned int tmp, tmp1;
 	/* _jpeg_enc_int_status = REG_JPEG_ENC_INTERRUPT_STATUS; */
-	tmp1 = REG_JPEG_ENC_INTERRUPT_STATUS;
+	tmp1 = IMG_REG_READ(REG_ADDR_JPEG_ENC_INTERRUPT_STATUS);
 	tmp = tmp1 & (JPEG_DRV_ENC_INT_STATUS_MASK_ALLIRQ);
 	if (tmp) {
 		_jpeg_enc_int_status = tmp;
@@ -68,10 +68,13 @@ int jpeg_isr_enc_lisr(void)
 
 
 
-kal_uint32 jpeg_drv_enc_set_src_image(kal_uint32 width, kal_uint32 height, kal_uint32 yuv_format,
-				      kal_uint32 totalEncDU)
+unsigned int jpeg_drv_enc_set_src_image(
+	unsigned int width,
+	 unsigned int height,
+	 unsigned int yuv_format,
+	 unsigned int totalEncDU)
 {
-	kal_uint32 ret = 1;
+	unsigned int ret = 1;
 
 	ret &= jpeg_drv_enc_set_img_size(width, height);
 
@@ -84,16 +87,17 @@ kal_uint32 jpeg_drv_enc_set_src_image(kal_uint32 width, kal_uint32 height, kal_u
 
 
 
-kal_uint32 jpeg_drv_enc_set_src_buf(kal_uint32 yuv_format, kal_uint32 img_stride,
-				    kal_uint32 mem_stride, kal_uint32 srcAddr, kal_uint32 srcAddr_C)
+unsigned int jpeg_drv_enc_set_src_buf(
+	unsigned int yuv_format, unsigned int img_stride,
+	 unsigned int mem_stride, unsigned int srcAddr, unsigned int srcAddr_C)
 {
-	kal_uint32 ret = 1;
+	unsigned int ret = 1;
 
 	if (yuv_format == 0x00 || yuv_format == 0x01) {
 		if ((mem_stride & 0x1f) || (img_stride & 0x1f)) {
 			JPEG_MSG
-			    ("JPEGENC: set image/memory stride not align 0x1f in fmt %x(%x/%x)!!\n",
-			     yuv_format, mem_stride, img_stride);
+			("JPGENC:imag/mem stride not align fmt %x(%x/%x)\n",
+			 yuv_format, mem_stride, img_stride);
 			ret = 0;
 		}
 	}
@@ -110,8 +114,8 @@ kal_uint32 jpeg_drv_enc_set_src_buf(kal_uint32 yuv_format, kal_uint32 img_stride
 }
 
 
-kal_uint32 jpeg_drv_enc_ctrl_cfg(kal_uint32 exif_en, kal_uint32 quality,
-				 kal_uint32 restart_interval)
+unsigned int jpeg_drv_enc_ctrl_cfg(unsigned int exif_en, unsigned int quality,
+				 unsigned int restart_interval)
 {
 	jpeg_drv_enc_set_quality(quality);
 
@@ -131,7 +135,7 @@ void jpeg_drv_enc_dump_reg(void)
 	JPEG_MSG("===== JPEG ENC DUMP =====\n");
 	for (index = 0x100; index < JPEG_ENC_REG_COUNT; index += 4) {
 		/* reg_value = ioread32(JPEG_ENC_BASE + index); */
-		IMG_REG_READ(reg_value, JPEG_ENC_BASE + index);
+		reg_value = IMG_REG_READ(JPEG_ENC_BASE + index);
 		JPEG_MSG("+0x%x 0x%08x\n", index, reg_value);
 	}
 }
@@ -141,10 +145,11 @@ void jpeg_drv_enc_start(void)
 {
 	unsigned int u4Value;
 
-	u4Value = REG_JPEG_ENC_CTRL;
+	u4Value = IMG_REG_READ(REG_ADDR_JPEG_ENC_CTRL);
 	u4Value |= (JPEG_ENC_CTRL_INT_EN_BIT | JPEG_ENC_CTRL_ENABLE_BIT);
+	/* REG_JPEG_ENC_CTRL |= */
 	IMG_REG_WRITE((u4Value), REG_ADDR_JPEG_ENC_CTRL);
-	/* REG_JPEG_ENC_CTRL |= (JPEG_ENC_CTRL_INT_EN_BIT | JPEG_ENC_CTRL_ENABLE_BIT); */
+	/*(JPEG_ENC_CTRL_INT_EN_BIT | JPEG_ENC_CTRL_ENABLE_BIT); */
 }
 
 
@@ -158,14 +163,14 @@ void jpeg_drv_enc_verify_state_and_reset(void)
 	IMG_REG_WRITE((1), REG_ADDR_JPEG_ENC_RSTB);
 	IMG_REG_WRITE((1), REG_ADDR_JPEG_ENC_RSTB);
 
-	IMG_REG_READ(temp, REG_ADDR_JPEG_ENC_ULTRA_THRES);
-	IMG_REG_READ(value, REG_ADDR_JPEG_ENC_DMA_ADDR0);
+	temp = IMG_REG_READ(REG_ADDR_JPEG_ENC_ULTRA_THRES);
+	value = IMG_REG_READ(REG_ADDR_JPEG_ENC_DMA_ADDR0);
 
 	/* issue happen, need to do 1 read at cg gating state */
 	if (value == 0xFFFFFFFF) {
 		JPEG_MSG("JPGENC APB R/W issue found, start to do recovery!\n");
 		jpeg_drv_enc_power_off();
-		IMG_REG_READ(value, REG_ADDR_JPEG_ENC_ULTRA_THRES);
+		value = IMG_REG_READ(REG_ADDR_JPEG_ENC_ULTRA_THRES);
 		jpeg_drv_enc_power_on();
 	}
 
@@ -186,14 +191,23 @@ void jpeg_drv_enc_reset(void)
 }
 
 
-kal_uint32 jpeg_drv_enc_warm_reset(void)
+unsigned int jpeg_drv_enc_warm_reset(void)
 {
-	kal_uint32 timeout = 0xFFFFF;
+	unsigned int timeout = 0xFFFFF;
+	unsigned int u4Value;
 
-	REG_JPEG_ENC_CTRL &= ~JPEG_ENC_CTRL_ENABLE_BIT;
-	REG_JPEG_ENC_CTRL |= JPEG_ENC_CTRL_ENABLE_BIT;
+	u4Value = IMG_REG_READ(REG_ADDR_JPEG_ENC_CTRL);
+	u4Value &= ~JPEG_ENC_CTRL_ENABLE_BIT;
+	IMG_REG_WRITE((u4Value), REG_ADDR_JPEG_ENC_CTRL);
 
-	while (0 == (REG_JPEG_ENC_DEBUG_INFO0 & JPEG_ENC_DEBUG_INFO0_GMC_IDLE_MASK)) {
+	u4Value = IMG_REG_READ(REG_ADDR_JPEG_ENC_CTRL);
+	u4Value |= JPEG_ENC_CTRL_ENABLE_BIT;
+	IMG_REG_WRITE((u4Value), REG_ADDR_JPEG_ENC_CTRL);
+
+
+	while (0 ==
+		 (IMG_REG_READ(REG_ADDR_JPEG_ENC_DEBUG_INFO0) &
+		 JPEG_ENC_DEBUG_INFO0_GMC_IDLE_MASK)) {
 		timeout--;
 		if (timeout == 0) {
 			JPEG_MSG("Wait for GMC IDLE timeout\n");
@@ -201,8 +215,13 @@ kal_uint32 jpeg_drv_enc_warm_reset(void)
 		}
 	}
 
-	REG_JPEG_ENC_RSTB &= ~(JPEG_ENC_RST_BIT);
-	REG_JPEG_ENC_RSTB |= JPEG_ENC_RST_BIT;
+	u4Value = IMG_REG_READ(REG_ADDR_JPEG_ENC_RSTB);
+	u4Value &= ~(JPEG_ENC_RST_BIT);
+	IMG_REG_WRITE((u4Value), REG_ADDR_JPEG_ENC_RSTB);
+
+	u4Value = IMG_REG_READ(REG_ADDR_JPEG_ENC_RSTB);
+	u4Value |= JPEG_ENC_RST_BIT;
+	IMG_REG_WRITE((u4Value), REG_ADDR_JPEG_ENC_RSTB);
 
 	IMG_REG_WRITE((0), REG_ADDR_JPEG_ENC_CODEC_SEL);
 
@@ -212,9 +231,9 @@ kal_uint32 jpeg_drv_enc_warm_reset(void)
 }
 
 
-kal_uint32 jpeg_drv_enc_set_encFormat(kal_uint32 encFormat)
+unsigned int jpeg_drv_enc_set_encFormat(unsigned int encFormat)
 {
-	kal_uint32 val;
+	unsigned int val;
 	unsigned int u4Value;
 
 	if (encFormat & (~3)) {
@@ -228,7 +247,7 @@ kal_uint32 jpeg_drv_enc_set_encFormat(kal_uint32 encFormat)
 /*  */
 /* REG_JPEG_ENC_CTRL |= val; */
 #else
-	u4Value = REG_JPEG_ENC_CTRL;
+	u4Value = IMG_REG_READ(REG_ADDR_JPEG_ENC_CTRL);
 
 	u4Value &= ~JPEG_ENC_CTRL_YUV_BIT;
 
@@ -241,7 +260,7 @@ kal_uint32 jpeg_drv_enc_set_encFormat(kal_uint32 encFormat)
 }
 
 
-kal_uint32 jpeg_drv_enc_set_quality(kal_uint32 quality)
+unsigned int jpeg_drv_enc_set_quality(unsigned int quality)
 {
 	unsigned int u4Value;
 
@@ -249,19 +268,22 @@ kal_uint32 jpeg_drv_enc_set_quality(kal_uint32 quality)
 		JPEG_MSG("JPEGENC: set quality failed\n");
 		return 0;
 	}
-	u4Value = REG_JPEG_ENC_QUALITY;
+	u4Value = IMG_REG_READ(REG_ADDR_JPEG_ENC_QUALITY);
+
 	u4Value = (u4Value & 0xFFFF0000) | quality;
 	IMG_REG_WRITE((u4Value), REG_ADDR_JPEG_ENC_QUALITY);
 	return 1;
 }
 
 
-kal_uint32 jpeg_drv_enc_set_img_size(kal_uint32 width, kal_uint32 height)
+unsigned int jpeg_drv_enc_set_img_size(unsigned int width, unsigned int height)
 {
 	unsigned int u4Value;
 
 	if ((width & 0xffff0000) || (height & 0xffff0000)) {
-		JPEG_MSG("JPEGENC: img size exceed 65535, (%x, %x)!!\n", width, height);
+		JPEG_MSG("JPGENC: img size exceed 65535, (%x, %x)\n",
+			 width,
+			 height);
 		return 0;
 	}
 	u4Value = (width << 16) | height;
@@ -272,7 +294,7 @@ kal_uint32 jpeg_drv_enc_set_img_size(kal_uint32 width, kal_uint32 height)
 }
 
 
-kal_uint32 jpeg_drv_enc_set_blk_num(kal_uint32 blk_num)	/* NO_USE */
+unsigned int jpeg_drv_enc_set_blk_num(unsigned int blk_num)	/* NO_USE */
 {
 	if (blk_num < 4)
 		return 0;
@@ -283,10 +305,11 @@ kal_uint32 jpeg_drv_enc_set_blk_num(kal_uint32 blk_num)	/* NO_USE */
 }
 
 
-kal_uint32 jpeg_drv_enc_set_luma_addr(kal_uint32 src_luma_addr)
+unsigned int jpeg_drv_enc_set_luma_addr(unsigned int src_luma_addr)
 {
 	if (src_luma_addr & 0x0F)
-		JPEG_MSG("JPEGENC: set LUMA addr not align (%x)!!\n", src_luma_addr);
+		JPEG_MSG("JPGENC: set LUMA addr not align (%x)\n",
+			 src_luma_addr);
 
 	IMG_REG_WRITE((src_luma_addr), REG_ADDR_JPEG_ENC_SRC_LUMA_ADDR);
 
@@ -294,10 +317,11 @@ kal_uint32 jpeg_drv_enc_set_luma_addr(kal_uint32 src_luma_addr)
 }
 
 
-kal_uint32 jpeg_drv_enc_set_chroma_addr(kal_uint32 src_chroma_addr)
+unsigned int jpeg_drv_enc_set_chroma_addr(unsigned int src_chroma_addr)
 {
 	if (src_chroma_addr & 0x0F)
-		JPEG_MSG("JPEGENC: set CHROMA addr not align (%x)!!\n", src_chroma_addr);
+		JPEG_MSG("JPGENC: set CHROMA addr not align (%x)\n",
+			 src_chroma_addr);
 
 	IMG_REG_WRITE((src_chroma_addr), REG_ADDR_JPEG_ENC_SRC_CHROMA_ADDR);
 
@@ -305,10 +329,10 @@ kal_uint32 jpeg_drv_enc_set_chroma_addr(kal_uint32 src_chroma_addr)
 }
 
 
-kal_uint32 jpeg_drv_enc_set_memory_stride(kal_uint32 mem_stride)
+unsigned int jpeg_drv_enc_set_memory_stride(unsigned int mem_stride)
 {
 	if (mem_stride & 0x0F) {
-		JPEG_MSG("JPEGENC: set memory stride failed, not align to 0x1f (%x)!!\n",
+		JPEG_MSG("JPGENC:memory stride not align to 0x1f (%x)\n",
 			 mem_stride);
 		return 0;
 	}
@@ -319,10 +343,10 @@ kal_uint32 jpeg_drv_enc_set_memory_stride(kal_uint32 mem_stride)
 }
 
 
-kal_uint32 jpeg_drv_enc_set_image_stride(kal_uint32 img_stride)
+unsigned int jpeg_drv_enc_set_image_stride(unsigned int img_stride)
 {
 	if (img_stride & 0x0F) {
-		JPEG_MSG("JPEGENC: set image stride failed, not align to 0x0f (%x)!!\n",
+		JPEG_MSG("JPGENC: image stride not align to 0x0f (%x)\n",
 			 img_stride);
 		return 0;
 	}
@@ -333,11 +357,12 @@ kal_uint32 jpeg_drv_enc_set_image_stride(kal_uint32 img_stride)
 }
 
 
-void jpeg_drv_enc_set_restart_interval(kal_uint32 restart_interval)
+void jpeg_drv_enc_set_restart_interval(unsigned int restart_interval)
 {
 	unsigned int u4Value;
 
-	u4Value = REG_JPEG_ENC_CTRL;
+	u4Value = IMG_REG_READ(REG_ADDR_JPEG_ENC_CTRL);
+
 	if (restart_interval != 0) {
 		u4Value |= JPEG_ENC_CTRL_RESTART_EN_BIT;
 		IMG_REG_WRITE((u4Value), REG_ADDR_JPEG_ENC_CTRL);
@@ -349,7 +374,7 @@ void jpeg_drv_enc_set_restart_interval(kal_uint32 restart_interval)
 }
 
 
-kal_uint32 jpeg_drv_enc_set_offset_addr(kal_uint32 offset)
+unsigned int jpeg_drv_enc_set_offset_addr(unsigned int offset)
 {
 	if (offset & 0x0F) {
 		JPEG_MSG("JPEGENC:WARN set offset addr %x\n", offset);
@@ -361,11 +386,13 @@ kal_uint32 jpeg_drv_enc_set_offset_addr(kal_uint32 offset)
 	return 1;
 }
 
-kal_uint32 jpeg_drv_enc_set_dst_buff(kal_uint32 dst_addr, kal_uint32 stall_size,
-				     kal_uint32 init_offset, kal_uint32 offset_mask)
+unsigned int jpeg_drv_enc_set_dst_buff(
+		unsigned int dst_addr, unsigned int stall_size,
+		 unsigned int init_offset, unsigned int offset_mask)
 {
 	if (stall_size < 624) {
-		JPEG_MSG("JPEGENC:stall offset less than 624 to write header %d!!\n", stall_size);
+		JPEG_MSG("JPGENC:stall size less than 624 to write %d\n",
+		 stall_size);
 		return 0;
 	}
 
@@ -380,23 +407,24 @@ kal_uint32 jpeg_drv_enc_set_dst_buff(kal_uint32 dst_addr, kal_uint32 stall_size,
 
 	IMG_REG_WRITE((dst_addr & (~0xF)), REG_ADDR_JPEG_ENC_DST_ADDR0);
 
-	IMG_REG_WRITE(((dst_addr + stall_size) & (~0xF)), REG_ADDR_JPEG_ENC_STALL_ADDR0);
+	IMG_REG_WRITE(((dst_addr + stall_size) & (~0xF)),
+		 REG_ADDR_JPEG_ENC_STALL_ADDR0);
 
 
 	return 1;
 }
 
 /* 0:JPG mode, 1:JFIF/EXIF mode */
-void jpeg_drv_enc_set_EncodeMode(kal_uint32 exif_en)
+void jpeg_drv_enc_set_EncodeMode(unsigned int exif_en)
 {
 	unsigned int u4Value;
 
-	u4Value = REG_JPEG_ENC_CTRL;
+	u4Value = IMG_REG_READ(REG_ADDR_JPEG_ENC_CTRL);
 	u4Value &= ~(JPEG_ENC_CTRL_FILE_FORMAT_BIT);
 	IMG_REG_WRITE((u4Value), REG_ADDR_JPEG_ENC_CTRL);
 
 	if (exif_en) {
-		u4Value = REG_JPEG_ENC_CTRL;
+		u4Value = IMG_REG_READ(REG_ADDR_JPEG_ENC_CTRL);
 		u4Value |= JPEG_ENC_EN_JFIF_EXIF;
 		IMG_REG_WRITE((u4Value), REG_ADDR_JPEG_ENC_CTRL);
 	}
@@ -407,41 +435,47 @@ void jpeg_drv_enc_set_gmc_disable_bit(void)
 {
 	unsigned int u4Value;
 
-	u4Value = REG_JPEG_ENC_CTRL;
+	u4Value = IMG_REG_READ(REG_ADDR_JPEG_ENC_CTRL);
 	u4Value |= JPEG_ENC_EN_DIS_GMC;
 	IMG_REG_WRITE((u4Value), REG_ADDR_JPEG_ENC_CTRL);
 }
 
 
-void jpeg_drv_enc_set_burst_type(kal_uint32 burst_type)
+void jpeg_drv_enc_set_burst_type(unsigned int burst_type)
 {
 	unsigned int u4Value;
 
-	u4Value = REG_JPEG_ENC_CTRL;
+	u4Value = IMG_REG_READ(REG_ADDR_JPEG_ENC_CTRL);
 	u4Value &= ~JPEG_ENC_CTRL_BURST_TYPE_MASK;
 	u4Value |= (burst_type << JPEG_ENC_CTRL_BURST_TYPE_SHIFT_COUNT);
 
 	IMG_REG_WRITE((u4Value), REG_ADDR_JPEG_ENC_CTRL);
 }
 
-kal_uint32 jpeg_drv_enc_get_cycle_count(void)
+unsigned int jpeg_drv_enc_get_cycle_count(void)
 {
-	return REG_JPEG_ENC_TOTAL_CYCLE;
+	return IMG_REG_READ(REG_ADDR_JPEG_ENC_TOTAL_CYCLE);
 }
 
 
-kal_uint32 jpeg_drv_enc_get_file_size(void)
+unsigned int jpeg_drv_enc_get_file_size(void)
 {
-	return REG_JPEG_ENC_DMA_ADDR0 - REG_JPEG_ENC_DST_ADDR0;
+	unsigned int u4DMA_Addr0;
+	unsigned int u4DST_Addr0;
+
+	u4DMA_Addr0 = IMG_REG_READ(REG_ADDR_JPEG_ENC_DMA_ADDR0);
+	u4DST_Addr0 = IMG_REG_READ(REG_ADDR_JPEG_ENC_DST_ADDR0);
+
+	return (u4DMA_Addr0 - u4DST_Addr0);
 	/* return REG_JPEG_ENC_CURR_DMA_ADDR - REG_JPEG_ENC_DST_ADDR0; */
 }
 
 
 #ifdef FPGA_VERSION
 
-kal_uint32 jpeg_drv_enc_get_result(void)
+unsigned int jpeg_drv_enc_get_result(void)
 {
-	kal_uint32 file_size;
+	unsigned int file_size;
 
 	file_size = jpeg_drv_enc_get_file_size();
 	return file_size;
@@ -449,7 +483,7 @@ kal_uint32 jpeg_drv_enc_get_result(void)
 
 #else
 
-kal_uint32 jpeg_drv_enc_get_result(kal_uint32 *fileSize)
+unsigned int jpeg_drv_enc_get_result(unsigned int *fileSize)
 {
 	*fileSize = jpeg_drv_enc_get_file_size();
 

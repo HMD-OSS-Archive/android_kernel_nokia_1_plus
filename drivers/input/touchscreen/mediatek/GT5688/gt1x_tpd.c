@@ -28,13 +28,15 @@
 #include <linux/input/mt.h>
 #endif
 
-#include <linux/regulator/consumer.h>
 #include <linux/of.h>
 #include <linux/of_irq.h>
+#include <linux/regulator/consumer.h>
+#include <uapi/linux/sched/types.h>
 
 #include <linux/suspend.h>
 
-/*1 enable,0 disable,touch_panel_eint default status, need to confirm after register eint*/
+/*1 enable,0 disable,touch_panel_eint default status, */
+/* need to confirm after register eint*/
 int irq_flag = 1;
 static spinlock_t irq_flag_lock;
 /*0 power off,default, 1 power on*/
@@ -71,20 +73,23 @@ static int tpd_def_calmat_local[8] = TPD_CALIBRATION_MATRIX;
 #endif
 
 static int tpd_event_handler(void *unused);
-static int tpd_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id);
-static int tpd_i2c_detect(struct i2c_client *client, struct i2c_board_info *info);
+static int tpd_i2c_probe(struct i2c_client *client,
+			 const struct i2c_device_id *id);
+static int tpd_i2c_detect(struct i2c_client *client,
+			  struct i2c_board_info *info);
 static int tpd_i2c_remove(struct i2c_client *client);
 
-static irqreturn_t tpd_eint_interrupt_handler(unsigned irq, struct irq_desc *desc);
+static irqreturn_t tpd_eint_interrupt_handler(unsigned int irq,
+					      struct irq_desc *desc);
 
-#define GTP_DRIVER_NAME  "gt1x"
-static const struct i2c_device_id tpd_i2c_id[] = { {GTP_DRIVER_NAME, 0}, {} };
-static unsigned short force[] = { 0, GTP_I2C_ADDRESS, I2C_CLIENT_END, I2C_CLIENT_END };
-static const unsigned short *const forces[] = { force, NULL };
+#define GTP_DRIVER_NAME "gt1x"
+static const struct i2c_device_id tpd_i2c_id[] = {{GTP_DRIVER_NAME, 0}, {} };
+static unsigned short force[] = {0, GTP_I2C_ADDRESS, I2C_CLIENT_END,
+				 I2C_CLIENT_END};
+static const unsigned short *const forces[] = {force, NULL};
 
 static const struct of_device_id tpd_of_match[] = {
-	{.compatible = "mediatek,cap_touch"},
-	{},
+	{.compatible = "mediatek,cap_touch"}, {},
 };
 static struct i2c_driver tpd_i2c_driver = {
 	.probe = tpd_i2c_probe,
@@ -92,9 +97,9 @@ static struct i2c_driver tpd_i2c_driver = {
 	.detect = tpd_i2c_detect,
 	.driver.name = GTP_DRIVER_NAME,
 	.driver = {
-		   .name = GTP_DRIVER_NAME,
-		   .of_match_table = tpd_of_match,
-		   },
+
+			.name = GTP_DRIVER_NAME, .of_match_table = tpd_of_match,
+		},
 	.id_table = tpd_i2c_id,
 	.address_list = (const unsigned short *)forces,
 };
@@ -114,7 +119,8 @@ static s32 i2c_dma_write_mtk(u16 addr, u8 *buffer, s32 len)
 
 	struct i2c_msg msg = {
 		.flags = !I2C_M_RD,
-		.ext_flag = (gt1x_i2c_client->ext_flag | I2C_ENEXT_FLAG | I2C_DMA_FLAG),
+		.ext_flag = (gt1x_i2c_client->ext_flag | I2C_ENEXT_FLAG |
+			     I2C_DMA_FLAG),
 		.addr = (gt1x_i2c_client->addr & I2C_MASK_FLAG),
 		.timing = I2C_MASTER_CLOCK,
 		.buf = (u8 *)(uintptr_t)gpDMABuf_pa,
@@ -123,16 +129,18 @@ static s32 i2c_dma_write_mtk(u16 addr, u8 *buffer, s32 len)
 	mutex_lock(&dma_mutex);
 	while (pos != len) {
 		if (len - pos > (IIC_DMA_MAX_TRANSFER_SIZE - GTP_ADDR_LENGTH))
-			transfer_length = IIC_DMA_MAX_TRANSFER_SIZE - GTP_ADDR_LENGTH;
+			transfer_length =
+				IIC_DMA_MAX_TRANSFER_SIZE - GTP_ADDR_LENGTH;
 		else
 			transfer_length = len - pos;
 
 		gpDMABuf_va[0] = (address >> 8) & 0xFF;
 		gpDMABuf_va[1] = address & 0xFF;
-		memcpy(&gpDMABuf_va[GTP_ADDR_LENGTH], &buffer[pos], transfer_length);
+		memcpy(&gpDMABuf_va[GTP_ADDR_LENGTH], &buffer[pos],
+		       transfer_length);
 
 		msg.len = transfer_length + GTP_ADDR_LENGTH;
-		if (!gtp_suspend) {/*workround log too much*/
+		if (!gtp_suspend) { /*workround log too much*/
 			ret = i2c_transfer(gt1x_i2c_client->adapter, &msg, 1);
 			if (ret != 1) {
 				GTP_INFO("I2c Transfer error! (%d)", ret);
@@ -157,22 +165,23 @@ static s32 i2c_dma_read_mtk(u16 addr, u8 *buffer, s32 len)
 	s32 pos = 0;
 	s32 transfer_length;
 	u16 address = addr;
-	u8 addr_buf[GTP_ADDR_LENGTH] = { 0 };
+	u8 addr_buf[GTP_ADDR_LENGTH] = {0};
 
 	struct i2c_msg msgs[2] = {
 		{
-		 .flags = 0,	/*!I2C_M_RD,*/
-		 .addr = (gt1x_i2c_client->addr & I2C_MASK_FLAG),
-		 .timing = I2C_MASTER_CLOCK,
-		 .len = GTP_ADDR_LENGTH,
-		 .buf = addr_buf,
-		 },
+			.flags = 0, /*!I2C_M_RD,*/
+			.addr = (gt1x_i2c_client->addr & I2C_MASK_FLAG),
+			.timing = I2C_MASTER_CLOCK,
+			.len = GTP_ADDR_LENGTH,
+			.buf = addr_buf,
+		},
 		{
-		 .flags = I2C_M_RD,
-		 .ext_flag = (gt1x_i2c_client->ext_flag | I2C_ENEXT_FLAG | I2C_DMA_FLAG),
-		 .addr = (gt1x_i2c_client->addr & I2C_MASK_FLAG),
-		 .timing = I2C_MASTER_CLOCK,
-		 .buf = (u8 *)(uintptr_t)gpDMABuf_pa,
+			.flags = I2C_M_RD,
+			.ext_flag = (gt1x_i2c_client->ext_flag |
+				     I2C_ENEXT_FLAG | I2C_DMA_FLAG),
+			.addr = (gt1x_i2c_client->addr & I2C_MASK_FLAG),
+			.timing = I2C_MASTER_CLOCK,
+			.buf = (u8 *)(uintptr_t)gpDMABuf_pa,
 		},
 	};
 	mutex_lock(&dma_mutex);
@@ -210,10 +219,11 @@ static s32 i2c_write_mtk(u16 addr, u8 *buffer, s32 len)
 	struct i2c_msg msg = {
 		.flags = 0,
 #ifdef CONFIG_MTK_I2C_EXTENSION
-		.addr = (gt1x_i2c_client->addr & I2C_MASK_FLAG) | (I2C_ENEXT_FLAG),	/*remain*/
+		.addr = (gt1x_i2c_client->addr & I2C_MASK_FLAG) |
+			(I2C_ENEXT_FLAG), /*remain*/
 		.timing = I2C_MASTER_CLOCK,
 #else
-		.addr = gt1x_i2c_client->addr,  /*remain*/
+		.addr = gt1x_i2c_client->addr, /*remain*/
 #endif
 	};
 
@@ -224,35 +234,37 @@ static s32 i2c_write_mtk(u16 addr, u8 *buffer, s32 len)
 static s32 i2c_read_mtk(u16 addr, u8 *buffer, s32 len)
 {
 	int ret;
-	u8 addr_buf[GTP_ADDR_LENGTH] = { (addr >> 8) & 0xFF, addr & 0xFF };
+	u8 addr_buf[GTP_ADDR_LENGTH] = {(addr >> 8) & 0xFF, addr & 0xFF};
 
 	struct i2c_msg msgs[2] = {
 		{
 #ifdef CONFIG_MTK_I2C_EXTENSION
-		 .addr = ((gt1x_i2c_client->addr & I2C_MASK_FLAG) | (I2C_ENEXT_FLAG)),
-		 .timing = I2C_MASTER_CLOCK,
+			.addr = ((gt1x_i2c_client->addr & I2C_MASK_FLAG) |
+				 (I2C_ENEXT_FLAG)),
+			.timing = I2C_MASTER_CLOCK,
 #else
-		 .addr = gt1x_i2c_client->addr,
+			.addr = gt1x_i2c_client->addr,
 #endif
-		 .flags = 0,
-		 .buf = addr_buf,
-		 .len = GTP_ADDR_LENGTH,
+			.flags = 0,
+			.buf = addr_buf,
+			.len = GTP_ADDR_LENGTH,
 		},
 		{
 #ifdef CONFIG_MTK_I2C_EXTENSION
-		 .addr = ((gt1x_i2c_client->addr & I2C_MASK_FLAG) | (I2C_ENEXT_FLAG)),
-		 .timing = I2C_MASTER_CLOCK,
+			.addr = ((gt1x_i2c_client->addr & I2C_MASK_FLAG) |
+				 (I2C_ENEXT_FLAG)),
+			.timing = I2C_MASTER_CLOCK,
 #else
-		 .addr = gt1x_i2c_client->addr,
+			.addr = gt1x_i2c_client->addr,
 #endif
-		 .flags = I2C_M_RD,
+			.flags = I2C_M_RD,
 		},
 	};
 
 	ret = _do_i2c_read(msgs, addr, buffer, len);
 	return ret;
 }
-#endif/* TPD_SUPPORT_I2C_DMA */
+#endif /* TPD_SUPPORT_I2C_DMA */
 
 /**
  * @return: return 0 if success, otherwise return a negative number
@@ -290,10 +302,10 @@ s32 gt1x_i2c_write(u16 addr, u8 *buffer, s32 len)
  *
  * Output:
  *   Executive outcomes.0---succeed.
-*******************************************************/
+ *******************************************************/
 static u8 gt1x_set_refresh_rate(u8 rate)
 {
-	u8 buf[1] = { rate };
+	u8 buf[1] = {rate};
 
 	if (rate > 0xf) {
 		GTP_ERROR("Refresh rate is over range (%d)", rate);
@@ -305,16 +317,16 @@ static u8 gt1x_set_refresh_rate(u8 rate)
 }
 
 /*******************************************************
-* Function:
-*    Get refresh rate
-*
-* Output:
-*    Refresh rate or error code
-*******************************************************/
+ * Function:
+ *    Get refresh rate
+ *
+ * Output:
+ *    Refresh rate or error code
+ *******************************************************/
 static u8 gt1x_get_refresh_rate(void)
 {
 	int ret;
-	u8 buf[1] = { 0x00 };
+	u8 buf[1] = {0x00};
 
 	ret = gt1x_i2c_read(GTP_REG_REFRESH_RATE, buf, sizeof(buf));
 	if (ret < 0)
@@ -325,7 +337,8 @@ static u8 gt1x_get_refresh_rate(void)
 }
 
 /*=============================================================*/
-static ssize_t show_refresh_rate(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t show_refresh_rate(struct device *dev,
+				 struct device_attribute *attr, char *buf)
 {
 	int ret = gt1x_get_refresh_rate();
 
@@ -335,7 +348,9 @@ static ssize_t show_refresh_rate(struct device *dev, struct device_attribute *at
 		return sprintf(buf, "%d\n", ret);
 }
 
-static ssize_t store_refresh_rate(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
+static ssize_t store_refresh_rate(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf, size_t size)
 {
 	unsigned long rate;
 	int ret;
@@ -345,7 +360,8 @@ static ssize_t store_refresh_rate(struct device *dev, struct device_attribute *a
 	return size;
 }
 
-static DEVICE_ATTR(tpd_refresh_rate, 0664, show_refresh_rate, store_refresh_rate);
+static DEVICE_ATTR(tpd_refresh_rate, 0664, show_refresh_rate,
+		   store_refresh_rate);
 
 static struct device_attribute *gt9xx_attrs[] = {
 	&dev_attr_tpd_refresh_rate,
@@ -353,7 +369,8 @@ static struct device_attribute *gt9xx_attrs[] = {
 #endif
 /*=============================================================*/
 
-static int tpd_i2c_detect(struct i2c_client *client, struct i2c_board_info *info)
+static int tpd_i2c_detect(struct i2c_client *client,
+			  struct i2c_board_info *info)
 {
 	strncpy(info->type, "mtk-tpd", sizeof(info->type));
 	return 0;
@@ -385,7 +402,7 @@ void gt1x_irq_enable(void)
 		irq_flag = 1;
 		spin_unlock_irqrestore(&irq_flag_lock, flags);
 		enable_irq(touch_irq);
-		GTP_DEBUG("gt1x_irq_enable, irq_flag=%d", irq_flag);
+		GTP_DEBUG("%s, irq_flag=%d", __func__, irq_flag);
 	} else if (irq_flag == 1) {
 		spin_unlock_irqrestore(&irq_flag_lock, flags);
 		GTP_INFO("Touch Eint already enabled!");
@@ -394,7 +411,6 @@ void gt1x_irq_enable(void)
 		GTP_ERROR("Invalid irq_flag %d!", irq_flag);
 	}
 	/*GTP_INFO("Enable irq_flag=%d",irq_flag);*/
-
 }
 
 void gt1x_irq_disable(void)
@@ -407,7 +423,7 @@ void gt1x_irq_disable(void)
 		irq_flag = 0;
 		spin_unlock_irqrestore(&irq_flag_lock, flags);
 		disable_irq(touch_irq);
-		GTP_DEBUG("gt1x_irq_disable, irq_flag=%d", irq_flag);
+		GTP_DEBUG("%s, irq_flag=%d", __func__, irq_flag);
 	} else if (irq_flag == 0) {
 		spin_unlock_irqrestore(&irq_flag_lock, flags);
 		GTP_INFO("Touch Eint already disabled!");
@@ -433,16 +449,17 @@ void gt1x_power_switch(s32 state)
 		if (power_flag == 0) {
 			GTP_DEBUG("Power switch on!");
 #if !defined(CONFIG_MTK_LEGACY)
-			ret = regulator_enable(tpd->reg);	/*enable regulator*/
+			ret = regulator_enable(tpd->reg); /*enable regulator*/
 			if (ret)
 				GTP_ERROR("regulator_enable() failed!\n");
 #else
 #ifdef TPD_POWER_SOURCE_CUSTOM
 #ifdef CONFIG_ARCH_MT6580
-			ret = regulator_set_voltage(tpd->reg, 2800000, 2800000);	/*set 2.8v*/
+			ret = regulator_set_voltage(tpd->reg, 2800000,
+						    2800000); /*set 2.8v*/
 			if (ret)
 				GTP_DEBUG("regulator_set_voltage() failed!\n");
-			ret = regulator_enable(tpd->reg);	/*enable regulator*/
+			ret = regulator_enable(tpd->reg); /*enable regulator*/
 			if (ret)
 				GTP_DEBUG("regulator_enable() failed!\n");
 #else
@@ -459,13 +476,13 @@ void gt1x_power_switch(s32 state)
 		if (power_flag == 1) {
 			GTP_DEBUG("Power switch off!");
 #if !defined(CONFIG_MTK_LEGACY)
-			ret = regulator_disable(tpd->reg);	/*disable regulator*/
+			ret = regulator_disable(tpd->reg); /*disable regulator*/
 			if (ret)
 				GTP_ERROR("regulator_disable() failed!\n");
 #else
 #ifdef TPD_POWER_SOURCE_CUSTOM
 #ifdef CONFIG_ARCH_MT6580
-			ret = regulator_disable(tpd->reg);	/*disable regulator*/
+			ret = regulator_disable(tpd->reg); /*disable regulator*/
 			if (ret)
 				GTP_DEBUG("regulator_disable() failed!\n");
 #else
@@ -493,14 +510,16 @@ static int tpd_irq_registration(void)
 {
 	struct device_node *node = NULL;
 	int ret = 0;
-	u32 ints[2] = { 0, 0 };
+	u32 ints[2] = {0, 0};
 
 	GTP_INFO("Device Tree Tpd_irq_registration!");
 
 	node = of_find_matching_node(node, touch_of_match);
 	if (node) {
-		if (of_property_read_u32_array(node, "debounce", ints, ARRAY_SIZE(ints)) == 0) {
-			GTP_INFO("[%s]debounce:%d-%d\n", __func__, ints[0], ints[1]);
+		if (of_property_read_u32_array(node, "debounce", ints,
+					       ARRAY_SIZE(ints)) == 0) {
+			GTP_INFO("[%s]debounce:%d-%d\n", __func__, ints[0],
+				 ints[1]);
 			gpio_set_debounce(ints[0], ints[1]);
 		} else {
 			GTP_INFO("[%s]debounce time not found\n", __func__);
@@ -508,25 +527,30 @@ static int tpd_irq_registration(void)
 
 		touch_irq = irq_of_parse_and_map(node, 0);
 		GTP_INFO("Device gt1x_int_type = %d!", gt1x_int_type);
-		if (!gt1x_int_type) {/*EINTF_TRIGGER*/
-			ret =
-			    request_irq(touch_irq, (irq_handler_t) tpd_eint_interrupt_handler, IRQF_TRIGGER_RISING,
-					"TOUCH_PANEL-eint", NULL);
+		if (!gt1x_int_type) { /*EINTF_TRIGGER*/
+			ret = request_irq(
+				touch_irq,
+				(irq_handler_t)tpd_eint_interrupt_handler,
+				IRQF_TRIGGER_RISING, "TOUCH_PANEL-eint", NULL);
 			if (ret > 0) {
 				ret = -1;
-				GTP_ERROR("tpd request_irq IRQ LINE NOT AVAILABLE!.");
+				GTP_ERROR(
+					"tpd request_irq IRQ LINE NOT AVAILABLE!.");
 			}
 		} else {
-			ret =
-			    request_irq(touch_irq, (irq_handler_t) tpd_eint_interrupt_handler, IRQF_TRIGGER_FALLING,
-					"TOUCH_PANEL-eint", NULL);
+			ret = request_irq(
+				touch_irq,
+				(irq_handler_t)tpd_eint_interrupt_handler,
+				IRQF_TRIGGER_FALLING, "TOUCH_PANEL-eint", NULL);
 			if (ret > 0) {
 				ret = -1;
-				GTP_ERROR("tpd request_irq IRQ LINE NOT AVAILABLE!.");
+				GTP_ERROR(
+					"tpd request_irq IRQ LINE NOT AVAILABLE!.");
 			}
 		}
 	} else {
-		GTP_ERROR("tpd request_irq can not find touch eint device node!.");
+		GTP_ERROR(
+			"tpd request_irq can not find touch eint device node!.");
 		ret = -1;
 	}
 	GTP_INFO("[%s]irq:%d", __func__, touch_irq);
@@ -546,7 +570,8 @@ int gt1x_pm_notifier(struct notifier_block *nb, unsigned long val, void *ign)
 		GTP_ERROR("%s: PM_RESTORE_PREPARE enter\n", __func__);
 		if (!IS_ERR(update_thread) && update_thread) {
 			wait_event(pm_waiter, tpd_pm_flag == 1);
-			/* GTP_ERROR("%s: stoping update thread(%d)", __FUNCTION__, kthread_stop(update_thread)); */
+	/* GTP_ERROR("%s: stoping update thread(%d)", */
+	/* __FUNCTION__, kthread_stop(update_thread)); */
 		}
 		GTP_ERROR("%s: PM_RESTORE_PREPARE leave\n", __func__);
 		return NOTIFY_DONE;
@@ -564,7 +589,7 @@ int tpd_reregister_from_tui(void)
 	ret = tpd_irq_registration();
 	if (ret < 0) {
 		ret = -1;
-	    GTP_ERROR("tpd request_irq IRQ LINE NOT AVAILABLE!.");
+		GTP_ERROR("tpd request_irq IRQ LINE NOT AVAILABLE!.");
 	}
 	return ret;
 }
@@ -577,19 +602,23 @@ static int tpd_registration(void *client)
 	gt1x_i2c_client = client;
 
 	if (gt1x_init()) {
-		/* TP resolution == LCD resolution, no need to match resolution when initialized fail */
+/* TP resolution == LCD resolution, no need to match resolution */
+		 /* when initialized fail */
 		gt1x_abs_x_max = 0;
 		gt1x_abs_y_max = 0;
+		return -1;
 	}
 
 	thread = kthread_run(tpd_event_handler, 0, TPD_DEVICE);
 	if (IS_ERR(thread)) {
 		err = PTR_ERR(thread);
-		GTP_INFO(TPD_DEVICE " failed to create kernel thread: %d\n", err);
+		GTP_INFO(TPD_DEVICE " failed to create kernel thread: %d\n",
+			 err);
 	}
 	if (tpd_dts_data.use_tpd_button) {
 		for (idx = 0; idx < tpd_dts_data.tpd_key_num; idx++)
-			input_set_capability(tpd->dev, EV_KEY, tpd_dts_data.tpd_key_local[idx]);
+			input_set_capability(tpd->dev, EV_KEY,
+					     tpd_dts_data.tpd_key_local[idx]);
 	}
 
 #ifdef CONFIG_GTP_GESTURE_WAKEUP
@@ -610,10 +639,13 @@ static int tpd_registration(void *client)
 
 #ifdef CONFIG_GTP_AUTO_UPDATE
 
-	update_thread = kthread_run(gt1x_auto_update_proc, (void *)NULL, "gt1x_auto_update");
+	update_thread = kthread_run(gt1x_auto_update_proc, (void *)NULL,
+				    "gt1x_auto_update");
 	if (IS_ERR(update_thread)) {
 		err = PTR_ERR(update_thread);
-		GTP_INFO(TPD_DEVICE " failed to create auto-update thread: %d\n", err);
+		GTP_INFO(TPD_DEVICE
+			 " failed to create auto-update thread: %d\n",
+			 err);
 	}
 	pm_notifier_block.notifier_call = gt1x_pm_notifier;
 	pm_notifier_block.priority = 0;
@@ -626,40 +658,45 @@ static int tpd_registration(void *client)
 	return 0;
 }
 
-static s32 tpd_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
+static s32 tpd_i2c_probe(struct i2c_client *client,
+			 const struct i2c_device_id *id)
 {
 	int err = 0;
 	/*int count = 0;*/
 
-	GTP_INFO("tpd_i2c_probe start.");
+	GTP_INFO("%s start.", __func__);
 #ifdef CONFIG_MTK_BOOT
 	if (get_boot_mode() == RECOVERY_BOOT)
 		return 0;
 #endif
-	probe_thread = kthread_run(tpd_registration, (void *)client, "tpd_probe");
+	probe_thread =
+		kthread_run(tpd_registration, (void *)client, "tpd_probe");
 	if (IS_ERR(probe_thread)) {
 		err = PTR_ERR(probe_thread);
-		GTP_INFO(TPD_DEVICE " failed to create probe thread: %d\n", err);
+		GTP_INFO(TPD_DEVICE " failed to create probe thread: %d\n",
+			 err);
 		return err;
 	}
-	GTP_INFO("tpd_i2c_probe start.wait_event_interruptible");
+	GTP_INFO("%s start.wait_event_interruptible", __func__);
 	wait_event_timeout(init_waiter, check_flag == true, 5 * HZ);
-	GTP_INFO("tpd_i2c_probe end.wait_event_interruptible");
-/*
- *	do {
- *		GTP_INFO("ZH tpd_i2c_probe A count = %d", count);
- *		msleep(20);
- *		GTP_INFO("ZH tpd_i2c_probe B count = %d", count);
- *		count++;
- *		if (check_flag == true)
- *			break;
- *	} while (count < 300);
- *	GTP_INFO("tpd_i2c_probe done.count = %d, flag = %d", count, tpd_load_status);
- */
+	GTP_INFO("%s end.wait_event_interruptible", __func__);
+	/*
+	 *	do {
+	 *		GTP_INFO("ZH tpd_i2c_probe A count = %d", count);
+	 *		msleep(20);
+	 *		GTP_INFO("ZH tpd_i2c_probe B count = %d", count);
+	 *		count++;
+	 *		if (check_flag == true)
+	 *			break;
+	 *	} while (count < 300);
+	 *	GTP_INFO("tpd_i2c_probe done.count = %d, flag = %d", count,
+	 *tpd_load_status);
+	 */
 	return 0;
 }
 
-static irqreturn_t tpd_eint_interrupt_handler(unsigned irq, struct irq_desc *desc)
+static irqreturn_t tpd_eint_interrupt_handler(unsigned int irq,
+					      struct irq_desc *desc)
 {
 	unsigned long flags;
 
@@ -670,7 +707,8 @@ static irqreturn_t tpd_eint_interrupt_handler(unsigned irq, struct irq_desc *des
 		spin_unlock_irqrestore(&irq_flag_lock, flags);
 		return IRQ_HANDLED;
 	}
-	/* enter EINT handler disable INT, make sure INT is disable when handle touch event including top/bottom half */
+/* enter EINT handler disable INT, make sure INT is disable when handle */
+	 /* touch event including top/bottom half */
 	/* use _nosync to avoid deadlock */
 	irq_flag = 0;
 	spin_unlock_irqrestore(&irq_flag_lock, flags);
@@ -740,7 +778,8 @@ void gt1x_touch_down(s32 x, s32 y, s32 size, s32 id)
 	tpd_history_y = y;
 #ifdef CONFIG_MTK_BOOT
 	if (tpd_dts_data.use_tpd_button) {
-		if (FACTORY_BOOT == get_boot_mode() || RECOVERY_BOOT == get_boot_mode())
+		if (get_boot_mode() == FACTORY_BOOT ||
+		    get_boot_mode() == RECOVERY_BOOT)
 			tpd_button(x, y, 1);
 	}
 #endif
@@ -755,12 +794,14 @@ void gt1x_touch_up(s32 id)
 	input_mt_sync(tpd->dev);
 #endif
 	TPD_DEBUG_SET_TIME;
-	TPD_EM_PRINT(tpd_history_x, tpd_history_y, tpd_history_x, tpd_history_y, id, 0);
+	TPD_EM_PRINT(tpd_history_x, tpd_history_y, tpd_history_x, tpd_history_y,
+		     id, 0);
 	tpd_history_x = 0;
 	tpd_history_y = 0;
 #ifdef CONFIG_MTK_BOOT
 	if (tpd_dts_data.use_tpd_button) {
-		if (FACTORY_BOOT == get_boot_mode() || RECOVERY_BOOT == get_boot_mode())
+		if (get_boot_mode() == FACTORY_BOOT ||
+		    get_boot_mode() == RECOVERY_BOOT)
 			tpd_button(0, 0, 0);
 	}
 #endif
@@ -773,7 +814,7 @@ u32 gt1x_get_charger_status(void)
 #ifdef MT6573
 	chr_status = *(u32 *)CHR_CON0;
 	chr_status &= (1 << 13);
-#else				/* ( defined(MT6575) || defined(MT6577) || defined(MT6589) ) */
+#else /* ( defined(MT6575) || defined(MT6577) || defined(MT6589) ) */
 	chr_status = upmu_is_chr_det();
 #endif
 	return chr_status;
@@ -785,7 +826,7 @@ static int tpd_event_handler(void *unused)
 	u8 finger = 0;
 	u8 end_cmd = 0;
 	s32 ret = 0;
-	u8 point_data[11] = { 0 };
+	u8 point_data[11] = {0};
 	struct sched_param param = {.sched_priority = 4};
 
 	sched_setscheduler(current, SCHED_RR, &param);
@@ -802,7 +843,7 @@ static int tpd_event_handler(void *unused)
 
 		set_current_state(TASK_RUNNING);
 		mutex_lock(&i2c_access);
-		/* don't reset before "if (tpd_halt..."  */
+/* don't reset before "if (tpd_halt..."  */
 
 #ifdef CONFIG_GTP_GESTURE_WAKEUP
 		ret = gesture_event_handler(tpd->dev);
@@ -819,7 +860,8 @@ static int tpd_event_handler(void *unused)
 		}
 
 		/* read coordinates */
-		ret = gt1x_i2c_read(GTP_READ_COOR_ADDR, point_data, sizeof(point_data));
+		ret = gt1x_i2c_read(GTP_READ_COOR_ADDR, point_data,
+				    sizeof(point_data));
 		if (ret < 0) {
 			GTP_ERROR("I2C transfer error!");
 #ifndef CONFIG_GTP_ESD_PROTECT
@@ -865,7 +907,7 @@ static int tpd_event_handler(void *unused)
 			continue;
 		}
 
- exit_work_func:
+exit_work_func:
 
 		if (!gt1x_rawdiff_mode) {
 			ret = gt1x_i2c_write(GTP_READ_COOR_ADDR, &end_cmd, 1);
@@ -882,25 +924,27 @@ static int tpd_event_handler(void *unused)
 
 int gt1x_debug_proc(u8 *buf, int count)
 {
-	char mode_str[50] = { 0 };
+	char mode_str[50] = {0};
 	int mode;
 	int ret;
 
 	ret = sscanf(buf, "%49s %d", (char *)&mode_str, &mode);
 	if (ret < 0) {
-		GTP_ERROR("gt1x_debug_proc sscanf failed");
+		GTP_ERROR("%s sscanf failed", __func__);
 		return ret;
 	}
 	/***********POLLING/EINT MODE switch****************/
 	if (strcmp(mode_str, "polling") == 0) {
 		if (mode >= 10 && mode <= 200) {
-			GTP_INFO("Switch to polling mode, polling time is %d", mode);
+			GTP_INFO("Switch to polling mode, polling time is %d",
+				 mode);
 			tpd_eint_mode = 0;
 			tpd_polling_time = mode;
 			tpd_flag = 1;
 			wake_up(&waiter);
 		} else {
-			GTP_INFO("Wrong polling time, please set between 10~200ms");
+			GTP_INFO(
+				"Wrong polling time, please set between 10~200ms");
 		}
 		return count;
 	}
@@ -911,9 +955,9 @@ int gt1x_debug_proc(u8 *buf, int count)
 	}
 	/**********************************************/
 	if (strcmp(mode_str, "switch") == 0) {
-		if (mode == 0)	/*turn off*/
+		if (mode == 0) /*turn off*/
 			tpd_off();
-		else if (mode == 1)	/*turn on*/
+		else if (mode == 1) /*turn on*/
 			tpd_on();
 		else
 			GTP_ERROR("error mode :%d", mode);
@@ -921,11 +965,11 @@ int gt1x_debug_proc(u8 *buf, int count)
 	} else if (strcmp(mode_str, "enable_irq") == 0) {
 		if (mode == 0) {
 			GTP_ERROR("enable_irq 0, touch_irq = %d, irq_flag = %d",
-				(int)touch_irq, irq_flag);
+				  (int)touch_irq, irq_flag);
 			disable_irq(touch_irq);
 		} else if (mode == 1) {
 			GTP_ERROR("enable_irq 1, touch_irq = %d, irq_flag = %d",
-				(int)touch_irq, irq_flag);
+				  (int)touch_irq, irq_flag);
 			enable_irq(touch_irq);
 		} else
 			GTP_ERROR("error mode :%d", mode);
@@ -933,7 +977,7 @@ int gt1x_debug_proc(u8 *buf, int count)
 		int ret;
 
 		GTP_ERROR("rerequest_irq, touch_irq = %d, irq_flag = %d",
-			(int)touch_irq, irq_flag);
+			  (int)touch_irq, irq_flag);
 		free_irq(touch_irq, NULL);
 		ret = tpd_irq_registration();
 		if (ret < 0)
@@ -984,7 +1028,7 @@ static int tpd_local_init(void)
 		return PTR_ERR(tpd->reg);
 	}
 
-	ret = regulator_set_voltage(tpd->reg, 2800000, 2800000);	/*set 2.8v*/
+	ret = regulator_set_voltage(tpd->reg, 2800000, 2800000); /*set 2.8v*/
 	if (ret) {
 		GTP_ERROR("regulator_set_voltage(%d) failed!\n", ret);
 		return -1;
@@ -992,28 +1036,30 @@ static int tpd_local_init(void)
 #endif
 #ifdef TPD_POWER_SOURCE_CUSTOM
 #ifdef CONFIG_ARCH_MT6580
-	tpd->reg = regulator_get(tpd->tpd_dev, "VGP1");	/*get pointer to regulator structure*/
+	tpd->reg = regulator_get(tpd->tpd_dev,
+				 "VGP1"); /*get pointer to regulator structure*/
 	if (IS_ERR(tpd->reg))
 		GTP_ERROR("regulator_get() failed!\n");
 #endif
 #endif
 #if TPD_SUPPORT_I2C_DMA
-		tpd->dev->dev.coherent_dma_mask = DMA_BIT_MASK(32);
-		gpDMABuf_va = (u8 *) dma_alloc_coherent(&tpd->dev->dev, IIC_DMA_MAX_TRANSFER_SIZE,
-			&gpDMABuf_pa, GFP_KERNEL);
-		if (!gpDMABuf_va) {
-			GTP_ERROR("Allocate DMA I2C Buffer failed!");
-			return -1;
-		}
-		memset(gpDMABuf_va, 0, IIC_DMA_MAX_TRANSFER_SIZE);
+	tpd->dev->dev.coherent_dma_mask = DMA_BIT_MASK(32);
+	gpDMABuf_va = (u8 *)dma_alloc_coherent(&tpd->dev->dev,
+					       IIC_DMA_MAX_TRANSFER_SIZE,
+					       &gpDMABuf_pa, GFP_KERNEL);
+	if (!gpDMABuf_va) {
+		GTP_ERROR("Allocate DMA I2C Buffer failed!");
+		return -1;
+	}
+	memset(gpDMABuf_va, 0, IIC_DMA_MAX_TRANSFER_SIZE);
 #endif
 	spin_lock_init(&irq_flag_lock);
 	if (i2c_add_driver(&tpd_i2c_driver) != 0) {
 		GTP_ERROR("unable to add i2c driver.");
 		return -1;
 	}
-
-	if (tpd_load_status == 0) {	/*disable auto load touch driver for linux3.0 porting*/
+	if (tpd_load_status ==
+	    0) { /*disable auto load touch driver for linux3.0 porting*/
 		GTP_ERROR("add error touch panel driver.");
 		i2c_del_driver(&tpd_i2c_driver);
 		return -1;
@@ -1023,11 +1069,13 @@ static int tpd_local_init(void)
 #endif
 	if (!tpd_dts_data.touch_max_num)
 		tpd_dts_data.touch_max_num = DEFAULT_MAX_TOUCH_NUM;
-	input_set_abs_params(tpd->dev, ABS_MT_TRACKING_ID, 0, (tpd_dts_data.touch_max_num - 1), 0, 0);
+	input_set_abs_params(tpd->dev, ABS_MT_TRACKING_ID, 0,
+			     (tpd_dts_data.touch_max_num - 1), 0, 0);
 	if (tpd_dts_data.use_tpd_button) {
 		/*initialize tpd button data*/
-		tpd_button_setting(tpd_dts_data.tpd_key_num, tpd_dts_data.tpd_key_local,
-		tpd_dts_data.tpd_key_dim_local);
+		tpd_button_setting(tpd_dts_data.tpd_key_num,
+				   tpd_dts_data.tpd_key_local,
+				   tpd_dts_data.tpd_key_dim_local);
 	}
 #if (defined(TPD_WARP_START) && defined(TPD_WARP_END))
 	TPD_DO_WARP = 1;
@@ -1056,7 +1104,7 @@ static void tpd_suspend(struct device *h)
 	s32 ret = -1;
 #if defined(CONFIG_GTP_HOTKNOT)
 #ifndef CONFIG_HOTKNOT_BLOCK_RW
-	u8 buf[1] = { 0 };
+	u8 buf[1] = {0};
 #endif
 #endif
 	if (is_resetting || update_info.status)
@@ -1065,7 +1113,7 @@ static void tpd_suspend(struct device *h)
 
 	mutex_lock(&tui_lock);
 	if (tpd_tui_flag) {
-		GTP_INFO("[TPD] skip tpd_suspend due to TUI in used\n");
+		GTP_INFO("[TPD] skip %s due to TUI in used\n", __func__);
 		tpd_tui_low_power_skipped = 1;
 		mutex_unlock(&tui_lock);
 		return;
@@ -1259,6 +1307,5 @@ static void __exit tpd_driver_exit(void)
 	GTP_INFO("MediaTek gt91xx touch panel driver exit\n");
 	tpd_driver_remove(&tpd_device_driver);
 }
-
 module_init(tpd_driver_init);
 module_exit(tpd_driver_exit);

@@ -22,7 +22,7 @@
 #define LCM_GPIO_DEVICE	"lcm_mode"
 
 
-LCM_STATUS lcm_gpio_set_data(char type, const LCM_DATA_T1 *t1);
+enum LCM_STATUS lcm_gpio_set_data(char type, const struct LCM_DATA_T1 *t1);
 #endif
 
 #endif

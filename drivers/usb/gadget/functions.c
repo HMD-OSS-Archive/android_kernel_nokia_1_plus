@@ -57,8 +57,6 @@ struct usb_function *usb_get_function(struct usb_function_instance *fi)
 {
 	struct usb_function *f;
 
-	pr_info("%s usb_function_driver name=%s\n", __func__, fi->fd->name);
-
 	f = fi->fd->alloc_func(fi);
 	if (IS_ERR(f))
 		return f;

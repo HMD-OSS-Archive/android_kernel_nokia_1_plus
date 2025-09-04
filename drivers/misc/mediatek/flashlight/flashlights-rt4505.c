@@ -226,6 +226,8 @@ static int rt4505_ioctl(unsigned int cmd, unsigned long arg)
 	struct flashlight_dev_arg *fl_arg;
 	int channel;
 	ktime_t ktime;
+	unsigned int s;
+	unsigned int ns;
 
 	fl_arg = (struct flashlight_dev_arg *)arg;
 	channel = fl_arg->channel;
@@ -248,9 +250,11 @@ static int rt4505_ioctl(unsigned int cmd, unsigned long arg)
 				channel, (int)fl_arg->arg);
 		if (fl_arg->arg == 1) {
 			if (rt4505_timeout_ms) {
-				ktime = ktime_set(rt4505_timeout_ms / 1000,
-						(rt4505_timeout_ms % 1000) * 1000000);
-				hrtimer_start(&rt4505_timer, ktime, HRTIMER_MODE_REL);
+				s = rt4505_timeout_ms / 1000;
+				ns = rt4505_timeout_ms % 1000 * 1000000;
+				ktime = ktime_set(s, ns);
+				hrtimer_start(&rt4505_timer, ktime,
+						HRTIMER_MODE_REL);
 			}
 			rt4505_enable();
 		} else {
@@ -353,7 +357,7 @@ static struct flashlight_operations rt4505_ops = {
  *****************************************************************************/
 static int rt4505_chip_init(struct rt4505_chip_data *chip)
 {
-	/* NOTE: Chip initialication move to "set driver" operation for power saving issue.
+	/* NOTE: Chip initialication move to "set driver" for power saving.
 	 * rt4505_init();
 	 */
 
@@ -383,7 +387,8 @@ static int rt4505_parse_dt(struct device *dev,
 		pr_info("Parse no dt, decouple.\n");
 
 	pdata->dev_id = devm_kzalloc(dev,
-			pdata->channel_num * sizeof(struct flashlight_device_id),
+			pdata->channel_num *
+			sizeof(struct flashlight_device_id),
 			GFP_KERNEL);
 	if (!pdata->dev_id)
 		return -ENOMEM;
@@ -395,14 +400,16 @@ static int rt4505_parse_dt(struct device *dev,
 			goto err_node_put;
 		if (of_property_read_u32(cnp, "part", &pdata->dev_id[i].part))
 			goto err_node_put;
-		snprintf(pdata->dev_id[i].name, FLASHLIGHT_NAME_SIZE, RT4505_NAME);
+		snprintf(pdata->dev_id[i].name, FLASHLIGHT_NAME_SIZE,
+				RT4505_NAME);
 		pdata->dev_id[i].channel = i;
 		pdata->dev_id[i].decouple = decouple;
 
 		pr_info("Parse dt (type,ct,part,name,channel,decouple)=(%d,%d,%d,%s,%d,%d).\n",
 				pdata->dev_id[i].type, pdata->dev_id[i].ct,
 				pdata->dev_id[i].part, pdata->dev_id[i].name,
-				pdata->dev_id[i].channel, pdata->dev_id[i].decouple);
+				pdata->dev_id[i].channel,
+				pdata->dev_id[i].decouple);
 		i++;
 	}
 
@@ -413,7 +420,8 @@ err_node_put:
 	return -EINVAL;
 }
 
-static int rt4505_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
+static int rt4505_i2c_probe(
+		struct i2c_client *client, const struct i2c_device_id *id)
 {
 	struct rt4505_platform_data *pdata = dev_get_platdata(&client->dev);
 	struct rt4505_chip_data *chip;
@@ -473,7 +481,9 @@ static int rt4505_i2c_probe(struct i2c_client *client, const struct i2c_device_i
 	/* register flashlight device */
 	if (pdata->channel_num) {
 		for (i = 0; i < pdata->channel_num; i++)
-			if (flashlight_dev_register_by_device_id(&pdata->dev_id[i], &rt4505_ops)) {
+			if (flashlight_dev_register_by_device_id(
+						&pdata->dev_id[i],
+						&rt4505_ops)) {
 				err = -EFAULT;
 				goto err_free;
 			}
@@ -508,7 +518,8 @@ static int rt4505_i2c_remove(struct i2c_client *client)
 	/* unregister flashlight device */
 	if (pdata && pdata->channel_num)
 		for (i = 0; i < pdata->channel_num; i++)
-			flashlight_dev_unregister_by_device_id(&pdata->dev_id[i]);
+			flashlight_dev_unregister_by_device_id(
+					&pdata->dev_id[i]);
 	else
 		flashlight_dev_unregister(RT4505_NAME);
 

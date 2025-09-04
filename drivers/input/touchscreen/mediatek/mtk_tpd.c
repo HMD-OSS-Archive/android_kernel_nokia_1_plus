@@ -10,7 +10,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
-
 #include "tpd.h"
 #include <linux/slab.h>
 #include <linux/device.h>
@@ -20,9 +19,8 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/fb.h>
-#include <linux/pinctrl/consumer.h>
 #ifdef CONFIG_MTK_MT6306_GPIO_SUPPORT
-#include <mach/mtk_6306_gpio.h>
+#include <mtk_6306_gpio.h>
 #endif
 
 #ifdef CONFIG_COMPAT
@@ -31,7 +29,8 @@
 
 #if defined(CONFIG_MTK_S3320) || defined(CONFIG_MTK_S3320_50) \
 	|| defined(CONFIG_MTK_S3320_47) || defined(CONFIG_MTK_MIT200) \
-	|| defined(CONFIG_TOUCHSCREEN_SYNAPTICS_S3528) || defined(CONFIG_MTK_S7020) \
+	|| defined(CONFIG_TOUCHSCREEN_SYNAPTICS_S3528) \
+	|| defined(CONFIG_MTK_S7020) \
 	|| defined(CONFIG_TOUCHSCREEN_MTK_SYNAPTICS_3320_50)
 #include <linux/input/mt.h>
 #endif /* CONFIG_MTK_S3320 */
@@ -42,33 +41,25 @@
 #define TPD_GET_VELOCITY_CUSTOM_Y _IO(TOUCH_IOC_MAGIC, 1)
 #define TPD_GET_FILTER_PARA _IOWR(TOUCH_IOC_MAGIC, 2, struct tpd_filter_t)
 #ifdef CONFIG_COMPAT
-#define COMPAT_TPD_GET_FILTER_PARA _IOWR(TOUCH_IOC_MAGIC, 2, struct tpd_filter_t)
+#define COMPAT_TPD_GET_FILTER_PARA _IOWR(TOUCH_IOC_MAGIC, \
+						2, struct tpd_filter_t)
 #endif
 struct tpd_filter_t tpd_filter;
 struct tpd_dts_info tpd_dts_data;
 struct pinctrl *pinctrl1;
 struct pinctrl_state *pins_default;
-struct pinctrl_state *eint_as_int, *eint_output0, *eint_output1, *rst_output0, *rst_output1;
+struct pinctrl_state *eint_as_int, *eint_output0,
+		*eint_output1, *rst_output0, *rst_output1;
 const struct of_device_id touch_of_match[] = {
-	{ .compatible = "mediatek,mt8173-touch", },
-	{ .compatible = "mediatek,mt6757-touch", },
-	{ .compatible = "mediatek,mt6763-touch", },
-	{ .compatible = "mediatek,mt6797-touch", },
-	{ .compatible = "mediatek,mt8163-touch", },
-	{ .compatible = "mediatek,mt8127-touch", },
-	{ .compatible = "mediatek,mt2701-touch", },
-	{ .compatible = "mediatek,mt7623-touch", },
-	{ .compatible = "mediatek,mt6799-touch", },
-	{ .compatible = "mediatek,mt6739-touch", },
-	{ .compatible = "mediatek,mt6771-touch", },
 	{ .compatible = "mediatek,touch", },
+	{ .compatible = "mediatek,mt8167-touch", },
 	{},
 };
 
 void tpd_get_dts_info(void)
 {
 	struct device_node *node1 = NULL;
-	int key_dim_local[16], i, ret;
+	int key_dim_local[16] = {0}, i = 0, ret;;
 
 	node1 = of_find_matching_node(node1, touch_of_match);
 	if (node1) {
@@ -99,67 +90,87 @@ void tpd_get_dts_info(void)
 		}
 #endif
 		TPD_DEBUG("firefly mtk-tpd get gpio rst=%d, int=%d\n", tpd_dts_data.tpd_rst_gpio, tpd_dts_data.tpd_int_gpio);
-		
-		ret = of_property_read_u32(node1, "tpd-max-touch-num", &tpd_dts_data.touch_max_num);
-		if (ret != 0)
-			TPD_DEBUG("tpd-max-touch-num not found\n");
-		ret = of_property_read_u32(node1, "use-tpd-button", &tpd_dts_data.use_tpd_button);
-		if (ret != 0)
-			TPD_DEBUG("use-tpd-button not found\n");
-		else
-			TPD_DEBUG("[tpd]use-tpd-button = %d\n", tpd_dts_data.use_tpd_button);
-		ret = of_property_read_u32_array(node1, "tpd-resolution",
-			tpd_dts_data.tpd_resolution, ARRAY_SIZE(tpd_dts_data.tpd_resolution));
-		if (ret != 0)
-			TPD_DEBUG("tpd-resolution not found\n");
-		if (tpd_dts_data.use_tpd_button) {
-			ret = of_property_read_u32(node1, "tpd-key-num", &tpd_dts_data.tpd_key_num);
-			if (ret != 0)
-				TPD_DEBUG("tpd-key-num not found\n");
-			ret = of_property_read_u32_array(node1, "tpd-key-local",
-				tpd_dts_data.tpd_key_local, ARRAY_SIZE(tpd_dts_data.tpd_key_local));
-			if (ret != 0)
-				TPD_DEBUG("tpd-key-local not found\n");
-			ret = of_property_read_u32_array(node1, "tpd-key-dim-local",
-				key_dim_local, ARRAY_SIZE(key_dim_local));
-			if (ret != 0)
-				TPD_DEBUG("tpd-key-dim-local not found\n");
 
-			memcpy(tpd_dts_data.tpd_key_dim_local, key_dim_local, sizeof(key_dim_local));
-			for (i = 0; i < 4; i++) {
-				pr_debug("[tpd]key[%d].key_x = %d\n", i, tpd_dts_data.tpd_key_dim_local[i].key_x);
-				pr_debug("[tpd]key[%d].key_y = %d\n", i, tpd_dts_data.tpd_key_dim_local[i].key_y);
-				pr_debug("[tpd]key[%d].key_W = %d\n", i, tpd_dts_data.tpd_key_dim_local[i].key_width);
-				pr_debug("[tpd]key[%d].key_H = %d\n", i, tpd_dts_data.tpd_key_dim_local[i].key_height);
+		of_property_read_u32(node1,
+			"tpd-max-touch-num", &tpd_dts_data.touch_max_num);
+		of_property_read_u32(node1,
+			"use-tpd-button", &tpd_dts_data.use_tpd_button);
+		pr_debug("[tpd]use-tpd-button = %d\n",
+			tpd_dts_data.use_tpd_button);
+		if (of_property_read_u32_array(node1, "tpd-resolution",
+			tpd_dts_data.tpd_resolution,
+			ARRAY_SIZE(tpd_dts_data.tpd_resolution))) {
+			pr_debug("[tpd] resulution is %d %d",
+				tpd_dts_data.tpd_resolution[0],
+				tpd_dts_data.tpd_resolution[1]);
+		}
+		if (tpd_dts_data.use_tpd_button) {
+			of_property_read_u32(node1,
+				"tpd-key-num", &tpd_dts_data.tpd_key_num);
+			if (of_property_read_u32_array(node1, "tpd-key-local",
+				tpd_dts_data.tpd_key_local,
+				ARRAY_SIZE(tpd_dts_data.tpd_key_local)))
+				pr_debug("tpd-key-local: %d %d %d %d",
+					tpd_dts_data.tpd_key_local[0],
+					tpd_dts_data.tpd_key_local[1],
+					tpd_dts_data.tpd_key_local[2],
+					tpd_dts_data.tpd_key_local[3]);
+			if (of_property_read_u32_array(node1,
+				"tpd-key-dim-local",
+				key_dim_local, ARRAY_SIZE(key_dim_local))) {
+				memcpy(tpd_dts_data.tpd_key_dim_local,
+					key_dim_local, sizeof(key_dim_local));
+				for (i = 0; i < 4; i++) {
+					pr_debug("[tpd]key[%d].key_x = %d\n", i,
+						tpd_dts_data
+							.tpd_key_dim_local[i]
+							.key_x);
+					pr_debug("[tpd]key[%d].key_y = %d\n", i,
+						tpd_dts_data
+							.tpd_key_dim_local[i]
+							.key_y);
+					pr_debug("[tpd]key[%d].key_W = %d\n", i,
+						tpd_dts_data
+							.tpd_key_dim_local[i]
+							.key_width);
+					pr_debug("[tpd]key[%d].key_H = %d\n", i,
+						tpd_dts_data
+							.tpd_key_dim_local[i]
+							.key_height);
+				}
 			}
 		}
-		ret = of_property_read_u32(node1, "tpd-filter-enable", &tpd_dts_data.touch_filter.enable);
-		if (ret != 0)
-			TPD_DEBUG("tpd-filter-enable not found\n");
+		of_property_read_u32(node1, "tpd-filter-enable",
+			&tpd_dts_data.touch_filter.enable);
 		if (tpd_dts_data.touch_filter.enable) {
-			ret = of_property_read_u32(node1, "tpd-filter-pixel-density",
-						&tpd_dts_data.touch_filter.pixel_density);
-			if (ret != 0)
-				TPD_DEBUG("tpd-filter-pixel-density not found\n");
-			ret = of_property_read_u32_array(node1, "tpd-filter-custom-prameters",
-				(u32 *)tpd_dts_data.touch_filter.W_W, ARRAY_SIZE(tpd_dts_data.touch_filter.W_W));
-			if (ret != 0)
-				TPD_DEBUG("tpd-filter-custom-prameters not found\n");
-			ret = of_property_read_u32_array(node1, "tpd-filter-custom-speed",
+			of_property_read_u32(node1,
+				"tpd-filter-pixel-density",
+				&tpd_dts_data.touch_filter.pixel_density);
+			if (of_property_read_u32_array(node1,
+				"tpd-filter-custom-prameters",
+				(u32 *)tpd_dts_data.touch_filter.W_W,
+				ARRAY_SIZE(tpd_dts_data.touch_filter.W_W)))
+				pr_debug("get tpd-filter-custom-parameters");
+			if (of_property_read_u32_array(node1,
+				"tpd-filter-custom-speed",
 				tpd_dts_data.touch_filter.VECLOCITY_THRESHOLD,
-				ARRAY_SIZE(tpd_dts_data.touch_filter.VECLOCITY_THRESHOLD));
-			if (ret != 0)
-				TPD_DEBUG("tpd-filter-custom-speed not found\n");
+				ARRAY_SIZE(tpd_dts_data
+						.touch_filter
+						.VECLOCITY_THRESHOLD)))
+				pr_debug("get tpd-filter-custom-speed");
 		}
-		memcpy(&tpd_filter, &tpd_dts_data.touch_filter, sizeof(tpd_filter));
-		TPD_DEBUG("[tpd]tpd-filter-enable = %d, pixel_density = %d\n",
-					tpd_filter.enable, tpd_filter.pixel_density);
-		tpd_dts_data.tpd_use_ext_gpio = of_property_read_bool(node1, "tpd-use-ext-gpio");
-		ret = of_property_read_u32(node1, "tpd-rst-ext-gpio-num", &tpd_dts_data.rst_ext_gpio_num);
-		if (ret != 0)
-			TPD_DEBUG("tpd-rst-ext-gpio-num not found\n");
+		memcpy(&tpd_filter,
+			&tpd_dts_data.touch_filter, sizeof(tpd_filter));
+		pr_debug("[tpd]tpd-filter-enable = %d, pixel_density = %d\n",
+				tpd_filter.enable, tpd_filter.pixel_density);
+		tpd_dts_data.tpd_use_ext_gpio =
+			of_property_read_bool(node1, "tpd-use-ext-gpio");
+		of_property_read_u32(node1,
+			"tpd-rst-ext-gpio-num",
+			&tpd_dts_data.rst_ext_gpio_num);
+
 	} else {
-		pr_err("[tpd]%s can't find touch compatible custom node\n", __func__);
+		TPD_DMESG("can't find touch compatible custom node\n");
 	}
 }
 
@@ -167,7 +178,7 @@ static DEFINE_MUTEX(tpd_set_gpio_mutex);
 void tpd_gpio_as_int(int pin)
 {
 	mutex_lock(&tpd_set_gpio_mutex);
-	TPD_DEBUG("[tpd]tpd_gpio_as_int\n");
+	TPD_DEBUG("[tpd] %s\n", __func__);
 	if (pin == 1)
 		pinctrl_select_state(pinctrl1, eint_as_int);
 	mutex_unlock(&tpd_set_gpio_mutex);
@@ -176,7 +187,7 @@ void tpd_gpio_as_int(int pin)
 void tpd_gpio_output(int pin, int level)
 {
 	mutex_lock(&tpd_set_gpio_mutex);
-	TPD_DEBUG("[tpd]tpd_gpio_output pin = %d, level = %d\n", pin, level);
+	TPD_DEBUG("%s pin = %d, level = %d\n", __func__, pin, level);
 	if (pin == 1) {
 		if (level)
 			pinctrl_select_state(pinctrl1, eint_output1);
@@ -185,8 +196,10 @@ void tpd_gpio_output(int pin, int level)
 	} else {
 		if (tpd_dts_data.tpd_use_ext_gpio) {
 #ifdef CONFIG_MTK_MT6306_GPIO_SUPPORT
-			mt6306_set_gpio_dir(tpd_dts_data.rst_ext_gpio_num, 1);
-			mt6306_set_gpio_out(tpd_dts_data.rst_ext_gpio_num, level);
+			mt6306_set_gpio_dir(
+				tpd_dts_data.rst_ext_gpio_num, 1);
+			mt6306_set_gpio_out(
+				tpd_dts_data.rst_ext_gpio_num, level);
 #endif
 		} else {
 			if (level)
@@ -202,48 +215,48 @@ int tpd_get_gpio_info(struct platform_device *pdev)
 	int ret;
 
 	TPD_DEBUG("[tpd %d] mt_tpd_pinctrl+++++++++++++++++\n", pdev->id);
-pr_err("Lomen 0.1\n");
 	pinctrl1 = devm_pinctrl_get(&pdev->dev);
 	if (IS_ERR(pinctrl1)) {
 		ret = PTR_ERR(pinctrl1);
-		dev_err(&pdev->dev, "fwq Cannot find touch pinctrl1!\n");
+		dev_info(&pdev->dev, "fwq Cannot find pinctrl1!\n");
 		return ret;
 	}
-pr_err("Lomen 0.2\n");
 	pins_default = pinctrl_lookup_state(pinctrl1, "default");
 	if (IS_ERR(pins_default)) {
 		ret = PTR_ERR(pins_default);
-		dev_err(&pdev->dev, "fwq Cannot find touch pinctrl default %d!\n", ret);
+		TPD_DMESG("Cannot find pinctrl default %d!\n", ret);
 	}
 	eint_as_int = pinctrl_lookup_state(pinctrl1, "state_eint_as_int");
 	if (IS_ERR(eint_as_int)) {
 		ret = PTR_ERR(eint_as_int);
-		dev_err(&pdev->dev, "fwq Cannot find touch pinctrl state_eint_as_int!\n");
+		TPD_DMESG("Cannot find pinctrl state_eint_as_int!\n");
 		return ret;
 	}
 	eint_output0 = pinctrl_lookup_state(pinctrl1, "state_eint_output0");
 	if (IS_ERR(eint_output0)) {
 		ret = PTR_ERR(eint_output0);
-		dev_err(&pdev->dev, "fwq Cannot find touch pinctrl state_eint_output0!\n");
+		TPD_DMESG("Cannot find pinctrl state_eint_output0!\n");
 		return ret;
 	}
 	eint_output1 = pinctrl_lookup_state(pinctrl1, "state_eint_output1");
 	if (IS_ERR(eint_output1)) {
 		ret = PTR_ERR(eint_output1);
-		dev_err(&pdev->dev, "fwq Cannot find touch pinctrl state_eint_output1!\n");
+		TPD_DMESG("Cannot find pinctrl state_eint_output1!\n");
 		return ret;
 	}
 	if (tpd_dts_data.tpd_use_ext_gpio == false) {
-		rst_output0 = pinctrl_lookup_state(pinctrl1, "state_rst_output0");
+		rst_output0 =
+			pinctrl_lookup_state(pinctrl1, "state_rst_output0");
 		if (IS_ERR(rst_output0)) {
 			ret = PTR_ERR(rst_output0);
-			dev_err(&pdev->dev, "fwq Cannot find touch pinctrl state_rst_output0!\n");
+			TPD_DMESG("Cannot find pinctrl state_rst_output0!\n");
 			return ret;
 		}
-		rst_output1 = pinctrl_lookup_state(pinctrl1, "state_rst_output1");
+		rst_output1 =
+			pinctrl_lookup_state(pinctrl1, "state_rst_output1");
 		if (IS_ERR(rst_output1)) {
 			ret = PTR_ERR(rst_output1);
-			dev_err(&pdev->dev, "fwq Cannot find touch pinctrl state_rst_output1!\n");
+			TPD_DMESG("Cannot find pinctrl state_rst_output1!\n");
 			return ret;
 		}
 	}
@@ -262,7 +275,9 @@ static int tpd_misc_release(struct inode *inode, struct file *file)
 }
 
 #ifdef CONFIG_COMPAT
-static long tpd_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long tpd_compat_ioctl(
+			struct file *file, unsigned int cmd,
+			unsigned long arg)
 {
 	long ret;
 	void __user *arg32 = compat_ptr(arg);
@@ -272,25 +287,26 @@ static long tpd_compat_ioctl(struct file *file, unsigned int cmd, unsigned long 
 	switch (cmd) {
 	case COMPAT_TPD_GET_FILTER_PARA:
 		if (arg32 == NULL) {
-			pr_err("invalid argument.");
+			pr_info("invalid argument.");
 			return -EINVAL;
 		}
 		ret = file->f_op->unlocked_ioctl(file, TPD_GET_FILTER_PARA,
 					   (unsigned long)arg32);
 		if (ret) {
-			pr_err("TPD_GET_FILTER_PARA unlocked_ioctl failed.");
+			pr_info("TPD_GET_FILTER_PARA unlocked_ioctl failed.");
 			return ret;
 		}
 		break;
 	default:
-		pr_err("tpd: unknown IOCTL: 0x%08x\n", cmd);
+		pr_info("tpd: unknown IOCTL: 0x%08x\n", cmd);
 		ret = -ENOIOCTLCMD;
 		break;
 	}
 	return ret;
 }
 #endif
-static long tpd_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long tpd_unlocked_ioctl(struct file *file,
+			unsigned int cmd, unsigned long arg)
 {
 	/* char strbuf[256]; */
 	void __user *data;
@@ -298,11 +314,14 @@ static long tpd_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned lon
 	long err = 0;
 
 	if (_IOC_DIR(cmd) & _IOC_READ)
-		err = !access_ok(VERIFY_WRITE, (void __user *)arg, _IOC_SIZE(cmd));
+		err = !access_ok(VERIFY_WRITE,
+			(void __user *)arg, _IOC_SIZE(cmd));
 	else if (_IOC_DIR(cmd) & _IOC_WRITE)
-		err = !access_ok(VERIFY_READ, (void __user *)arg, _IOC_SIZE(cmd));
+		err = !access_ok(VERIFY_READ,
+			(void __user *)arg, _IOC_SIZE(cmd));
 	if (err) {
-		pr_err("tpd: access error: %08X, (%2d, %2d)\n", cmd, _IOC_DIR(cmd), _IOC_SIZE(cmd));
+		pr_info("tpd: access error: %08X, (%2d, %2d)\n",
+			cmd, _IOC_DIR(cmd), _IOC_SIZE(cmd));
 		return -EFAULT;
 	}
 
@@ -315,7 +334,8 @@ static long tpd_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned lon
 			break;
 		}
 
-		if (copy_to_user(data, &tpd_v_magnify_x, sizeof(tpd_v_magnify_x))) {
+		if (copy_to_user(data,
+			&tpd_v_magnify_x, sizeof(tpd_v_magnify_x))) {
 			err = -EFAULT;
 			break;
 		}
@@ -330,7 +350,8 @@ static long tpd_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned lon
 			break;
 		}
 
-		if (copy_to_user(data, &tpd_v_magnify_y, sizeof(tpd_v_magnify_y))) {
+		if (copy_to_user(data,
+			&tpd_v_magnify_y, sizeof(tpd_v_magnify_y))) {
 			err = -EFAULT;
 			break;
 		}
@@ -341,18 +362,19 @@ static long tpd_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned lon
 
 			if (data == NULL) {
 				err = -EINVAL;
-				pr_err("tpd: TPD_GET_FILTER_PARA IOCTL CMD: data is null\n");
+				TPD_DMESG("GET_FILTER_PARA: data is null\n");
 				break;
 			}
 
-			if (copy_to_user(data, &tpd_filter, sizeof(struct tpd_filter_t))) {
-				pr_err("tpd: TPD_GET_FILTER_PARA IOCTL CMD: copy data error\n");
+			if (copy_to_user(data, &tpd_filter,
+					sizeof(struct tpd_filter_t))) {
+				TPD_DMESG("GET_FILTER_PARA: copy data error\n");
 				err = -EFAULT;
 				break;
 			}
 			break;
 	default:
-		pr_err("tpd: unknown IOCTL: 0x%08x\n", cmd);
+		pr_info("tpd: unknown IOCTL: 0x%08x\n", cmd);
 		err = -ENOIOCTLCMD;
 		break;
 
@@ -372,7 +394,7 @@ static const struct file_operations tpd_fops = {
 #endif
 };
 
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static struct miscdevice tpd_misc_device = {
 	.minor = MISC_DYNAMIC_MINOR,
 	.name = "touch",
@@ -421,17 +443,19 @@ static struct notifier_block tpd_fb_notifier;
 /* use fb_notifier */
 static void touch_resume_workqueue_callback(struct work_struct *work)
 {
-	TPD_DEBUG("GTP touch_resume_workqueue_callback\n");
+	TPD_DEBUG("GTP %s\n", __func__);
 	g_tpd_drv->resume(NULL);
 	tpd_suspend_flag = 0;
 }
-static int tpd_fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data)
+static int tpd_fb_notifier_callback(
+			struct notifier_block *self,
+			unsigned long event, void *data)
 {
 	struct fb_event *evdata = NULL;
 	int blank;
 	int err = 0;
 
-	TPD_DEBUG("tpd_fb_notifier_callback\n");
+	TPD_DEBUG("%s\n", __func__);
 
 	evdata = data;
 	/* If we aren't interested in this event, skip it immediately ... */
@@ -445,9 +469,10 @@ static int tpd_fb_notifier_callback(struct notifier_block *self, unsigned long e
 	if(event == FB_EVENT_BLANK){
 		TPD_DMESG("LCD ON Notify\n");
 		if (g_tpd_drv && tpd_suspend_flag) {
-			err = queue_work(touch_resume_workqueue, &touch_resume_work);
+			err = queue_work(touch_resume_workqueue,
+						&touch_resume_work);
 			if (!err) {
-				TPD_DMESG("start touch_resume_workqueue failed\n");
+				TPD_DMESG("start resume_workqueue failed\n");
 				return err;
 			}
 		}
@@ -459,7 +484,7 @@ static int tpd_fb_notifier_callback(struct notifier_block *self, unsigned long e
 		if (g_tpd_drv && !tpd_suspend_flag) {
 			err = cancel_work_sync(&touch_resume_work);
 			if (!err)
-				TPD_DMESG("cancel touch_resume_workqueue err = %d\n", err);
+				TPD_DMESG("cancel resume_workqueue failed\n");
 			g_tpd_drv->suspend(NULL);
 		}
 		tpd_suspend_flag = 1;
@@ -495,22 +520,19 @@ int tpd_driver_add(struct tpd_driver_t *tpd_drv)
 	for (i = 1; i < TP_DRV_MAX_COUNT; i++) {
 		/* add tpd driver into list */
 		if (tpd_driver_list[i].tpd_device_name == NULL) {
-			tpd_driver_list[i].tpd_device_name = tpd_drv->tpd_device_name;
-			tpd_driver_list[i].tpd_local_init = tpd_drv->tpd_local_init;
+			tpd_driver_list[i].tpd_device_name =
+				tpd_drv->tpd_device_name;
+			tpd_driver_list[i].tpd_local_init =
+				tpd_drv->tpd_local_init;
 			tpd_driver_list[i].suspend = tpd_drv->suspend;
 			tpd_driver_list[i].resume = tpd_drv->resume;
-			tpd_driver_list[i].tpd_have_button = tpd_drv->tpd_have_button;
+			tpd_driver_list[i].tpd_have_button =
+				tpd_drv->tpd_have_button;
 			tpd_driver_list[i].attrs = tpd_drv->attrs;
-#if 0
-			if (tpd_drv->tpd_local_init() == 0) {
-				TPD_DMESG("load %s successfully\n",
-					  tpd_driver_list[i].tpd_device_name);
-				g_tpd_drv = &tpd_driver_list[i];
-			}
-#endif
 			break;
 		}
-		if (strcmp(tpd_driver_list[i].tpd_device_name, tpd_drv->tpd_device_name) == 0)
+		if (strcmp(tpd_driver_list[i].tpd_device_name,
+			tpd_drv->tpd_device_name) == 0)
 			return 1;	/* driver exist */
 	}
 
@@ -525,8 +547,10 @@ int tpd_driver_remove(struct tpd_driver_t *tpd_drv)
 		return -1;
 	for (i = 0; i < TP_DRV_MAX_COUNT; i++) {
 		/* find it */
-		if (strcmp(tpd_driver_list[i].tpd_device_name, tpd_drv->tpd_device_name) == 0) {
-			memset(&tpd_driver_list[i], 0, sizeof(struct tpd_driver_t));
+		if (strcmp(tpd_driver_list[i].tpd_device_name,
+				tpd_drv->tpd_device_name) == 0) {
+			memset(&tpd_driver_list[i], 0,
+				sizeof(struct tpd_driver_t));
 			break;
 		}
 	}
@@ -537,8 +561,10 @@ static void tpd_create_attributes(struct device *dev, struct tpd_attrs *attrs)
 {
 	int num = attrs->num;
 
-	for (; num > 0;)
-		device_create_file(dev, attrs->attr[--num]);
+	for (; num > 0;) {
+		if (device_create_file(dev, attrs->attr[--num]))
+			pr_info("mtk_tpd: tpd create attributes file failed\n");
+	}
 }
 
 /* touch panel probe */
@@ -556,10 +582,8 @@ static int tpd_probe(struct platform_device *pdev)
 	TPD_DMESG("enter %s, %d\n", __func__, __LINE__);
 
 	if (misc_register(&tpd_misc_device))
-		pr_err("mtk_tpd: tpd_misc_device register failed\n");
-pr_err("Lomen 0\n");
+		pr_info("mtk_tpd: tpd_misc_device register failed\n");
 	tpd_get_gpio_info(pdev);
-pr_err("Lomen 1\n");
 	tpd = kmalloc(sizeof(struct tpd_device), GFP_KERNEL);
 	if (tpd == NULL)
 		return -ENOMEM;
@@ -577,8 +601,8 @@ pr_err("Lomen 1\n");
 	#ifdef CONFIG_MTK_LCM_PHYSICAL_ROTATION
 	if (strncmp(CONFIG_MTK_LCM_PHYSICAL_ROTATION, "90", 2) == 0
 		|| strncmp(CONFIG_MTK_LCM_PHYSICAL_ROTATION, "270", 3) == 0) {
+#ifdef CONFIG_MTK_FB
 /*Fix build errors,as some projects  cannot support these apis while bring up*/
-#if defined(CONFIG_MTK_FB) && defined(CONFIG_MTK_LCM)
 		TPD_RES_Y = DISP_GetScreenWidth();
 		TPD_RES_X = DISP_GetScreenHeight();
 #endif
@@ -587,11 +611,12 @@ pr_err("Lomen 1\n");
 	{
 #ifdef CONFIG_CUSTOM_LCM_X
 #ifndef CONFIG_FPGA_EARLY_PORTING
-/*Fix build errors,as some projects  cannot support these apis while bring up*/
 #if defined(CONFIG_MTK_FB) && defined(CONFIG_MTK_LCM)
+/*Fix build errors,as some projects  cannot support these apis while bring up*/
 		TPD_RES_X = DISP_GetScreenWidth();
 		TPD_RES_Y = DISP_GetScreenHeight();
-#else/*for some projects, we do not use mtk framebuffer*/
+#else
+/*for some projects, we do not use mtk framebuffer*/
 	TPD_RES_X = tpd_dts_data.tpd_resolution[0];
 	TPD_RES_Y = tpd_dts_data.tpd_resolution[1];
 #endif
@@ -600,13 +625,13 @@ pr_err("Lomen 1\n");
 #ifdef CONFIG_LCM_WIDTH
 		ret = kstrtoul(CONFIG_LCM_WIDTH, 0, &tpd_res_x);
 		if (ret < 0) {
-			pr_err("Touch down get lcm_x failed");
+			pr_info("Touch down get lcm_x failed");
 			return ret;
 		}
 		TPD_RES_X = tpd_res_x;
 		ret = kstrtoul(CONFIG_LCM_HEIGHT, 0, &tpd_res_x);
 		if (ret < 0) {
-			pr_err("Touch down get lcm_y failed");
+			pr_info("Touch down get lcm_y failed");
 			return ret;
 		}
 		TPD_RES_Y = tpd_res_y;
@@ -618,7 +643,8 @@ pr_err("Lomen 1\n");
 		TPD_RES_X = 2048;
 	if (1600 == TPD_RES_Y)
 		TPD_RES_Y = 1536;
-	pr_debug("mtk_tpd: TPD_RES_X = %lu, TPD_RES_Y = %lu\n", TPD_RES_X, TPD_RES_Y);
+	pr_debug("mtk_tpd: TPD_RES_X = %lu, TPD_RES_Y = %lu\n",
+		TPD_RES_X, TPD_RES_Y);
 
 	tpd_mode = TPD_MODE_NORMAL;
 	tpd_mode_axis = 0;
@@ -634,7 +660,8 @@ pr_err("Lomen 1\n");
 	set_bit(ABS_PRESSURE, tpd->dev->absbit);
 #if !defined(CONFIG_MTK_S3320) && !defined(CONFIG_MTK_S3320_47)\
 	&& !defined(CONFIG_MTK_S3320_50) && !defined(CONFIG_MTK_MIT200) \
-	&& !defined(CONFIG_TOUCHSCREEN_SYNAPTICS_S3528) && !defined(CONFIG_MTK_S7020) \
+	&& !defined(CONFIG_TOUCHSCREEN_SYNAPTICS_S3528) \
+	&& !defined(CONFIG_MTK_S7020) \
 	&& !defined(CONFIG_TOUCHSCREEN_MTK_SYNAPTICS_3320_50)
 	set_bit(BTN_TOUCH, tpd->dev->keybit);
 #endif /* CONFIG_MTK_S3320 */
@@ -648,7 +675,7 @@ pr_err("Lomen 1\n");
 			tpd_driver_list[i].tpd_local_init();
 			/* msleep(1); */
 			if (tpd_load_status == 1) {
-				TPD_DMESG("[mtk-tpd]tpd_probe, tpd_driver_name=%s\n",
+				TPD_DMESG("%s, tpd_driver_name=%s\n", __func__,
 					  tpd_driver_list[i].tpd_device_name);
 				g_tpd_drv = &tpd_driver_list[i];
 				break;
@@ -661,9 +688,9 @@ pr_err("Lomen 1\n");
 			/* touch_type:0: r-touch, 1: C-touch */
 			touch_type = 0;
 			g_tpd_drv->tpd_local_init();
-			TPD_DMESG("[mtk-tpd]Generic touch panel driver\n");
+			TPD_DMESG("Generic touch panel driver\n");
 		} else {
-			TPD_DMESG("[mtk-tpd]cap touch and Generic touch both are not loaded!!\n");
+			TPD_DMESG("no touch driver is loaded!!\n");
 			return 0;
 		}
 	}
@@ -681,19 +708,26 @@ pr_err("Lomen 1\n");
 		set_bit(ABS_MT_TOUCH_MINOR, tpd->dev->absbit);
 		set_bit(ABS_MT_POSITION_X, tpd->dev->absbit);
 		set_bit(ABS_MT_POSITION_Y, tpd->dev->absbit);
-		input_set_abs_params(tpd->dev, ABS_MT_POSITION_X, 0, TPD_RES_X, 0, 0);
-		input_set_abs_params(tpd->dev, ABS_MT_POSITION_Y, 0, TPD_RES_Y, 0, 0);
+		input_set_abs_params(tpd->dev,
+			ABS_MT_POSITION_X, 0, TPD_RES_X, 0, 0);
+		input_set_abs_params(tpd->dev,
+			ABS_MT_POSITION_Y, 0, TPD_RES_Y, 0, 0);
 #if defined(CONFIG_MTK_S3320) || defined(CONFIG_MTK_S3320_47) \
 	|| defined(CONFIG_MTK_S3320_50) || defined(CONFIG_MTK_MIT200) \
-	|| defined(CONFIG_TOUCHSCREEN_SYNAPTICS_S3528) || defined(CONFIG_MTK_S7020) \
+	|| defined(CONFIG_TOUCHSCREEN_SYNAPTICS_S3528) \
+	|| defined(CONFIG_MTK_S7020) \
 	|| defined(CONFIG_TOUCHSCREEN_MTK_SYNAPTICS_3320_50)
-		input_set_abs_params(tpd->dev, ABS_MT_PRESSURE, 0, 255, 0, 0);
-		input_set_abs_params(tpd->dev, ABS_MT_WIDTH_MAJOR, 0, 15, 0, 0);
+		input_set_abs_params(tpd->dev,
+		ABS_MT_PRESSURE, 0, 255, 0, 0);
+		input_set_abs_params(tpd->dev,
+			ABS_MT_WIDTH_MAJOR, 0, 15, 0, 0);
 		input_set_abs_params(tpd->dev, ABS_MT_WIDTH_MINOR, 0, 15, 0, 0);
 		input_mt_init_slots(tpd->dev, 10, 0);
 #else
-		input_set_abs_params(tpd->dev, ABS_MT_TOUCH_MAJOR, 0, 100, 0, 0);
-		input_set_abs_params(tpd->dev, ABS_MT_TOUCH_MINOR, 0, 100, 0, 0);
+		input_set_abs_params(tpd->dev,
+			ABS_MT_TOUCH_MAJOR, 0, 100, 0, 0);
+		input_set_abs_params(tpd->dev,
+			ABS_MT_TOUCH_MINOR, 0, 100, 0, 0);
 #endif /* CONFIG_MTK_S3320 */
 		TPD_DMESG("Cap touch panel driver\n");
 	}
@@ -738,7 +772,7 @@ static int __init tpd_device_init(void)
 
 	res = queue_work(tpd_init_workqueue, &tpd_init_work);
 	if (!res)
-		pr_err("tpd : touch device init failed res:%d\n", res);
+		pr_info("tpd : touch device init failed res:%d\n", res);
 	return 0;
 }
 /* should never be called */

@@ -45,13 +45,17 @@ DECLARE_PER_CPU(char[MET_STRBUF_SIZE], met_strbuf);
 		char *pmet_strbuf; \
 		preempt_disable(); \
 		if (in_nmi()) \
-			pmet_strbuf = per_cpu(met_strbuf_nmi, smp_processor_id()); \
+			pmet_strbuf = per_cpu(met_strbuf_nmi, \
+					      smp_processor_id()); \
 		else if (in_irq()) \
-			pmet_strbuf = per_cpu(met_strbuf_irq, smp_processor_id()); \
+			pmet_strbuf = per_cpu(met_strbuf_irq, \
+					      smp_processor_id()); \
 		else if (in_softirq()) \
-			pmet_strbuf = per_cpu(met_strbuf_sirq, smp_processor_id()); \
+			pmet_strbuf = per_cpu(met_strbuf_sirq, \
+					      smp_processor_id()); \
 		else \
-			pmet_strbuf = per_cpu(met_strbuf, smp_processor_id()); \
+			pmet_strbuf = per_cpu(met_strbuf, \
+					      smp_processor_id()); \
 		pmet_strbuf;\
 	})
 
@@ -67,17 +71,27 @@ DECLARE_PER_CPU(char[MET_STRBUF_SIZE], met_strbuf);
 		char *pmet_strbuf; \
 		preempt_disable(); \
 		if (in_nmi()) \
-			pmet_strbuf = per_cpu(met_strbuf_nmi, smp_processor_id()); \
+			pmet_strbuf = per_cpu(met_strbuf_nmi, \
+					      smp_processor_id()); \
 		else if (in_irq()) \
-			pmet_strbuf = per_cpu(met_strbuf_irq, smp_processor_id()); \
+			pmet_strbuf = per_cpu(met_strbuf_irq, \
+					      smp_processor_id()); \
 		else if (in_softirq()) \
-			pmet_strbuf = per_cpu(met_strbuf_sirq, smp_processor_id()); \
+			pmet_strbuf = per_cpu(met_strbuf_sirq, \
+					      smp_processor_id()); \
 		else \
 			pmet_strbuf = per_cpu(met_strbuf, smp_processor_id()); \
 		if (met_mode & MET_MODE_TRACE_CMD) \
-			snprintf(pmet_strbuf, MET_STRBUF_SIZE, "%s: " FORMAT, __func__, ##args); \
+			snprintf(pmet_strbuf, \
+				 MET_STRBUF_SIZE, \
+				 "%s: " FORMAT, \
+				 __func__, \
+				 ##args); \
 		else \
-			snprintf(pmet_strbuf, MET_STRBUF_SIZE, FORMAT, ##args); \
+			snprintf(pmet_strbuf, \
+				 MET_STRBUF_SIZE, \
+				 FORMAT, \
+				 ##args); \
 		TRACE_PUTS(pmet_strbuf); \
 		preempt_enable_no_resched(); \
 	} while (0)
@@ -99,7 +113,10 @@ DECLARE_PER_CPU(char[MET_STRBUF_SIZE], met_strbuf);
 			*pSOB = per_cpu(met_strbuf, smp_processor_id()); \
 		*pEOB = *pSOB; \
 		if (met_mode & MET_MODE_TRACE_CMD) \
-			*pEOB += snprintf(*pEOB, MET_STRBUF_SIZE, "%s: ", __func__); \
+			*pEOB += snprintf(*pEOB, \
+					  MET_STRBUF_SIZE, \
+					  "%s: ", \
+					  __func__); \
 	})
 
 #define MET_PRINTK_PUTBUF(SOB, EOB) \
@@ -217,19 +234,45 @@ struct mtag_cmd_t {
 /* Use 'm' as magic number */
 #define MTAG_IOC_MAGIC  'm'
 /* Please use a different 8-bit number in your code */
-#define MTAG_CMD_START		_IOW(MTAG_IOC_MAGIC, TYPE_START, struct mtag_cmd_t)
-#define MTAG_CMD_END		_IOW(MTAG_IOC_MAGIC, TYPE_END, struct mtag_cmd_t)
-#define MTAG_CMD_ONESHOT	_IOW(MTAG_IOC_MAGIC, TYPE_ONESHOT, struct mtag_cmd_t)
-#define MTAG_CMD_ENABLE		_IOW(MTAG_IOC_MAGIC, TYPE_ENABLE, int)
-#define MTAG_CMD_DISABLE	_IOW(MTAG_IOC_MAGIC, TYPE_DISABLE, int)
-#define MTAG_CMD_REC_SET	_IOW(MTAG_IOC_MAGIC, TYPE_REC_SET, int)
-#define MTAG_CMD_DUMP		_IOW(MTAG_IOC_MAGIC, TYPE_DUMP, struct mtag_cmd_t)
-#define MTAG_CMD_DUMP_SIZE	_IOWR(MTAG_IOC_MAGIC, TYPE_DUMP_SIZE, int)
-#define MTAG_CMD_DUMP_SAVE	_IOW(MTAG_IOC_MAGIC, TYPE_DUMP_SAVE, struct mtag_cmd_t)
-#define MTAG_CMD_USRDATA	_IOW(MTAG_IOC_MAGIC, TYPE_USRDATA, struct mtag_cmd_t)
-#define MTAG_CMD_DUMP_AGAIN	_IOW(MTAG_IOC_MAGIC, TYPE_DUMP_AGAIN, void *)
-#define MTAG_CMD_ASYNC_START		_IOW(MTAG_IOC_MAGIC, TYPE_ASYNC_START, struct mtag_cmd_t)
-#define MTAG_CMD_ASYNC_END		_IOW(MTAG_IOC_MAGIC, TYPE_ASYNC_END, struct mtag_cmd_t)
+#define MTAG_CMD_START		_IOW(MTAG_IOC_MAGIC, \
+				     TYPE_START, \
+				     struct mtag_cmd_t)
+#define MTAG_CMD_END		_IOW(MTAG_IOC_MAGIC, \
+				     TYPE_END, \
+				     struct mtag_cmd_t)
+#define MTAG_CMD_ONESHOT	_IOW(MTAG_IOC_MAGIC, \
+				     TYPE_ONESHOT, \
+				     struct mtag_cmd_t)
+#define MTAG_CMD_ENABLE		_IOW(MTAG_IOC_MAGIC, \
+				     TYPE_ENABLE, \
+				     int)
+#define MTAG_CMD_DISABLE	_IOW(MTAG_IOC_MAGIC, \
+				     TYPE_DISABLE, \
+				     int)
+#define MTAG_CMD_REC_SET	_IOW(MTAG_IOC_MAGIC, \
+				     TYPE_REC_SET, \
+				     int)
+#define MTAG_CMD_DUMP		_IOW(MTAG_IOC_MAGIC, \
+				     TYPE_DUMP, \
+				     struct mtag_cmd_t)
+#define MTAG_CMD_DUMP_SIZE	_IOWR(MTAG_IOC_MAGIC, \
+				      TYPE_DUMP_SIZE, \
+				      int)
+#define MTAG_CMD_DUMP_SAVE	_IOW(MTAG_IOC_MAGIC, \
+				     TYPE_DUMP_SAVE, \
+				     struct mtag_cmd_t)
+#define MTAG_CMD_USRDATA	_IOW(MTAG_IOC_MAGIC, \
+				     TYPE_USRDATA, \
+				     struct mtag_cmd_t)
+#define MTAG_CMD_DUMP_AGAIN	_IOW(MTAG_IOC_MAGIC, \
+				     TYPE_DUMP_AGAIN, \
+				     void *)
+#define MTAG_CMD_ASYNC_START		_IOW(MTAG_IOC_MAGIC, \
+					     TYPE_ASYNC_START, \
+					     struct mtag_cmd_t)
+#define MTAG_CMD_ASYNC_END		_IOW(MTAG_IOC_MAGIC, \
+					     TYPE_ASYNC_END, \
+					     struct mtag_cmd_t)
 
 /* include file */
 #ifndef MET_USER_EVENT_SUPPORT
@@ -281,66 +324,69 @@ struct mtag_cmd_t {
 
 #else
 #include <linux/kernel.h>
-int __attribute__((weak)) met_tag_init(void);
+extern int met_tag_init(void);
 
-int __attribute__((weak)) met_tag_uninit(void);
+extern int met_tag_uninit(void);
 
-int __attribute__((weak)) met_tag_start(unsigned int class_id,
-					const char *name);
+extern int met_tag_start(unsigned int class_id,
+			 const char *name);
 
-int __attribute__((weak)) met_tag_end(unsigned int class_id,
-					const char *name);
+extern int met_tag_end(unsigned int class_id,
+		       const char *name);
 
-int __attribute__((weak)) met_tag_async_start(unsigned int class_id,
-					const char *name,
-					unsigned int cookie);
+extern int met_tag_async_start(unsigned int class_id,
+			       const char *name,
+			       unsigned int cookie);
 
-int __attribute__((weak)) met_tag_async_end(unsigned int class_id,
-					const char *name,
-					unsigned int cookie);
+extern int met_tag_async_end(unsigned int class_id,
+			     const char *name,
+			     unsigned int cookie);
 
-int __attribute__((weak)) met_tag_oneshot(unsigned int class_id,
-					const char *name,
-					unsigned int value);
+extern int met_tag_oneshot(unsigned int class_id,
+			   const char *name,
+			   unsigned int value);
 
-int __attribute__((weak)) met_tag_userdata(char *pData);
+extern int met_tag_userdata(char *pData);
 
-int __attribute__((weak)) met_tag_dump(unsigned int class_id,
-					const char *name,
-					void *data,
-					unsigned int length);
+extern int met_tag_dump(unsigned int class_id,
+			const char *name,
+			void *data,
+			unsigned int length);
 
-int __attribute__((weak)) met_tag_disable(unsigned int class_id);
+extern int met_tag_disable(unsigned int class_id);
 
-int __attribute__((weak)) met_tag_enable(unsigned int class_id);
+extern int met_tag_enable(unsigned int class_id);
 
-int __attribute__((weak)) met_set_dump_buffer(int size);
+extern int met_set_dump_buffer(int size);
 
-int __attribute__((weak)) met_save_dump_buffer(const char *pathname);
+extern int met_save_dump_buffer(const char *pathname);
 
-int __attribute__((weak)) met_save_log(const char *pathname);
+extern int met_save_log(const char *pathname);
 
-int __attribute__((weak)) met_show_bw_limiter(void);
-int __attribute__((weak)) met_reg_bw_limiter(void *fp);
-int __attribute__((weak)) met_show_clk_tree(const char *name,
-			unsigned int addr,
-			unsigned int status);
-int __attribute__((weak)) met_reg_clk_tree(void *fp);
+extern int met_show_bw_limiter(void);
+extern int met_reg_bw_limiter(void *fp);
+extern int met_show_clk_tree(const char *name,
+			     unsigned int addr,
+			     unsigned int status);
+extern int met_reg_clk_tree(void *fp);
 
 #if 0 /* no used now */
-int __attribute__((weak)) met_ccf_clk_enable(struct clk *clk);
-int __attribute__((weak)) met_ccf_clk_disable(struct clk *clk);
-int __attribute__((weak)) met_ccf_clk_set_rate(struct clk *clk, struct clk *top);
-int __attribute__((weak)) met_ccf_clk_set_parent(struct clk *clk, struct clk *parent);
+extern int met_ccf_clk_enable(struct clk *clk);
+extern int met_ccf_clk_disable(struct clk *clk);
+extern int met_ccf_clk_set_rate(struct clk *clk,
+				struct clk *top);
+extern int met_ccf_clk_set_parent(struct clk *clk,
+				  struct clk *parent);
 
 extern unsigned int __attribute__((weak)) met_fh_dds[];
-int __attribute__((weak)) met_fh_print_dds(int pll_id, unsigned int dds_value);
+extern int met_fh_print_dds(int pll_id, unsigned int dds_value);
 #endif /* no used now */
 
-int __attribute__((weak)) enable_met_backlight_tag(void);
-int __attribute__((weak)) output_met_backlight_tag(int level);
+extern int enable_met_backlight_tag(void);
+extern int output_met_backlight_tag(int level);
 
-void __attribute__((weak)) met_show_pmic_info(unsigned int RegNum, unsigned int pmic_reg);
+extern void met_show_pmic_info(unsigned int RegNum,
+			       unsigned int pmic_reg);
 
 #define met_record_on()		tracing_on()
 
@@ -353,15 +399,16 @@ void __attribute__((weak)) met_show_pmic_info(unsigned int RegNum, unsigned int 
  */
 #if 0 /* no support 1 */
 typedef  void (*MET_UDMET_POLLING_FUNC)(unsigned long long stamp, int cpu);
-void __attribute__((weak)) _met_udmet_register_polling(
-				char *mod_name,
-				MET_UDMET_POLLING_FUNC polling_func,
-				unsigned int period_multiply);
+extern void _met_udmet_register_polling(char *mod_name,
+					MET_UDMET_POLLING_FUNC polling_func,
+					unsigned int period_multiply);
 
 #define met_udmet_register_polling(mod_name, polling_func, period_multiply) \
 {\
 	if (_met_udmet_register_polling)\
-		_met_udmet_register_polling(mod_name, polling_func, period_multiply);\
+		_met_udmet_register_polling(mod_name, \
+					    polling_func, \
+					    period_multiply); \
 }
 #endif /* no support 1 */
 
@@ -369,17 +416,22 @@ void __attribute__((weak)) _met_udmet_register_polling(
  * Wrapper for DISP/MDP/GCE mmsys profiling
  */
 
-void __attribute__((weak)) met_mmsys_event_gce_thread_begin(ulong thread_no, ulong task_handle, ulong engineFlag,
-								void *pCmd, ulong size);
-void __attribute__((weak)) met_mmsys_event_gce_thread_end(ulong thread_no, ulong task_handle, ulong engineFlag);
+extern void met_mmsys_event_gce_thread_begin(ulong thread_no,
+					     ulong task_handle,
+					     ulong engineFlag,
+					     void *pCmd,
+					     ulong size);
+extern void met_mmsys_event_gce_thread_end(ulong thread_no,
+					   ulong task_handle,
+					   ulong engineFlag);
 
-void __attribute__((weak)) met_mmsys_event_disp_sof(int mutex_id);
-void __attribute__((weak)) met_mmsys_event_disp_mutex_eof(int mutex_id);
-void __attribute__((weak)) met_mmsys_event_disp_ovl_eof(int ovl_id);
+extern void met_mmsys_event_disp_sof(int mutex_id);
+extern void met_mmsys_event_disp_mutex_eof(int mutex_id);
+extern void met_mmsys_event_disp_ovl_eof(int ovl_id);
 
-void __attribute__((weak)) met_mmsys_config_isp_base_addr(unsigned long *isp_reg_list);
-void __attribute__((weak)) met_mmsys_event_isp_pass1_begin(int sensor_id);
-void __attribute__((weak)) met_mmsys_event_isp_pass1_end(int sensor_id);
+extern void met_mmsys_config_isp_base_addr(unsigned long *isp_reg_list);
+extern void met_mmsys_event_isp_pass1_begin(int sensor_id);
+extern void met_mmsys_event_isp_pass1_end(int sensor_id);
 
 #if 0 /* no support 2 */
 /* ====================== SPO API ================================ */
@@ -433,15 +485,19 @@ enum MET_SPO_MEM_ACCESS_TYPE {
 
 
 
-void __attribute__((weak)) _met_spo_mem_decl(enum MET_SPO_MEM_MODULE mod,
-		enum MET_SPO_MEM_ACCESS_TYPE type,
-		unsigned long memory_bw_in_bit, unsigned long estimated_exe_time_in_us,
-		unsigned long param1, unsigned long param2);
+extern void _met_spo_mem_decl(enum MET_SPO_MEM_MODULE mod,
+			      enum MET_SPO_MEM_ACCESS_TYPE type,
+			      unsigned long memory_bw_in_bit,
+			      unsigned long estimated_exe_time_in_us,
+			      unsigned long param1,
+			      unsigned long param2);
 
-void __attribute__((weak)) _met_spo_mem_alloc(enum MET_SPO_MEM_MODULE mod,
-		unsigned long param1, unsigned long param2);
-void __attribute__((weak)) _met_spo_mem_free(enum MET_SPO_MEM_MODULE mod,
-		unsigned long param1, unsigned long param2);
+extern void _met_spo_mem_alloc(enum MET_SPO_MEM_MODULE mod,
+			       unsigned long param1,
+			       unsigned long param2);
+extern void _met_spo_mem_free(enum MET_SPO_MEM_MODULE mod,
+			      unsigned long param1,
+			      unsigned long param2);
 
 /*invoke before SOF*/
 #define met_spo_mem_decl(...)			\
@@ -466,7 +522,7 @@ do {						\
 
 #endif /* no support 2 */
 
-/* ====================== MMSYS Platform Depend ================================ */
+/* =================== MMSYS Platform Depend ============================= */
 #if defined(CONFIG_MTK_MET)
 	#if defined(CONFIG_MACH_MT6757)
 /*		#pragma message("MET MMSYS 6757 include") */
@@ -515,12 +571,39 @@ enum SMI_REQUEST {
 };
 
 struct met_smi_conf {
-	unsigned int master;	/*Ex : Whitney: 0~8 for larb0~larb8,  9 for common larb*/
-	int	port[4];	/* port select : [0] only for legacy mode, [0~3] ports for parallel mode, -1 no select*/
-	unsigned int reqtype; /* Selects request type : 0 for all,1 for ultra,2 for preultra,3 for normal*/
-	unsigned int rwtype[4]; /* Selects read/write:  0 for R+W,  1 for read,  2 for write;*/
-				/* [0] for legacy and parallel larb0~8, [0~3] for parallel mode common*/
-	unsigned int desttype; /* Selects destination: 0 and 3 for all memory, 1 for External,2 for internal*/
+	/* Ex : Whitney: 0~8 for larb0~larb8,  9 for common larb */
+	unsigned int master;
+	/*
+	 * port select:
+	 * [0] only for legacy mode,
+	 * [0~3] ports for parallel mode, -1 no select
+	 */
+	int	port[4];
+	/*
+	 * Selects request type:
+	 * 0 for all,
+	 * 1 for ultra,
+	 * 2 for preultra,
+	 * 3 for normal
+	 */
+	unsigned int reqtype;
+	/*
+	 * Selects read/write:
+	 * 0 for R+W,
+	 * 1 for read,
+	 * 2 for write
+	 *
+	 * [0] for legacy and parallel larb0~8,
+	 * [0~3] for parallel mode common
+	 */
+	unsigned int rwtype[4];
+	/*
+	 * Selects destination:
+	 * 0 and 3 for all memory,
+	 * 1 for External,
+	 * 2 for internal
+	 */
+	unsigned int desttype;
 };
 
 

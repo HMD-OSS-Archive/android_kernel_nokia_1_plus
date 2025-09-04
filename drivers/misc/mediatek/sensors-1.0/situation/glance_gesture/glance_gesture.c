@@ -1,15 +1,18 @@
 /* glghub motion sensor driver
  *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
+ * Copyright (C) 2016 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
+
+#define pr_fmt(fmt) "[glghub] " fmt
 
 #include <linux/interrupt.h>
 #include <linux/i2c.h>
@@ -34,15 +37,9 @@
 #include <linux/notifier.h>
 #include "scp_helper.h"
 
-
-#define GLGHUB_TAG                  "[glghub] "
-#define GLGHUB_FUN(f)               pr_debug(GLGHUB_TAG"%s\n", __func__)
-#define GLGHUB_PR_ERR(fmt, args...)    pr_err(GLGHUB_TAG"%s %d : "fmt, __func__, __LINE__, ##args)
-#define GLGHUB_LOG(fmt, args...)    pr_debug(GLGHUB_TAG fmt, ##args)
-
-typedef enum {
+enum GLGHUB_TRC {
 	GLGHUBH_TRC_INFO = 0X10,
-} GLGHUB_TRC;
+};
 
 static struct situation_init_info glghub_init_info;
 
@@ -54,13 +51,11 @@ static int glance_gesture_get_data(int *probability, int *status)
 
 	err = sensor_get_data_from_hub(ID_GLANCE_GESTURE, &data);
 	if (err < 0) {
-		GLGHUB_PR_ERR("sensor_get_data_from_hub fail!!\n");
+		pr_err("sensor_get_data_from_hub fail!!\n");
 		return -1;
 	}
 	time_stamp		= data.time_stamp;
 	*probability	= data.gesture_data_t.probability;
-	GLGHUB_LOG("recv ipi: timestamp: %lld, probability: %d!\n", time_stamp,
-		*probability);
 	return 0;
 }
 static int glance_gesture_open_report_data(int open)
@@ -78,17 +73,23 @@ static int glance_gesture_open_report_data(int open)
 	ret = sensor_enable_to_hub(ID_GLANCE_GESTURE, open);
 	return ret;
 }
-static int glance_gesture_batch(int flag, int64_t samplingPeriodNs, int64_t maxBatchReportLatencyNs)
+static int glance_gesture_batch(int flag,
+	int64_t samplingPeriodNs, int64_t maxBatchReportLatencyNs)
 {
-	return sensor_batch_to_hub(ID_GLANCE_GESTURE, flag, samplingPeriodNs, maxBatchReportLatencyNs);
+	return sensor_batch_to_hub(ID_GLANCE_GESTURE,
+		flag, samplingPeriodNs, maxBatchReportLatencyNs);
 }
-static int glance_gesture_recv_data(struct data_unit_t *event, void *reserved)
+static int glance_gesture_recv_data(struct data_unit_t *event,
+	void *reserved)
 {
+	int err = 0;
+
 	if (event->flush_action == FLUSH_ACTION)
-		GLGHUB_LOG("glance_gesture do not support flush\n");
+		pr_debug("glance_gesture do not support flush\n");
 	else if (event->flush_action == DATA_ACTION)
-		situation_notify(ID_GLANCE_GESTURE);
-	return 0;
+		err = situation_notify_t(ID_GLANCE_GESTURE,
+				(int64_t)event->time_stamp);
+	return err;
 }
 
 static int glghub_local_init(void)
@@ -102,19 +103,20 @@ static int glghub_local_init(void)
 	ctl.is_support_wake_lock = true;
 	err = situation_register_control_path(&ctl, ID_GLANCE_GESTURE);
 	if (err) {
-		GLGHUB_PR_ERR("register glance_gesture control path err\n");
+		pr_err("register glance_gesture control path err\n");
 		goto exit;
 	}
 
 	data.get_data = glance_gesture_get_data;
 	err = situation_register_data_path(&data, ID_GLANCE_GESTURE);
 	if (err) {
-		GLGHUB_PR_ERR("register glance_gesture data path err\n");
+		pr_err("register glance_gesture data path err\n");
 		goto exit;
 	}
-	err = scp_sensorHub_data_registration(ID_GLANCE_GESTURE, glance_gesture_recv_data);
+	err = scp_sensorHub_data_registration(ID_GLANCE_GESTURE,
+		glance_gesture_recv_data);
 	if (err) {
-		GLGHUB_PR_ERR("SCP_sensorHub_data_registration fail!!\n");
+		pr_err("SCP_sensorHub_data_registration fail!!\n");
 		goto exit_create_attr_failed;
 	}
 	return 0;
@@ -141,7 +143,7 @@ static int __init glghub_init(void)
 
 static void __exit glghub_exit(void)
 {
-	GLGHUB_FUN();
+	pr_debug("%s\n", __func__);
 }
 
 module_init(glghub_init);

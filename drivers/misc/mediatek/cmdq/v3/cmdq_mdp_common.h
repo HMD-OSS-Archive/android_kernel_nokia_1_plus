@@ -15,24 +15,30 @@
 #define __CMDQ_MDP_COMMON_H__
 
 #include "cmdq_def.h"
-#include "cmdq_core.h"
-
+#include "cmdq_helper_ext.h"
 #include <linux/types.h>
+#ifdef CONFIG_MTK_SMI_EXT
 
-/* for debug share sram clock */
-extern atomic_t g_mdp_wrot0_usage;
+/* translate port */
+typedef uint32_t (*CmdqTranslatePort) (uint32_t engineId);
 
-/* runtime pm to probe MDP device */
-typedef s32 (*CmdqMDPProbe) (void);
+/* get request */
+typedef struct mm_qos_request *(*CmdqGetRequest) (
+	uint32_t thread_id, uint32_t port);
 
-void mdp_init(void);
-void mdp_deinit(void);
+/* init pmqos mdp */
+typedef void (*CmdqInitPmqosMdp) (s32 index, struct plist_head *owner_list);
+
+/* init pmqos isp */
+typedef void (*CmdqInitPmqosIsp) (s32 index, struct plist_head *owner_list);
+
+#endif	/* CONFIG_MTK_SMI_EXT */
 
 /* dump mmsys config */
 typedef void (*CmdqDumpMMSYSConfig) (void);
 
 /* VENC callback function */
-typedef int32_t(*CmdqVEncDumpInfo) (uint64_t engineFlag, int level);
+typedef s32(*CmdqVEncDumpInfo) (u64 engineFlag, int level);
 
 /* query MDP clock is on  */
 typedef bool(*CmdqMdpClockIsOn) (enum CMDQ_ENG_ENUM engine);
@@ -44,13 +50,13 @@ typedef void (*CmdqEnableMdpClock) (bool enable, enum CMDQ_ENG_ENUM engine);
 typedef void (*CmdqMdpInitModuleClk) (void);
 
 /* MDP callback function */
-typedef int32_t(*CmdqMdpClockOn) (uint64_t engineFlag);
+typedef s32(*CmdqMdpClockOn) (u64 engineFlag);
 
-typedef int32_t(*CmdqMdpDumpInfo) (uint64_t engineFlag, int level);
+typedef s32(*CmdqMdpDumpInfo) (u64 engineFlag, int level);
 
-typedef int32_t(*CmdqMdpResetEng) (uint64_t engineFlag);
+typedef s32(*CmdqMdpResetEng) (u64 engineFlag);
 
-typedef int32_t(*CmdqMdpClockOff) (uint64_t engineFlag);
+typedef s32(*CmdqMdpClockOff) (u64 engineFlag);
 
 /* MDP Initialization setting */
 typedef void(*CmdqMdpInitialSet) (void);
@@ -66,28 +72,39 @@ typedef void (*CmdqMdpDumpRSZ) (const unsigned long base, const char *label);
 typedef void (*CmdqMdpDumpTDSHP) (const unsigned long base, const char *label);
 
 /* test MDP clock function */
-typedef uint32_t(*CmdqMdpRdmaGetRegOffsetSrcAddr) (void);
+typedef u32(*CmdqMdpRdmaGetRegOffsetSrcAddr) (void);
 
-typedef uint32_t(*CmdqMdpWrotGetRegOffsetDstAddr) (void);
+typedef u32(*CmdqMdpWrotGetRegOffsetDstAddr) (void);
 
-typedef uint32_t(*CmdqMdpWdmaGetRegOffsetDstAddr) (void);
+typedef u32(*CmdqMdpWdmaGetRegOffsetDstAddr) (void);
 
 typedef void (*CmdqTestcaseClkmgrMdp) (void);
 
-typedef const char*(*CmdqDispatchModule) (uint64_t engineFlag);
+typedef const char*(*CmdqDispatchModule) (u64 engineFlag);
 
-typedef void (*CmdqTrackTask) (const struct TaskStruct *pTask);
+typedef void (*CmdqTrackTask) (const struct cmdqRecStruct *task);
 
-typedef const char *(*CmdqPraseErrorModByEngFlag) (const struct TaskStruct *task);
+typedef const char *(*CmdqPraseErrorModByEngFlag) (
+	const struct cmdqRecStruct *task);
+
+typedef const char *(*CmdqPraseHandleErrorModByEngFlag) (
+	const struct cmdqRecStruct *handle);
 
 typedef u64 (*CmdqMdpGetEngineGroupBits) (u32 engine_group);
 
 typedef void (*CmdqMdpEnableCommonClock) (bool enable);
-/* meansure task bandwidth for pmqos */
-typedef u32(*CmdqMdpMeansureBandwidth) (u32 bandwidth);
+
+typedef void (*CmdqCheckHwStatus) (struct cmdqRecStruct *handle);
+
+typedef u64(*CmdqMdpGetSecEngine) (u64 engine_flag);
 
 struct cmdqMDPFuncStruct {
-	CmdqMDPProbe mdp_probe;
+#ifdef CONFIG_MTK_SMI_EXT
+	CmdqTranslatePort translatePort;
+	CmdqGetRequest getRequest;
+	CmdqInitPmqosMdp initPmqosMdp;
+	CmdqInitPmqosIsp initPmqosIsp;
+#endif	/* CONFIG_MTK_SMI_EXT */
 	CmdqDumpMMSYSConfig dumpMMSYSConfig;
 	CmdqVEncDumpInfo vEncDumpInfo;
 	CmdqMdpInitModuleBaseVA initModuleBaseVA;
@@ -109,27 +126,16 @@ struct cmdqMDPFuncStruct {
 	CmdqDispatchModule dispatchModule;
 	CmdqTrackTask trackTask;
 	CmdqPraseErrorModByEngFlag parseErrModByEngFlag;
+	CmdqPraseHandleErrorModByEngFlag parseHandleErrModByEngFlag;
 	CmdqMdpGetEngineGroupBits getEngineGroupBits;
 	CmdqErrorResetCB errorReset;
 	CmdqMdpEnableCommonClock mdpEnableCommonClock;
-	CmdqMdpMeansureBandwidth meansureBandwidth;
 	CmdqBeginTaskCB beginTask;
 	CmdqEndTaskCB endTask;
 	CmdqBeginTaskCB beginISPTask;
 	CmdqEndTaskCB endISPTask;
-	CmdqStartTaskCB_ATOMIC startTask_atomic;
-	CmdqFinishTaskCB_ATOMIC finishTask_atomic;
-};
-
-struct mdp_task {
-	struct list_head entry;
-	struct TaskStruct *cmdq_task;
-	u32 bandwidth;
-};
-
-struct mdp_context {
-	struct list_head mdp_tasks;
-	struct mdp_task *bandwidth_task;
+	CmdqCheckHwStatus CheckHwStatus;
+	CmdqMdpGetSecEngine mdpGetSecEngine;
 };
 
 struct mdp_pmqos_record {
@@ -142,82 +148,114 @@ struct mdp_pmqos_record {
 #define DEBUG_STR_LEN 1024 /* debug str length */
 #define MDP_MAX_TASK_NUM 5 /* num of tasks to be keep */
 #define MDP_MAX_PLANE_NUM 3 /* max color format plane num */
-#define MDP_PORT_BUF_INFO_NUM (MDP_MAX_PLANE_NUM * 2) /* each plane has 2 info address and size */
+/* each plane has 2 info address and size */
+#define MDP_PORT_BUF_INFO_NUM (MDP_MAX_PLANE_NUM * 2)
 #define MDP_BUF_INFO_STR_LEN 8 /* each buf info length */
-#define MDP_DISPATCH_KEY_STR_LEN (TASK_COMM_LEN + 5) /* dispatch key format is MDP_(ThreadName) */
-#define MDP_TOTAL_THREAD 8
-
-struct cmdqMDPTaskStruct {
-	char callerName[TASK_COMM_LEN];
-	char userDebugStr[DEBUG_STR_LEN];
-};
-
-#ifdef __cplusplus
-extern "C" {
+/* dispatch key format is MDP_(ThreadName) */
+#define MDP_DISPATCH_KEY_STR_LEN (TASK_COMM_LEN + 5)
+#define MDP_TOTAL_THREAD 16
+#ifdef CMDQ_SECURE_PATH_SUPPORT
+#define MDP_THREAD_START (CMDQ_MIN_SECURE_THREAD_ID + 2)
+#else
+#define MDP_THREAD_START CMDQ_DYNAMIC_THREAD_ID_START
 #endif
-	void cmdq_mdp_init(void);
-	void cmdq_mdp_deinit(void);
 
-	void cmdq_mdp_virtual_function_setting(void);
-	void cmdq_mdp_map_mmsys_VA(void);
-	long cmdq_mdp_get_module_base_VA_MMSYS_CONFIG(void);
-	void cmdq_mdp_unmap_mmsys_VA(void);
-	struct cmdqMDPFuncStruct *cmdq_mdp_get_func(void);
+/* MDP common kernel logic */
 
-	void cmdq_mdp_enable(uint64_t engineFlag, enum CMDQ_ENG_ENUM engine);
+void cmdq_mdp_fix_command_scenario_for_user_space(
+	struct cmdqCommandStruct *command);
+bool cmdq_mdp_is_request_from_user_space(
+	const enum CMDQ_SCENARIO_ENUM scenario);
+s32 cmdq_mdp_query_usage(s32 *counters);
+s32 cmdq_mdp_get_smi_usage(void);
 
-	int cmdq_mdp_loop_reset(enum CMDQ_ENG_ENUM engine,
-				const unsigned long resetReg,
-				const unsigned long resetStateReg,
-				const uint32_t resetMask,
-				const uint32_t resetValue, const bool pollInitResult);
+void cmdq_mdp_reset_resource(void);
+void cmdq_mdp_dump_thread_usage(void);
+void cmdq_mdp_dump_engine_usage(void);
+void cmdq_mdp_dump_resource(u32 event);
+void cmdq_mdp_init_resource(u32 engine_id,
+	enum cmdq_event res_event);
+void cmdq_mdp_enable_res(u64 engine_flag, bool enable);
+void cmdq_mdp_lock_resource(u64 engine_flag, bool from_notify);
+bool cmdq_mdp_acquire_resource(enum cmdq_event res_event,
+	u64 *engine_flag_out);
+void cmdq_mdp_release_resource(enum cmdq_event res_event,
+	u64 *engine_flag_out);
+void cmdq_mdp_set_resource_callback(enum cmdq_event res_event,
+	CmdqResourceAvailableCB res_available,
+	CmdqResourceReleaseCB res_release);
+void cmdq_mdp_unlock_thread(struct cmdqRecStruct *handle);
+s32 cmdq_mdp_flush_async(struct cmdqCommandStruct *desc, bool user_space,
+	struct cmdqRecStruct **handle_out);
+s32 cmdq_mdp_flush_async_impl(struct cmdqRecStruct *handle);
+struct cmdqRecStruct *cmdq_mdp_get_valid_handle(unsigned long job);
+s32 cmdq_mdp_wait(struct cmdqRecStruct *handle,
+	struct cmdqRegValueStruct *results);
+s32 cmdq_mdp_flush(struct cmdqCommandStruct *desc, bool user_space);
+void cmdq_mdp_suspend(void);
+void cmdq_mdp_resume(void);
+void cmdq_mdp_release_task_by_file_node(void *file_node);
+void cmdq_mdp_init(void);
+void cmdq_mdp_deinit_pmqos(void);
 
-	void cmdq_mdp_loop_off(enum CMDQ_ENG_ENUM engine,
-			       const unsigned long resetReg,
-			       const unsigned long resetStateReg,
-			       const uint32_t resetMask,
-			       const uint32_t resetValue, const bool pollInitResult);
+/* Platform dependent function */
 
-	const char *cmdq_mdp_get_rsz_state(const uint32_t state);
+void cmdq_mdp_virtual_function_setting(void);
+void cmdq_mdp_map_mmsys_VA(void);
+long cmdq_mdp_get_module_base_VA_MMSYS_CONFIG(void);
+void cmdq_mdp_unmap_mmsys_VA(void);
+struct cmdqMDPFuncStruct *cmdq_mdp_get_func(void);
 
-	void cmdq_mdp_dump_venc(const unsigned long base, const char *label);
-	void cmdq_mdp_dump_rdma(const unsigned long base, const char *label);
-	void cmdq_mdp_dump_rot(const unsigned long base, const char *label);
-	void cmdq_mdp_dump_color(const unsigned long base, const char *label);
-	void cmdq_mdp_dump_wdma(const unsigned long base, const char *label);
+void cmdq_mdp_enable(u64 engineFlag, enum CMDQ_ENG_ENUM engine);
 
-	void cmdq_mdp_check_TF_address(unsigned int mva, char *module);
-	const char *cmdq_mdp_parse_error_module_by_hwflag(const struct TaskStruct *task);
+int cmdq_mdp_loop_reset(enum CMDQ_ENG_ENUM engine,
+	const unsigned long resetReg,
+	const unsigned long resetStateReg,
+	const u32 resetMask,
+	const u32 resetValue, const bool pollInitResult);
 
-	s32 cmdq_mdp_dump_wrot0_usage(void);
+void cmdq_mdp_loop_off(enum CMDQ_ENG_ENUM engine,
+	const unsigned long resetReg,
+	const unsigned long resetStateReg,
+	const u32 resetMask,
+	const u32 resetValue, const bool pollInitResult);
 
-/**************************************************************************************/
-/*******************                    Platform dependent function                    ********************/
-/**************************************************************************************/
+const char *cmdq_mdp_get_rsz_state(const u32 state);
 
-	int32_t cmdqMdpClockOn(uint64_t engineFlag);
+void cmdq_mdp_dump_venc(const unsigned long base, const char *label);
+void cmdq_mdp_dump_rdma(const unsigned long base, const char *label);
+void cmdq_mdp_dump_rot(const unsigned long base, const char *label);
+void cmdq_mdp_dump_color(const unsigned long base, const char *label);
+void cmdq_mdp_dump_wdma(const unsigned long base, const char *label);
 
-	int32_t cmdqMdpDumpInfo(uint64_t engineFlag, int level);
+void cmdq_mdp_check_TF_address(unsigned int mva, char *module);
+const char *cmdq_mdp_parse_error_module_by_hwflag(
+	const struct cmdqRecStruct *task);
 
-	int32_t cmdqVEncDumpInfo(uint64_t engineFlag, int level);
+const char *cmdq_mdp_parse_handle_error_module_by_hwflag(
+	const struct cmdqRecStruct *handle);
 
-	int32_t cmdqMdpResetEng(uint64_t engineFlag);
+/* Platform dependent function */
 
-	int32_t cmdqMdpClockOff(uint64_t engineFlag);
+s32 cmdqMdpClockOn(u64 engineFlag);
 
-	uint32_t cmdq_mdp_rdma_get_reg_offset_src_addr(void);
-	uint32_t cmdq_mdp_wrot_get_reg_offset_dst_addr(void);
-	uint32_t cmdq_mdp_wdma_get_reg_offset_dst_addr(void);
+s32 cmdqMdpDumpInfo(u64 engineFlag, int level);
 
-	void testcase_clkmgr_mdp(void);
+s32 cmdqVEncDumpInfo(u64 engineFlag, int level);
 
-	u32 cmdq_mdp_get_hw_reg(enum MDP_ENG_BASE base, u16 offset);
-	u32 cmdq_mdp_get_hw_port(enum MDP_ENG_BASE base);
+s32 cmdqMdpResetEng(u64 engineFlag);
 
-	/* Platform virtual function setting */
-	void cmdq_mdp_platform_function_setting(void);
+s32 cmdqMdpClockOff(u64 engineFlag);
 
-#ifdef __cplusplus
-}
-#endif
+u32 cmdq_mdp_rdma_get_reg_offset_src_addr(void);
+u32 cmdq_mdp_wrot_get_reg_offset_dst_addr(void);
+u32 cmdq_mdp_wdma_get_reg_offset_dst_addr(void);
+
+void testcase_clkmgr_mdp(void);
+
+/* Platform virtual function setting */
+void cmdq_mdp_platform_function_setting(void);
+
+long cmdq_mdp_get_module_base_VA_MDP_WROT0(void);
+
 #endif				/* __CMDQ_MDP_COMMON_H__ */

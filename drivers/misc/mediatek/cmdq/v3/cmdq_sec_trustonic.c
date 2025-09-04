@@ -12,7 +12,6 @@
  */
 
 #include "cmdq_sec_trustonic.h"
-#include "mobicore_driver_api.h"
 
 void cmdq_sec_setup_tee_context(struct cmdq_sec_tee_context *tee)
 {
@@ -72,10 +71,12 @@ s32 cmdq_sec_deinit_context(struct cmdq_sec_tee_context *tee)
 	if (tee->open_mobicore_by_other == 1) {
 		/* do nothing */
 		/* let last user to close mobicore.... */
-		CMDQ_MSG("[SEC]_MOBICORE_CLOSE: opened by other, bypass device close\n");
+		CMDQ_MSG(
+			"[SEC]_MOBICORE_CLOSE: opened by other, bypass device close\n");
 	} else {
 		mcRet = mc_close_device(MC_DEVICE_ID_DEFAULT);
-		CMDQ_MSG("[SEC]_MOBICORE_CLOSE: status:%d ret:0x%x openMobicoreByOther:%d\n",
+		CMDQ_MSG(
+			"[SEC]_MOBICORE_CLOSE: status:%d ret:0x%x openMobicoreByOther:%d\n",
 			 status, mcRet, tee->open_mobicore_by_other);
 		if (mcRet != MC_DRV_OK) {
 			CMDQ_ERR("[SEC]_MOBICORE_CLOSE: err:0x%x\n", mcRet);

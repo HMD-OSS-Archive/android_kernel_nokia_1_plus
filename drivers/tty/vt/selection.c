@@ -1,5 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
- * SPDX-License-Identifier: GPL-2.0
  * This module exports the functions:
  *
  *     'int set_selection(struct tiocl_selection __user *, struct tty_struct *)'
@@ -14,11 +14,10 @@
 #include <linux/tty.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
-#include <linux/mutex.h>
 #include <linux/slab.h>
 #include <linux/types.h>
 
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 
 #include <linux/kbd_kern.h>
 #include <linux/vt_kern.h>
@@ -42,7 +41,6 @@ static volatile int sel_start = -1; 	/* cleared by clear_selection */
 static int sel_end;
 static int sel_buffer_lth;
 static char *sel_buffer;
-static DEFINE_MUTEX(sel_lock);
 
 /* clear_selection, highlight and highlight_pointer can be called
    from interrupt (via scrollback/front) */
@@ -83,21 +81,17 @@ void clear_selection(void)
 
 /*
  * User settable table: what characters are to be considered alphabetic?
- * 256 bits. Locked by the console lock.
+ * 128 bits. Locked by the console lock.
  */
-static u32 inwordLut[8]={
+static u32 inwordLut[]={
   0x00000000, /* control chars     */
-  0x03FF0000, /* digits            */
+  0x03FFE000, /* digits and "-./"  */
   0x87FFFFFE, /* uppercase and '_' */
   0x07FFFFFE, /* lowercase         */
-  0x00000000,
-  0x00000000,
-  0xFF7FFFFF, /* latin-1 accented letters, not multiplication sign */
-  0xFF7FFFFF  /* latin-1 accented letters, not division sign */
 };
 
 static inline int inword(const u16 c) {
-	return c > 0xff || (( inwordLut[c>>5] >> (c & 0x1F) ) & 1);
+	return c > 0x7f || (( inwordLut[c>>5] >> (c & 0x1F) ) & 1);
 }
 
 /**
@@ -109,10 +103,10 @@ static inline int inword(const u16 c) {
  */
 int sel_loadlut(char __user *p)
 {
-	u32 tmplut[8];
-	if (copy_from_user(tmplut, (u32 __user *)(p+4), 32))
+	u32 tmplut[ARRAY_SIZE(inwordLut)];
+	if (copy_from_user(tmplut, (u32 __user *)(p+4), sizeof(inwordLut)))
 		return -EFAULT;
-	memcpy(inwordLut, tmplut, 32);
+	memcpy(inwordLut, tmplut, sizeof(inwordLut));
 	return 0;
 }
 
@@ -159,14 +153,14 @@ static int store_utf8(u16 c, char *p)
  *	The entire selection process is managed under the console_lock. It's
  *	 a lot under the lock but its hardly a performance path
  */
-static int __set_selection(const struct tiocl_selection __user *sel, struct tty_struct *tty)
+int set_selection(const struct tiocl_selection __user *sel, struct tty_struct *tty)
 {
 	struct vc_data *vc = vc_cons[fg_console].d;
 	int sel_mode, new_sel_start, new_sel_end, spc;
 	char *bp, *obp;
 	int i, ps, pe, multiplier;
 	u16 c;
-	int mode, ret = 0;
+	int mode;
 
 	poke_blanked_console();
 
@@ -327,21 +321,7 @@ static int __set_selection(const struct tiocl_selection __user *sel, struct tty_
 		}
 	}
 	sel_buffer_lth = bp - sel_buffer;
-
-	return ret;
-}
-
-int set_selection(const struct tiocl_selection __user *v, struct tty_struct *tty)
-{
-	int ret;
-
-	mutex_lock(&sel_lock);
-	console_lock();
-	ret = __set_selection(v, tty);
-	console_unlock();
-	mutex_unlock(&sel_lock);
-
-	return ret;
+	return 0;
 }
 
 /* Insert the contents of the selection buffer into the
@@ -364,13 +344,14 @@ int paste_selection(struct tty_struct *tty)
 	console_unlock();
 
 	ld = tty_ldisc_ref_wait(tty);
+	if (!ld)
+		return -EIO;	/* ldisc was hung up */
 	tty_buffer_lock_exclusive(&vc->port);
 
 	add_wait_queue(&vc->paste_wait, &wait);
-	mutex_lock(&sel_lock);
 	while (sel_buffer && sel_buffer_lth > pasted) {
 		set_current_state(TASK_INTERRUPTIBLE);
-		if (test_bit(TTY_THROTTLED, &tty->flags)) {
+		if (tty_throttled(tty)) {
 			schedule();
 			continue;
 		}
@@ -380,7 +361,6 @@ int paste_selection(struct tty_struct *tty)
 					      count);
 		pasted += count;
 	}
-	mutex_unlock(&sel_lock);
 	remove_wait_queue(&vc->paste_wait, &wait);
 	__set_current_state(TASK_RUNNING);
 

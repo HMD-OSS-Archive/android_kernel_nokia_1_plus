@@ -1619,15 +1619,18 @@ kal_uint16 addr_data_pair_enable_pdaf_vc_full_size[] = {
 static void sensor_enable_pdaf_vc_full_size(void)
 {
 	table_write_cmos_sensor_byte(addr_data_pair_enable_pdaf_vc_full_size,
-				     sizeof(addr_data_pair_enable_pdaf_vc_full_size) / sizeof(kal_uint16));
+		sizeof(addr_data_pair_enable_pdaf_vc_full_size)
+		/ sizeof(kal_uint16));
 	g_pdaf_vc_full_size_enabled = KAL_TRUE;
 }
 
 static void sensor_disable_pdaf_vc_full_size_if_enabled(void)
 {
 	if (g_pdaf_vc_full_size_enabled) {
-		table_write_cmos_sensor_byte(addr_data_pair_disable_pdaf_vc_full_size,
-					     sizeof(addr_data_pair_disable_pdaf_vc_full_size) / sizeof(kal_uint16));
+		table_write_cmos_sensor_byte(
+			addr_data_pair_disable_pdaf_vc_full_size,
+			sizeof(addr_data_pair_disable_pdaf_vc_full_size)
+			/ sizeof(kal_uint16));
 		g_pdaf_vc_full_size_enabled = KAL_FALSE;
 	}
 }
@@ -1638,7 +1641,8 @@ static void sensor_init_v1(void)
 	mdelay(1);
 
 	table_write_cmos_sensor_byte(addr_data_pair_init_ov13870_v1,
-				     sizeof(addr_data_pair_init_ov13870_v1) / sizeof(kal_uint16));
+		sizeof(addr_data_pair_init_ov13870_v1)
+		/ sizeof(kal_uint16));
 }
 
 
@@ -1649,7 +1653,8 @@ static void preview_setting_v1(void)
 
 	/* 2112X1568_60FPS_MIPI_4_LANE_656Mbps */
 	table_write_cmos_sensor_byte(addr_data_pair_preview_ov13870_v1,
-				     sizeof(addr_data_pair_preview_ov13870_v1) / sizeof(kal_uint16));
+		sizeof(addr_data_pair_preview_ov13870_v1)
+		/ sizeof(kal_uint16));
 
 	write_cmos_sensor_byte(0x0100, 0x01);
 }
@@ -1659,7 +1664,8 @@ static void capture_setting_v1(void)
 	write_cmos_sensor_byte(0x0100, 0x00);
 	/* 4224X3136_FULL_30FPS_MIPI_4_LANE_1200Mbps */
 	table_write_cmos_sensor_byte(addr_data_pair_capture_ov13870_v1,
-				     sizeof(addr_data_pair_capture_ov13870_v1) / sizeof(kal_uint16));
+		sizeof(addr_data_pair_capture_ov13870_v1)
+		/ sizeof(kal_uint16));
 	write_cmos_sensor_byte(0x0100, 0x01);
 }
 
@@ -1668,7 +1674,8 @@ static void capture_setting_pdaf_raw_v1(void)
 	write_cmos_sensor_byte(0x0100, 0x00);
 	/* 4224X3136_FULL_30FPS_MIPI_4_LANE_1200Mbps with pdaf raw */
 	table_write_cmos_sensor_byte(addr_data_pair_capture_ov13870_v1,
-				     sizeof(addr_data_pair_capture_ov13870_v1) / sizeof(kal_uint16));
+		sizeof(addr_data_pair_capture_ov13870_v1)
+		/ sizeof(kal_uint16));
 	write_cmos_sensor_byte(0x5001, 0x04);
 	write_cmos_sensor_byte(0x0100, 0x01);
 }
@@ -1678,7 +1685,8 @@ static void capture_setting_pdaf_vc_v1(void)
 	write_cmos_sensor_byte(0x0100, 0x00);
 	/* 4224X3136_FULL_30FPS_MIPI_4_LANE_1200Mbps with pdaf vc */
 	table_write_cmos_sensor_byte(addr_data_pair_capture_ov13870_v1,
-				     sizeof(addr_data_pair_capture_ov13870_v1) / sizeof(kal_uint16));
+		sizeof(addr_data_pair_capture_ov13870_v1)
+		/ sizeof(kal_uint16));
 
 	sensor_enable_pdaf_vc_full_size();
 	write_cmos_sensor_byte(0x0100, 0x01);
@@ -1691,7 +1699,8 @@ static void normal_video_setting_v1(void)
 
 	/* 4224X2376_FULL_16_9_30FPS_MIPI_4_LANE_1200Mbps */
 	table_write_cmos_sensor_byte(addr_data_pair_normal_video_ov13870_v1,
-				     sizeof(addr_data_pair_normal_video_ov13870_v1) / sizeof(kal_uint16));
+		sizeof(addr_data_pair_normal_video_ov13870_v1)
+		/ sizeof(kal_uint16));
 
 	write_cmos_sensor_byte(0x0100, 0x01);
 }
@@ -1704,7 +1713,8 @@ static void hs_video_setting_v1(void)
 
 	/* 1056X784_120FPS_MIPI_4_LANE_600Mbps */
 	table_write_cmos_sensor_byte(addr_data_pair_hs_video_ov13870_v1,
-				     sizeof(addr_data_pair_hs_video_ov13870_v1) / sizeof(kal_uint16));
+		sizeof(addr_data_pair_hs_video_ov13870_v1)
+		/ sizeof(kal_uint16));
 
 	write_cmos_sensor_byte(0x0100, 0x01);
 }
@@ -1716,7 +1726,8 @@ static void slim_video_setting_v1(void)
 
 	/* 1056X784_30FPS_MIPI_4_LANE_600Mbps */
 	table_write_cmos_sensor_byte(addr_data_pair_slim_video_ov13870_v1,
-				     sizeof(addr_data_pair_slim_video_ov13870_v1) / sizeof(kal_uint16));
+		sizeof(addr_data_pair_slim_video_ov13870_v1)
+		/ sizeof(kal_uint16));
 
 	write_cmos_sensor_byte(0x0100, 0x01);
 }

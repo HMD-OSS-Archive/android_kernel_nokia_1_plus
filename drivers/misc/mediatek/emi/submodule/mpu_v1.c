@@ -19,6 +19,7 @@
 #include <linux/of.h>
 #include <linux/of_irq.h>
 #include <linux/printk.h>
+#include <linux/memblock.h>
 #include <mt-plat/sync_write.h>
 #include <mt-plat/mtk_io.h>
 #include <mt-plat/mtk_meminfo.h>
@@ -44,6 +45,10 @@ static void __iomem *CEN_EMI_BASE;
 static void (*check_violation_cb)(void);
 static const char *UNKNOWN_MASTER = "unknown";
 static unsigned int show_region;
+
+#ifdef MPU_BYPASS
+static unsigned int init_flag;
+#endif
 
 static unsigned int match_id(
 	unsigned int axi_id, unsigned int tbl_idx, unsigned int port_id)
@@ -87,8 +92,8 @@ static void clear_violation(void)
 	mput = readl(IOMEM(EMI_MPUT));
 
 	if (mpus) {
-		pr_err("[MPU] fail to clear violation\n");
-		pr_err("[MPU] EMI_MPUS: %x, EMI_MPUT: %x\n", mpus, mput);
+		pr_info("[MPU] fail to clear violation\n");
+		pr_info("[MPU] EMI_MPUS: %x, EMI_MPUT: %x\n", mpus, mput);
 	}
 }
 
@@ -141,9 +146,18 @@ static void check_violation(void)
 	else if (wr_oo_vio == 2)
 		pr_info("[MPU] read out-of-range violation\n");
 
+#ifdef MPU_BYPASS
+	if (bypass_violation(mpus, &init_flag)) {
+		pr_info("[MPU] bypass flow\n");
+		clear_violation();
+		clear_md_violation();
+		return;
+	}
+#endif
+
 #ifdef CONFIG_MTK_AEE_FEATURE
 	if (wr_vio != 0) {
-		if (is_md_master(master_id)) {
+		if (is_md_master(master_id, domain_id)) {
 			char str[CCCI_STR_MAX_LEN] = "0";
 
 			snprintf(str, CCCI_STR_MAX_LEN,
@@ -184,7 +198,7 @@ int emi_mpu_set_protection(struct emi_region_info_t *region_info)
 	int i;
 
 	if (region_info->region >= EMI_MPU_REGION_NUM) {
-		pr_err("[MPU] can not support region %u\n",
+		pr_info("[MPU] can not support region %u\n",
 			region_info->region);
 		return -1;
 	}
@@ -205,7 +219,7 @@ EXPORT_SYMBOL(emi_mpu_set_protection);
 int emi_mpu_clear_protection(struct emi_region_info_t *region_info)
 {
 	if (region_info->region > EMI_MPU_REGION_NUM) {
-		pr_err("[MPU] can not support region %u\n",
+		pr_info("[MPU] can not support region %u\n",
 			region_info->region);
 		return -1;
 	}
@@ -215,7 +229,7 @@ int emi_mpu_clear_protection(struct emi_region_info_t *region_info)
 	return 0;
 }
 
-static ssize_t mpu_show(struct device_driver *driver, char *buf)
+static ssize_t mpu_config_show(struct device_driver *driver, char *buf)
 {
 	ssize_t ret = 0;
 	unsigned int i;
@@ -273,10 +287,11 @@ static ssize_t mpu_show(struct device_driver *driver, char *buf)
 	return strlen(buf);
 }
 
-static ssize_t mpu_store(
-	struct device_driver *driver, const char *buf, size_t count)
+static ssize_t mpu_config_store
+	(struct device_driver *driver, const char *buf, size_t count)
 {
 	char *command;
+	char *backup_command;
 	char *ptr;
 	char *token[EMI_MPU_MAX_TOKEN];
 	static struct emi_region_info_t region_info;
@@ -291,9 +306,10 @@ static ssize_t mpu_store(
 		return count;
 	}
 
-	pr_info("[MPU] mpu_store: %s\n", buf);
+	pr_info("[MPU] store: %s\n", buf);
 
 	command = kmalloc((size_t) EMI_MPU_MAX_CMD_LEN, GFP_KERNEL);
+	backup_command = command;
 	if (!command)
 		return count;
 	strncpy(command, buf, (size_t) EMI_MPU_MAX_CMD_LEN);
@@ -375,24 +391,23 @@ static ssize_t mpu_store(
 			emi_mpu_clear_protection(&region_info);
 		}
 	} else
-		pr_info("[MPU] unknown mpu_store command\n");
+		pr_info("[MPU] unknown store command\n");
 
 mpu_store_end:
-	kfree(command);
+	kfree(backup_command);
 
 	return count;
 }
 
-DRIVER_ATTR(mpu_config, 0644, mpu_show, mpu_store);
+static DRIVER_ATTR_RW(mpu_config);
 
 #if ENABLE_AP_REGION
 static void protect_ap_region(void)
 {
 	struct emi_region_info_t region_info;
 
-	region_info.start = (unsigned long long)DRAM_OFFSET;
-	region_info.end = (unsigned long long)DRAM_OFFSET +
-		get_max_DRAM_size();
+	region_info.start = (unsigned long long)memblock_start_of_DRAM();
+	region_info.end = (unsigned long long)memblock_end_of_DRAM() - 1;
 	region_info.region = AP_REGION_ID;
 	set_ap_region_permission(region_info.apc);
 
@@ -431,6 +446,10 @@ void mpu_init(struct platform_driver *emi_ctrl, struct platform_device *pdev)
 
 	CEN_EMI_BASE = mt_cen_emi_base_get();
 
+#ifdef MPU_BYPASS
+	bypass_init(&init_flag);
+#endif
+
 	if (!check_violation_cb)
 		check_violation_cb = check_violation;
 	if (readl(IOMEM(EMI_MPUS))) {
@@ -446,7 +465,7 @@ void mpu_init(struct platform_driver *emi_ctrl, struct platform_device *pdev)
 		ret = request_irq(mpu_irq, (irq_handler_t)violation_irq,
 			IRQF_TRIGGER_NONE, "mpu", emi_ctrl);
 		if (ret != 0) {
-			pr_err("[MPU] fail to request IRQ (%d)\n", ret);
+			pr_info("[MPU] fail to request IRQ (%d)\n", ret);
 			return;
 		}
 	}
@@ -462,14 +481,14 @@ void mpu_init(struct platform_driver *emi_ctrl, struct platform_device *pdev)
 #if !defined(USER_BUILD_KERNEL)
 	ret = driver_create_file(&emi_ctrl->driver, &driver_attr_mpu_config);
 	if (ret)
-		pr_err("[MPU] fail to create mpu_config\n");
+		pr_info("[MPU] fail to create mpu_config\n");
 #endif
 }
 
 int emi_mpu_check_register(void (*cb_func)(void))
 {
 	if (!cb_func) {
-		pr_err("%s%d: cb_func is NULL\n", __func__, __LINE__);
+		pr_info("%s%d: cb_func is NULL\n", __func__, __LINE__);
 		return -EINVAL;
 	}
 
@@ -478,3 +497,8 @@ int emi_mpu_check_register(void (*cb_func)(void))
 }
 EXPORT_SYMBOL(emi_mpu_check_register);
 
+void clear_md_violation(void)
+{
+	mt_reg_sync_writel(0x80000000, EMI_MPUT_2ND);
+}
+EXPORT_SYMBOL(clear_md_violation);

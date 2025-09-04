@@ -84,6 +84,8 @@ typedef enum {
 	GED_DVFS_VSYNC_OFFSET_VR_EVENT = 10,
 	GED_DVFS_BOOST_HOST_EVENT = 11,
 	GED_DVFS_VSYNC_OFFSET_VILTE_VID_EVENT = 12,
+	GED_DVFS_VSYNC_OFFSET_LOW_LATENCY_MODE_EVENT = 13,
+	GED_DVFS_VSYNC_OFFSET_DHWC_EVENT = 14,
 } GED_DVFS_VSYNC_OFFSET_SWITCH_CMD;
 
 typedef enum {
@@ -116,13 +118,13 @@ typedef struct GED_DVFS_UM_QUERY_PACK_TAG {
 	char bFirstBorn;
 	unsigned int ui32GPULoading;
 	unsigned int ui32GPUFreqID;
-	unsigned long gpu_cur_freq;
-	unsigned long gpu_pre_freq;
+	unsigned int gpu_cur_freq;
+	unsigned int gpu_pre_freq;
 	long long usT;
 	long long nsOffset;
-	unsigned long ul3DFenceDoneTime;
-	unsigned long ulPreCalResetTS_us;
-	unsigned long ulWorkingPeriod_us;
+	unsigned long long ul3DFenceDoneTime;
+	unsigned long long ulPreCalResetTS_us;
+	unsigned long long ulWorkingPeriod_us;
 	unsigned int ui32TargetPeriod_us;
 	unsigned int ui32BoostValue;
 } GED_DVFS_UM_QUERY_PACK;

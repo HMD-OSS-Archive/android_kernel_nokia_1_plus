@@ -29,22 +29,22 @@
 #include "private/tmem_error.h"
 #include "private/tmem_device.h"
 
-static int tmem_ssmr_get(u64 *pa, u32 *size, u32 feat, void *priv)
+static int tmem_ssmr_get(u64 *pa, u32 *size, u32 feat, void *dev_desc)
 {
 #if defined(CONFIG_MTK_SSMR) || (defined(CONFIG_CMA) && defined(CONFIG_MTK_SVP))
 	phys_addr_t ssmr_pa;
 	unsigned long ssmr_size;
 
-	UNUSED(priv);
+	UNUSED(dev_desc);
 
 	if (ssmr_offline(&ssmr_pa, &ssmr_size, true, feat)) {
-		pr_err("ssmr offline falied!\n");
+		pr_err("ssmr offline failed (feat:%d)!\n", feat);
 		return TMEM_SSMR_OFFLINE_FAILED;
 	}
 
 	*pa = (u64)ssmr_pa;
 	*size = (u32)ssmr_size;
-	if (INVALD_ADDR(*pa) || INVALD_SIZE(*size)) {
+	if (INVALID_ADDR(*pa) || INVALID_SIZE(*size)) {
 		pr_err("ssmr pa is invalid (0x%llx, 0x%x)\n", *pa, *size);
 		return TMEM_INVALID_ADDR_OR_SIZE;
 	}
@@ -58,12 +58,12 @@ static int tmem_ssmr_get(u64 *pa, u32 *size, u32 feat, void *priv)
 #endif
 }
 
-static int tmem_ssmr_put(u32 feat, void *priv)
+static int tmem_ssmr_put(u32 feat, void *dev_desc)
 {
-	UNUSED(priv);
+	UNUSED(dev_desc);
 #if defined(CONFIG_MTK_SSMR) || (defined(CONFIG_CMA) && defined(CONFIG_MTK_SVP))
 	if (ssmr_online(feat)) {
-		pr_err("ssmr online failed!\n");
+		pr_err("ssmr online failed (feat:%d)!\n", feat);
 		return TMEM_SSMR_ONLINE_FAILED;
 	}
 

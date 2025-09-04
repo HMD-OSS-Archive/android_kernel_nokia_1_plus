@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 MediaTek Inc.
+ * Copyright (C) 2017 MediaTek Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -33,23 +33,27 @@
 #else
 
 struct thermal_cooling_device_ops_extra {
-	int (*set_cur_temp)(struct thermal_cooling_device *, unsigned long);
+	int (*set_cur_temp)(struct thermal_cooling_device *cdev,
+		unsigned long temperature);
 };
 
 extern
 struct thermal_zone_device *mtk_thermal_zone_device_register_wrapper
-(char *type, int trips, void *devdata, const struct thermal_zone_device_ops *ops,
+(char *type, int trips, void *devdata,
+const struct thermal_zone_device_ops *ops,
 int tc1, int tc2, int passive_delay, int polling_delay);
 
 extern
-void mtk_thermal_zone_device_unregister_wrapper(struct thermal_zone_device *tz);
+void mtk_thermal_zone_device_unregister_wrapper
+(struct thermal_zone_device *tz);
 
 extern
 struct thermal_cooling_device *mtk_thermal_cooling_device_register_wrapper
 (char *type, void *devdata, const struct thermal_cooling_device_ops *ops);
 
 extern
-struct thermal_cooling_device *mtk_thermal_cooling_device_register_wrapper_extra
+struct thermal_cooling_device
+*mtk_thermal_cooling_device_register_wrapper_extra
 (char *type, void *devdata, const struct thermal_cooling_device_ops *ops,
 const struct thermal_cooling_device_ops_extra *ops_ext);
 
@@ -58,17 +62,29 @@ int mtk_thermal_cooling_device_add_exit_point
 (struct thermal_cooling_device *cdev, int exit_point);
 
 extern
-void mtk_thermal_cooling_device_unregister_wrapper(struct thermal_cooling_device *cdev);
+void mtk_thermal_cooling_device_unregister_wrapper
+(struct thermal_cooling_device *cdev);
 
 extern int mtk_thermal_zone_bind_cooling_device_wrapper
-(struct thermal_zone_device *tz, int trip, struct thermal_cooling_device *cdev);
+(struct thermal_zone_device *tz, int trip,
+struct thermal_cooling_device *cdev);
 
-extern int mtk_thermal_zone_bind_trigger_trip(struct thermal_zone_device *tz, int trip, int mode);
-#define mtk_thermal_zone_device_register      mtk_thermal_zone_device_register_wrapper
-#define mtk_thermal_zone_device_unregister    mtk_thermal_zone_device_unregister_wrapper
-#define mtk_thermal_cooling_device_unregister mtk_thermal_cooling_device_unregister_wrapper
-#define mtk_thermal_cooling_device_register   mtk_thermal_cooling_device_register_wrapper
-#define mtk_thermal_zone_bind_cooling_device  mtk_thermal_zone_bind_cooling_device_wrapper
+extern int mtk_thermal_zone_bind_trigger_trip
+(struct thermal_zone_device *tz, int trip, int mode);
+#define mtk_thermal_zone_device_register	\
+		mtk_thermal_zone_device_register_wrapper
+
+#define mtk_thermal_zone_device_unregister	\
+		mtk_thermal_zone_device_unregister_wrapper
+
+#define mtk_thermal_cooling_device_unregister	\
+		mtk_thermal_cooling_device_unregister_wrapper
+
+#define mtk_thermal_cooling_device_register	\
+		mtk_thermal_cooling_device_register_wrapper
+
+#define mtk_thermal_zone_bind_cooling_device	\
+		mtk_thermal_zone_bind_cooling_device_wrapper
 
 #endif
 
@@ -88,6 +104,7 @@ enum mtk_thermal_sensor_id {
 	MTK_THERMAL_SENSOR_SKIN,
 	MTK_THERMAL_SENSOR_XTAL,
 	MTK_THERMAL_SENSOR_MD_PA,
+	MTK_THERMAL_SENSOR_DCTM,
 
 	MTK_THERMAL_SENSOR_COUNT
 };

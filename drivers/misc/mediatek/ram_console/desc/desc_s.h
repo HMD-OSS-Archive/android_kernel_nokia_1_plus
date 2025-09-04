@@ -88,7 +88,11 @@ static char *per_cpu_buf[] = {
 };
 
 static struct last_reboot_reason dummy_var;
-#define DF_C(type, member) {type, offsetof(struct last_reboot_reason, member), sizeof(typeof(dummy_var.member))}
+#define DF_C(type, member) { \
+	type, \
+	offsetof(struct last_reboot_reason, member), \
+	sizeof(typeof(dummy_var.member)) \
+	}
 
 #undef DF
 #define DF(member, fmt) \
@@ -154,9 +158,12 @@ static int ram_console_init_desc(uint32_t off_linux)
 		if (per_cpu_buf[i] != NULL) {
 			len = strlen(per_cpu_buf[i]);
 			if (len < FMT_MAX_LEN) {
-				strncpy(idesc.per_cpu_desc[i].fmt, per_cpu_buf[i], FMT_MAX_LEN);
-				idesc.per_cpu_desc[i].fmt[FMT_MAX_LEN - 1] = '\0';
-				idesc.per_cpu_desc[i].fmtsize = strlen(idesc.per_cpu_desc[i].fmt);
+				strncpy(idesc.per_cpu_desc[i].fmt,
+					per_cpu_buf[i], FMT_MAX_LEN);
+				idesc.per_cpu_desc[i].fmt[FMT_MAX_LEN - 1] =
+					'\0';
+				idesc.per_cpu_desc[i].fmtsize =
+					strlen(idesc.per_cpu_desc[i].fmt);
 			} else {
 				/* idesc.per_cpu_desc[i].size = i; */
 				idesc.per_cpu_desc[i].type = 0x0;

@@ -53,7 +53,7 @@ extern void mt_usb11_clock_unprepare(void);
 #endif
 /* NOTE:  these offsets are all in bytes */
 
-static inline u16 musbfsh_readw(const void __iomem *addr, unsigned offset)
+static inline u16 musbfsh_readw(const void __iomem *addr, unsigned int offset)
 {
 	u16 rc = 0;
 
@@ -81,7 +81,7 @@ static inline u16 musbfsh_readw(const void __iomem *addr, unsigned offset)
 	return rc;
 }
 
-static inline u32 musbfsh_readl(const void __iomem *addr, unsigned offset)
+static inline u32 musbfsh_readl(const void __iomem *addr, unsigned int offset)
 {
 	u32 rc = 0;
 
@@ -110,7 +110,8 @@ static inline u32 musbfsh_readl(const void __iomem *addr, unsigned offset)
 }
 
 
-static inline void musbfsh_writew(void __iomem *addr, unsigned offset, u16 data)
+static inline void
+musbfsh_writew(void __iomem *addr, unsigned int offset, u16 data)
 {
 	if (musbfsh_power) {
 		writew(data, addr + offset);
@@ -135,7 +136,8 @@ static inline void musbfsh_writew(void __iomem *addr, unsigned offset, u16 data)
 	}
 }
 
-static inline void musbfsh_writel(void __iomem *addr, unsigned offset, u32 data)
+static inline void
+musbfsh_writel(void __iomem *addr, unsigned int offset, u32 data)
 {
 	if (musbfsh_power) {
 		writel(data, addr + offset);
@@ -161,7 +163,7 @@ static inline void musbfsh_writel(void __iomem *addr, unsigned offset, u32 data)
 }
 
 
-static inline u8 musbfsh_readb(const void __iomem *addr, unsigned offset)
+static inline u8 musbfsh_readb(const void __iomem *addr, unsigned int offset)
 {
 	u8 rc = 0;
 
@@ -189,7 +191,8 @@ static inline u8 musbfsh_readb(const void __iomem *addr, unsigned offset)
 	return rc;
 }
 
-static inline void musbfsh_writeb(void __iomem *addr, unsigned offset, u8 data)
+static inline void
+musbfsh_writeb(void __iomem *addr, unsigned int offset, u8 data)
 {
 	if (musbfsh_power) {
 		writeb(data, addr + offset);

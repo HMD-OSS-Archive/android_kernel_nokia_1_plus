@@ -22,28 +22,23 @@ static const struct of_device_id bring_up_id_table[] = {
 	{ .compatible = "mediatek,clk-bring-up",},
 	{ .compatible = "mediatek,mt8163-bring-up",},
 	{ .compatible = "mediatek,mt8173-bring-up",},
-	{ .compatible = "mediatek,elbrus-bring-up",},
-	{ .compatible = "mediatek,mt6799-bring-up",},
 	{ },
 };
 MODULE_DEVICE_TABLE(of, bring_up_id_table);
 
 static int bring_up_probe(struct platform_device *pdev)
 {
-	const int NR_CLKS = 420;
+	const int NR_CLKS = 300;
 	char clk_name_buf[16];
 	struct clk *clk;
 	int i;
 
-	pr_debug("ccf bring up\r\n");
 	for (i = 0; i < NR_CLKS; i++) {
 		sprintf(clk_name_buf, "%d", i);
 
 		clk = devm_clk_get(&pdev->dev, clk_name_buf);
-		if (!IS_ERR(clk)) {
+		if (!IS_ERR(clk))
 			clk_prepare_enable(clk);
-			/*pr_debug("%d: %10ldhz, %d\r\n", i, clk_get_rate(clk), clk->enable_count);*/
-		}
 	}
 
 	return 0;

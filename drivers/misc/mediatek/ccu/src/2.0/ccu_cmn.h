@@ -19,17 +19,6 @@
 #include <linux/interrupt.h>
 #include "ccu_drv.h"
 
-#ifdef MTK_CCU_EMULATOR
-/*#define CCUI_OF_M4U_PORT M4U_PORT_CAM_IMGI*/
-/*#define CCUI_OF_M4U_PORT M4U_PORT_CAM_CCUI*/
-/*#define CCUO_OF_M4U_PORT M4U_PORT_CAM_CCUO*/
-/*#define CCUG_OF_M4U_PORT M4U_PORT_CAM_CCUG*/
-#else
-#define CCUI_OF_M4U_PORT M4U_PORT_CAM_CCUI
-#define CCUO_OF_M4U_PORT M4U_PORT_CAM_CCUO
-#define CCUG_OF_M4U_PORT M4U_PORT_CAM_CCUG
-#endif
-
 /* Common Structure */
 enum ccu_req_type_e {
 	CCU_IRQ_TYPE_XXX,
@@ -121,10 +110,11 @@ struct ccu_cmd_s_list {
 	struct list_head link;
 };
 
-/* =============================== define in ccu_hw.c  ================================ */
+/* ===== define in ccu_hw.c  ===== */
 
 /**
- * ccu_init_hw - init the procedure related to hw, include irq register and enque thread
+ * ccu_init_hw - init the procedure related to hw,
+ * include irq register and enque thread
  * @device:     the pointer of ccu_device.
  */
 int ccu_init_hw(struct ccu_device_s *device);
@@ -185,7 +175,7 @@ int ccu_read_info_reg(int regNo);
 int ccu_query_power_status(void);
 
 
-/* =============================== define in ccu_drv.c  =============================== */
+/* ===== define in ccu_drv.c  ===== */
 
 /**
  * ccu_create_user - create ccu user, and add to user list
@@ -220,7 +210,8 @@ int ccu_push_command_to_queue(struct ccu_user_s *user, struct ccu_cmd_s *cmd);
  * @user:       the pointer to user.
  * @rcmd:      return the command to be removed.
  */
-int ccu_pop_command_from_queue(struct ccu_user_s *user, struct ccu_cmd_s **rcmd);
+int ccu_pop_command_from_queue(struct ccu_user_s *user,
+	struct ccu_cmd_s **rcmd);
 
 
 /**
@@ -245,13 +236,18 @@ void ccu_clock_disable(void);
 /* LOG & AEE */
 #define CCU_TAG "[ccu]"
 
-#define LOG_DBG_MUST(format, args...)    pr_debug(CCU_TAG "[%s] " format, __func__, ##args)
-#define LOG_INF_MUST(format, args...)    pr_info(CCU_TAG "[%s] " format, __func__, ##args)
+#define LOG_DBG_MUST(format, args...) \
+	pr_debug(CCU_TAG "[%s] " format, __func__, ##args)
+#define LOG_INF_MUST(format, args...) \
+	pr_info(CCU_TAG "[%s] " format, __func__, ##args)
 #define LOG_DBG(format, args...)
 #define LOG_INF(format, args...)
-#define LOG_WARN(format, args...)    pr##_##warn(CCU_TAG "[%s] " format, __func__, ##args)
-#define LOG_ERR(format, args...)    pr##_##err(CCU_TAG "[%s] " format, __func__, ##args)
-#define LOG_DERR(device, format, args...)    dev##_##err(device, CCU_TAG "[%s] " format, __func__, ##args)
+#define LOG_WARN(format, args...) \
+	pr##_##warn(CCU_TAG "[%s] " format, __func__, ##args)
+#define LOG_ERR(format, args...) \
+	pr##_##err(CCU_TAG "[%s] " format, __func__, ##args)
+#define LOG_DERR(device, format, args...) \
+	dev##_##err(device, CCU_TAG "[%s] " format, __func__, ##args)
 
 #define ccu_print_seq(seq_file, fmt, args...) \
 		do {\
@@ -264,15 +260,17 @@ void ccu_clock_disable(void);
 #define ccu_error(format, args...) \
 		do {\
 			LOG_ERR(CCU_TAG " error:"format, ##args);  \
-			aee_kernel_exception("CCU", "[CCU] error:"format, ##args);  \
+			aee_kernel_exception("CCU", \
+				"[CCU] error:"format, ##args);  \
 		} while (0)
 
 #define ccu_aee(format, args...) \
 		do {\
 			char ccu_name[100];\
 			snprintf(ccu_name, 100, CCU_TAG format, ##args); \
-			aee_kernel_warning_api(__FILE__, __LINE__, DB_OPT_MMPROFILE_BUFFER | DB_OPT_DUMP_DISPLAY, \
+			aee_kernel_warning_api(__FILE__, __LINE__, \
+			DB_OPT_MMPROFILE_BUFFER | DB_OPT_DUMP_DISPLAY, \
 			ccu_name, CCU_TAG "error" format, ##args); \
-			LOG_ERR(CCU_TAG " error:" format, ##args);  \
+			LOG_ERR(CCU_TAG " error:" format, ##args); \
 		} while (0)
 #endif

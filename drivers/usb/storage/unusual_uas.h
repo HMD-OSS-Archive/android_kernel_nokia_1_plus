@@ -1,4 +1,5 @@
-/* Driver for USB Attached SCSI devices - Unusual Devices File
+/*
+ * Driver for USB Attached SCSI devices - Unusual Devices File
  *
  *   (c) 2013 Hans de Goede <hdegoede@redhat.com>
  *
@@ -182,3 +183,12 @@ UNUSUAL_DEV(0x4971, 0x8017, 0x0000, 0x9999,
 		"External HDD",
 		USB_SC_DEVICE, USB_PR_DEVICE, NULL,
 		US_FL_NO_REPORT_OPCODES),
+
+/* "G-DRIVE" external HDD hangs on write without these.
+ * Patch submitted by Alexander Kappner <agk@godking.net>
+ */
+UNUSUAL_DEV(0x4971, 0x8024, 0x0000, 0x9999,
+		"SimpleTech",
+		"External HDD",
+		USB_SC_DEVICE, USB_PR_DEVICE, NULL,
+		US_FL_ALWAYS_SYNC),

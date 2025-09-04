@@ -55,7 +55,7 @@ static bool is_session_ready(struct trusted_peer_session *sess_data)
 static int peer_mgr_chunk_alloc_locked(
 	u32 alignment, u32 size, u32 *refcount, u32 *sec_handle, u8 *owner,
 	u32 id, u32 clean, struct trusted_driver_operations *drv_ops,
-	struct trusted_peer_session *sess_data, void *peer_priv)
+	struct trusted_peer_session *sess_data, void *dev_desc)
 {
 	int ret;
 
@@ -69,10 +69,12 @@ static int peer_mgr_chunk_alloc_locked(
 
 	ret = drv_ops->memory_alloc(alignment, size, refcount, sec_handle,
 				    owner, id, clean, sess_data->peer_data,
-				    peer_priv);
+				    dev_desc);
 	if (ret != 0) {
 		pr_err("peer alloc size: 0x%x failed:%d\n", size, ret);
 		MGR_SESSION_UNLOCK();
+		if (ret == -ENOMEM)
+			return ret;
 		return TMEM_MGR_ALLOC_MEM_FAILED;
 	}
 
@@ -86,7 +88,7 @@ static int peer_mgr_chunk_alloc_locked(
 static int peer_mgr_chunk_free_locked(u32 sec_handle, uint8_t *owner, u32 id,
 				      struct trusted_driver_operations *drv_ops,
 				      struct trusted_peer_session *sess_data,
-				      void *peer_priv)
+				      void *dev_desc)
 {
 	int ret;
 
@@ -99,7 +101,7 @@ static int peer_mgr_chunk_free_locked(u32 sec_handle, uint8_t *owner, u32 id,
 	MGR_SESSION_LOCK();
 
 	ret = drv_ops->memory_free(sec_handle, owner, id, sess_data->peer_data,
-				   peer_priv);
+				   dev_desc);
 	if (ret != 0) {
 		pr_err("peer free chunk memory failed:%d\n", ret);
 		MGR_SESSION_UNLOCK();
@@ -118,7 +120,7 @@ static int peer_mgr_chunk_free_locked(u32 sec_handle, uint8_t *owner, u32 id,
 static int peer_mgr_mem_add_locked(u64 pa, u32 size,
 				   struct trusted_driver_operations *drv_ops,
 				   struct trusted_peer_session *sess_data,
-				   void *peer_priv)
+				   void *dev_desc)
 {
 	int ret;
 
@@ -130,7 +132,7 @@ static int peer_mgr_mem_add_locked(u64 pa, u32 size,
 
 	MGR_SESSION_LOCK();
 
-	ret = drv_ops->memory_grant(pa, size, sess_data->peer_data, peer_priv);
+	ret = drv_ops->memory_grant(pa, size, sess_data->peer_data, dev_desc);
 	if (ret != 0) {
 		pr_err("peer append reg mem failed:%d\n", ret);
 		MGR_SESSION_UNLOCK();
@@ -139,6 +141,7 @@ static int peer_mgr_mem_add_locked(u64 pa, u32 size,
 
 	sess_data->mem_pa_start = pa;
 	sess_data->mem_size = size;
+	sess_data->mem_size_runtime = size;
 
 	MGR_SESSION_UNLOCK();
 	return TMEM_OK;
@@ -146,7 +149,7 @@ static int peer_mgr_mem_add_locked(u64 pa, u32 size,
 
 static int peer_mgr_mem_remove_locked(struct trusted_driver_operations *drv_ops,
 				      struct trusted_peer_session *sess_data,
-				      void *peer_priv)
+				      void *dev_desc)
 {
 	int ret;
 
@@ -158,7 +161,7 @@ static int peer_mgr_mem_remove_locked(struct trusted_driver_operations *drv_ops,
 
 	MGR_SESSION_LOCK();
 
-	ret = drv_ops->memory_reclaim(sess_data->peer_data, peer_priv);
+	ret = drv_ops->memory_reclaim(sess_data->peer_data, dev_desc);
 	if (ret != 0) {
 		pr_err("peer release reg mem failed:%d\n", ret);
 		MGR_SESSION_UNLOCK();
@@ -175,7 +178,7 @@ static int peer_mgr_mem_remove_locked(struct trusted_driver_operations *drv_ops,
 static int
 peer_mgr_session_open_locked(struct trusted_driver_operations *drv_ops,
 			     struct trusted_peer_session *sess_data,
-			     void *peer_priv)
+			     void *dev_desc)
 {
 	int ret;
 
@@ -186,7 +189,7 @@ peer_mgr_session_open_locked(struct trusted_driver_operations *drv_ops,
 
 	MGR_SESSION_LOCK();
 
-	ret = drv_ops->session_open(&sess_data->peer_data, peer_priv);
+	ret = drv_ops->session_open(&sess_data->peer_data, dev_desc);
 	if (ret != 0) {
 		pr_err("peer open session failed:%d\n", ret);
 		MGR_SESSION_UNLOCK();
@@ -203,7 +206,7 @@ peer_mgr_session_open_locked(struct trusted_driver_operations *drv_ops,
 
 static int peer_mgr_session_close_locked(
 	bool keep_alive, struct trusted_driver_operations *drv_ops,
-	struct trusted_peer_session *sess_data, void *peer_priv)
+	struct trusted_peer_session *sess_data, void *dev_desc)
 {
 	int ret;
 
@@ -219,7 +222,7 @@ static int peer_mgr_session_close_locked(
 
 	MGR_SESSION_LOCK();
 
-	ret = drv_ops->session_close(sess_data->peer_data, peer_priv);
+	ret = drv_ops->session_close(sess_data->peer_data, dev_desc);
 	if (ret != 0) {
 		pr_err("peer close session failed:%d\n", ret);
 		MGR_SESSION_UNLOCK();
@@ -236,7 +239,7 @@ static int peer_mgr_session_close_locked(
 static int peer_mgr_session_invoke_cmd_locked(
 	struct trusted_driver_cmd_params *invoke_params,
 	struct trusted_driver_operations *drv_ops,
-	struct trusted_peer_session *sess_data, void *peer_priv)
+	struct trusted_peer_session *sess_data, void *dev_desc)
 {
 	int ret;
 
@@ -249,7 +252,7 @@ static int peer_mgr_session_invoke_cmd_locked(
 	MGR_SESSION_LOCK();
 
 	ret = drv_ops->invoke_cmd(invoke_params, sess_data->peer_data,
-				  peer_priv);
+				  dev_desc);
 	if (ret != 0) {
 		pr_err("peer invoke command failed:%d\n", ret);
 		MGR_SESSION_UNLOCK();

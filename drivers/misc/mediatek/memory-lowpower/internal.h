@@ -101,14 +101,14 @@ struct memory_lowpower_statistics {
  *
  * DCS:
  *  config - data collection, trigger LPDMA (4->2)
- *  enable - Notify PowerMCU to turn off high channels
- * disable - Notify PowerMCU to turn on high channels
+ *  enable - Notify sspm to turn off high channels
+ * disable - Notify sspm to turn on high channels
  * restore - trigger LPDMA (2->4)
  *
  * PASR:
  *  config - Identify banks/ranks, trigger APMCU flow
- *  enable - No operations (in the enable flow of DCS in PowerMCU/SPM)
- * disable - No operations (in the disable flow of DCS in PowerMCU/SPM)
+ *  enable - No operations (in the enable flow of DCS in sspm/SPM)
+ * disable - No operations (in the disable flow of DCS in sspm/SPM)
  * restore - Trigger APMCU flow for reset
  *
  * (Not absolutely)
@@ -117,17 +117,20 @@ struct memory_lowpower_statistics {
  */
 
 /* memory-lowpower-task APIs */
-extern phys_addr_t memory_lowpower_get_grab_lastsize(void);
 extern bool memory_lowpower_task_inited(void);
-extern void register_memory_lowpower_operation(struct memory_lowpower_operation *handler);
-extern void unregister_memory_lowpower_operation(struct memory_lowpower_operation *handler);
+extern void register_memory_lowpower_operation
+		(struct memory_lowpower_operation *handler);
+extern void unregister_memory_lowpower_operation
+		(struct memory_lowpower_operation *handler);
 
 /* memory-lowpower APIs */
 extern bool memory_lowpower_inited(void);
 extern int get_memory_lowpower_cma(void);
 extern int put_memory_lowpower_cma(void);
-extern int get_memory_lowpower_cma_aligned(int count, unsigned int align, struct page **pages, bool last);
-extern int put_memory_lowpower_cma_aligned(int count, struct page *pages, bool last);
+extern int get_memory_lowpower_cma_aligned(int count,
+		unsigned int align, struct page **pages, bool last);
+extern int put_memory_lowpower_cma_aligned(int count,
+		struct page *pages, bool last);
 extern int memory_lowpower_task_init(void);
 extern phys_addr_t memory_lowpower_base(void);
 extern phys_addr_t memory_lowpower_size(void);

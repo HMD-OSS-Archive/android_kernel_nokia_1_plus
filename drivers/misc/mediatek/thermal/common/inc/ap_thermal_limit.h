@@ -1,16 +1,16 @@
 
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ * Copyright (C) 2017 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ */
 
 #ifndef __AP_THERMAL_LIMIT_H__
 #define __AP_THERMAL_LIMIT_H__
@@ -19,6 +19,7 @@ struct apthermolmt_user {
 	char *log;
 	unsigned int cpu_limit;
 	unsigned int vpu_limit;
+	unsigned int mdla_limit;
 	unsigned int gpu_limit;
 	void *ptr;
 };
@@ -55,6 +56,13 @@ void apthermolmt_set_vpu_power_limit
  *	@limit 0x7FFFFFFF for unlimit
  */
 extern
+void apthermolmt_set_mdla_power_limit
+(struct apthermolmt_user *handle, unsigned int limit);
+
+/*
+ *	@limit 0x7FFFFFFF for unlimit
+ */
+extern
 void apthermolmt_set_gpu_power_limit
 (struct apthermolmt_user *handle, unsigned int limit);
 
@@ -76,9 +84,24 @@ extern
 unsigned int apthermolmt_get_cpu_power_limit(void);
 
 extern
+unsigned int apthermolmt_get_cpu_min_power(void);
+
+extern
 unsigned int apthermolmt_get_gpu_power_limit(void);
 
 extern
+unsigned int apthermolmt_get_gpu_min_power(void);
+
+extern
 unsigned int apthermolmt_get_vpu_power_limit(void);
+
+extern
+unsigned int apthermolmt_get_vpu_min_power(void);
+
+extern
+unsigned int apthermolmt_get_mdla_power_limit(void);
+
+extern
+unsigned int apthermolmt_get_mdla_min_power(void);
 
 #endif	/* __AP_THERMAL_LIMIT_H__ */

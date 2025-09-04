@@ -29,8 +29,13 @@
 
 int dfrc_allow_rrc_adjust_fps(void);
 
-long dfrc_set_kernel_policy(int api, int fps, int mode, int target_pid, unsigned long long gl_context_id);
-long dfrc_get_frr_setting(int pid, unsigned long long gl_context_id, int *fps, int *mode);
-long dfrc_get_frr_config(int pid, unsigned long long gl_context_id, int *fps, int *mode, int *api);
+long dfrc_set_kernel_policy(int api, int fps, int mode, int target_pid,
+				unsigned long long gl_context_id);
+
+long dfrc_get_frr_setting(int pid, unsigned long long gl_context_id,
+				int *fps, int *mode);
+
+long dfrc_get_frr_config(int pid, unsigned long long gl_context_id,
+				int *fps, int *mode, int *api);
 
 #endif

@@ -35,7 +35,8 @@ extern "C" {
  *   return VAL_RESULT_NO_ERROR if success,
  *   return VAL_RESULT_INVALID_DRIVER or VAL_RESULT_INVALID_MEMORY if failed
  */
-VAL_RESULT_T eHalInit(VAL_HANDLE_T *a_phHalHandle, HAL_CODEC_TYPE_T a_eHalCodecType);
+VAL_RESULT_T eHalInit(unsigned long *a_phHalHandle,
+			HAL_CODEC_TYPE_T a_eHalCodecType);
 
 
 /**
@@ -48,7 +49,7 @@ VAL_RESULT_T eHalInit(VAL_HANDLE_T *a_phHalHandle, HAL_CODEC_TYPE_T a_eHalCodecT
  * @par Returns
  *   VAL_RESULT_T, return VAL_RESULT_NO_ERROR if success, return else if failed
  */
-VAL_RESULT_T eHalDeInit(VAL_HANDLE_T *a_phHalHandle);
+VAL_RESULT_T eHalDeInit(unsigned long *a_phHalHandle);
 
 
 /**
@@ -61,9 +62,9 @@ VAL_RESULT_T eHalDeInit(VAL_HANDLE_T *a_phHalHandle);
  * @param
  *   RegAddr            [IN] hw register address
  * @par Returns
- *   VAL_UINT32_T, vitural address of hw register memory mapping
+ *   unsigned int, vitural address of hw register memory mapping
  */
-VAL_ULONG_T eHalGetMMAP(VAL_HANDLE_T *a_hHalHandle, VAL_UINT32_T RegAddr);
+unsigned long eHalGetMMAP(unsigned long *a_hHalHandle, unsigned int RegAddr);
 
 
 /**
@@ -83,10 +84,10 @@ VAL_ULONG_T eHalGetMMAP(VAL_HANDLE_T *a_hHalHandle, VAL_UINT32_T RegAddr);
  *   VAL_RESULT_T, return VAL_RESULT_NO_ERROR if success, return else if failed
  */
 VAL_RESULT_T eHalCmdProc(
-	VAL_HANDLE_T *a_hHalHandle,
+	unsigned long *a_hHalHandle,
 	HAL_CMD_T a_eHalCmd,
-	VAL_VOID_T *a_pvInParam,
-	VAL_VOID_T *a_pvOutParam
+	void *a_pvInParam,
+	void *a_pvOutParam
 );
 
 

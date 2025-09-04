@@ -41,10 +41,10 @@ struct nanohub_comms {
 	int timeout_write;
 	int timeout_ack;
 	int timeout_reply;
-	int (*open)(void *);
-	void (*close)(void *);
-	int (*write)(void *, u8 *, int, int);
-	int (*read)(void *, u8 *, int, int);
+	int (*open)(void *data);
+	void (*close)(void *data);
+	int (*write)(void *data, u8 *buf, int size, int timeout_w);
+	int (*read)(void *data, u8 *buf, int size, int timeout_r);
 
 	union {
 		struct i2c_client *i2c_client;
@@ -55,14 +55,20 @@ struct nanohub_comms {
 	u8 *rx_buffer;
 };
 
-int nanohub_comms_kernel_download(struct nanohub_data *, const u8 *,
-				  size_t);
-int nanohub_comms_app_download(struct nanohub_data *, const u8 *, size_t);
-int nanohub_comms_rx_retrans_boottime(struct nanohub_data *, u32,
-				      u8 *, size_t, int, int);
-int nanohub_comms_tx_rx_retrans(struct nanohub_data *, u32,
-				const u8 *, u8, u8 *, size_t,
-				bool, int, int);
+int nanohub_comms_kernel_download(struct nanohub_data *data,
+				  const u8 *image,
+				  size_t length);
+int nanohub_comms_app_download(struct nanohub_data *data,
+			       const u8 *image, size_t length);
+int nanohub_comms_rx_retrans_boottime(struct nanohub_data *data,
+				      u32 cmd, u8 *rx,
+				      size_t rx_len,
+				      int retrans_cnt,
+				      int retrans_delay);
+int nanohub_comms_tx_rx_retrans(struct nanohub_data *data, u32 cmd,
+				const u8 *tx, u8 tx_len,
+				u8 *rx, size_t rx_len, bool user,
+				int retrans_cnt, int retrans_delay);
 
 #define ERROR_NACK			-1
 #define ERROR_BUSY			-2

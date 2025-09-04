@@ -1,19 +1,19 @@
 /*
-* Copyright (C) 2015 MediaTek Inc.
-*
-* This program is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program.
-* If not, see <http://www.gnu.org/licenses/>.
-*/
+ * Copyright (C) 2015 MediaTek Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.
+ * If not, see <http://www.gnu.org/licenses/>.
+ */
 
 /*******************************************************************************
  *
@@ -36,7 +36,7 @@
  *------------------------------------------------------------------------------
  *
  *
- *******************************************************************************/
+ ******************************************************************************/
 
 #ifndef _AUDDRV_ANA_H_
 #define _AUDDRV_ANA_H_
@@ -289,6 +289,7 @@
 #define OTP_CON12           0x3a2
 #define OTP_CON13           0x3a4
 
+#define SMT_CON1            0x30
 #define DRV_CON3            0x3c
 #define GPIO_DIR0           0x88
 
@@ -303,6 +304,7 @@
 #define DCXO_CW13           0x7aa
 #define DCXO_CW14           0x7ac
 
+#define AUXADC_CON1         0x118e
 #define AUXADC_CON10        0x11a0
 
 void Ana_Set_Reg(unsigned int offset, unsigned int value, unsigned int mask);

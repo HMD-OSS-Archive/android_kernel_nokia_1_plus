@@ -21,9 +21,10 @@ void PanelMaster_Init(void);
 void PanelMaster_Deinit(void);
 int fb_config_execute_cmd(void);
 int fbconfig_get_esd_check_exec(void);
-extern int m4u_query_mva_info(unsigned int mva, unsigned int size,
-				  unsigned int *real_mva,
-				  unsigned int *real_size);
+#ifdef CONFIG_MTK_M4U
+int m4u_query_mva_info(unsigned int mva, unsigned int size,
+	unsigned int *real_mva, unsigned int *real_size);
+#endif
 #ifndef TOTAL_OVL_LAYER_NUM
 #define TOTAL_OVL_LAYER_NUM OVL_LAYER_NUM
 #endif
@@ -159,7 +160,8 @@ struct misc_property {
 };
 
 void Panel_Master_DDIC_config(void);
-int fbconfig_get_esd_check(enum DSI_INDEX dsi_id, uint32_t cmd, uint8_t *buffer, uint32_t num);
+int fbconfig_get_esd_check(enum DSI_INDEX dsi_id, uint32_t cmd,
+						uint8_t *buffer, uint32_t num);
 
 #include <linux/uaccess.h>
 #include <linux/compat.h>

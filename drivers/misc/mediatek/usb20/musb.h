@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 MediaTek Inc.
+ * Copyright (C) 2017 MediaTek Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -33,14 +33,23 @@ enum musb_mode {
 	MUSB_OTG		/* Mini-AB connector */
 };
 
+/* add MUSB_ prefix to avoid
+ * confilicts with musbfsh.h, gang
+ */
+
 enum musb_fifo_style {
-	MUSB_FIFO_RXTX,		/* add MUSB_ prefix to avoid confilicts with musbfsh.h, gang */
+	MUSB_FIFO_RXTX,
 	MUSB_FIFO_TX,
 	MUSB_FIFO_RX
 } __packed;
 
+/* add MUSB_ prefix to
+ * avoid confilicts
+ * with musbfsh.h, gang
+ */
+
 enum musb_buf_mode {
-	MUSB_BUF_SINGLE,	/* add MUSB_ prefix to avoid confilicts with musbfsh.h, gang */
+	MUSB_BUF_SINGLE,
 	MUSB_BUF_DOUBLE
 } __packed;
 
@@ -80,12 +89,12 @@ struct musb_hdrc_eps_bits {
 
 struct musb_hdrc_config {
 	struct musb_fifo_cfg *fifo_cfg;	/* board fifo configuration */
-	unsigned fifo_cfg_size;	/* size of the fifo configuration */
+	unsigned int fifo_cfg_size;/* size of the fifo configuration */
 
 	/* MUSB configuration-specific details */
 	unsigned multipoint:1;	/* multipoint device */
-	unsigned dyn_fifo:1 __deprecated;	/* supports dynamic fifo sizing */
-	unsigned soft_con:1 __deprecated;	/* soft connect required */
+	unsigned dyn_fifo:1 __deprecated;/* supports dynamic fifo sizing */
+	unsigned soft_con:1 __deprecated;/* soft connect required */
 	unsigned utm_16:1 __deprecated;	/* utm data witdh is 16 bits */
 	unsigned big_endian:1;	/* true if CPU uses big-endian */
 	unsigned mult_bulk_tx:1;	/* Tx ep required for multbulk pkts */

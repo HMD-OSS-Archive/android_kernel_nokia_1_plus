@@ -13,7 +13,7 @@
  */
 
 /dts-v1/;
-#include "mt6795.dts"
+#include "mt6795.dtsi"
 
 / {
 	model = "MediaTek MT6795 Evaluation Board";
@@ -26,7 +26,7 @@
 		serial3 = &uart3;
 	};
 
-	memory {
+	memory@40000000 {
 		device_type = "memory";
 		reg = <0 0x40000000 0 0x1e800000>;
 	};
@@ -39,4 +39,3 @@
 &uart0 {
 	status = "okay";
 };
-

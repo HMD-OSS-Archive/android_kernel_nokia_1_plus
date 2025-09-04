@@ -59,6 +59,15 @@ EXPORT_SYMBOL_GPL(usb_phy_generic_unregister);
 
 static int nop_set_suspend(struct usb_phy *x, int suspend)
 {
+	struct usb_phy_generic *nop = dev_get_drvdata(x->dev);
+
+	if (!IS_ERR(nop->clk)) {
+		if (suspend)
+			clk_disable_unprepare(nop->clk);
+		else
+			clk_prepare_enable(nop->clk);
+	}
+
 	return 0;
 }
 
@@ -118,7 +127,6 @@ static irqreturn_t nop_gpio_vbus_thread(int irq, void *data)
 		status = USB_EVENT_VBUS;
 		otg->state = OTG_STATE_B_PERIPHERAL;
 		nop->phy.last_event = status;
-		usb_gadget_vbus_connect(otg->gadget);
 
 		/* drawing a "unit load" is *always* OK, except for OTG */
 		nop_set_vbus_draw(nop, 100);
@@ -128,7 +136,6 @@ static irqreturn_t nop_gpio_vbus_thread(int irq, void *data)
 	} else {
 		nop_set_vbus_draw(nop, 0);
 
-		usb_gadget_vbus_disconnect(otg->gadget);
 		status = USB_EVENT_NONE;
 		otg->state = OTG_STATE_B_IDLE;
 		nop->phy.last_event = status;
@@ -142,14 +149,18 @@ static irqreturn_t nop_gpio_vbus_thread(int irq, void *data)
 int usb_gen_phy_init(struct usb_phy *phy)
 {
 	struct usb_phy_generic *nop = dev_get_drvdata(phy->dev);
+	int ret;
 
 	if (!IS_ERR(nop->vcc)) {
 		if (regulator_enable(nop->vcc))
 			dev_err(phy->dev, "Failed to enable power\n");
 	}
 
-	if (!IS_ERR(nop->clk))
-		clk_prepare_enable(nop->clk);
+	if (!IS_ERR(nop->clk)) {
+		ret = clk_prepare_enable(nop->clk);
+		if (ret)
+			return ret;
+	}
 
 	nop_reset(nop);
 
@@ -184,7 +195,11 @@ static int nop_set_peripheral(struct usb_otg *otg, struct usb_gadget *gadget)
 	}
 
 	otg->gadget = gadget;
-	otg->state = OTG_STATE_B_IDLE;
+	if (otg->state == OTG_STATE_B_PERIPHERAL)
+		atomic_notifier_call_chain(&otg->usb_phy->notifier,
+					   USB_EVENT_VBUS, otg->gadget);
+	else
+		otg->state = OTG_STATE_B_IDLE;
 	return 0;
 }
 
@@ -202,7 +217,6 @@ static int nop_set_host(struct usb_otg *otg, struct usb_bus *host)
 	return 0;
 }
 
-#define MYDBG(fmt, args...) pr_warn("USB_FIXME, <%s(), %d> " fmt, __func__, __LINE__, ## args)
 int usb_phy_gen_create_phy(struct device *dev, struct usb_phy_generic *nop,
 		struct usb_phy_generic_platform_data *pdata)
 {
@@ -219,21 +233,15 @@ int usb_phy_gen_create_phy(struct device *dev, struct usb_phy_generic *nop,
 			clk_rate = 0;
 
 		needs_vcc = of_property_read_bool(node, "vcc-supply");
-#ifndef CONFIG_FPGA_EARLY_PORTING
 		nop->gpiod_reset = devm_gpiod_get_optional(dev, "reset",
 							   GPIOD_ASIS);
 		err = PTR_ERR_OR_ZERO(nop->gpiod_reset);
 		if (!err) {
-			MYDBG("ORG\n");
 			nop->gpiod_vbus = devm_gpiod_get_optional(dev,
 							 "vbus-detect",
 							 GPIOD_ASIS);
 			err = PTR_ERR_OR_ZERO(nop->gpiod_vbus);
 		}
-		MYDBG("ORG, err<%d>\n", err);
-#else
-		MYDBG("SKIP\n");
-#endif
 	} else if (pdata) {
 		type = pdata->type;
 		clk_rate = pdata->clk_rate;
@@ -249,9 +257,8 @@ int usb_phy_gen_create_phy(struct device *dev, struct usb_phy_generic *nop,
 		nop->gpiod_vbus = pdata->gpiod_vbus;
 	}
 
-	if (err == -EPROBE_DEFER) {
+	if (err == -EPROBE_DEFER)
 		return -EPROBE_DEFER;
-	}
 	if (err) {
 		dev_err(dev, "Error requesting RESET or VBUS GPIO\n");
 		return err;
@@ -325,6 +332,8 @@ static int usb_phy_generic_probe(struct platform_device *pdev)
 				gpiod_to_irq(nop->gpiod_vbus), err);
 			return err;
 		}
+		nop->phy.otg->state = gpiod_get_value(nop->gpiod_vbus) ?
+			OTG_STATE_B_PERIPHERAL : OTG_STATE_B_IDLE;
 	}
 
 	nop->phy.init		= usb_gen_phy_init;

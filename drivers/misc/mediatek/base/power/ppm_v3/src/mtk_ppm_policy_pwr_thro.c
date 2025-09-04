@@ -51,7 +51,7 @@ static void ppm_pwrthro_status_change_cb(bool enable)
 {
 	FUNC_ENTER(FUNC_LV_POLICY);
 
-	ppm_ver("@%s: pwrthro policy status changed to %d\n", __func__, enable);
+	ppm_ver("pwrthro policy status changed to %d\n", enable);
 
 	FUNC_EXIT(FUNC_LV_POLICY);
 }
@@ -183,15 +183,18 @@ static int __init ppm_pwrthro_policy_init(void)
 	}
 
 #ifndef DISABLE_BATTERY_PERCENT_PROTECT
-	register_battery_percent_notify(&ppm_pwrthro_bat_per_protect, BATTERY_PERCENT_PRIO_CPU_L);
+	register_battery_percent_notify(&ppm_pwrthro_bat_per_protect,
+		BATTERY_PERCENT_PRIO_CPU_L);
 #endif
 
 #ifndef DISABLE_BATTERY_OC_PROTECT
-	register_battery_oc_notify(&ppm_pwrthro_bat_oc_protect, BATTERY_OC_PRIO_CPU_L);
+	register_battery_oc_notify(&ppm_pwrthro_bat_oc_protect,
+		BATTERY_OC_PRIO_CPU_L);
 #endif
 
 #ifndef DISABLE_LOW_BATTERY_PROTECT
-	register_low_battery_notify(&ppm_pwrthro_low_bat_protect, LOW_BATTERY_PRIO_CPU_L);
+	register_low_battery_notify(&ppm_pwrthro_low_bat_protect,
+		LOW_BATTERY_PRIO_CPU_L);
 #endif
 
 	ppm_info("@%s: register %s done!\n", __func__, pwrthro_policy.name);

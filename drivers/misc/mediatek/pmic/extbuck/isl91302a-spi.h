@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 MediaTek Inc.
+ * Copyright (C) 2017 MediaTek Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -66,20 +66,22 @@ struct isl91302a_chip {
 #define FLT_RECORDBUCK2_FLT_BUCK2_UV_M      (0x10)
 
 #ifdef CONFIG_MTK_TINYSYS_SSPM_SUPPORT
-static inline int isl91302a_read_byte(void *client, uint32_t addr, uint32_t *val)
+static inline int isl91302a_read_byte(void *client, uint32_t addr,
+				      uint32_t *val)
 {
-	pr_err("%s not support in sspm\n", __func__);
+	pr_notice("%s not support in sspm\n", __func__);
 	return -EINVAL;
 }
-static inline int isl91302a_write_byte(void *client, uint32_t addr, uint32_t value)
+static inline int isl91302a_write_byte(void *client, uint32_t addr,
+				       uint32_t value)
 {
-	pr_err("%s not support in sspm\n", __func__);
+	pr_notice("%s not support in sspm\n", __func__);
 	return -EINVAL;
 }
 static inline int isl91302a_assign_bit(void *client, uint32_t reg,
 					uint32_t mask, uint32_t data)
 {
-	pr_err("%s not support in sspm\n", __func__);
+	pr_notice("%s not support in sspm\n", __func__);
 	return -EINVAL;
 }
 #else
@@ -98,6 +100,6 @@ extern int isl91302a_regulator_deinit(struct isl91302a_chip *chip);
 	isl91302a_assign_bit(spi, reg, mask, 0x00)
 
 #define ISL91302A_INFO(format, args...) pr_info(format, ##args)
-#define ISL91302A_PR_ERR(format, args...)	pr_err(format, ##args)
+#define ISL91302A_pr_notice(format, args...)	pr_notice(format, ##args)
 
 #endif /* __LINUX_ISL91302A_SPI_H */

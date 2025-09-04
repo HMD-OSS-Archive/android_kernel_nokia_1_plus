@@ -1,22 +1,22 @@
 /*
-* Copyright (C) 2016 MediaTek Inc.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-* See http://www.gnu.org/licenses/gpl-2.0.html for more details.
-*/
+ * Copyright (C) 2016 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ */
 
 #ifndef __CCCI_MODEM_H__
 #define __CCCI_MODEM_H__
 
 #include <mt-plat/mtk_ccci_common.h>
 
-typedef enum {
+enum MD_FORCE_ASSERT_TYPE {
 	MD_FORCE_ASSERT_RESERVE = 0x000,
 	MD_FORCE_ASSERT_BY_MD_NO_RESPONSE	= 0x100,
 	MD_FORCE_ASSERT_BY_MD_SEQ_ERROR		= 0x200,
@@ -24,11 +24,12 @@ typedef enum {
 	MD_FORCE_ASSERT_BY_USER_TRIGGER		= 0x400,
 	MD_FORCE_ASSERT_BY_MD_WDT			= 0x500,
 	MD_FORCE_ASSERT_BY_AP_MPU			= 0x600,
-} MD_FORCE_ASSERT_TYPE;
+};
 
-typedef enum {
+enum MODEM_DUMP_FLAG {
 	DUMP_FLAG_CCIF = (1 << 0),
-	DUMP_FLAG_CLDMA = (1 << 1),	/* tricky part, use argument length as queue index */
+	/* tricky part, use argument length as queue index */
+	DUMP_FLAG_CLDMA = (1 << 1),
 	DUMP_FLAG_REG = (1 << 2),
 	DUMP_FLAG_SMEM_EXP = (1 << 3),
 	DUMP_FLAG_IMAGE = (1 << 4),
@@ -44,7 +45,7 @@ typedef enum {
 	DUMP_FLAG_SMEM_CCB_CTRL = (1<<14),
 	DUMP_FLAG_SMEM_CCB_DATA = (1<<15),
 	DUMP_FLAG_PCCIF_REG = (1 << 16),
-} MODEM_DUMP_FLAG;
+};
 
 enum {
 	MD_DBG_DUMP_INVALID = -1,
@@ -67,12 +68,12 @@ enum {
 	MD_DBG_DUMP_ALL = 0x7FFFFFFF,
 };
 
-typedef enum {
+enum MD_BOOT_MODE {
 	MD_BOOT_MODE_INVALID = 0,
 	MD_BOOT_MODE_NORMAL,
 	MD_BOOT_MODE_META,
 	MD_BOOT_MODE_MAX,
-} MD_BOOT_MODE;
+};
 
 enum {
 	MD_CFG_MDLOG_MODE,
@@ -129,15 +130,15 @@ struct ccci_mem_layout {
 	struct ccci_smem_region *md_bank4_cacheable;
 };
 
-typedef enum{
+enum{
 	CCCI_FEATURE_NOT_EXIST = 0,
 	CCCI_FEATURE_NOT_SUPPORT = 1,
 	CCCI_FEATURE_MUST_SUPPORT = 2,
 	CCCI_FEATURE_OPTIONAL_SUPPORT = 3,
 	CCCI_FEATURE_SUPPORT_BACKWARD_COMPAT = 4,
-} CCCI_RUNTIME_FEATURE_SUPPORT_TYPE;
+}; /* CCCI_RUNTIME_FEATURE_SUPPORT_TYPE */
 
-typedef enum{
+enum{
 	BOOT_INFO = 0,
 	EXCEPTION_SHARE_MEMORY,
 	CCIF_SHARE_MEMORY,
@@ -169,23 +170,27 @@ typedef enum{
 	CCISM_SHARE_MEMORY_EXP = 28,
 	MD_PHY_CAPTURE = 29,
 	MD_CONSYS_SHARE_MEMORY = 30,
+	MD_USIP_SHARE_MEMORY = 31,
+	MD_MTEE_SHARE_MEMORY_ENABLE = 32,
+	MD_POS_SHARE_MEMORY = 33,
+	UDC_RAW_SHARE_MEMORY = 34,
 	MD_RUNTIME_FEATURE_ID_MAX,
-} MD_CCCI_RUNTIME_FEATURE_ID;
+}; /* MD_CCCI_RUNTIME_FEATURE_ID; */
 
-typedef enum {
+enum AP_CCCI_RUNTIME_FEATURE_ID {
 	AT_CHANNEL_NUM = 0,
 	AP_RUNTIME_FEATURE_ID_MAX,
-} AP_CCCI_RUNTIME_FEATURE_ID;
+};
 
 /* Rutime data common part */
-typedef enum {
+enum MISC_FEATURE_STATE {
 	FEATURE_NOT_EXIST = 0,
 	FEATURE_NOT_SUPPORT,
 	FEATURE_SUPPORT,
 	FEATURE_PARTIALLY_SUPPORT,
-} MISC_FEATURE_STATE;
+};
 
-typedef enum {
+enum MISC_FEATURE_ID {
 	MISC_DMA_ADDR = 0,
 	MISC_32K_LESS,
 	MISC_RAND_SEED,
@@ -194,7 +199,7 @@ typedef enum {
 	MISC_MD_SEQ_CHECK,
 	MISC_MD_CLIB_TIME,
 	MISC_MD_C2K_ON,
-} MISC_FEATURE_ID;
+};
 
 struct ccci_feature_support {
 	u8 support_mask:4;
@@ -248,25 +253,25 @@ struct ap_query_md_feature_v2_1 {
 	u32 tail_pattern;
 };
 
-typedef enum {
+enum HIF_EX_STAGE {
 	HIF_EX_INIT = 0, /* interrupt */
 	HIF_EX_ACK, /* AP->MD */
 	HIF_EX_INIT_DONE, /* polling */
 	HIF_EX_CLEARQ_DONE, /* interrupt */
 	HIF_EX_CLEARQ_ACK, /* AP->MD */
 	HIF_EX_ALLQ_RESET, /* polling */
-} HIF_EX_STAGE;
+};
 
 enum {
 	P_CORE = 0,
 	VOLTE_CORE,
 };
 
-typedef enum {
+enum {
 	EXTERNAL_MODEM = 0,
 	INTERNAL_MODEM = 1,
 	MULTI_MD_MPU_SUPPORT = 2,
-} SHARE_MEMORY_SUPPORT;
+}; /* SHARE_MEMORY_SUPPORT */
 
 /* runtime data format uses EEMCS's version, NOT the same with legacy CCCI */
 struct modem_runtime {
@@ -275,10 +280,12 @@ struct modem_runtime {
 	u32 Platform_H;
 	u32 DriverVersion;	  /* 0x00000923 since W09.23 */
 	u32 BootChannel;		/* Channel to ACK AP with boot ready */
-	u32 BootingStartID;	 /* MD is booting. NORMAL_BOOT_ID or META_BOOT_ID */
+	/* MD is booting. NORMAL_BOOT_ID or META_BOOT_ID */
+	u32 BootingStartID;
 #if 1 /* not using in EEMCS */
 	u32 BootAttributes;	 /* Attributes passing from AP to MD Booting */
-	u32 BootReadyID;		/* MD response ID if boot successful and ready */
+	/* MD response ID if boot successful and ready */
+	u32 BootReadyID;
 	u32 FileShareMemBase;
 	u32 FileShareMemSize;
 	u32 ExceShareMemBase;
@@ -344,25 +351,29 @@ struct ccci_misc_info_element {
 	u32 feature[4];
 };
 
-typedef enum {
+enum {
 	MD_FLIGHT_MODE_NONE = 0,
 	MD_FLIGHT_MODE_ENTER = 1,
 	MD_FLIGHT_MODE_LEAVE = 2
-} FLIGHT_STAGE;
+};/* FLIGHT_STAGE */
 
 struct ccci_mem_layout *ccci_md_get_mem(int md_id);
-struct ccci_smem_region *ccci_md_get_smem_by_user_id(int md_id, enum SMEM_USER_ID user_id);
+struct ccci_smem_region *ccci_md_get_smem_by_user_id(int md_id,
+	enum SMEM_USER_ID user_id);
 void ccci_md_clear_smem(int md_id, int first_boot);
 int ccci_md_start(unsigned char md_id);
 int ccci_md_soft_start(unsigned char md_id, unsigned int sim_mode);
 int ccci_md_send_runtime_data(unsigned char md_id);
 int ccci_md_reset_pccif(unsigned char md_id);
-void ccci_md_dump_info(unsigned char md_id, MODEM_DUMP_FLAG flag, void *buff, int length);
+void ccci_md_dump_info(unsigned char md_id, enum MODEM_DUMP_FLAG flag,
+	void *buff, int length);
 int ccci_md_pre_stop(unsigned char md_id, unsigned int stop_type);
 int ccci_md_stop(unsigned char md_id, unsigned int stop_type);
 int ccci_md_soft_stop(unsigned char md_id, unsigned int sim_mode);
-int ccci_md_force_assert(unsigned char md_id, MD_FORCE_ASSERT_TYPE type, char *param, int len);
-int ccci_md_prepare_runtime_data(unsigned char md_id, unsigned char *data, int length);
+int ccci_md_force_assert(unsigned char md_id, enum MD_FORCE_ASSERT_TYPE type,
+	char *param, int len);
+int ccci_md_prepare_runtime_data(unsigned char md_id, unsigned char *data,
+	int length);
 void ccci_md_exception_handshake(unsigned char md_id, int timeout);
 int ccci_md_send_ccb_tx_notify(unsigned char md_id, int core_id);
 int ccci_md_set_boot_data(unsigned char md_id, unsigned int data[], int len);
@@ -385,7 +396,7 @@ struct ccci_sim_setting {
 struct ccci_per_md {
 	unsigned int md_capability;
 	unsigned int md_dbg_dump_flag;
-	MD_BOOT_MODE md_boot_mode;
+	enum MD_BOOT_MODE md_boot_mode;
 	char img_post_fix[IMG_POSTFIX_LEN];
 	struct ccci_image_info img_info[IMG_NUM];
 	unsigned int md_boot_data[16];
@@ -416,8 +427,10 @@ static inline int ccci_md_get_cap_by_id(int md_id)
 	return per_md_data->md_capability;
 }
 
-struct ccci_runtime_feature *ccci_md_get_rt_feature_by_id(unsigned char md_id, u8 feature_id, u8 ap_query_md);
+struct ccci_runtime_feature *ccci_md_get_rt_feature_by_id(unsigned char md_id,
+	u8 feature_id, u8 ap_query_md);
 
-int ccci_md_parse_rt_feature(unsigned char md_id, struct ccci_runtime_feature *rt_feature, void *data, u32 data_len);
+int ccci_md_parse_rt_feature(unsigned char md_id,
+	struct ccci_runtime_feature *rt_feature, void *data, u32 data_len);
 
 #endif
