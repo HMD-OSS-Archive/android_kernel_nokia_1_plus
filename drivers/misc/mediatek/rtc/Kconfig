@@ -1,0 +1,23 @@
+# RTC Related
+config MTK_RTC
+	bool "MediaTek Real Time Clock Support"
+	default n
+	help
+	  A real-time clock (RTC) is a computer
+	  clock (most often in the form of an
+	  integrated circuit) that keeps track
+	  of the current time.
+
+config FIH_FIRST_BOOT_SUPPORT
+	bool "FIH FIRST BOOT Support"
+	default n
+	help
+	  Fih first boot support for speed up 
+	  the first power on.
+
+config FIH_FIRST_BOOT_BITS
+	hex "FIH FIRST BOOT BITS OFFEST"
+	default 0x11
+	depends on FIH_FIRST_BOOT_SUPPORT
+        help
+          Fih first boot SPAR0 bits offset.

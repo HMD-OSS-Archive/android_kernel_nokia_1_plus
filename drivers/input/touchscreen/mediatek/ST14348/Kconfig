@@ -1,0 +1,10 @@
+#
+# Touchscreen driver configuration
+#
+config TOUCHSCREEN_MTK_ST14348_TS
+    bool "Focaltech Ts for Mediatek"
+    depends on I2C
+    default n
+    help
+      Say Y here if you have Stironix  touch panel.
+      If unsure, say N.

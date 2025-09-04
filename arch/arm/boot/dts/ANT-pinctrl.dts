@@ -1,0 +1,413 @@
+/*for ANT PINCTRL*/
+
+/*****************************************************************
+*GPIO standardization  Area
+
+*From:  	ANT.dts
+*Notice:	When MTK release new code,pls check and sync this file
+		carefully
+******************************************************************/
+
+/* sensor gpio standization */
+/*
+&pio {
+
+	gyro_intpin_cfg: gyropincfg {
+
+	    pins_cmd_dat {
+			pins = <PINMUX_GPIO5__FUNC_GPIO5>;
+			slew-rate = <0>;
+			bias-pull-down = <00>;
+		};
+	};
+
+	gyro_intpin_default: gyrodefaultcfg {
+
+	};
+};
+*/
+
+&pio {
+	alsps_intpin_cfg: alspspincfg_active {
+
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO1__FUNC_GPIO1>;
+			slew-rate = <0>;
+			bias-pull-up = <MTK_PUPD_SET_R1R0_01>;
+		};
+	};
+
+	alsps_intpin_default: alspsdefaultcfg {
+
+	};
+};
+
+/* sensor end */
+
+/* DISPSYS GPIO standardization */
+&pio {
+	mtkfb_pins_mode_te_gpio: mode_te_gpio {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO84__FUNC_DSI_TE>;
+		};
+	};
+
+	mtkfb_pins_mode_te_te: mode_te_te {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO84__FUNC_DSI_TE>;
+		};
+	};
+
+	mtkfb_pins_lcm_reset0: lcm_rst_out0_gpio_nouse {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO83__FUNC_LCM_RST>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+
+	mtkfb_pins_lcm_reset1: lcm_rst_out1_gpio_active {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO83__FUNC_LCM_RST>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	mtkfb_pins_lcd_bias_enp0: lcd_bias_enp0_gpio_nouse {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO122__FUNC_GPIO122>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	mtkfb_pins_lcd_bias_enp1: lcd_bias_enp1_gpio_nouse {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO122__FUNC_GPIO122>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+};
+/* DISPSYS GPIO standardization end */
+
+/* accdet start */
+&pio {
+	accdet_pins_default: accdetdefault {
+	};
+	accdet_pins_eint_as_int: accdeteint@0 {
+		pins_cmd_dat {
+			/*pins = <PINMUX_GPIO11__FUNC_GPIO11>;*/
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+};
+/* accdet end */
+
+/* CONSYS GPIO standardization */
+&pio {
+	consys_pins_default: consys_default {
+	};
+	gpslna_pins_init: gpslna@0 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO118__FUNC_GPIO118>;
+			slew-rate = <0>;
+			bias-disable;
+			output-low;
+		};
+	};
+	gpslna_pins_oh: gpslna@1 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO118__FUNC_GPIO118>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	gpslna_pins_ol: gpslna@2 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO118__FUNC_GPIO118>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+};
+
+/* IRTX GPIO Start */
+&pio {
+	/* IRTX GPIO Settings -Start */
+	/* default: GPIO0, output, high */
+	irtx_gpio_led_default:irtx_gpio_led_def@gpio12 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO12__FUNC_GPIO12>;
+			slew-rate = <1>;
+			bias-disable;
+			output-low;
+			input-schmitt-enable = <0>;
+		};
+	};
+
+	irtx_gpio_led_set:irtx_gpio_led_set@gpio12 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO12__FUNC_PWM1>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+}; /* IRTX GPIO Settings -End */
+
+/* UART GPIO */
+&pio {
+	/* UART GPIO Settings - Start */
+	/* UART0: rx set, rx clear, tx clear, tx clear*/
+	uart0_gpio_def_cfg:uart0gpiodefault {
+
+	};
+	uart0_rx_set_cfg:uart0_rx_active@gpio20 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO20__FUNC_UART0RX>;
+		};
+	};
+	uart0_rx_clr_cfg:uart0_rx_suspend@gpio20 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO20__FUNC_GPIO20>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	uart0_tx_set_cfg:uart0_tx_active@gpio21 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO21__FUNC_UART0TX>;
+		};
+	};
+	uart0_tx_clr_cfg:uart0_tx_suspend@gpio21 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO21__FUNC_GPIO21>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+};/* UART GPIO end */
+
+/* TOUCH start */
+&pio {
+	ctp_pins_default: eint0default {
+	};
+	ctp_pins_eint_as_int: eint@0 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO6__FUNC_GPIO6>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+	ctp_pins_eint_output0: eintoutput0_nouse {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO6__FUNC_GPIO6>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	ctp_pins_eint_output1: eintoutput1_nouse{
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO6__FUNC_GPIO6>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	ctp_pins_rst_output0: rstoutput0_nouse {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO119__FUNC_GPIO119>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	ctp_pins_rst_output1: rstoutput1_active {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO119__FUNC_GPIO119>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+};
+/* TOUCH end */
+
+/* CAMERA GPIO standardization */
+&pio {
+	camera_pins_cam0_rst0: cam0_suspend@0 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO29__FUNC_GPIO29>;
+			slew-rate = <1>; /*direction 0:in, 1:out*/
+			output-low;/*direction out used only. output_low or high*/
+		};
+	};
+	camera_pins_cam0_rst1: cam0_active@1 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO29__FUNC_GPIO29>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	camera_pins_cam0_pnd0: cam0_suspend@2 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO30__FUNC_GPIO30>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam0_pnd1: cam0_active@3 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO30__FUNC_GPIO30>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	camera_pins_cam1_rst0: cam1_suspend@0 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO22__FUNC_GPIO22>;
+			slew-rate = <1>; /*direction 0:in, 1:out*/
+			output-low;/*direction out used only. output_low or high*/
+		};
+	};
+	camera_pins_cam1_rst1: cam1_active@1 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO22__FUNC_GPIO22>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	camera_pins_cam1_pnd0: cam1_suspend@2 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO14__FUNC_GPIO14>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam1_pnd1: cam1_active@3 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO14__FUNC_GPIO14>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	camera_pins_cam_ldo_sub_vcamd_0: cam1_suspend@vcamd0 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO9__FUNC_GPIO9>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam_ldo_sub_vcamd_1: cam1_active@vcamd1 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO9__FUNC_GPIO9>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	camera_pins_cam0_mclk_on: camera_pins_cam0_mclk_active {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO126__FUNC_CMMCLK0>;
+		};
+	};
+	camera_pins_cam0_mclk_off: camera_pins_cam0_mclk_suspend {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO126__FUNC_GPIO126>;
+		};
+	};
+	camera_pins_cam1_mclk_on: camera_pins_cam1_mclk_active {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO127__FUNC_CMMCLK0>;
+		};
+	};
+	camera_pins_cam1_mclk_off: camera_pins_cam1_mclk_suspend{
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO127__FUNC_GPIO127>;
+		};
+	};
+	camera_pins_cam1_pre_evt_pnd0: cam1_suspend@4 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO23__FUNC_GPIO23>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	camera_pins_cam1_pre_evt_pnd1: cam1_active@5 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO23__FUNC_GPIO23>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	camera_pins_default: camdefault {
+	};
+};
+/* CAMERA GPIO end */
+
+/* AUDIO GPIO standardization */
+&pio {
+	aud_dat_mosi_off: aud_dat_mosi_off_suspend {
+		pins_cmd1_dat {
+			pins = <PINMUX_GPIO63__FUNC_GPIO63>;
+			input-enable;
+			slew-rate = <0>;
+			bias-disable;
+		};
+		pins_cmd2_dat {
+			pins = <PINMUX_GPIO64__FUNC_GPIO64>;
+			input-enable;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	aud_dat_mosi_on: aud_dat_mosi_on_active {
+		pins_cmd1_dat {
+			pins = <PINMUX_GPIO63__FUNC_AUD_DAT_MOSI0>;
+		};
+		pins_cmd2_dat {
+			pins = <PINMUX_GPIO64__FUNC_AUD_DAT_MOSI1>;
+		};
+	};
+
+	aud_dat_miso_off: aud_dat_miso_off_suspend {
+		pins_cmd1_dat {
+			pins = <PINMUX_GPIO67__FUNC_GPIO67>;
+			input-enable;
+			slew-rate = <0>;
+			bias-disable;
+		};
+		pins_cmd2_dat {
+			pins = <PINMUX_GPIO68__FUNC_GPIO68>;
+			input-enable;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	aud_dat_miso_on: aud_dat_miso_on_active {
+		pins_cmd1_dat {
+			pins = <PINMUX_GPIO67__FUNC_AUD_DAT_MISO0>;
+		};
+		pins_cmd2_dat {
+			pins = <PINMUX_GPIO68__FUNC_AUD_DAT_MISO1>;
+		};
+	};
+	aud_pins_extamp_high: audexamphigh_active {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO24__FUNC_GPIO24>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+	aud_pins_extamp_low: audexamplow_suspend {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO24__FUNC_GPIO24>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+
+};
+/* AUDIO end */
+
