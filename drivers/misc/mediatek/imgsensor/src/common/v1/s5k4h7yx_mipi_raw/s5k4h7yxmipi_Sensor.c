@@ -110,8 +110,8 @@ static imgsensor_info_struct imgsensor_info = {
 		.framelength = 2530,
 		.startx = 0,
 		.starty = 0,
-		.grabwindow_width = 1632,
-		.grabwindow_height = 1224,
+		.grabwindow_width = 3264,
+		.grabwindow_height = 2448,
 		.mipi_data_lp2hs_settle_dc = 85,
 		.max_framerate = 300,
 	},
@@ -189,7 +189,7 @@ static SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[5] =
 {
  { 3264, 2448,	  0,	0, 3264, 2448, 1632,  1224, 0000, 0000, 1632, 1224,	    0,	0, 1632, 1224}, // Preview
  { 3264, 2448,	  0,	0, 3264, 2448, 3264,  2448, 0000, 0000, 3264, 2448,	    0,	0, 3264, 2448}, // capture
- { 3264, 2448,	  0,	0, 3264, 2448, 1632,  1224, 0000, 0000, 1632, 1224,	    0,	0, 1632, 1224}, // video
+ { 3264, 2448,	  0,	0, 3264, 2448, 3264,  2448, 0000, 0000, 3264, 2448,	    0,	0, 3264, 2448}, // video
  { 3264, 2448,    0,    0, 3264, 2448,  640,   480, 0000, 0000,  640,  480,     0,  0,  640,  480}, // hight speed video
  { 3264, 2448,    0,    0, 3264, 2448, 1280,   720, 0000, 0000, 1280,  720,     0,  0, 1280,  720}, // slim video
 };// slim video
@@ -763,7 +763,7 @@ static void normal_video_setting(kal_uint16 currefps)
 	write_cmos_sensor_8(0X0112, 0X0A);
 	write_cmos_sensor_8(0X0113, 0X0A);
 	write_cmos_sensor_8(0X0114, 0X03);
-	write_cmos_sensor_8(0X3906, 0X00);
+	write_cmos_sensor_8(0X3906, 0X04);
 	write_cmos_sensor_8(0X0344, 0X00);
 	write_cmos_sensor_8(0X0345, 0X08);
 	write_cmos_sensor_8(0X0346, 0X00);
@@ -772,19 +772,31 @@ static void normal_video_setting(kal_uint16 currefps)
 	write_cmos_sensor_8(0X0349, 0XC7);
 	write_cmos_sensor_8(0X034A, 0X09);
 	write_cmos_sensor_8(0X034B, 0X97);
-	write_cmos_sensor_8(0X034C, 0X06);
-	write_cmos_sensor_8(0X034D, 0X60);
-	write_cmos_sensor_8(0X034E, 0X04);
-	write_cmos_sensor_8(0X034F, 0XC8);
-	write_cmos_sensor_8(0X0900, 0X01);
-	write_cmos_sensor_8(0X0901, 0X22);
+	write_cmos_sensor_8(0X034C, 0X0C);
+	write_cmos_sensor_8(0X034D, 0XC0);
+	write_cmos_sensor_8(0X034E, 0X09);
+	write_cmos_sensor_8(0X034F, 0X90);
+	write_cmos_sensor_8(0X0900, 0X00);
+	write_cmos_sensor_8(0X0901, 0X00);
 	write_cmos_sensor_8(0X0381, 0X01);
 	write_cmos_sensor_8(0X0383, 0X01);
 	write_cmos_sensor_8(0X0385, 0X01);
-	write_cmos_sensor_8(0X0387, 0X03);
+	write_cmos_sensor_8(0X0387, 0X01);
 	write_cmos_sensor_8(0X0101, 0X00);
-	write_cmos_sensor_8(0X0340, 0X09);
-	write_cmos_sensor_8(0X0341, 0XE2);
+
+	if(currefps==300){	//30fps
+		write_cmos_sensor_8(0X0340, 0X09);
+		write_cmos_sensor_8(0X0341, 0XE2);
+	}
+	else if(currefps==240){	//24fps
+		write_cmos_sensor_8(0X0340, 0X0C);
+		write_cmos_sensor_8(0X0341, 0X4E);
+	}
+	else{ //15fps
+		write_cmos_sensor_8(0X0340, 0X13);
+		write_cmos_sensor_8(0X0341, 0XC4);
+	}
+
 	write_cmos_sensor_8(0X0342, 0X0E);
 	write_cmos_sensor_8(0X0343, 0X68);
 	write_cmos_sensor_8(0X0200, 0X0D);
